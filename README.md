@@ -4,8 +4,8 @@
 
 > Seeds in DeFuzz have three types:
 
-1. probably buggy c file + compile command that directly to binary
-2. probably buggy c file + compile command that to asm(then real compile it to asm) + fine-tuning that asm + compile command that from asm to binary
+1. probably buggy c file + compile command that from c to binary
+2. probably buggy c file + compile command that from c to asm(then literally compile it to asm) + llm fine-tuning asm + compile command that from asm to binary
 3. probably buggy asm file + compile command that from asm to binary
 
 ---
