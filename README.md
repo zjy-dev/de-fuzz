@@ -24,7 +24,7 @@
     - adjust init seed pool mannualy
 5. pop a seed `s` from seed pool
 6. run s and record feedback `fb`(return code + stdout/stderr + logfile)
-7. let llm analyze info of `s` + `fb` and act conditionally:
+7. let llm analyze info of `s` + `fb` and act accordingly:
     <!-- TODO: May change to Multi-armed bandit later -->
     1. is a bug😊!!! -> record in detail -> `bug_cnt++` -> llm mutate `s` and push to seed pool
     2. not a bug -> let llm decide whether to discard `s` (is `s` meaningless?)
