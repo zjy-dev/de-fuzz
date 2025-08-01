@@ -1,0 +1,22 @@
+# 2025.7.23 一对一小结
+
+DeFuzz IDEA 讨论
+
+现在先聚焦前四步:
+
+1. prepare environment with podman and qemu
+2. build initial prompt `ip`:
+    可以用结构化的语言如 json 描述栈布局, 用伪代码描述防御策略
+3. feed `ip` to llm and store its "understanding" memory
+   引导llm生成能触发编译器片段的seed pattern(c or asm flip) + 自然语言形式的对 pattern 的描述
+   验证 pattern 总结的可行性(否则后续的一切都没有意义)
+4. initialize seed pool:
+    看 WhiteFox 源码看看初始种子到底是手写还是生成的
+
+
+**不去担心没有创新, 相信过程中会有不得不做的创新点**
+
+WhiteFox:
+1. Source Code -> Pesudo Code Pattern + NL Description 
+
+2. Pesudo Code Pattern + NL Description -> Init Seeds * 10

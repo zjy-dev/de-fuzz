@@ -65,7 +65,7 @@ func TestLoad_FileNotExists(t *testing.T) {
 	var cfg LLMConfig
 	err := Load("non_existent_config", &cfg)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Config File \"non_existent_config\" Not Found")
+	assert.Contains(t, err.Error(), "failed to read config file")
 }
 
 func TestLoad_EmptyFile(t *testing.T) {

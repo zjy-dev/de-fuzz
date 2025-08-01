@@ -1,23 +1,63 @@
-### `llm` Package Plan
+## Plan for `internal/llm` Module
 
-1.  **Purpose**: This package is responsible for abstracting all communication with the Large Language Model (LLM). It provides a standardized interface that the rest of the application can use, decoupling the core fuzzing logic from the specific LLM provider being used (e.g., Gemini, OpenAI, etc.).
+### 1. Objective
 
-2.  **Core Components**:
-    *   **`LLM` Interface**: This will be the central abstraction. It will define a set of methods that represent the key interactions with the LLM as required by the fuzzing algorithm.
-        *   `UnderstandPrompt(prompt string) (string, error)`: Sends the initial, detailed prompt (containing environment, defense strategy, etc.) to the LLM and returns a unique identifier for the resulting "understanding" or conversation context.
-        *   `GenerateInitialSeeds(ctxID string, n int) ([]seed.Seed, error)`: Using the context from a previous prompt, asks the LLM to generate `n` initial seeds.
-        *   `AnalyzeFeedback(ctxID string, s seed.Seed, feedback string) (*Analysis, error)`: Provides the LLM with a seed and its execution feedback, asking for an analysis of the outcome.
-        *   `MutateSeed(ctxID string, s seed.Seed) (*seed.Seed, error)`: Asks the LLM to mutate an existing seed to create a new variant for the seed pool.
+This module will abstract all interactions with Large Language Models (LLMs). It will provide a consistent interface for the rest of the application to perform key tasks like understanding fuzzing targets, generating seeds, analyzing execution feedback, and mutating seeds, regardless of the specific LLM provider being used.
 
-    *   **`Analysis` Struct**: A struct to hold the structured response from the `AnalyzeFeedback` method. It will contain fields like:
-        *   `IsBug`: A boolean indicating if the LLM identified a bug.
-        *   `Description`: A detailed explanation of the bug if one was found.
-        *   `ShouldDiscard`: A boolean indicating whether the LLM suggests discarding the seed as unproductive.
+### 2. Core Components
 
-    *   **Concrete Implementations**: In the future, concrete types that implement the `LLM` interface will be created (e.g., `geminiLLM`, `openAILLM`). These structs will handle the provider-specific details of API requests, authentication, and response parsing.
+#### a. `llm.go`: The Core Interface and Factory
 
-3.  **Dependencies**:
-    *   This package will depend on the `internal/seed` package for the `Seed` type.
+-   **`LLM` Interface**: Define a generic interface that all LLM clients must implement. This ensures that different LLMs can be used interchangeably.
+    ```go
+    package llm
 
-4.  **Configuration**:
-    *   Configuration details (API keys, model names, endpoints) will be managed externally (e.g., in the `configs` directory) and passed into the constructor functions for the concrete LLM implementations.
+    import "defuzz/internal/seed"
+
+    // LLM defines the interface for interacting with a Large Language Model.
+    type LLM interface {
+        // GetCompletion sends a raw prompt to the LLM and gets a direct response.
+        // This is the foundational method that other, more specific methods will use.
+        GetCompletion(prompt string) (string, error)
+
+        // Understand processes the initial prompt and returns the LLM's summary.
+        Understand(prompt string) (string, error)
+
+        // Generate creates a new seed based on the provided context.
+        Generate(ctx, seedType string) (*seed.Seed, error)
+
+        // Analyze interprets the feedback from a seed execution.
+        Analyze(ctx string, s *seed.Seed, feedback string) (string, error)
+
+        // Mutate modifies an existing seed to create a new variant.
+        Mutate(ctx string, s *seed.Seed) (*seed.Seed, error)
+    }
+    ```
+-   **`New()` Factory Function**: A constructor that reads configuration (via the `config` module) to determine which LLM implementation to instantiate (e.g., "deepseek", "openai"). It will return an object satisfying the `LLM` interface.
+
+#### b. `deepseek.go`: A Concrete Implementation
+
+-   **`DeepSeekClient` Struct**: This struct will hold the necessary configuration for the DeepSeek API, such as the API key and an `http.Client`.
+-   **Implementation of `LLM`**: The `DeepSeekClient` will implement all methods of the `LLM` interface.
+    -   The `GetCompletion` method will handle the direct API call and response parsing.
+    -   The other methods (`Understand`, `Generate`, `Analyze`, `Mutate`) will be responsible for constructing their specific prompts and then calling `GetCompletion` to get the result. They will then parse the raw string response from `GetCompletion` into the required return type (e.g., `*seed.Seed`).
+
+### 3. Configuration
+
+-   The `New()` factory will depend on the `config` module to fetch LLM settings from `configs/llm.yaml`. The configuration will specify the provider, model, and API key.
+    ```yaml
+    # configs/llm.yaml
+    provider: "deepseek"
+    model: "deepseek-coder"
+    api_key: "YOUR_API_KEY_HERE"
+    ```
+
+### 4. Testing (`llm_test.go`)
+
+-   **Factory Test**: Test the `New()` function to ensure it returns the correct client type based on mock configuration data.
+-   **Client Mocks**: Use an HTTP client mock (like `net/http/httptest`) to test the `DeepSeekClient` without making real network calls.
+-   **Interface Method Tests**: For each method, write a test to verify:
+    -   The correct, task-specific prompt is constructed.
+    -   The `GetCompletion` method is called with the right prompt.
+    -   The client correctly parses a successful response from `GetCompletion`.
+    -   The client handles errors gracefully.

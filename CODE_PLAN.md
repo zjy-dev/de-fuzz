@@ -1,135 +1,82 @@
-# DeFuzz - High-Level Code Plan
+# DeFuzz Code Plan
 
-This document provides a high-level overview of the DeFuzz project, its architecture, and the interaction between its different modules. It is intended to be a guide for developers to understand the overall design and workflow.
+This document outlines the comprehensive architectural plan for the DeFuzz application. It details the responsibilities of each module and the interactions between them.
 
-## 1. Core Objective
+## 1. Core Principle: Separation of Concerns
 
-DeFuzz is an AI-driven fuzzer designed to find bugs in software defense strategies. It uses a Large Language Model (LLM) to generate, mutate, and analyze test cases (seeds) to discover vulnerabilities in a target compiler's defense mechanisms.
+The application is divided into distinct modules, each with a single, well-defined responsibility. This is achieved through the extensive use of interfaces for dependencies, allowing for modularity, testability, and swappable implementations.
 
-## 2. Core Components & Workflow
+## 2. Module Breakdown (Logical Dependency Order)
 
-The application operates in two primary modes: `generate` and `fuzz`. The overall workflow is orchestrated by the `fuzz` package, which acts as the central controller.
+### `internal/config`
 
-### Component Interaction Flow
+- **Responsibility**: Loads and manages all external configurations (e.g., `llm.yaml`).
+- **Core Component**: A generic `Load` function that uses `viper` to parse YAML files from the `/configs` directory into Go structs.
+- **Key Interface**: None. Provides concrete structs.
 
-```mermaid
-graph TD
-    A[Start: CLI] --> Setup;
-    subgraph Setup
-        direction LR
-        B1[config: Load] --> B2{understanding.md Cached?};
-        B2 -- Yes --> B3[seed: Load Understanding];
-        B2 -- No --> B4[prompt: Build];
-        B4 --> B5[llm: Understand Prompt];
-        B5 --> B6[seed: Save Understanding];
-        B6 --> B3;
-    end
+### `internal/exec`
 
-    Setup --> C{Mode?};
-    C --> GenerateMode;
-    C --> FuzzMode;
+- **Responsibility**: Provides a robust and testable interface for executing external shell commands.
+- **Core Component**: `CommandExecutor` which is a concrete implementation of the `Executor` interface.
+- **Key Interface**: `Executor`, allowing consumers like the `vm` module to be tested with mocks.
 
-    subgraph GenerateMode
-        direction LR
-        D1[llm: Generate Seeds] --> D2[seed: Save to Disk];
-    end
+### `internal/vm`
 
-    subgraph FuzzMode
-        E1[vm: Create Container] --> E2[seed: Load Pool];
-        E2 --> E3{Loop};
-        E3 -- Has Seeds --> E4[Pop Seed];
-        E4 --> E5[Compile & Execute via vm];
-        E5 --> E6[analysis: Analyze Feedback];
-        E6 --> E7{Bug Found?};
-        E7 -- Yes --> E8[report: Save Bug];
-        E8 --> E9[llm: Mutate Seed];
-        E7 -- No --> E10{Discard?};
-        E10 -- No --> E9;
-        E9 -- Push New Seed --> E3;
-        E10 -- Yes --> E3;
-        E3 -- No Seeds Left --> E11[vm: Stop Container];
-        E11 --> F[End];
-    end
-```
+- **Responsibility**: Manages a sandboxed environment for compiling and executing seeds.
+- **Core Component**: `PodmanVM`, which uses the `exec.Executor` to run `podman` commands.
+- **Key Interface**: `VM`, which abstracts container operations like `Create`, `Run`, and `Stop`.
 
-## 3. Module Responsibilities & Dependencies
+### `internal/llm`
 
-The project is divided into several internal packages, each with a specific responsibility.
+- **Responsibility**: Abstracts all interactions with Large Language Models.
+- **Core Component**: `DeepSeekClient` (or other provider clients) that implements the `LLM` interface.
+- **Key Interface**: `LLM`, which defines a foundational `GetCompletion` method and higher-level methods like `Generate` and `Mutate`.
 
-- **`cmd/defuzz`**:
+### `internal/prompt`
 
-  - **Responsibility**: The application's entry point. Parses command-line flags (`-mode`, `-isa`, etc.) and calls the `fuzz` package to start the appropriate workflow.
-  - **Dependencies**: `internal/fuzz`
+- **Responsibility**: Centralizes all prompt engineering.
+- **Core Component**: `Builder`, which constructs specific prompts for different tasks (understanding, generation, mutation, analysis).
+- **Key Interface**: None. It is a concrete utility.
 
-- **`internal/fuzz`** (Orchestrator):
+### `internal/seed_executor`
 
-  - **Responsibility**: The central controller. Manages the high-level logic for both modes. It handles the caching logic for the LLM's understanding, initializes the `vm`, and orchestrates the main fuzzing loop.
-  - **Dependencies**: `config`, `prompt`, `llm`, `seed`, `compiler`, `vm`, `analysis`, `report`
+- **Responsibility**: Executes a seed within the VM. It prepares the environment, runs the seed's command, and returns the result.
+- **Core Component**: `DefaultExecutor`, which implements the `Executor` interface.
+- **Key Interface**: `Executor`, which defines the `Execute` method.
 
-- **`internal/config`**:
+### `internal/seed`
 
-  - **Responsibility**: Loads and provides access to configuration from YAML files in the `/configs` directory (e.g., `llm.yaml`).
-  - **Dependencies**: None
+- **Responsibility**: Manages the lifecycle of seeds, including their data structure, in-memory pool, and persistence to disk.
+- **Core Component**: `Seed` struct, `InMemoryPool` (implements `Pool`), and storage functions (`SaveSeed`, `LoadSeeds`, etc.).
+- **Key Interface**: `Pool`, for managing the collection of active seeds.
 
-- **`internal/prompt`**:
+### `internal/analysis`
 
-  - **Responsibility**: Constructs the detailed initial prompts for the LLM, combining information about the target ISA, defense strategy, and toolchain.
-  - **Dependencies**: None
+- **Responsibility**: Analyzes the result of a seed's execution to determine if a bug was found.
+- **Core Component**: `LLMAnalyzer`, which uses the `prompt` and `llm` modules to make a determination.
+- **Key Interface**: `Analyzer`, which defines the `AnalyzeResult` method.
 
-- **`internal/llm`**:
+### `internal/report`
 
-  - **Responsibility**: Manages all communication with the LLM. It processes the initial prompt to get an "understanding", generates seeds, analyzes feedback, and mutates seeds.
-  - **Dependencies**: `config`, `seed`
+- **Responsibility**: Generates and saves detailed bug reports.
+- **Core Component**: `FileReporter`, which creates Markdown reports from `analysis.Bug` objects.
+- **Key Interface**: `Reporter`, which defines the `Save` method.
 
-- **`internal/seed`**:
+### `internal/fuzz`
 
-  - **Responsibility**: Defines the data structure for a "seed". Manages the seed pool and handles saving/loading of seeds and the cached `understanding.md` file.
-  - **Dependencies**: None
+- **Responsibility**: The central orchestrator. Manages the high-level workflow for `generate` and `fuzz` modes.
+- **Core Component**: `Fuzzer`, which holds instances of all other modules and wires them together.
+- **Key Interface**: None. It is the top-level internal component.
 
-- **`internal/compiler`**:
+## 3. High-Level Workflow (`fuzz` mode)
 
-  - **Responsibility**: Determines the correct compilation command for a given seed. It does _not_ execute the command itself but rather requests the `vm` module to run the command.
-  - **Dependencies**: `vm`
-
-- **`internal/vm`**:
-
-  - **Responsibility**: Manages the lifecycle of the sandboxed container environment (e.g., using Podman). It creates the container at the start and provides functions to run arbitrary commands _inside_ it. It uses the `exec` module to make the `podman` calls on the host.
-  - **Dependencies**: `exec`
-
-- **`internal/exec`**:
-
-  - **Responsibility**: A low-level utility package for executing shell commands on the host. It is unaware of containers or the specifics of the commands it runs.
-  - **Dependencies**: None
-
-- **`internal/analysis`**:
-
-  - **Responsibility**: Interprets the feedback from a VM execution to determine if a bug has occurred. This logic may eventually be assisted by the LLM.
-  - **Dependencies**: None
-
-- **`internal/report`**:
-  - **Responsibility**: Saves detailed information about discovered bugs to disk for later review.
-  - **Dependencies**: None
-
-## 4. Data Flow
-
-1.  **Configuration & Setup**:
-
-    - The `fuzz` orchestrator loads settings from the `config` package.
-    - It checks for a cached `understanding.md` in the appropriate `initial_seeds/<isa>/<strategy>/` directory.
-    - **Cache Miss**: If the file doesn't exist, it uses the `prompt` module to build the initial prompt, has the `llm` process it, and then uses the `seed` module to save the result to `understanding.md`.
-    - **Cache Hit**: If the file exists, it's loaded directly, saving an expensive LLM call. This understanding is used as the context for the rest of the session.
-
-2.  **Generate Mode**:
-
-    - The `llm` is asked to generate initial seeds based on the established context.
-    - The `seed` module saves these to the `initial_seeds/` directory.
-
-3.  **Fuzz Mode**:
-    - **Setup**: The `fuzz` orchestrator initializes the `vm` module, which creates and starts a persistent container for the fuzzing session.
-    - **Loop Start**: `seed` loads the initial seeds into an in-memory pool.
-    - **Compilation**: `compiler` determines the correct build command for a seed and asks `vm` to execute it inside the container.
-    - **Execution**: The `fuzz` orchestrator asks `vm` to run the newly compiled binary inside the container.
-    - **Analysis**: The execution result (stdout, stderr, exit code) is captured by `vm` and passed to `analysis`. The `llm` may be consulted here, using its established context.
-    - **Reporting & Mutation**: If a bug is found, `report` saves it. The `llm` is then used to mutate the seed, and the new variant is added back to the pool.
-    - The loop continues until a bug quota is met or the seed pool is empty.
-    - **Cleanup**: The `fuzz` orchestrator directs the `vm` to stop and remove the container.
+1.  **Initialization**: The `main` function in `cmd/defuzz` instantiates all modules (reading `config`, creating `executors`, `vms`, `llms`, etc.) and injects them into a new `Fuzzer` instance.
+2.  **VM Setup**: `Fuzzer` calls `vm.Create()` to start the container.
+3.  **Load Context**: `Fuzzer` calls `seed.LoadUnderstanding()` and `seed.LoadSeeds()` to prepare the initial state.
+4.  **Fuzzing Loop**:
+    a. `Fuzzer` gets the next seed from the `seed.Pool`.
+    b. `Fuzzer` calls `compiler.Compile(seed, vm)`.
+    c. If compilation is successful, `Fuzzer` calls `vm.Run()` to execute the binary.
+    d. `Fuzzer` calls `analyzer.AnalyzeResult()` with the execution feedback.
+    e. If a bug is found, `Fuzzer` calls `reporter.Save()` and then uses the `llm` to `Mutate` the buggy seed into a new one, which is added to the pool.
+5.  **Cleanup**: `Fuzzer` calls `vm.Stop()` to destroy the container.

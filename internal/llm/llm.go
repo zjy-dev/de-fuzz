@@ -1,27 +1,38 @@
 package llm
 
-// import "defuzz/internal/seed"
+import (
+	"fmt"
 
-// // Analysis holds the structured analysis from the LLM about a seed's execution.
-// type Analysis struct {
-// 	IsBug         bool   // IsBug is true if the LLM identified a bug.
-// 	Description   string // Description contains an explanation of the bug.
-// 	ShouldDiscard bool   // ShouldDiscard is true if the LLM suggests discarding the seed.
-// }
+	"defuzz/internal/config"
+	"defuzz/internal/seed"
+)
 
-// // LLM defines the interface for interacting with a Large Language Model.
-// type LLM interface {
-// 	// UnderstandPrompt sends the initial, detailed prompt to the LLM and returns
-// 	// a unique context identifier for the conversation.
-// 	UnderstandPrompt(prompt string) (string, error)
+// LLM defines the interface for interacting with a Large Language Model.
+type LLM interface {
+	// GetCompletion sends a raw prompt to the LLM and gets a direct response.
+	GetCompletion(prompt string) (string, error)
 
-// 	// GenerateInitialSeeds asks the LLM to generate n initial seeds based on the
-// 	// provided context.
-// 	GenerateInitialSeeds(ctxID string, n int) ([]seed.Seed, error)
+	// Understand processes the initial prompt and returns the LLM's summary.
+	Understand(prompt string) (string, error)
 
-// 	// AnalyzeFeedback sends the seed and its execution feedback to the LLM for analysis.
-// 	AnalyzeFeedback(ctxID string, s seed.Seed, feedback string) (*Analysis, error)
+	// Generate creates a new seed based on the provided context.
+	Generate(prompt string, seedType seed.SeedType) (*seed.Seed, error)
 
-// 	// MutateSeed asks the LLM to mutate a given seed to create a new variant.
-// 	MutateSeed(ctxID string, s seed.Seed) (*seed.Seed, error)
-// }
+	// Analyze interprets the feedback from a seed execution.
+	Analyze(prompt string, s *seed.Seed, feedback string) (string, error)
+
+	// Mutate modifies an existing seed to create a new variant.
+	Mutate(prompt string, s *seed.Seed) (*seed.Seed, error)
+}
+
+// New creates a new LLM client based on the provided configuration.
+func New(cfg *config.Config) (LLM, error) {
+	switch cfg.LLM.Provider {
+	case "deepseek":
+		return NewDeepSeekClient(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.Endpoint), nil
+	// case "openai":
+	// return NewOpenAIClient(cfg.LLM.APIKey, cfg.LLM.Model), nil
+	default:
+		return nil, fmt.Errorf("unsupported llm provider: %s", cfg.LLM.Provider)
+	}
+}
