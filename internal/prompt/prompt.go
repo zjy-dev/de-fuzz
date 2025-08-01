@@ -17,7 +17,7 @@ func NewBuilder() *Builder {
 }
 
 // BuildUnderstandPrompt constructs the initial prompt for a given ISA and defense strategy.
-func (b *Builder) BuildUnderstandPrompt(isa, strategy, details string) (string, error) {
+func (b *Builder) BuildUnderstandPrompt(isa, strategy string) (string, error) {
 	if isa == "" || strategy == "" {
 		return "", fmt.Errorf("isa and strategy must be provided")
 	}
@@ -29,13 +29,8 @@ Your goal is to find bugs in a compiler's defense strategy.
 Target ISA: %s
 Defense Strategy: %s
 
-Here are the details of the vulnerability we are trying to reproduce:
----
-%s
----
-
-Please provide a detailed analysis and understanding of how to generate C code snippets that would effectively test the corner cases of the "%s" defense strategy on the "%s" architecture, based on the provided vulnerability details. This understanding will be used as context for all future requests.
-`, isa, strategy, details, strategy, isa)
+Please provide a detailed analysis and understanding of how to generate C code snippets that would effectively test the corner cases of the "%s" defense strategy on the "%s" architecture. This understanding will be used as context for all future requests.
+`, isa, strategy, strategy, isa)
 
 	return prompt, nil
 }
