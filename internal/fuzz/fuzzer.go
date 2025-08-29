@@ -77,12 +77,12 @@ func (f *Fuzzer) Generate() error {
 
 	fmt.Printf("Generating %d initial seeds...\n", f.cfg.Fuzzer.InitialSeeds)
 	for i := 0; i < f.cfg.Fuzzer.InitialSeeds; i++ {
-		genPrompt, err := f.prompt.BuildGeneratePrompt(f.llmContext, "c")
+		genPrompt, err := f.prompt.BuildGeneratePrompt(f.llmContext, string(seed.SeedTypeC))
 		if err != nil {
 			return fmt.Errorf("failed to build generate prompt: %w", err)
 		}
 
-		newSeed, err := f.llm.Generate(genPrompt, "c")
+		newSeed, err := f.llm.Generate(genPrompt, seed.SeedTypeC)
 		if err != nil {
 			fmt.Printf("Warning: LLM failed to generate seed %d: %v\n", i+1, err)
 			continue
@@ -142,14 +142,10 @@ func (f *Fuzzer) Fuzz() error {
 		fmt.Printf("Fuzzing with seed %s...\n", currentSeed.ID)
 
 		// a. Compile
-		compileRes, err := f.compiler.Compile(currentSeed, f.vm)
+		_, err := f.compiler.Compile(currentSeed.Content)
 		if err != nil {
 			fmt.Printf("  - Compilation failed: %v\n", err)
 			continue // Skip to next seed
-		}
-		if compileRes.ExitCode != 0 {
-			fmt.Printf("  - Compilation failed with exit code %d\n", compileRes.ExitCode)
-			continue
 		}
 
 		// b. Run

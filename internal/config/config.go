@@ -54,12 +54,8 @@ func Load(configFileName string, result interface{}) error {
 // LoadConfig loads the entire application configuration from all sources.
 func LoadConfig() (*Config, error) {
 	var cfg Config
-	if err := Load("llm", &cfg.LLM); err != nil {
+	if err := Load("llm", &cfg); err != nil {
 		return nil, err
-	}
-	if err := Load("fuzzer", &cfg.Fuzzer); err != nil {
-		// It's okay if the fuzzer config doesn't exist for all operations.
-		// We can rely on zero-values.
 	}
 	return &cfg, nil
 }

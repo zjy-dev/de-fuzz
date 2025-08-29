@@ -22,10 +22,14 @@ type mockLLM struct {
 	shouldErrorOnMutate   bool
 }
 
+func (m *mockLLM) GetCompletion(prompt string) (string, error) {
+	return "mock completion", nil
+}
+
 func (m *mockLLM) Understand(prompt string) (string, error) {
 	return "mock understanding", nil
 }
-func (m *mockLLM) Generate(ctx, seedType string) (*seed.Seed, error) {
+func (m *mockLLM) Generate(ctx string, seedType seed.SeedType) (*seed.Seed, error) {
 	if m.shouldErrorOnGenerate {
 		return nil, fmt.Errorf("llm generate error")
 	}
@@ -45,11 +49,11 @@ type mockCompiler struct {
 	shouldFailCompile bool
 }
 
-func (m *mockCompiler) Compile(s *seed.Seed, v vm.VM) (*vm.ExecutionResult, error) {
+func (m *mockCompiler) Compile(sourceCode string) (string, error) {
 	if m.shouldFailCompile {
-		return &vm.ExecutionResult{ExitCode: 1}, nil
+		return "", fmt.Errorf("compiler error")
 	}
-	return &vm.ExecutionResult{ExitCode: 0}, nil
+	return "/path/to/binary", nil
 }
 
 type mockVM struct {

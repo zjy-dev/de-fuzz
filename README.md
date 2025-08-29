@@ -54,23 +54,24 @@ For each defense startegy and ISA:
 
 ## Usage
 
-DeFuzz is a command-line tool with two primary modes of operation, controlled by the `--mode` flag.
+DeFuzz is a command-line tool with multiple subcommands.
 
-### Modes
+### `generate`
 
-1.  **Generate Mode (`--mode=generate`)**
-    This mode is used to generate the initial seed pool for a specific ISA and defense strategy. The generated seeds are saved to disk for manual review and adjustment before being used in the fuzzing mode.
+This command is used to generate the initial seed pool for a specific ISA and defense strategy.
 
-    ```bash
-    go run ./cmd/defuzz --mode=generate --isa=<target-isa> --strategy=<target-strategy>
-    ```
+**Usage:**
+```bash
+go run ./cmd/defuzz generate --isa <target-isa> --strategy <target-strategy> [flags]
+```
 
-2.  **Fuzzing Mode (`--mode=fuzz`)**
-    This is the default mode. It loads the manually approved seeds from disk and starts the main fuzzing loop.
+**Flags:**
+- `--isa`: (Required) Target ISA (e.g., `x86_64`).
+- `--strategy`: (Required) Defense strategy (e.g., `stackguard`).
+- `-o, --output`: Output directory for seeds (default: `initial_seeds`).
+- `-c, --count`: Number of seeds to generate (default: `1`).
+- `-t, --type`: Type of seed to generate (`c` or `asm`) (default: `c`).
 
-    ```bash
-    go run ./cmd/defuzz --mode=fuzz --isa=<target-isa> --strategy=<target-strategy>
-    ```
 
 ### Seed Storage
 
