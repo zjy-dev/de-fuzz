@@ -115,3 +115,22 @@ Respond with "BUG" if a bug is present, or "NO_BUG" if not.
 `, ctx, s.Type, s.Content, s.Makefile, feedback)
 	return prompt, nil
 }
+
+/*
+--- UPDATE CODE PLAN ---
+
+1.  **Create `readFileOrDefault` helper:**
+    -   Create a private helper function `readFileOrDefault(path string) (string, error)`.
+    -   This function will read the file at `path`.
+    -   If `os.IsNotExist(err)`, it will return `"Not available for now"` and `nil`.
+    -   For other errors, it will return `""` and the error.
+    -   If successful, it returns the file content as a string.
+
+2.  **Modify `BuildUnderstandPrompt`:**
+    -   Change the signature to `BuildUnderstandPrompt(isa, strategy, basePath string) (string, error)`.
+    -   Define paths for context files:
+        -   `stackLayoutPath := filepath.Join(basePath, "stack_layout.md")`
+        -   `sourceCodePath := filepath.Join(basePath, "defense_strategy.c")`
+    -   Call `readFileOrDefault` for both paths to get their content.
+    -   Update the prompt template to include new sections for "ISA Stack Layout" and "Defense Strategy Source Code", populating them with the content read from the files.
+*/

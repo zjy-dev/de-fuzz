@@ -11,6 +11,7 @@ Written in golang.
 A seed is a self-contained test case. It consists of source code (`c`, `asm`, or `go`) and an execution command.
 
 There are three initial types of seeds:
+
 1.  A C source file and a command to compile it to a binary.
 2.  A C source file and a command to compile it to assembly. The resulting assembly code can then be fine-tuned by the LLM and assembled into a binary.
 3.  An assembly source file and a command to assemble it to a binary.
@@ -61,17 +62,18 @@ DeFuzz is a command-line tool with multiple subcommands.
 This command is used to generate the initial seed pool for a specific ISA and defense strategy.
 
 **Usage:**
+
 ```bash
 go run ./cmd/defuzz generate --isa <target-isa> --strategy <target-strategy> [flags]
 ```
 
 **Flags:**
+
 - `--isa`: (Required) Target ISA (e.g., `x86_64`).
 - `--strategy`: (Required) Defense strategy (e.g., `stackguard`).
 - `-o, --output`: Output directory for seeds (default: `initial_seeds`).
 - `-c, --count`: Number of seeds to generate (default: `1`).
 - `-t, --type`: Type of seed to generate (`c` or `asm`) (default: `c`).
-
 
 ### Seed Storage
 
@@ -82,6 +84,7 @@ initial_seeds/<isa>/<defense_strategy>/
 ├── understanding.md
 └── <id>_<seed_type>/
     ├── exec.sh
+    ├── Makefile
     └── source.c (or source.s, source.go)
 ```
 
@@ -118,6 +121,7 @@ The project is structured to separate different logical components of the fuzzer
 - **`testdata/`**: Contains sample files and data required for running tests, such as example C/assembly source files.
 
 ## Work Flow
+
 - 2025-08-01: Updated seed plan to reflect the three seed types.
 - 2025-07-31: Created plan for the report module.
 - 2025-07-31: Reviewed and updated all module plans.
