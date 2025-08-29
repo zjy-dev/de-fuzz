@@ -2,6 +2,8 @@ package prompt
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"defuzz/internal/seed"
 )
@@ -16,21 +18,66 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
+// readFileOrDefault safely reads auxiliary context files.
+// If the file doesn't exist, it returns a default message and no error.
+// If any other error occurs, it returns the error.
+func readFileOrDefault(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "Not available for now", nil
+		}
+		return "", err
+	}
+	return string(content), nil
+}
+
 // BuildUnderstandPrompt constructs the initial prompt for a given ISA and defense strategy.
-func (b *Builder) BuildUnderstandPrompt(isa, strategy string) (string, error) {
+// It now includes additional context from auxiliary files if available.
+func (b *Builder) BuildUnderstandPrompt(isa, strategy, basePath string) (string, error) {
 	if isa == "" || strategy == "" {
 		return "", fmt.Errorf("isa and strategy must be provided")
 	}
 
-	prompt := fmt.Sprintf(`
-You are an expert security researcher specializing in compiler fuzzing.
-Your goal is to find bugs in a compiler's defense strategy.
+	// Read auxiliary context files
+	stackLayoutPath := filepath.Join(basePath, "stack_layout.md")
+	sourceCodePath := filepath.Join(basePath, "defense_strategy.c")
 
+	stackLayout, err := readFileOrDefault(stackLayoutPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read stack layout file: %w", err)
+	}
+
+	sourceCode, err := readFileOrDefault(sourceCodePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read defense strategy source code: %w", err)
+	}
+
+	prompt := fmt.Sprintf(`You are an expert security researcher specializing in compiler fuzzing.
+Your goal is to find bugs in a compiler's defense strategy implementation.
+
+[TARGET CONFIGURATION]
 Target ISA: %s
 Defense Strategy: %s
 
-Please provide a detailed analysis and understanding of how to generate C code snippets that would effectively test the corner cases of the "%s" defense strategy on the "%s" architecture. This understanding will be used as context for all future requests.
-`, isa, strategy, strategy, isa)
+[ISA Stack Layout]
+%s
+
+[Defense Strategy Source Code]
+%s
+
+[TASK]
+Based on the above information, provide a detailed analysis and understanding of how to generate effective test cases that would reveal vulnerabilities or corner cases in the "%s" defense strategy on the "%s" architecture.
+
+Your understanding should include:
+1. Key vulnerabilities or edge cases to target
+2. Specific code patterns that might bypass the defense
+3. Assembly-level considerations for the target ISA
+4. Compilation flags and techniques that might be relevant
+5. Expected behavior vs potential failure modes
+
+This understanding will be used as context for generating and mutating test seeds, so be thorough and technical.
+`, isa, strategy, stackLayout, sourceCode, strategy, isa)
 
 	return prompt, nil
 }

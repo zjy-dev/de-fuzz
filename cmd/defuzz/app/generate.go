@@ -57,7 +57,10 @@ Examples:
 				// If understanding.md doesn't exist, generate it
 				fmt.Printf("Understanding not found, generating LLM understanding for %s/%s...\n", isa, strategy)
 
-				understandPrompt, err := promptBuilder.BuildUnderstandPrompt(isa, strategy)
+				understandPrompt, err := promptBuilder.BuildUnderstandPrompt(isa, strategy, basePath)
+
+				fmt.Printf("Understand Prompt:\n%s\n", understandPrompt)
+
 				if err != nil {
 					return fmt.Errorf("failed to build understand prompt: %w", err)
 				}

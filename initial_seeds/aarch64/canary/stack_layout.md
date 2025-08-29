@@ -1,0 +1,13 @@
+- incoming stack arguments
+- callee-allocated save area for register varargs: space reserved by the callee to save incoming register arguments when using variable argument functions
+- local variables
+- padding
+- callee-saved registers
+- LR': saved link register, holds the return address of the current function
+- FP': saved frame pointer, used to restore the caller’s stack frame context
+- SVE vector registers: saved Scalable Vector Extension vector registers if used by the function
+- SVE predicate registers: saved Scalable Vector Extension predicate registers if used by the function
+- dynamic allocation: space dynamically allocated within the stack frame, e.g. for variable length arrays or alloca()
+- padding
+- outgoing stack arguments
+- stack pointer
