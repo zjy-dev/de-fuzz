@@ -99,8 +99,15 @@ echo "=== [3/4] Capturing coverage data with lcov... ==="
 cd $BUILDDIR
 lcov --capture --directory . --output-file coverage.info
 
-# --- Step 4(optional): Gen HTML report ---
-echo "=== [4/4] Generating HTML report... ==="
+# --- Step 4: Obtain the increase in coverage rate ---
+echo "=== [3/4] Merge and Diff ==="
+# assume you generate a new.info, and maintained a merged.info
+lcov --diff merged.info new.info --output-file diff.info # DIFF for increasement
+lcov -a coverage.info -a new.info -o merged.info # UNION
+
+
+# --- Step 5(optional): Gen HTML report ---
+echo "=== Generating HTML report... ==="
 genhtml coverage.info --output-directory $REPORTDIR
 ```
 
