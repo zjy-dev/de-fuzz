@@ -19,7 +19,6 @@ func NewGenerateCommand() *cobra.Command {
 		strategy string
 		output   string
 		count    int
-		seedType string
 	)
 
 	cmd := &cobra.Command{
@@ -28,9 +27,24 @@ func NewGenerateCommand() *cobra.Command {
 		Long: `This command generates an initial seed pool for a given target.
 It initializes the LLM's understanding of the target and creates a set of starting seeds.
 
+Each seed consists of:
+  - C source code (source.c)
+  - Makefile for compilation
+  - Run script (run.sh) for execution
+
+The generated seeds are ready for compilation and fuzzing in a containerized environment.
+
 Examples:
-  defuzz generate --isa x86_64 --strategy stackguard --count 5 --type c
-  defuzz generate --isa arm64 --strategy aslr --output ./my_seeds --type asm`,
+  # Generate 5 seeds for x86_64 with stack guard protection
+  defuzz generate --isa x86_64 --strategy stackguard --count 5
+
+  # Generate ARM64 seeds with ASLR and save to custom directory
+  defuzz generate --isa arm64 --strategy aslr --output ./my_seeds --count 3
+
+  # Generate single seed for RISC-V with CFI
+  defuzz generate --isa riscv64 --strategy cfi
+
+Note: Use './scripts/build-container.sh' to set up the fuzzing environment container.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 1. Load configuration
 			cfg, err := config.LoadConfig()
@@ -79,28 +93,15 @@ Examples:
 				fmt.Printf("Using existing understanding from %s\n", seed.GetUnderstandingPath(basePath))
 			}
 
-			// 6. Validate seed type
-			var seedTypeEnum seed.SeedType
-			switch seedType {
-			case "c":
-				seedTypeEnum = seed.SeedTypeC
-			case "c-asm":
-				seedTypeEnum = seed.SeedTypeCAsm
-			case "asm":
-				seedTypeEnum = seed.SeedTypeAsm
-			default:
-				return fmt.Errorf("invalid seed type: %s (valid types: c, c-asm, asm)", seedType)
-			}
-
-			// 7. Generate seeds
-			fmt.Printf("Generating %d seeds of type '%s'...\n", count, seedType)
+			// 6. Generate seeds
+			fmt.Printf("Generating %d seeds...\n", count)
 			for i := 0; i < count; i++ {
-				generatePrompt, err := promptBuilder.BuildGeneratePrompt(understanding, seedType)
+				generatePrompt, err := promptBuilder.BuildGeneratePrompt(basePath)
 				if err != nil {
 					return fmt.Errorf("failed to build generate prompt: %w", err)
 				}
 
-				newSeed, err := llmClient.Generate(generatePrompt, seedTypeEnum)
+				newSeed, err := llmClient.Generate(understanding, generatePrompt)
 				if err != nil {
 					return fmt.Errorf("failed to generate seed %d from LLM: %w", i+1, err)
 				}
@@ -128,7 +129,7 @@ Examples:
 					if s == nil {
 						break
 					}
-					fmt.Printf("  - %s_%s/\n", s.ID, s.Type)
+					fmt.Printf("  - %s/\n", s.ID)
 				}
 			}
 
@@ -145,7 +146,6 @@ Examples:
 	// Optional flags
 	cmd.Flags().StringVarP(&output, "output", "o", "initial_seeds", "Output directory for seeds")
 	cmd.Flags().IntVarP(&count, "count", "c", 1, "Number of seeds to generate")
-	cmd.Flags().StringVarP(&seedType, "type", "t", "c", "Type of seed to generate (c, c-asm, asm)")
 
 	return cmd
 }

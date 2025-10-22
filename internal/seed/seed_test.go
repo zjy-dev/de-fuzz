@@ -18,8 +18,15 @@ func TestInMemoryPool(t *testing.T) {
 	})
 
 	t.Run("should add and retrieve seeds", func(t *testing.T) {
-		s1 := &Seed{ID: "1", Type: SeedTypeC}
-		s2 := &Seed{ID: "2", Type: SeedTypeAsm}
+		testCases1 := []TestCase{
+			{RunningCommand: "./prog", ExpectedResult: "success"},
+		}
+		testCases2 := []TestCase{
+			{RunningCommand: "./prog -v", ExpectedResult: "verbose output"},
+		}
+
+		s1 := &Seed{ID: "1", Content: "int main(){}", TestCases: testCases1}
+		s2 := &Seed{ID: "2", Content: "int foo(){}", TestCases: testCases2}
 
 		pool.Add(s1)
 		pool.Add(s2)
@@ -53,28 +60,34 @@ func TestStorage(t *testing.T) {
 	})
 
 	t.Run("should save and load a single seed", func(t *testing.T) {
+		testCases := []TestCase{
+			{RunningCommand: "./prog", ExpectedResult: "success"},
+		}
 		s := &Seed{
-			ID:       "001",
-			Type:     SeedTypeC,
-			Content:  "int main() { return 0; }",
-			Makefile: "all:\n\tgcc source.c -o prog",
+			ID:        "001",
+			Content:   "int main() { return 0; }",
+			TestCases: testCases,
 		}
 		err := SaveSeed(basePath, s)
 		require.NoError(t, err)
 
 		// Verify directory and files exist
-		seedDir := filepath.Join(basePath, "001_c")
+		seedDir := filepath.Join(basePath, "001")
 		assert.DirExists(t, seedDir)
 		assert.FileExists(t, filepath.Join(seedDir, "source.c"))
-		assert.FileExists(t, filepath.Join(seedDir, "Makefile"))
+		assert.FileExists(t, filepath.Join(seedDir, "inputs.json"))
 	})
 
-	t.Run("should save and load different seed types", func(t *testing.T) {
-		// Test all three seed types
+	t.Run("should save and load different seeds", func(t *testing.T) {
+		// Test multiple seeds with different content
+		testCases1 := []TestCase{{RunningCommand: "./prog", ExpectedResult: "success"}}
+		testCases2 := []TestCase{{RunningCommand: "./prog", ExpectedResult: "hello"}}
+		testCases3 := []TestCase{{RunningCommand: "./prog", ExpectedResult: "segfault"}}
+
 		seeds := []*Seed{
-			{ID: "c001", Type: SeedTypeC, Content: "int main() { return 0; }", Makefile: "gcc source.c"},
-			{ID: "casm001", Type: SeedTypeCAsm, Content: ".text\n.global main\nmain:", Makefile: "gcc source.s"},
-			{ID: "asm001", Type: SeedTypeAsm, Content: ".section .text\nmain:", Makefile: "as source.s"},
+			{ID: "c001", Content: "int main() { return 0; }", TestCases: testCases1},
+			{ID: "c002", Content: "#include <stdio.h>\nint main() { printf(\"hello\"); }", TestCases: testCases2},
+			{ID: "c003", Content: "int main() { int x[10]; return x[20]; }", TestCases: testCases3},
 		}
 
 		for _, s := range seeds {
@@ -83,9 +96,9 @@ func TestStorage(t *testing.T) {
 		}
 
 		// Verify directories exist with correct naming
-		assert.DirExists(t, filepath.Join(basePath, "c001_c"))
-		assert.DirExists(t, filepath.Join(basePath, "casm001_c-asm"))
-		assert.DirExists(t, filepath.Join(basePath, "asm001_asm"))
+		assert.DirExists(t, filepath.Join(basePath, "c001"))
+		assert.DirExists(t, filepath.Join(basePath, "c002"))
+		assert.DirExists(t, filepath.Join(basePath, "c003"))
 	})
 
 	t.Run("should load multiple seeds", func(t *testing.T) {
@@ -93,9 +106,13 @@ func TestStorage(t *testing.T) {
 		os.RemoveAll(basePath)
 		os.MkdirAll(basePath, 0755)
 
-		s1 := &Seed{ID: "s1", Type: SeedTypeC, Content: "c1", Makefile: "m1"}
-		s2 := &Seed{ID: "s2", Type: SeedTypeAsm, Content: "asm2", Makefile: "m2"}
-		s3 := &Seed{ID: "s3", Type: SeedTypeCAsm, Content: "casm3", Makefile: "m3"}
+		testCases1 := []TestCase{{RunningCommand: "./prog1", ExpectedResult: "result1"}}
+		testCases2 := []TestCase{{RunningCommand: "./prog2", ExpectedResult: "result2"}}
+		testCases3 := []TestCase{{RunningCommand: "./prog3", ExpectedResult: "result3"}}
+
+		s1 := &Seed{ID: "s1", Content: "c1", TestCases: testCases1}
+		s2 := &Seed{ID: "s2", Content: "asm2", TestCases: testCases2}
+		s3 := &Seed{ID: "s3", Content: "casm3", TestCases: testCases3}
 		require.NoError(t, SaveSeed(basePath, s1))
 		require.NoError(t, SaveSeed(basePath, s2))
 		require.NoError(t, SaveSeed(basePath, s3))
@@ -116,11 +133,10 @@ func TestStorage(t *testing.T) {
 		assert.Contains(t, seeds, "s1")
 		assert.Contains(t, seeds, "s2")
 		assert.Contains(t, seeds, "s3")
-		assert.Equal(t, SeedTypeC, seeds["s1"].Type)
-		assert.Equal(t, SeedTypeAsm, seeds["s2"].Type)
-		assert.Equal(t, SeedTypeCAsm, seeds["s3"].Type)
 		assert.Equal(t, "c1", seeds["s1"].Content)
-		assert.Equal(t, "m2", seeds["s2"].Makefile)
+		assert.Equal(t, testCases1, seeds["s1"].TestCases)
+		assert.Equal(t, "asm2", seeds["s2"].Content)
+		assert.Equal(t, testCases2, seeds["s2"].TestCases)
 	})
 
 	t.Run("should return empty pool if base path does not exist", func(t *testing.T) {

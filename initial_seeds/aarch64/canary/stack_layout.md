@@ -1,3 +1,4 @@
+```
 - incoming stack arguments
 - callee-allocated save area for register varargs: space reserved by the callee to save incoming register arguments when using variable argument functions
 - local variables
@@ -11,3 +12,4 @@
 - padding
 - outgoing stack arguments
 - stack pointer
+```

@@ -2,6 +2,7 @@ package fuzz
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"defuzz/internal/analysis"
@@ -11,6 +12,7 @@ import (
 	"defuzz/internal/prompt"
 	"defuzz/internal/report"
 	"defuzz/internal/seed"
+	executor "defuzz/internal/seed_executor"
 	"defuzz/internal/vm"
 )
 
@@ -22,9 +24,10 @@ type Fuzzer struct {
 	llm      llm.LLM
 	seedPool seed.Pool
 	compiler compiler.Compiler
-	vm       vm.VM
+	executor seed_executor.Executor
 	analyzer analysis.Analyzer
 	reporter report.Reporter
+	vm       vm.VM
 
 	// Internal state
 	llmContext string // The "understanding" from the LLM
@@ -39,9 +42,10 @@ func NewFuzzer(
 	llm llm.LLM,
 	seedPool seed.Pool,
 	compiler compiler.Compiler,
-	vm vm.VM,
+	executor seed_executor.Executor,
 	analyzer analysis.Analyzer,
 	reporter report.Reporter,
+	vm vm.VM,
 ) *Fuzzer {
 	return &Fuzzer{
 		cfg:      cfg,
@@ -49,9 +53,10 @@ func NewFuzzer(
 		llm:      llm,
 		seedPool: seedPool,
 		compiler: compiler,
-		vm:       vm,
+		executor: executor,
 		analyzer: analyzer,
 		reporter: reporter,
+		vm:       vm,
 		basePath: fmt.Sprintf("initial_seeds/%s/%s", cfg.Fuzzer.ISA, cfg.Fuzzer.Strategy),
 	}
 }
@@ -59,7 +64,7 @@ func NewFuzzer(
 // Generate creates the initial understanding and seed pool.
 func (f *Fuzzer) Generate() error {
 	fmt.Println("Generating initial understanding...")
-	p, err := f.prompt.BuildUnderstandPrompt(f.cfg.Fuzzer.ISA, f.cfg.Fuzzer.Strategy)
+	p, err := f.prompt.BuildUnderstandPrompt(f.cfg.Fuzzer.ISA, f.cfg.Fuzzer.Strategy, f.basePath)
 	if err != nil {
 		return fmt.Errorf("failed to build understand prompt: %w", err)
 	}
@@ -70,29 +75,29 @@ func (f *Fuzzer) Generate() error {
 	}
 	f.llmContext = understanding
 
-	if err := seed.SaveUnderstanding(f.basePath, f.llmContext); err != nil {
-		return fmt.Errorf("failed to save understanding: %w", err)
-	}
-	fmt.Printf("Understanding saved to %s\n", seed.GetUnderstandingPath(f.basePath))
+	// if err := seed.SaveUnderstanding(f.basePath, f.llmContext); err != nil {
+	// 	return fmt.Errorf("failed to save understanding: %w", err)
+	// }
+	// fmt.Printf("Understanding saved to %s\n", seed.GetUnderstandingPath(f.basePath))
 
 	fmt.Printf("Generating %d initial seeds...\n", f.cfg.Fuzzer.InitialSeeds)
 	for i := 0; i < f.cfg.Fuzzer.InitialSeeds; i++ {
-		genPrompt, err := f.prompt.BuildGeneratePrompt(f.llmContext, string(seed.SeedTypeC))
+		genPrompt, err := f.prompt.BuildGeneratePrompt()
 		if err != nil {
 			return fmt.Errorf("failed to build generate prompt: %w", err)
 		}
 
-		newSeed, err := f.llm.Generate(genPrompt, seed.SeedTypeC)
+		newSeed, err := f.llm.Generate(f.llmContext, genPrompt)
 		if err != nil {
 			fmt.Printf("Warning: LLM failed to generate seed %d: %v\n", i+1, err)
 			continue
 		}
 		newSeed.ID = fmt.Sprintf("%03d", i+1)
 
-		if err := seed.SaveSeed(f.basePath, newSeed); err != nil {
-			fmt.Printf("Warning: failed to save seed %s: %v\n", newSeed.ID, err)
-			continue
-		}
+		// if err := seed.SaveSeed(f.basePath, newSeed); err != nil {
+		// 	fmt.Printf("Warning: failed to save seed %s: %v\n", newSeed.ID, err)
+		// 	continue
+		// }
 		fmt.Printf("  - Saved seed %s\n", newSeed.ID)
 	}
 
@@ -106,13 +111,13 @@ func (f *Fuzzer) Fuzz() error {
 
 	// 1. Setup
 	var err error
-	f.llmContext, err = seed.LoadUnderstanding(f.basePath)
+	// f.llmContext, err = seed.LoadUnderstanding(f.basePath)
 	if err != nil {
 		return fmt.Errorf("failed to load understanding: %w", err)
 	}
 	fmt.Println("Loaded understanding context.")
 
-	f.seedPool, err = seed.LoadSeeds(f.basePath)
+	// f.seedPool, err = seed.LoadSeeds(f.basePath)
 	if err != nil {
 		return fmt.Errorf("failed to load seeds: %w", err)
 	}
@@ -141,21 +146,40 @@ func (f *Fuzzer) Fuzz() error {
 		}
 		fmt.Printf("Fuzzing with seed %s...\n", currentSeed.ID)
 
-		// a. Compile
-		_, err := f.compiler.Compile(currentSeed.Content)
+		// a. Construct compile command path
+		compileCommandPath := filepath.Join(f.basePath, "compile_command.txt")
+
+		// b. Compile using the compiler directly
+		_, err := f.compiler.Compile(currentSeed, compileCommandPath)
 		if err != nil {
 			fmt.Printf("  - Compilation failed: %v\n", err)
-			continue // Skip to next seed
-		}
-
-		// b. Run
-		runRes, err := f.vm.Run("./a.out") // Assuming standard output name
-		if err != nil {
-			fmt.Printf("  - Execution failed: %v\n", err)
 			continue
 		}
 
-		// c. Analyze
+		// c. Execute each test case
+		var runRes []executor.ExecutionResult
+		for _, testCase := range currentSeed.TestCases {
+			// For now, we'll use a simple approach - just execute the compiled binary
+			// The test case's RunningCommand should be something like "./prog arg1 arg2"
+			result, err := f.vm.Run("./prog", testCase.RunningCommand)
+			if err != nil {
+				fmt.Printf("  - Execution failed for test case '%s': %v\n", testCase.RunningCommand, err)
+				continue
+			}
+
+			runRes = append(runRes, executor.ExecutionResult{
+				Stdout:   result.Stdout,
+				Stderr:   result.Stderr,
+				ExitCode: result.ExitCode,
+			})
+		}
+
+		if len(runRes) == 0 {
+			fmt.Printf("  - All test cases failed to execute\n")
+			continue
+		}
+
+		// d. Analyze
 		bug, err := f.analyzer.AnalyzeResult(currentSeed, runRes, f.llm, f.prompt, f.llmContext)
 		if err != nil {
 			fmt.Printf("  - Analysis failed: %v\n", err)
@@ -170,14 +194,14 @@ func (f *Fuzzer) Fuzz() error {
 				fmt.Printf("  - Warning: failed to save bug report: %v\n", err)
 			}
 
-			// d. Mutate
+			// c. Mutate
 			fmt.Println("  - Mutating seed...")
-			mutatePrompt, err := f.prompt.BuildMutatePrompt(f.llmContext, currentSeed)
+			mutatePrompt, err := f.prompt.BuildMutatePrompt(currentSeed)
 			if err != nil {
 				fmt.Printf("  - Warning: failed to build mutate prompt: %v\n", err)
 				continue
 			}
-			mutatedSeed, err := f.llm.Mutate(mutatePrompt, currentSeed)
+			mutatedSeed, err := f.llm.Mutate(f.llmContext, mutatePrompt, currentSeed)
 			if err != nil {
 				fmt.Printf("  - Warning: LLM failed to mutate seed: %v\n", err)
 				continue

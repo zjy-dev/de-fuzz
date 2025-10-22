@@ -1,17 +1,16 @@
 package seed
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 const (
 	understandingFile = "understanding.md"
 	sourceCFile       = "source.c"
-	sourceAsmFile     = "source.s"
-	makefile          = "Makefile"
+	inputsFile        = "inputs.json"
 )
 
 // GetUnderstandingPath returns the full path to the understanding.md file.
@@ -40,31 +39,25 @@ func LoadUnderstanding(basePath string) (string, error) {
 
 // SaveSeed saves a single seed to a new subdirectory.
 func SaveSeed(basePath string, s *Seed) error {
-	seedDir := filepath.Join(basePath, fmt.Sprintf("%s_%s", s.ID, s.Type))
+	seedDir := filepath.Join(basePath, s.ID)
 	if err := os.MkdirAll(seedDir, 0755); err != nil {
 		return fmt.Errorf("failed to create seed directory %s: %w", seedDir, err)
 	}
 
-	var sourceFileName string
-	switch s.Type {
-	case SeedTypeC:
-		sourceFileName = sourceCFile
-	case SeedTypeCAsm:
-		sourceFileName = sourceAsmFile
-	case SeedTypeAsm:
-		sourceFileName = sourceAsmFile
-	default:
-		return fmt.Errorf("unknown seed type: %s", s.Type)
-	}
-
-	sourcePath := filepath.Join(seedDir, sourceFileName)
+	// Save C source file
+	sourcePath := filepath.Join(seedDir, sourceCFile)
 	if err := os.WriteFile(sourcePath, []byte(s.Content), 0644); err != nil {
 		return fmt.Errorf("failed to write source file for seed %s: %w", s.ID, err)
 	}
 
-	makefile_path := filepath.Join(seedDir, makefile)
-	if err := os.WriteFile(makefile_path, []byte(s.Makefile), 0644); err != nil {
-		return fmt.Errorf("failed to write makefile for seed %s: %w", s.ID, err)
+	// Save test cases as inputs.json
+	inputsPath := filepath.Join(seedDir, inputsFile)
+	inputsData, err := json.MarshalIndent(s.TestCases, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal test cases for seed %s: %w", s.ID, err)
+	}
+	if err := os.WriteFile(inputsPath, inputsData, 0644); err != nil {
+		return fmt.Errorf("failed to write inputs file for seed %s: %w", s.ID, err)
 	}
 
 	return nil
@@ -87,47 +80,33 @@ func LoadSeeds(basePath string) (Pool, error) {
 			continue
 		}
 
-		dirName := entry.Name()
-		// Find the last underscore to separate ID from type
-		lastUnderscore := strings.LastIndex(dirName, "_")
-		if lastUnderscore == -1 {
-			continue // Not a valid seed directory name
-		}
-		id := dirName[:lastUnderscore]
-		seedType := dirName[lastUnderscore+1:]
+		id := entry.Name()
+		seedDir := filepath.Join(basePath, id)
 
-		seedDir := filepath.Join(basePath, dirName)
-		var sourceFileName string
-		seedTypeEnum := SeedType(seedType)
-		switch seedTypeEnum {
-		case SeedTypeC:
-			sourceFileName = sourceCFile
-		case SeedTypeCAsm:
-			sourceFileName = sourceAsmFile
-		case SeedTypeAsm:
-			sourceFileName = sourceAsmFile
-		default:
-			continue // Skip unknown types
-		}
-
-		sourcePath := filepath.Join(seedDir, sourceFileName)
+		// Load C source file
+		sourcePath := filepath.Join(seedDir, sourceCFile)
 		content, err := os.ReadFile(sourcePath)
 		if err != nil {
 			// Could log this error instead of failing completely
 			continue
 		}
 
-		makefile_path := filepath.Join(seedDir, makefile)
-		mf, err := os.ReadFile(makefile_path)
+		// Load test cases from inputs.json
+		inputsPath := filepath.Join(seedDir, inputsFile)
+		inputsData, err := os.ReadFile(inputsPath)
 		if err != nil {
 			continue
 		}
 
+		var testCases []TestCase
+		if err := json.Unmarshal(inputsData, &testCases); err != nil {
+			continue
+		}
+
 		pool.Add(&Seed{
-			ID:       id,
-			Type:     seedTypeEnum,
-			Content:  string(content),
-			Makefile: string(mf),
+			ID:        id,
+			Content:   string(content),
+			TestCases: testCases,
 		})
 	}
 

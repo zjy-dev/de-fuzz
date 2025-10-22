@@ -19,8 +19,8 @@ type ExecutionResult struct {
 type VM interface {
 	// Create sets up and starts the containerized environment.
 	Create() error
-	// Run executes an arbitrary command inside the running container.
-	Run(command ...string) (*ExecutionResult, error)
+	// Run executes a seed by running the binary with the provided run script.
+	Run(binaryPath, runScriptPath string) (*ExecutionResult, error)
 	// Stop halts and removes the container.
 	Stop() error
 }
@@ -59,12 +59,20 @@ func (p *PodmanVM) Create() error {
 	return nil
 }
 
-// Run executes a command inside the Podman container.
-func (p *PodmanVM) Run(command ...string) (*ExecutionResult, error) {
+// Run executes the run script inside the running container.
+func (p *PodmanVM) Run(binaryPath, runScriptPath string) (*ExecutionResult, error) {
 	if p.containerID == "" {
 		return nil, fmt.Errorf("vm is not created, cannot run command")
 	}
-	args := append([]string{"exec", p.containerID}, command...)
+	// The working directory is mounted, so we can directly execute the script.
+	// We need to make the script executable first.
+	chmodCmd := []string{"exec", p.containerID, "chmod", "+x", runScriptPath}
+	_, err := p.executor.Run("podman", chmodCmd...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make run script executable: %w", err)
+	}
+
+	args := []string{"exec", p.containerID, runScriptPath}
 	res, err := p.executor.Run("podman", args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute command in podman: %w", err)

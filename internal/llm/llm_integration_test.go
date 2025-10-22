@@ -119,26 +119,29 @@ func TestDeepSeekRealAPIIntegration(t *testing.T) {
 
 	t.Run("Generate_RealAPI", func(t *testing.T) {
 		prompt := "Generate a minimal C program with potential integer overflow. One line of code only."
-		newSeed, err := client.Generate(prompt, seed.SeedTypeC)
+		newSeed, err := client.Generate("system understanding", prompt)
 		if err != nil {
 			t.Logf("API call failed (this might be expected): %v", err)
 			return
 		}
 		assert.NotNil(t, newSeed)
-		assert.Equal(t, seed.SeedTypeC, newSeed.Type)
 		assert.NotEmpty(t, newSeed.Content)
 		t.Logf("Generated seed: %s", newSeed.Content)
 	})
 
 	t.Run("Analyze_RealAPI", func(t *testing.T) {
+		analyzeTestCases := []seed.TestCase{
+			{RunningCommand: "./test", ExpectedResult: "success"},
+		}
 		testSeed := &seed.Seed{
-			ID:      "test-seed",
-			Type:    "c",
-			Content: "int main() { int x = 2000000000; return x + x; }",
+			ID:        "test-seed",
+			Content:   "int main() { int x = 2000000000; return x + x; }",
+			Makefile:  "all:\n\tgcc -o test source.c",
+			TestCases: analyzeTestCases,
 		}
 		feedback := "Program returned: -294967296"
 
-		analysis, err := client.Analyze("Briefly analyze this overflow", testSeed, feedback)
+		analysis, err := client.Analyze("system understanding", "Briefly analyze this overflow", testSeed, feedback)
 		if err != nil {
 			t.Logf("API call failed (this might be expected): %v", err)
 			return
@@ -148,20 +151,22 @@ func TestDeepSeekRealAPIIntegration(t *testing.T) {
 	})
 
 	t.Run("Mutate_RealAPI", func(t *testing.T) {
+		mutateTestCases := []seed.TestCase{
+			{RunningCommand: "./prog", ExpectedResult: "42"},
+		}
 		originalSeed := &seed.Seed{
-			ID:       "original",
-			Type:     "c",
-			Content:  "int main() { return 42; }",
-			Makefile: "all:\n\tgcc source.c -o prog",
+			ID:        "original",
+			Content:   "int main() { return 42; }",
+			Makefile:  "all:\n\tgcc source.c -o prog",
+			TestCases: mutateTestCases,
 		}
 
-		mutatedSeed, err := client.Mutate("Change the return value only", originalSeed)
+		mutatedSeed, err := client.Mutate("system understanding", "Change the return value only", originalSeed)
 		if err != nil {
 			t.Logf("API call failed (this might be expected): %v", err)
 			return
 		}
 		assert.NotNil(t, mutatedSeed)
-		assert.Equal(t, originalSeed.Type, mutatedSeed.Type)
 		assert.NotEmpty(t, mutatedSeed.Content)
 		t.Logf("Original: %s", originalSeed.Content)
 		t.Logf("Mutated: %s", mutatedSeed.Content)

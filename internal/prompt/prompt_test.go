@@ -27,7 +27,7 @@ func TestBuilder_BuildUnderstandPrompt(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, prompt, "Target ISA: x86_64")
 		assert.Contains(t, prompt, "Defense Strategy: stackguard")
-		assert.Contains(t, prompt, "[ISA Stack Layout]")
+		assert.Contains(t, prompt, "[ISA Stack Layout of the target compiler]")
 		assert.Contains(t, prompt, "[Defense Strategy Source Code]")
 		assert.Contains(t, prompt, "Not available for now") // Default content when files don't exist
 	})
@@ -94,92 +94,72 @@ func TestReadFileOrDefault(t *testing.T) {
 
 func TestBuilder_BuildGeneratePrompt(t *testing.T) {
 	builder := NewBuilder()
-	ctx := "test context"
-	seedType := "c"
 
 	t.Run("should build a valid generate prompt", func(t *testing.T) {
-		prompt, err := builder.BuildGeneratePrompt(ctx, seedType)
+		prompt, err := builder.BuildGeneratePrompt("nothing")
 		require.NoError(t, err)
-		assert.Contains(t, prompt, "[CONTEXT]")
-		assert.Contains(t, prompt, ctx)
-		assert.Contains(t, prompt, `generate a new, complete, and valid seed of type "c"`)
-	})
-
-	t.Run("should return error if context is empty", func(t *testing.T) {
-		_, err := builder.BuildGeneratePrompt("", seedType)
-		assert.Error(t, err)
-	})
-
-	t.Run("should return error if seedType is empty", func(t *testing.T) {
-		_, err := builder.BuildGeneratePrompt(ctx, "")
-		assert.Error(t, err)
+		assert.Contains(t, prompt, "Generate a new, complete, and valid seed.")
+		assert.Contains(t, prompt, "source code")
+		assert.Contains(t, prompt, "Test Cases (json)")
+		assert.Contains(t, prompt, "source.c")
 	})
 }
 
 func TestBuilder_BuildMutatePrompt(t *testing.T) {
 	builder := NewBuilder()
-	ctx := "test context"
+	testCases := []seed.TestCase{
+		{RunningCommand: "./prog", ExpectedResult: "success"},
+	}
 	s := &seed.Seed{
-		Type:     "c",
-		Content:  "int main() { return 0; }",
-		Makefile: "all:\n\tgcc source.c -o prog",
+		Content:   "int main() { return 0; }",
+		TestCases: testCases,
 	}
 
 	t.Run("should build a valid mutate prompt", func(t *testing.T) {
-		prompt, err := builder.BuildMutatePrompt(ctx, s)
+		prompt, err := builder.BuildMutatePrompt(s)
 		require.NoError(t, err)
-		assert.Contains(t, prompt, "[CONTEXT]")
-		assert.Contains(t, prompt, ctx)
 		assert.Contains(t, prompt, "[EXISTING SEED]")
 		assert.Contains(t, prompt, s.Content)
-		assert.Contains(t, prompt, s.Makefile)
-	})
-
-	t.Run("should return error if context is empty", func(t *testing.T) {
-		_, err := builder.BuildMutatePrompt("", s)
-		assert.Error(t, err)
+		assert.Contains(t, prompt, "running command")
+		assert.Contains(t, prompt, "expected result")
+		assert.Contains(t, prompt, "system context")
 	})
 
 	t.Run("should return error if seed is nil", func(t *testing.T) {
-		_, err := builder.BuildMutatePrompt(ctx, nil)
+		_, err := builder.BuildMutatePrompt(nil)
 		assert.Error(t, err)
 	})
 }
 
 func TestBuilder_BuildAnalyzePrompt(t *testing.T) {
 	builder := NewBuilder()
-	ctx := "test context"
-	s := &seed.Seed{
-		Type:     "c",
-		Content:  "int main() { return 0; }",
-		Makefile: "all:\n\tgcc source.c -o prog",
+	testCases := []seed.TestCase{
+		{RunningCommand: "./prog", ExpectedResult: "success"},
 	}
+	s := &seed.Seed{
+		Content:   "int main() { return 0; }",
+		TestCases: testCases,
+	}
+
 	feedback := "exit code: 1"
 
 	t.Run("should build a valid analyze prompt", func(t *testing.T) {
-		prompt, err := builder.BuildAnalyzePrompt(ctx, s, feedback)
+		prompt, err := builder.BuildAnalyzePrompt(s, feedback)
 		require.NoError(t, err)
-		assert.Contains(t, prompt, "[CONTEXT]")
-		assert.Contains(t, prompt, ctx)
 		assert.Contains(t, prompt, "[SEED]")
 		assert.Contains(t, prompt, s.Content)
 		assert.Contains(t, prompt, "[EXECUTION FEEDBACK]")
 		assert.Contains(t, prompt, feedback)
-		assert.Contains(t, prompt, `Respond with "BUG" if a bug is present, or "NO_BUG" if not.`)
-	})
-
-	t.Run("should return error if context is empty", func(t *testing.T) {
-		_, err := builder.BuildAnalyzePrompt("", s, feedback)
-		assert.Error(t, err)
+		assert.Contains(t, prompt, "system context")
 	})
 
 	t.Run("should return error if seed is nil", func(t *testing.T) {
-		_, err := builder.BuildAnalyzePrompt(ctx, nil, feedback)
+		_, err := builder.BuildAnalyzePrompt(nil, feedback)
 		assert.Error(t, err)
 	})
 
 	t.Run("should return error if feedback is empty", func(t *testing.T) {
-		_, err := builder.BuildAnalyzePrompt(ctx, s, "")
+		_, err := builder.BuildAnalyzePrompt(s, "")
 		assert.Error(t, err)
 	})
 }

@@ -2,25 +2,18 @@ package seed
 
 import "sync"
 
-// SeedType defines the type of a seed.
-type SeedType string
-
-const (
-	// SeedTypeC represents a C source file compiled directly to a binary.
-	SeedTypeC SeedType = "c"
-	// SeedTypeCAsm represents a C source file compiled to assembly,
-	// which is then fine-tuned by the LLM before being compiled to a binary.
-	SeedTypeCAsm SeedType = "c-asm"
-	// SeedTypeAsm represents an assembly source file compiled to a binary.
-	SeedTypeAsm SeedType = "asm"
-)
+// TestCase represents a single execution command and its expected outcome.
+type TestCase struct {
+	RunningCommand string `json:"running command"`
+	ExpectedResult string `json:"expected result"`
+}
 
 // Seed represents a single test case for the fuzzer.
+// It contains the source code and a set of test cases.
 type Seed struct {
-	ID       string
-	Type     SeedType
-	Content  string
-	Makefile string
+	ID        string // Unique identifier for the seed
+	Content   string // C source code (source.c)
+	TestCases []TestCase
 }
 
 // Pool manages the collection of seeds for a fuzzing session.

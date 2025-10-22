@@ -16,12 +16,17 @@ func TestNew(t *testing.T) {
 	t.Run("should return DeepSeek client when provider is deepseek", func(t *testing.T) {
 		cfg := &config.Config{
 			LLM: config.LLMConfig{
-				Provider: "deepseek",
+				Provider:    "deepseek",
+				Temperature: 0.8,
 			},
 		}
 		llm, err := New(cfg)
 		require.NoError(t, err)
 		assert.IsType(t, &DeepSeekClient{}, llm)
+
+		// Verify temperature is correctly set
+		deepseekClient := llm.(*DeepSeekClient)
+		assert.Equal(t, 0.8, deepseekClient.GetTemperature())
 	})
 
 	t.Run("should return error for unsupported provider", func(t *testing.T) {
@@ -36,6 +41,20 @@ func TestNew(t *testing.T) {
 	})
 }
 
+func TestDeepSeekClient_GetCompletionWithSystem(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"choices": [{"message": {"content": "  system response  "}}]}`))
+	}))
+	defer server.Close()
+
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
+
+	completion, err := client.GetCompletionWithSystem("system context", "test prompt")
+	require.NoError(t, err)
+	assert.Equal(t, "system response", completion)
+}
+
 func TestDeepSeekClient_GetCompletion(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -43,7 +62,7 @@ func TestDeepSeekClient_GetCompletion(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
 
 	completion, err := client.GetCompletion("test prompt")
 	require.NoError(t, err)
@@ -56,7 +75,7 @@ func TestDeepSeekClient_GetCompletion_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
 
 	_, err := client.GetCompletion("test prompt")
 	require.Error(t, err)
@@ -70,7 +89,7 @@ func TestDeepSeekClient_Understand(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
 
 	result, err := client.Understand("test prompt")
 	require.NoError(t, err)
@@ -84,11 +103,10 @@ func TestDeepSeekClient_Generate(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
 
-	result, err := client.Generate("test prompt", seed.SeedTypeC)
+	result, err := client.Generate("system understanding", "test prompt")
 	require.NoError(t, err)
-	assert.Equal(t, seed.SeedTypeC, result.Type)
 	assert.Equal(t, "generated code content", result.Content)
 	assert.Contains(t, result.Makefile, "gcc")
 }
@@ -100,14 +118,18 @@ func TestDeepSeekClient_Analyze(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
+	testCases := []seed.TestCase{
+		{RunningCommand: "./test", ExpectedResult: "success"},
+	}
 	testSeed := &seed.Seed{
-		ID:      "test-seed",
-		Type:    "c",
-		Content: "int main() { return 0; }",
+		ID:        "test-seed",
+		Content:   "int main() { return 0; }",
+		Makefile:  "all:\n\tgcc -o test source.c",
+		TestCases: testCases,
 	}
 
-	result, err := client.Analyze("analyze this", testSeed, "execution feedback")
+	result, err := client.Analyze("system understanding", "analyze this", testSeed, "execution feedback")
 	require.NoError(t, err)
 	assert.Equal(t, "analysis result", result)
 }
@@ -119,18 +141,37 @@ func TestDeepSeekClient_Mutate(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
+	originalTestCases := []seed.TestCase{
+		{RunningCommand: "./test", ExpectedResult: "output"},
+	}
 	originalSeed := &seed.Seed{
-		ID:       "original-seed",
-		Type:     "c",
-		Content:  "original content",
-		Makefile: "original makefile",
+		ID:        "original-seed",
+		Content:   "original content",
+		Makefile:  "original makefile",
+		TestCases: originalTestCases,
 	}
 
-	result, err := client.Mutate("mutate this", originalSeed)
+	result, err := client.Mutate("system understanding", "mutate this", originalSeed)
 	require.NoError(t, err)
 	assert.Equal(t, originalSeed.ID, result.ID)
-	assert.Equal(t, originalSeed.Type, result.Type)
 	assert.Equal(t, "mutated code content", result.Content)
 	assert.Equal(t, originalSeed.Makefile, result.Makefile)
+}
+
+func TestNewDeepSeekClient_Temperature(t *testing.T) {
+	t.Run("should use provided temperature", func(t *testing.T) {
+		client := NewDeepSeekClient("test_key", "test_model", "http://test.com", 0.9)
+		assert.Equal(t, 0.9, client.GetTemperature())
+	})
+
+	t.Run("should use default temperature when zero provided", func(t *testing.T) {
+		client := NewDeepSeekClient("test_key", "test_model", "http://test.com", 0)
+		assert.Equal(t, 0.7, client.GetTemperature())
+	})
+
+	t.Run("should use default temperature when negative provided", func(t *testing.T) {
+		client := NewDeepSeekClient("test_key", "test_model", "http://test.com", -0.5)
+		assert.Equal(t, 0.7, client.GetTemperature())
+	})
 }

@@ -14,10 +14,11 @@ type Config struct {
 
 // LLMConfig holds the configuration for the Large Language Model.
 type LLMConfig struct {
-	Provider string `mapstructure:"provider"`
-	Model    string `mapstructure:"model"`
-	APIKey   string `mapstructure:"api_key"`
-	Endpoint string `mapstructure:"endpoint"`
+	Provider    string  `mapstructure:"provider"`
+	Model       string  `mapstructure:"model"`
+	APIKey      string  `mapstructure:"api_key"`
+	Endpoint    string  `mapstructure:"endpoint"`
+	Temperature float64 `mapstructure:"temperature"`
 }
 
 // FuzzerConfig holds the configuration for the fuzzer itself.

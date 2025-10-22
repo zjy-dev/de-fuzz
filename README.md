@@ -6,54 +6,105 @@ Written in golang.
 
 ## Idea
 
-### Seed Defination:
+### Seed Definition:
 
-A seed is a self-contained test case. It consists of source code (`c`, `asm`, or `go`) and an execution command.
+A seed is a self-contained test case consisting of:
 
-There are three initial types of seeds:
+```go
+// internal/seed/seed.go
+type Seed struct {
+	ID        string // Unique identifier for the seed
+	Content   string // C source code
+	TestCases []TestCase // Multiple TestCases for one seed
+}
+```
 
-1.  A C source file and a command to compile it to a binary.
-2.  A C source file and a command to compile it to assembly. The resulting assembly code can then be fine-tuned by the LLM and assembled into a binary.
-3.  An assembly source file and a command to assemble it to a binary.
+The compile commands are mannually written.
 
-After manual review and fine-tuning, the initial seeds are consolidated into two primary types for fuzzing efficiency: `c` and `asm`.
+### Mutation Principle
+
+Based on Coverage increasement.
+
+### Test Oracle
+
+Dynamical Testing.
+
+Run seeds -> get feedback(return codes + stdout/stderr(s) + logfiles) -> let LLM judge if there're bugs.
 
 ### Fuzzing Algorithm
 
 For each defense startegy and ISA:
 
-1. prepare environment with podman and qemu
-2. build initial prompt `ip`:
+1. Prepare environment with podman and qemu
+
+2. Build initial prompt `ip`:
 
    - current environment and toolchain
    - manually summarize defense startegy and stack layout of the ISA
    - manually summarize pesudo-code of the compiler source code about that startegy and ISA
    - also reserve source code as an "attachment" below
 
-   - concrate constrains
-   <!-- As a templete, stack layout can be json/struct... -->
+3. Feed `ip` to llm and store its "understanding" as memory
+   <!-- if llm does't understand your demands, then how to fuzz with llm? -->
 
-3. feed `ip` to llm and store its "understanding" memory
-   <!-- TODO: 引导llm生成能触发编译器片段的seed pattern(c or asm flip) + 自然语言形式的对 pattern 的描述 -->
-   <!-- 验证 pattern 总结的可行性 -->
-4. initialize seed pool:
+4. Initialize seed pool:
 
-   - let llm generate a valid initial seed <!-- TODO: Should be ?-shots ? -->
-   - adjust init seed mannualy
+   - let llm generate initial seed(s) || use official unit tests
+   - adjust init seeds mannualy
+   - run init seeds and record their coverage info
 
-5. pop a seed `s` from seed pool
-6. run s and record feedback `fb`(return code + stdout/stderr + logfile)
-7. let llm analyze info of `s` + `fb` and act accordingly:
+5. Pop seed `s` from seed pool
+
+6. Compile `s` and record coverage info
+
+   - if coverage rate increased then mutate `s` to `s'` and push `s'` to seed pool
+
+7. Oracle(s):
    <!-- TODO: May use Multi-armed bandit for mutation later -->
-   1. is a bug😊!!! -> record in detail -> `bug_cnt++` -> llm mutate `s` and push to seed pool
-   2. not a bug -> let llm decide whether to discard `s` (is `s` meaningless?)
-      - if not to discard, then mutate `s` and push to seed pool
-8. if
-   - `bug_cnt >= 3`, exit with success🤗!!!
-   - `seed pool is empty`, exit with fail😢.
-   - back to step 5😾.
+   - record if found a bug
 
-## Usage
+## Implementation
+
+### Coverage
+
+Use gcc's gcov ecosystem.
+
+The simplified workflow is below:
+
+```bash
+#!/bin/bash
+
+# --- Initial Folder Setup ---
+SRCDIR=/root/fuzz-coverage/gcc-release-gcc-12.2.0
+BUILDDIR=/root/fuzz-coverage/gcc-build
+REPORTDIR=/root/fuzz-coverage/coverage_report
+
+# --- Step 1: Recompile target compiler `tc` with coverage flags ---
+echo "=== [1/4] Configuring and Compiling GCC with coverage flags... ==="
+mkdir -p $BUILDDIR $REPORTDIR
+cd $BUILDDIR
+$SRCDIR/configure \
+    --enable-coverage \
+    --disable-bootstrap \
+    --enable-languages=c,c++
+make -j$(nproc)
+
+# --- Step 2: Run `tc` for .gcda ---
+echo "=== [2/4] Running instrumented GCC to generate coverage data... ==="
+echo 'int main() { return 0; }' > /tmp/test.c
+$BUILDDIR/gcc/xgcc -fstack-protector-strong -o /tmp/test.o -c /tmp/test.c
+
+# --- Step 3: Use lcov to handle coverage info ---
+echo "=== [3/4] Capturing coverage data with lcov... ==="
+cd $BUILDDIR
+lcov --capture --directory . --output-file coverage.info
+
+# --- Step 4(optional): Gen HTML report ---
+echo "=== [4/4] Generating HTML report... ==="
+genhtml coverage.info --output-directory $REPORTDIR
+```
+
+<!-- ## Usage
 
 DeFuzz is a command-line tool with multiple subcommands.
 
@@ -73,7 +124,8 @@ go run ./cmd/defuzz generate --isa <target-isa> --strategy <target-strategy> [fl
 - `--strategy`: (Required) Defense strategy (e.g., `stackguard`).
 - `-o, --output`: Output directory for seeds (default: `initial_seeds`).
 - `-c, --count`: Number of seeds to generate (default: `1`).
-- `-t, --type`: Type of seed to generate (`c` or `asm`) (default: `c`).
+
+**Note:** Before running the generate command, ensure you have set up the fuzzing environment using the provided container script: `./scripts/build-container.sh`
 
 ### Seed Storage
 
@@ -82,16 +134,19 @@ The `initial_seeds/` directory stores all data related to a specific fuzzing tar
 ```
 initial_seeds/<isa>/<defense_strategy>/
 ├── understanding.md
-└── <id>_<seed_type>/
-    ├── exec.sh
+└── <id>/
+    ├── source.c
     ├── Makefile
-    └── source.c (or source.s, source.go)
+    └── run.sh
 ```
 
 - **`<isa>`**: The target Instruction Set Architecture (e.g., `x86_64`).
 - **`<defense_strategy>`**: The defense strategy being fuzzed (e.g., `stackguard`).
 - **`understanding.md`**: A cached file containing the LLM's summary and understanding of the initial prompt. This is generated on the first run and reused to save time and API calls.
-- **`<id>_<seed_type>`**: A directory for each individual seed, containing its source code and execution command.
+- **`<id>`**: A directory for each individual seed, containing:
+  - **`source.c`**: The C source code for the seed
+  - **`Makefile`**: Build instructions and compilation flags
+  - **`run.sh`**: Execution script for testing the compiled binary
 
 ## Project Structure
 
@@ -122,6 +177,7 @@ The project is structured to separate different logical components of the fuzzer
 
 ## Work Flow
 
+- 2025-01-23: Updated documentation to reflect unified seed structure (C + Makefile + run.sh) and removed deprecated seed type parameter.
 - 2025-08-01: Updated seed plan to reflect the three seed types.
 - 2025-07-31: Created plan for the report module.
-- 2025-07-31: Reviewed and updated all module plans.
+- 2025-07-31: Reviewed and updated all module plans. -->

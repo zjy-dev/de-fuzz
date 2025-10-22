@@ -16,7 +16,7 @@ func BenchmarkDeepSeekClient_GetCompletion(b *testing.B) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -35,11 +35,11 @@ func BenchmarkDeepSeekClient_Generate(b *testing.B) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := client.Generate("generate code", seed.SeedTypeC)
+		_, err := client.Generate("system understanding", "generate code")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -54,16 +54,20 @@ func BenchmarkDeepSeekClient_Analyze(b *testing.B) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
+	testCases := []seed.TestCase{
+		{RunningCommand: "./test", ExpectedResult: "success"},
+	}
 	testSeed := &seed.Seed{
-		ID:      "bench-seed",
-		Type:    "c",
-		Content: "int main() { return 0; }",
+		ID:        "bench-seed",
+		Content:   "int main() { return 0; }",
+		Makefile:  "all:\n\tgcc -o test test.c",
+		TestCases: testCases,
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := client.Analyze("analyze this", testSeed, "feedback")
+		_, err := client.Analyze("system understanding", "analyze this", testSeed, "feedback")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -78,17 +82,20 @@ func BenchmarkDeepSeekClient_Mutate(b *testing.B) {
 	}))
 	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL)
+	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
+	mutateTestCases := []seed.TestCase{
+		{RunningCommand: "./prog", ExpectedResult: "output"},
+	}
 	testSeed := &seed.Seed{
-		ID:       "bench-seed",
-		Type:     "c",
-		Content:  "int main() { return 0; }",
-		Makefile: "all:\n\tgcc source.c -o prog",
+		ID:        "bench-seed",
+		Content:   "int main() { return 0; }",
+		Makefile:  "all:\n\tgcc source.c -o prog",
+		TestCases: mutateTestCases,
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := client.Mutate("mutate this", testSeed)
+		_, err := client.Mutate("system understanding", "mutate this", testSeed)
 		if err != nil {
 			b.Fatal(err)
 		}

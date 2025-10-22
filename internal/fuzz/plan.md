@@ -19,6 +19,7 @@ import (
     "defuzz/internal/prompt"
     "defuzz/internal/report"
     "defuzz/internal/seed"
+    "defuzz/internal/seed_executor"
     "defuzz/internal/vm"
 )
 
@@ -31,6 +32,7 @@ type Fuzzer struct {
     seedPool seed.Pool
     compiler compiler.Compiler
     vm       vm.VM
+    executor seed_executor.Executor
     analyzer analysis.Analyzer
     reporter report.Reporter
 
@@ -47,6 +49,7 @@ func NewFuzzer(
     seedPool seed.Pool,
     compiler compiler.Compiler,
     vm vm.VM,
+    executor seed_executor.Executor,
     analyzer analysis.Analyzer,
     reporter report.Reporter,
 ) *Fuzzer {
@@ -67,8 +70,8 @@ The `Fuzzer` will have two main public methods corresponding to the application'
     3.  **TODO**: Save the context to `understanding.md` using a `seed` module function (this function needs to be added to the `seed` package).
     4.  Loop a configured number of times:
         a. Call `prompt.BuildGeneratePrompt()` with the context.
-        b. Call `llm.Generate()` to create a new seed.
-        c. **TODO**: Save the new seed to disk using a `seed` module function.
+        b. Call `llm.Generate()` to create a new seed with multiple test cases.
+        c. **TODO**: Save the new seed to disk using a `seed` module function (this will create `source.c` and `inputs.json`).
 
 #### b. `Fuzz()` Method
 
@@ -81,8 +84,8 @@ The `Fuzzer` will have two main public methods corresponding to the application'
     2.  **Loop**: Continue as long as `seedPool.Next()` returns a seed and the bug quota is not met.
         a. Get the next `seed` from the pool.
         b. Call `compiler.Compile(seed, vm)`.
-        c. If compilation succeeds, call `vm.Run()` to execute the binary.
-        d. Call `analyzer.AnalyzeResult()` with the seed and execution feedback.
+        c. If compilation succeeds, call `executor.Execute(seed, vm)` to run all test cases.
+        d. Call `analyzer.AnalyzeResult()` with the seed and the execution results.
         e. If a `bug` is found:
             i. Increment `bugCount`.
             ii. Call `reporter.Save(bug)`.

@@ -53,100 +53,177 @@ func (b *Builder) BuildUnderstandPrompt(isa, strategy, basePath string) (string,
 		return "", fmt.Errorf("failed to read defense strategy source code: %w", err)
 	}
 
-	prompt := fmt.Sprintf(`You are an expert security researcher specializing in compiler fuzzing.
-Your goal is to find bugs in a compiler's defense strategy implementation.
+	prompt := fmt.Sprintf(`You are a world-class expert in cybersecurity, specializing in low-level exploitation and compiler security. You have a deep understanding of how compilers work, how security mitigations are implemented, and how they can be bypassed.
 
-[TARGET CONFIGURATION]
+Your mission is to craft a high-quality, detailed **System Prompt**. This prompt will be given to another AI assistant whose sole job is to generate and mutate C code to fuzz a compiler's security features. The effectiveness of the entire fuzzing process depends on the quality of your system prompt.
+
+**[CONTEXT]**
+
 Target ISA: %s
 Defense Strategy: %s
 
-[ISA Stack Layout]
+[ISA Stack Layout of the target compiler]
 %s
 
 [Defense Strategy Source Code]
 %s
 
-[TASK]
-Based on the above information, provide a detailed analysis and understanding of how to generate effective test cases that would reveal vulnerabilities or corner cases in the "%s" defense strategy on the "%s" architecture.
+**[YOUR TASK]**
 
-Your understanding should include:
-1. Key vulnerabilities or edge cases to target
-2. Specific code patterns that might bypass the defense
-3. Assembly-level considerations for the target ISA
-4. Compilation flags and techniques that might be relevant
-5. Expected behavior vs potential failure modes
+Analyze the provided context and generate a **System Prompt**. This prompt must be a comprehensive guide for the other AI. It should be structured to make the AI an expert on this specific fuzzing task.
 
-This understanding will be used as context for generating and mutating test seeds, so be thorough and technical.
+The generated System Prompt **MUST** contain the following sections:
+
+1.  **`+"`## Goal`"+`**: A clear and concise statement of the objective. (e.g., "Your goal is to generate and mutate C code to discover vulnerabilities in the '%s' defense strategy on the '%s' architecture.")
+
+2.  **`+"`## Core Concepts`"+`**: A detailed explanation of the defense strategy and the ISA's stack layout. You must synthesize the provided context, not just copy it. Explain *how* the defense works and what its theoretical weaknesses are.
+
+3.  **`+"`## Attack Vectors & Vulnerability Patterns`"+`**: This is the most critical section. Provide a bulleted list of specific, actionable attack ideas and C code patterns to try. Be creative and think like an attacker. Examples:
+    *   Integer overflows to bypass bounds checks.
+    *   Tricky pointer arithmetic to confuse alias analysis.
+    *   Using `+"`longjmp`"+` or other control-flow manipulation to skip security checks.
+    *   Exploiting format string vulnerabilities in novel ways.
+
+4.  **`+"`## Seed Generation & Mutation Rules`"+`**: Clear instructions for the AI on how to format its output. It must produce a complete C source file and a Makefile, as well as a run.sh, and mutations should be small and intelligent.
+
+**[OUTPUT INSTRUCTIONS]**
+
+-   You must only output the generated **System Prompt**.
+-   Do not include any other text, conversation, or explanations.
+-   The output should be formatted in Markdown.
 `, isa, strategy, stackLayout, sourceCode, strategy, isa)
 
 	return prompt, nil
 }
 
 // BuildGeneratePrompt constructs a prompt to generate a new seed.
-func (b *Builder) BuildGeneratePrompt(ctx, seedType string) (string, error) {
-	if ctx == "" || seedType == "" {
-		return "", fmt.Errorf("context and seedType must be provided")
+func (b *Builder) BuildGeneratePrompt(basePath string) (string, error) {
+
+	// Read auxiliary context files
+	stackLayoutPath := filepath.Join(basePath, "stack_layout.md")
+	stackLayout, err := readFileOrDefault(stackLayoutPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read stack layout file: %w", err)
 	}
 
-	prompt := fmt.Sprintf(`
-[CONTEXT]
-%s
-[/CONTEXT]
+	prompt := fmt.Sprintf(`Generate a new, complete, and valid seed.
+The seed must contain C source code and test cases.
+Please ensure the code has potential vulnerabilities that can be discovered through fuzzing.
 
-Based on the context provided, generate a new, complete, and valid seed of type "%s".
-The seed must contain both the source code and a Makefile for compilation.
-Respond with only the seed content in the format specified in the context.
-`, ctx, seedType)
+Requirements:
+- Provide complete C source code that compiles successfully.
+- The code will be saved as 'source.c' and compiled using a predefined command.
+- Include test cases in JSON format with running commands and expected results.
+- The code should be minimal but demonstrate a potential vulnerability.
+- Focus on the specific ISA and defense strategy from the system context.
+
+And the ISA Stack Layout for the target compiler:
+%s
+
+Format your response as:
+Source (c):
+---
+[source code here]
+---
+
+Test Cases (json):
+---
+[
+  {
+    "running command": "[command to run]",
+    "expected result": "[expected outcome]"
+  },
+  {
+    "running command": "[another command]",
+    "expected result": "[another expected outcome]"
+  }
+]
+---
+`, stackLayout)
 	return prompt, nil
 }
 
 // BuildMutatePrompt constructs a prompt to mutate an existing seed.
-func (b *Builder) BuildMutatePrompt(ctx string, s *seed.Seed) (string, error) {
-	if ctx == "" || s == nil {
-		return "", fmt.Errorf("context and seed must be provided")
+func (b *Builder) BuildMutatePrompt(s *seed.Seed) (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("seed must be provided")
 	}
 
+	// Convert test cases to JSON for display
+	testCasesJSON := "[\n"
+	for i, tc := range s.TestCases {
+		if i > 0 {
+			testCasesJSON += ",\n"
+		}
+		testCasesJSON += fmt.Sprintf(`  {
+    "running command": "%s",
+    "expected result": "%s"
+  }`, tc.RunningCommand, tc.ExpectedResult)
+	}
+	testCasesJSON += "\n]"
+
 	prompt := fmt.Sprintf(`
-[CONTEXT]
-%s
-[/CONTEXT]
-
 [EXISTING SEED]
-Source (%s):
+Source (c):
 ---
 %s
 ---
 
-Makefile:
+Test Cases (json):
 ---
 %s
 ---
 [/EXISTING SEED]
 
-Based on the context, mutate the existing seed to create a new variant that is more likely to find a bug.
-Respond with only the mutated seed content.
-`, ctx, s.Type, s.Content, s.Makefile)
+Based on the system context, mutate the existing seed to create a new variant that is more likely to find a bug.
+Please make focused changes that could expose different vulnerability patterns.
+
+Format your response as:
+Source (c):
+---
+[mutated source code here]
+---
+
+Test Cases (json):
+---
+[
+  {
+    "running command": "[command to run]",
+    "expected result": "[expected outcome]"
+  }
+]
+---
+`, s.Content, testCasesJSON)
 	return prompt, nil
 }
 
 // BuildAnalyzePrompt constructs a prompt to analyze execution feedback.
-func (b *Builder) BuildAnalyzePrompt(ctx string, s *seed.Seed, feedback string) (string, error) {
-	if ctx == "" || s == nil || feedback == "" {
-		return "", fmt.Errorf("context, seed, and feedback must be provided")
+func (b *Builder) BuildAnalyzePrompt(s *seed.Seed, feedback string) (string, error) {
+	if s == nil || feedback == "" {
+		return "", fmt.Errorf("seed and feedback must be provided")
 	}
 
+	// Convert test cases to JSON for display
+	testCasesJSON := "[\n"
+	for i, tc := range s.TestCases {
+		if i > 0 {
+			testCasesJSON += ",\n"
+		}
+		testCasesJSON += fmt.Sprintf(`  {
+    "running command": "%s",
+    "expected result": "%s"
+  }`, tc.RunningCommand, tc.ExpectedResult)
+	}
+	testCasesJSON += "\n]"
+
 	prompt := fmt.Sprintf(`
-[CONTEXT]
-%s
-[/CONTEXT]
-
 [SEED]
-Source (%s):
+Source (c):
 ---
 %s
 ---
 
-Makefile:
+Test Cases (json):
 ---
 %s
 ---
@@ -156,10 +233,14 @@ Makefile:
 %s
 [/EXECUTION FEEDBACK]
 
-Analyze the execution feedback in the provided context.
-Determine if a bug was found.
-Respond with "BUG" if a bug is present, or "NO_BUG" if not.
-`, ctx, s.Type, s.Content, s.Makefile, feedback)
+Based on the system context and the execution feedback above, analyze what happened during the execution.
+Provide insights about:
+1. What vulnerability or behavior was triggered
+2. Whether this is the expected result
+3. Suggestions for further exploration
+
+Please provide a concise but informative analysis.
+`, s.Content, testCasesJSON, feedback)
 	return prompt, nil
 }
 
