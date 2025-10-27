@@ -8,7 +8,9 @@ import (
 	"defuzz/internal/analysis"
 	"defuzz/internal/compiler"
 	"defuzz/internal/config"
+	"defuzz/internal/coverage"
 	"defuzz/internal/llm"
+	"defuzz/internal/oracle"
 	"defuzz/internal/prompt"
 	"defuzz/internal/report"
 	"defuzz/internal/seed"
@@ -24,10 +26,12 @@ type Fuzzer struct {
 	llm      llm.LLM
 	seedPool seed.Pool
 	compiler compiler.Compiler
-	executor seed_executor.Executor
+	executor executor.Executor
 	analyzer analysis.Analyzer
 	reporter report.Reporter
 	vm       vm.VM
+	coverage coverage.Coverage // NEW: Coverage tracker
+	oracle   oracle.Oracle     // NEW: Bug oracle
 
 	// Internal state
 	llmContext string // The "understanding" from the LLM
@@ -42,10 +46,12 @@ func NewFuzzer(
 	llm llm.LLM,
 	seedPool seed.Pool,
 	compiler compiler.Compiler,
-	executor seed_executor.Executor,
+	exec executor.Executor,
 	analyzer analysis.Analyzer,
 	reporter report.Reporter,
 	vm vm.VM,
+	coverage coverage.Coverage, // NEW: Coverage parameter
+	oracle oracle.Oracle, // NEW: Oracle parameter
 ) *Fuzzer {
 	return &Fuzzer{
 		cfg:      cfg,
@@ -53,10 +59,12 @@ func NewFuzzer(
 		llm:      llm,
 		seedPool: seedPool,
 		compiler: compiler,
-		executor: executor,
+		executor: exec,
 		analyzer: analyzer,
 		reporter: reporter,
 		vm:       vm,
+		coverage: coverage,
+		oracle:   oracle,
 		basePath: fmt.Sprintf("initial_seeds/%s/%s", cfg.Fuzzer.ISA, cfg.Fuzzer.Strategy),
 	}
 }
@@ -82,7 +90,7 @@ func (f *Fuzzer) Generate() error {
 
 	fmt.Printf("Generating %d initial seeds...\n", f.cfg.Fuzzer.InitialSeeds)
 	for i := 0; i < f.cfg.Fuzzer.InitialSeeds; i++ {
-		genPrompt, err := f.prompt.BuildGeneratePrompt()
+		genPrompt, err := f.prompt.BuildGeneratePrompt(f.basePath)
 		if err != nil {
 			return fmt.Errorf("failed to build generate prompt: %w", err)
 		}
@@ -105,7 +113,7 @@ func (f *Fuzzer) Generate() error {
 	return nil
 }
 
-// Fuzz runs the main fuzzing loop.
+// Fuzz runs the main fuzzing loop with coverage-guided mutation and oracle-based bug detection.
 func (f *Fuzzer) Fuzz() error {
 	fmt.Println("Starting fuzzing loop...")
 
@@ -146,28 +154,45 @@ func (f *Fuzzer) Fuzz() error {
 		}
 		fmt.Printf("Fuzzing with seed %s...\n", currentSeed.ID)
 
-		// a. Construct compile command path
-		compileCommandPath := filepath.Join(f.basePath, "compile_command.txt")
+		// a. Save seed to a directory for compilation
+		seedPath := filepath.Join(f.basePath, currentSeed.ID)
 
-		// b. Compile using the compiler directly
-		_, err := f.compiler.Compile(currentSeed, compileCommandPath)
+		// b. Measure coverage
+		fmt.Println("  - Measuring coverage...")
+		newCovInfo, err := f.coverage.Measure(seedPath)
 		if err != nil {
-			fmt.Printf("  - Compilation failed: %v\n", err)
+			fmt.Printf("  - Coverage measurement failed: %v\n", err)
 			continue
 		}
 
-		// c. Execute each test case
-		var runRes []executor.ExecutionResult
+		// c. Check if coverage increased
+		coverageIncreased, err := f.coverage.HasIncreased(newCovInfo)
+		if err != nil {
+			fmt.Printf("  - Coverage comparison failed: %v\n", err)
+			continue
+		}
+
+		if !coverageIncreased {
+			fmt.Println("  - No coverage increase, skipping seed.")
+			continue
+		}
+
+		fmt.Println("  - Coverage increased! Merging and continuing...")
+		if err := f.coverage.Merge(newCovInfo); err != nil {
+			fmt.Printf("  - Warning: failed to merge coverage: %v\n", err)
+		}
+
+		// d. Execute each test case
+		var runRes []oracle.Result
 		for _, testCase := range currentSeed.TestCases {
-			// For now, we'll use a simple approach - just execute the compiled binary
-			// The test case's RunningCommand should be something like "./prog arg1 arg2"
+			// Execute the compiled binary via VM
 			result, err := f.vm.Run("./prog", testCase.RunningCommand)
 			if err != nil {
 				fmt.Printf("  - Execution failed for test case '%s': %v\n", testCase.RunningCommand, err)
 				continue
 			}
 
-			runRes = append(runRes, executor.ExecutionResult{
+			runRes = append(runRes, oracle.Result{
 				Stdout:   result.Stdout,
 				Stderr:   result.Stderr,
 				ExitCode: result.ExitCode,
@@ -179,41 +204,62 @@ func (f *Fuzzer) Fuzz() error {
 			continue
 		}
 
-		// d. Analyze
-		bug, err := f.analyzer.AnalyzeResult(currentSeed, runRes, f.llm, f.prompt, f.llmContext)
+		// e. Use Oracle to check for bugs
+		fmt.Println("  - Analyzing execution with oracle...")
+		bugFound, description, err := f.oracle.Analyze(currentSeed, runRes)
 		if err != nil {
-			fmt.Printf("  - Analysis failed: %v\n", err)
+			fmt.Printf("  - Oracle analysis failed: %v\n", err)
 			continue
 		}
 
-		if bug != nil {
+		if bugFound {
 			f.bugCount++
 			fmt.Printf("  - BUG FOUND! (%d/%d)\n", f.bugCount, f.cfg.Fuzzer.BugQuota)
-			bug.Description = fmt.Sprintf("Bug found with seed %s", currentSeed.ID)
+			fmt.Printf("  - Description: %s\n", description)
+
+			// Save bug report
+			bug := &analysis.Bug{
+				Seed:        currentSeed,
+				Results:     convertOracleResultsToExecutorResults(runRes),
+				Description: description,
+			}
 			if err := f.reporter.Save(bug); err != nil {
 				fmt.Printf("  - Warning: failed to save bug report: %v\n", err)
 			}
-
-			// c. Mutate
-			fmt.Println("  - Mutating seed...")
-			mutatePrompt, err := f.prompt.BuildMutatePrompt(currentSeed)
-			if err != nil {
-				fmt.Printf("  - Warning: failed to build mutate prompt: %v\n", err)
-				continue
-			}
-			mutatedSeed, err := f.llm.Mutate(f.llmContext, mutatePrompt, currentSeed)
-			if err != nil {
-				fmt.Printf("  - Warning: LLM failed to mutate seed: %v\n", err)
-				continue
-			}
-			mutatedSeed.ID = fmt.Sprintf("%s-m-%d", currentSeed.ID, time.Now().UnixNano())
-			f.seedPool.Add(mutatedSeed)
-			fmt.Printf("  - Added mutated seed %s to the pool.\n", mutatedSeed.ID)
 		} else {
 			fmt.Println("  - No bug found.")
 		}
+
+		// f. Mutate seed since coverage increased
+		fmt.Println("  - Mutating seed...")
+		mutatePrompt, err := f.prompt.BuildMutatePrompt(currentSeed)
+		if err != nil {
+			fmt.Printf("  - Warning: failed to build mutate prompt: %v\n", err)
+			continue
+		}
+		mutatedSeed, err := f.llm.Mutate(f.llmContext, mutatePrompt, currentSeed)
+		if err != nil {
+			fmt.Printf("  - Warning: LLM failed to mutate seed: %v\n", err)
+			continue
+		}
+		mutatedSeed.ID = fmt.Sprintf("%s-m-%d", currentSeed.ID, time.Now().UnixNano())
+		f.seedPool.Add(mutatedSeed)
+		fmt.Printf("  - Added mutated seed %s to the pool.\n", mutatedSeed.ID)
 	}
 
 	fmt.Println("Fuzzing complete.")
 	return nil
+}
+
+// convertOracleResultsToExecutorResults converts oracle.Result to executor.ExecutionResult
+func convertOracleResultsToExecutorResults(oracleResults []oracle.Result) []executor.ExecutionResult {
+	results := make([]executor.ExecutionResult, len(oracleResults))
+	for i, or := range oracleResults {
+		results[i] = executor.ExecutionResult{
+			Stdout:   or.Stdout,
+			Stderr:   or.Stderr,
+			ExitCode: or.ExitCode,
+		}
+	}
+	return results
 }

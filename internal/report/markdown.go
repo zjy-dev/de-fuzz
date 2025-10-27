@@ -33,14 +33,26 @@ func (r *MarkdownReporter) Save(bug *analysis.Bug) error {
 	var content string
 	content += fmt.Sprintf("# Bug Report: %s\n\n", bug.Description)
 	content += fmt.Sprintf("## Seed ID: %s\n\n", bug.Seed.ID)
-	content += fmt.Sprintf("## Execution Result\n\n")
-	content += fmt.Sprintf("### Exit Code: %d\n\n", bug.Result.ExitCode)
-	content += fmt.Sprintf("### Stdout\n\n```\n%s\n```\n\n", bug.Result.Stdout)
-	content += fmt.Sprintf("### Stderr\n\n```\n%s\n```\n\n", bug.Result.Stderr)
-	content += fmt.Sprintf("## Seed\n\n")
+	content += "## Execution Results\n\n"
+
+	// Report all test case results
+	for i, result := range bug.Results {
+		content += fmt.Sprintf("### Test Case %d\n\n", i+1)
+		content += fmt.Sprintf("**Exit Code:** %d\n\n", result.ExitCode)
+		content += fmt.Sprintf("**Stdout:**\n\n```\n%s\n```\n\n", result.Stdout)
+		content += fmt.Sprintf("**Stderr:**\n\n```\n%s\n```\n\n", result.Stderr)
+	}
+
+	content += "## Seed\n\n"
 	content += fmt.Sprintf("### Source Code\n\n```c\n%s\n```\n\n", bug.Seed.Content)
-	content += fmt.Sprintf("### Makefile\n\n```makefile\n%s\n```\n\n", bug.Seed.Makefile)
-	content += fmt.Sprintf("### Run Script\n\n```sh\n%s\n```\n\n", bug.Seed.RunScript)
+
+	// Report test cases
+	content += "### Test Cases\n\n"
+	for i, tc := range bug.Seed.TestCases {
+		content += fmt.Sprintf("**Test Case %d:**\n", i+1)
+		content += fmt.Sprintf("- Command: `%s`\n", tc.RunningCommand)
+		content += fmt.Sprintf("- Expected: %s\n\n", tc.ExpectedResult)
+	}
 
 	return os.WriteFile(reportPath, []byte(content), 0644)
 }

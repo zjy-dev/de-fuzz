@@ -21,7 +21,7 @@ type Seed struct {
 
 The compile commands are mannually written.
 
-### Mutation Principle
+### Mutation Strategy
 
 Based on Coverage increasement.
 
@@ -29,7 +29,7 @@ Based on Coverage increasement.
 
 Dynamical Testing.
 
-Run seeds -> get feedback(return codes + stdout/stderr(s) + logfiles) -> let LLM judge if there're bugs.
+Run seed -> get feedback(return code + stdout + stderr) -> let LLM judge if there're bugs.
 
 ### Fuzzing Algorithm
 
@@ -49,9 +49,8 @@ For each defense startegy and ISA:
 
 4. Initialize seed pool:
 
-   - let llm generate initial seed(s) || use official unit tests
+   - let llm generate initial seed(s)
    - adjust init seeds mannualy
-   - run init seeds and record their coverage info
 
 5. Pop seed `s` from seed pool
 
@@ -59,15 +58,16 @@ For each defense startegy and ISA:
 
    - if coverage rate increased then mutate `s` to `s'` and push `s'` to seed pool
 
-7. Oracle(s):
-   <!-- TODO: May use Multi-armed bandit for mutation later -->
+7. Oracle(`s`):
    - record if found a bug
 
 ## Implementation
 
 ### Coverage
 
-Use gcc's gcov ecosystem.
+#### 1. GCC
+
+When fuzzing gcc, use gcc's gcov ecosystem.
 
 The simplified workflow is below:
 
@@ -89,18 +89,27 @@ $SRCDIR/configure \
     --enable-languages=c,c++
 make -j$(nproc)
 
-# --- Step 2: Run `tc` for .gcda ---
+# --- Step 2: Run `tc` for .gcda ---ample
+# Below is just an example, in the code we compile the seed
 echo "=== [2/4] Running instrumented GCC to generate coverage data... ==="
 echo 'int main() { return 0; }' > /tmp/test.c
 $BUILDDIR/gcc/xgcc -fstack-protector-strong -o /tmp/test.o -c /tmp/test.c
 
 # --- Step 3: Use lcov to handle coverage info ---
+# Let user specify in `config.yaml` which directories, which  they files, and which functions they want to capture
 echo "=== [3/4] Capturing coverage data with lcov... ==="
 cd $BUILDDIR
-lcov --capture --directory . --output-file coverage.info
+lcov --capture --directory . --output-file total.info
+
+lcov --extract total.info \
+    "*/src/net/*.c" \
+    "*/src/util/log.c" \
+    -o extracted.info
+
+# extract user-specified functions' coverage info into `coverage.info` in go code
 
 # --- Step 4: Obtain the increase in coverage rate ---
-echo "=== [3/4] Merge and Diff ==="
+echo "=== [4/4] Merge and Diff ==="
 # assume you generate a new.info, and maintained a merged.info
 lcov --diff merged.info new.info --output-file diff.info # DIFF for increasement
 lcov -a coverage.info -a new.info -o merged.info # UNION
