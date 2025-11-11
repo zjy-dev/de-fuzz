@@ -73,25 +73,35 @@ The simplified workflow is below:
 
 1. Customize target compiler `tc` with gcov coverage compile options
   Ensure `tc` only produce *.gcda/*.gcno files for specific files and functions
+2. Clean `gcovr_exec_path` (configured in compiler-isa-strategy.yaml)
 2. Use `tc` to compile a <seed>, this will generate *.gcda files needed
-3. `cd tc-build-dir(configured in compiler-isa-strategy.yaml) && gcovr --gcov-executable "gcov-14 --demangled-names"  -r .. --json-pretty --json <seed>.json`
-4. Diff with total.json(if exist) to see if there're coverage increase in <seed> using https://github.com/zjy-dev/gcovr-json-util, that go project exposed some apis. Document is below:
+3. `cd gcovr_exec_path(configured in compiler-isa-strategy.yaml) && gcovr --exclude '.*\.(h|hpp|hxx)$' --gcov-executable "gcov-14 --demangled-names"  -r .. --json-pretty --json /root/project/de-fuzz/cov/gcc/<seed>.json`
+4. Diff with total.json(if exist) to see if there're coverage increase in <seed> using https://github.com/zjy-dev/gcovr-json-util/v2, that go project exposed some apis. Document is below:
+
 ```go
-import "github.com/zjy-dev/gcovr-json-util/pkg/gcovr"
+import "github.com/zjy-dev/gcovr-json-util/v2/pkg/gcovr"
 
 // Parse coverage reports
-baseReport, err := gcovr.ParseReport("<seed>.json")
+baseReport, err := gcovr.ParseReport("/root/project/de-fuzz/cov/gcc/total.json")
 if err != nil {
     log.Fatal(err)
 }
 
-newReport, err := gcovr.ParseReport("total.json")
+newReport, err := gcovr.ParseReport("/root/project/de-fuzz/cov/gcc/<seed>.json")
 if err != nil {
     log.Fatal(err)
 }
+
+// Apply filtering
+filterConfig, err := gcovr.ParseFilterConfig("/root/project/de-fuzz/configs/gcc-x64-canary.yaml")
+if err != nil {
+    log.Fatal(err)
+}
+baseReport = gcovr.ApplyFilter(baseReport, filterConfig)
+newReport = gcovr.ApplyFilter(newReport, filterConfig)
 
 // Compute coverage increase
-// if len(report) == 0, then nothing increased 
+// if len(report) == 0 then nothing has increased
 report, err := gcovr.ComputeCoverageIncrease(baseReport, newReport)
 if err != nil {
     log.Fatal(err)
