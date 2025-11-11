@@ -74,9 +74,37 @@ The simplified workflow is below:
 1. Customize target compiler `tc` with gcov coverage compile options
   Ensure `tc` only produce *.gcda/*.gcno files for specific files and functions
 2. Use `tc` to compile a <seed>, this will generate *.gcda files needed
-3. `cd tc-build-dir && gcovr --gcov-executable "gcov-14 --demangled-names"  -r ..   --json-pretty --json <seed>.json`
-4. Diff with total.json to find if there're coverage increase in <seed>
-5. Merge <seed>.json and total.json
+3. `cd tc-build-dir(configured in compiler-isa-strategy.yaml) && gcovr --gcov-executable "gcov-14 --demangled-names"  -r .. --json-pretty --json <seed>.json`
+4. Diff with total.json(if exist) to see if there're coverage increase in <seed> using https://github.com/zjy-dev/gcovr-json-util, that go project exposed some apis. Document is below:
+```go
+import "github.com/zjy-dev/gcovr-json-util/pkg/gcovr"
+
+// Parse coverage reports
+baseReport, err := gcovr.ParseReport("<seed>.json")
+if err != nil {
+    log.Fatal(err)
+}
+
+newReport, err := gcovr.ParseReport("total.json")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Compute coverage increase
+// if len(report) == 0, then nothing increased 
+report, err := gcovr.ComputeCoverageIncrease(baseReport, newReport)
+if err != nil {
+    log.Fatal(err)
+}
+
+// (Optional)Format and display results
+output := gcovr.FormatReport(report)
+fmt.Print(output)
+``` 
+
+if total.json not exist, then copy <seed>.json as total.json, and coverage is considered to be increased.
+
+5. Merge <seed>.json and total.json using `mv total.json tmp.json && gcovr --json-pretty --json  -a tmp.json -a <seed>.json -o total.json && rm tmp.json`
 
 <!-- ## Usage
 
