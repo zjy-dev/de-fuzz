@@ -15,7 +15,6 @@ import (
 	"defuzz/internal/report"
 	"defuzz/internal/seed"
 	executor "defuzz/internal/seed_executor"
-	"defuzz/internal/vm"
 )
 
 // Fuzzer orchestrates the main fuzzing logic.
@@ -29,9 +28,8 @@ type Fuzzer struct {
 	executor executor.Executor
 	analyzer analysis.Analyzer
 	reporter report.Reporter
-	vm       vm.VM
-	coverage coverage.Coverage // NEW: Coverage tracker
-	oracle   oracle.Oracle     // NEW: Bug oracle
+	coverage coverage.Coverage // Coverage tracker
+	oracle   oracle.Oracle     // Bug oracle
 
 	// Internal state
 	llmContext string // The "understanding" from the LLM
@@ -49,9 +47,8 @@ func NewFuzzer(
 	exec executor.Executor,
 	analyzer analysis.Analyzer,
 	reporter report.Reporter,
-	vm vm.VM,
-	coverage coverage.Coverage, // NEW: Coverage parameter
-	oracle oracle.Oracle, // NEW: Oracle parameter
+	coverage coverage.Coverage,
+	oracle oracle.Oracle,
 ) *Fuzzer {
 	return &Fuzzer{
 		cfg:      cfg,
@@ -62,7 +59,6 @@ func NewFuzzer(
 		executor: exec,
 		analyzer: analyzer,
 		reporter: reporter,
-		vm:       vm,
 		coverage: coverage,
 		oracle:   oracle,
 		basePath: fmt.Sprintf("initial_seeds/%s/%s", cfg.Fuzzer.ISA, cfg.Fuzzer.Strategy),
@@ -134,12 +130,6 @@ func (f *Fuzzer) Fuzz() error {
 	}
 	fmt.Printf("Loaded %d seeds into the pool.\n", f.seedPool.Len())
 
-	if err := f.vm.Create(); err != nil {
-		return fmt.Errorf("failed to create vm: %w", err)
-	}
-	defer f.vm.Stop()
-	fmt.Println("VM created successfully.")
-
 	// 2. Fuzzing Loop
 	for {
 		if f.bugCount >= f.cfg.Fuzzer.BugQuota {
@@ -182,26 +172,27 @@ func (f *Fuzzer) Fuzz() error {
 			fmt.Printf("  - Warning: failed to merge coverage: %v\n", err)
 		}
 
-		// d. Execute each test case
-		var runRes []oracle.Result
-		for _, testCase := range currentSeed.TestCases {
-			// Execute the compiled binary via VM
-			result, err := f.vm.Run("./prog", testCase.RunningCommand)
-			if err != nil {
-				fmt.Printf("  - Execution failed for test case '%s': %v\n", testCase.RunningCommand, err)
-				continue
-			}
+		// d. Execute test cases using executor
+		fmt.Println("  - Executing test cases...")
+		execResults, err := f.executor.Execute(currentSeed)
+		if err != nil {
+			fmt.Printf("  - Execution failed: %v\n", err)
+			continue
+		}
 
+		if len(execResults) == 0 {
+			fmt.Printf("  - All test cases failed to execute\n")
+			continue
+		}
+
+		// Convert executor results to oracle results
+		var runRes []oracle.Result
+		for _, result := range execResults {
 			runRes = append(runRes, oracle.Result{
 				Stdout:   result.Stdout,
 				Stderr:   result.Stderr,
 				ExitCode: result.ExitCode,
 			})
-		}
-
-		if len(runRes) == 0 {
-			fmt.Printf("  - All test cases failed to execute\n")
-			continue
 		}
 
 		// e. Use Oracle to check for bugs
@@ -220,7 +211,7 @@ func (f *Fuzzer) Fuzz() error {
 			// Save bug report
 			bug := &analysis.Bug{
 				Seed:        currentSeed,
-				Results:     convertOracleResultsToExecutorResults(runRes),
+				Results:     execResults,
 				Description: description,
 			}
 			if err := f.reporter.Save(bug); err != nil {
@@ -249,17 +240,4 @@ func (f *Fuzzer) Fuzz() error {
 
 	fmt.Println("Fuzzing complete.")
 	return nil
-}
-
-// convertOracleResultsToExecutorResults converts oracle.Result to executor.ExecutionResult
-func convertOracleResultsToExecutorResults(oracleResults []oracle.Result) []executor.ExecutionResult {
-	results := make([]executor.ExecutionResult, len(oracleResults))
-	for i, or := range oracleResults {
-		results[i] = executor.ExecutionResult{
-			Stdout:   or.Stdout,
-			Stderr:   or.Stderr,
-			ExitCode: or.ExitCode,
-		}
-	}
-	return results
 }

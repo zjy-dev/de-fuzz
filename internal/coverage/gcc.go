@@ -1,302 +1,258 @@
 package coverage
 
 import (
-	"bufio"
-	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
 
-	"defuzz/internal/vm"
+	"defuzz/internal/exec"
+	"defuzz/internal/seed"
+
+	"github.com/zjy-dev/gcovr-json-util/v2/pkg/gcovr"
 )
 
-// FunctionCoverage represents coverage info for a single function
-type FunctionCoverage struct {
-	Name       string
-	LinesCov   int // Lines covered
-	LinesTotal int // Total lines
+// GcovrReport represents a gcovr JSON coverage report.
+// It stores only the path to the report file, not the actual data.
+type GcovrReport struct {
+	path string // Path to the gcovr JSON report file
 }
 
-// GCCCoverage implements the Coverage interface using GCC's gcov/lcov toolchain.
+// ToBytes reads and returns the JSON report data from the file.
+func (r *GcovrReport) ToBytes() ([]byte, error) {
+	if r.path == "" {
+		return nil, fmt.Errorf("report path is empty")
+	}
+
+	data, err := os.ReadFile(r.path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read report file %s: %w", r.path, err)
+	}
+
+	return data, nil
+}
+
+// GCCCoverage implements the Coverage interface using GCC's gcov/gcovr toolchain.
 type GCCCoverage struct {
-	vm              vm.VM
-	buildDir        string   // Build directory where GCC was compiled with coverage flags
-	srcDir          string   // GCC source directory
-	mergedInfoPath  string   // Path to merged.info file
-	targetFiles     []string // Specific files to track (e.g., "*/gcc/config/i386/i386.c")
-	targetFunctions []string // Specific functions to track
-
-	// Internal state
-	totalCoverage map[string]*FunctionCoverage // Function name -> coverage info
+	executor         exec.Executor
+	compileFunc      func(*seed.Seed) error // Function to compile a seed
+	gcovrExecPath    string                 // Working directory for gcovr execution (e.g., build/gcc)
+	gcovrCommand     string                 // Base gcovr command with options (without --json output path)
+	totalReportPath  string                 // Path to total.json
+	filterConfigPath string                 // Path to filter config YAML (from compiler-isa-strategy.yaml)
+	seedReportDir    string                 // Directory to store individual seed reports
 }
 
-// NewGCCCoverage creates a new GCC coverage tracker.
-// targetFiles: patterns for files to track (e.g., "*/gcc/config/i386/*.c")
-// targetFunctions: list of specific function names to track
+// NewGCCCoverage creates a new GCC coverage tracker using gcovr.
 func NewGCCCoverage(
-	v vm.VM,
-	buildDir string,
-	srcDir string,
-	targetFiles []string,
-	targetFunctions []string,
+	executor exec.Executor,
+	compileFunc func(*seed.Seed) error,
+	gcovrExecPath string,
+	gcovrCommand string,
+	totalReportPath string,
+	filterConfigPath string,
 ) *GCCCoverage {
-	mergedInfoPath := filepath.Join(buildDir, "merged.info")
-
 	return &GCCCoverage{
-		vm:              v,
-		buildDir:        buildDir,
-		srcDir:          srcDir,
-		mergedInfoPath:  mergedInfoPath,
-		targetFiles:     targetFiles,
-		targetFunctions: targetFunctions,
-		totalCoverage:   make(map[string]*FunctionCoverage),
+		executor:         executor,
+		compileFunc:      compileFunc,
+		gcovrExecPath:    gcovrExecPath,
+		gcovrCommand:     gcovrCommand,
+		totalReportPath:  totalReportPath,
+		filterConfigPath: filterConfigPath,
+		seedReportDir:    filepath.Dir(totalReportPath), // Store seed reports in same dir as total.json
 	}
 }
 
-// Measure compiles the seed and captures the new coverage information.
-// The seedPath should point to the seed directory containing source.c and Makefile.
-func (g *GCCCoverage) Measure(seedPath string) ([]byte, error) {
-	// Step 1: Clean previous .gcda files to get fresh coverage
-	cleanCmd := fmt.Sprintf("find %s -name '*.gcda' -delete", g.buildDir)
-	_, err := g.vm.Run("", cleanCmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clean .gcda files: %w", err)
+// Clean removes all .gcda files from the gcovr execution path.
+// Note: .gcno files (compile-time coverage notes) are NOT deleted because they
+// contain structural information about the source code and are reused across runs.
+// Only .gcda files (runtime coverage data) need to be cleaned before each measurement.
+func (g *GCCCoverage) Clean() error {
+	// Remove .gcda files (runtime coverage data)
+	cleanGcdaCmd := fmt.Sprintf("find %s -name '*.gcda' -delete", g.gcovrExecPath)
+	if _, err := g.executor.Run("sh", "-c", cleanGcdaCmd); err != nil {
+		return fmt.Errorf("failed to clean .gcda files: %w", err)
 	}
 
-	// Step 2: Compile the seed using the instrumented GCC
-	// The seed's Makefile should use the instrumented compiler from buildDir
-	makeCmd := fmt.Sprintf("cd %s && make", seedPath)
-	_, err = g.vm.Run("", makeCmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile seed: %w", err)
-	}
-
-	// Step 3: Capture coverage with lcov
-	newInfoPath := filepath.Join(g.buildDir, "new.info")
-	captureCmd := fmt.Sprintf("cd %s && lcov --capture --directory . --output-file %s", g.buildDir, newInfoPath)
-	_, err = g.vm.Run("", captureCmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to capture coverage: %w", err)
-	}
-
-	// Step 4: Extract only the target files
-	extractedInfoPath := filepath.Join(g.buildDir, "extracted.info")
-	extractArgs := []string{"--extract", newInfoPath}
-	extractArgs = append(extractArgs, g.targetFiles...)
-	extractArgs = append(extractArgs, "-o", extractedInfoPath)
-	extractCmd := fmt.Sprintf("cd %s && lcov %s", g.buildDir, strings.Join(extractArgs, " "))
-	_, err = g.vm.Run("", extractCmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract target files: %w", err)
-	}
-
-	// Step 5: Extract function-level coverage and filter by target functions
-	filteredInfo, err := g.extractFunctions(extractedInfoPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract functions: %w", err)
-	}
-
-	return filteredInfo, nil
-}
-
-// extractFunctions parses the lcov info file and extracts coverage for target functions.
-// Returns a serialized representation of function coverage.
-func (g *GCCCoverage) extractFunctions(infoPath string) ([]byte, error) {
-	// Read the info file from VM
-	catCmd := fmt.Sprintf("cat %s", infoPath)
-	result, err := g.vm.Run("", catCmd)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read info file: %w", err)
-	}
-
-	// Parse the lcov info format
-	// Format example:
-	// SF:/path/to/source.c
-	// FN:10,function_name
-	// FNDA:5,function_name
-	// FNF:1
-	// FNH:1
-	// DA:10,5
-	// LH:1
-	// LF:1
-	// end_of_record
-
-	functionCoverage := make(map[string]*FunctionCoverage)
-	scanner := bufio.NewScanner(strings.NewReader(result.Stdout))
-
-	var currentFunc string
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if strings.HasPrefix(line, "FN:") {
-			// FN:line,function_name
-			parts := strings.SplitN(strings.TrimPrefix(line, "FN:"), ",", 2)
-			if len(parts) == 2 {
-				currentFunc = parts[1]
-				// Check if this function is in our target list
-				if len(g.targetFunctions) == 0 || contains(g.targetFunctions, currentFunc) {
-					if _, ok := functionCoverage[currentFunc]; !ok {
-						functionCoverage[currentFunc] = &FunctionCoverage{
-							Name: currentFunc,
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Calculate coverage for each function
-	// This is a simplified approach - in reality, you'd need to map lines to functions
-	// For now, we'll use a heuristic based on FNDA records
-	scanner = bufio.NewScanner(strings.NewReader(result.Stdout))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "FNDA:") {
-			// FNDA:hit_count,function_name
-			parts := strings.SplitN(strings.TrimPrefix(line, "FNDA:"), ",", 2)
-			if len(parts) == 2 {
-				funcName := parts[1]
-				hitCount, _ := strconv.Atoi(parts[0])
-
-				if fc, ok := functionCoverage[funcName]; ok {
-					fc.LinesCov = hitCount
-					fc.LinesTotal = hitCount // Simplified - would need actual line count
-				}
-			}
-		} else if strings.HasPrefix(line, "LF:") {
-			// Total lines in function
-			count, _ := strconv.Atoi(strings.TrimPrefix(line, "LF:"))
-			if currentFunc != "" {
-				if fc, ok := functionCoverage[currentFunc]; ok {
-					fc.LinesTotal = count
-				}
-			}
-		} else if strings.HasPrefix(line, "LH:") {
-			// Lines hit in function
-			count, _ := strconv.Atoi(strings.TrimPrefix(line, "LH:"))
-			if currentFunc != "" {
-				if fc, ok := functionCoverage[currentFunc]; ok {
-					fc.LinesCov = count
-				}
-			}
-		}
-	}
-
-	// Serialize the coverage data
-	var buf bytes.Buffer
-	for funcName, fc := range functionCoverage {
-		buf.WriteString(fmt.Sprintf("%s:%d/%d\n", funcName, fc.LinesCov, fc.LinesTotal))
-	}
-
-	return buf.Bytes(), nil
-}
-
-// HasIncreased checks if the new coverage has increased compared to the total.
-func (g *GCCCoverage) HasIncreased(newCoverageInfo []byte) (bool, error) {
-	newCov, err := parseCoverageData(newCoverageInfo)
-	if err != nil {
-		return false, err
-	}
-
-	// Check if any function has increased coverage
-	for funcName, newFC := range newCov {
-		if oldFC, exists := g.totalCoverage[funcName]; exists {
-			// If this function has more lines covered, it's an increase
-			if newFC.LinesCov > oldFC.LinesCov {
-				return true, nil
-			}
-		} else {
-			// New function covered
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-// Merge merges the new coverage information into the total coverage.
-func (g *GCCCoverage) Merge(newCoverageInfo []byte) error {
-	newCov, err := parseCoverageData(newCoverageInfo)
-	if err != nil {
-		return err
-	}
-
-	// Merge: take the maximum coverage for each function
-	for funcName, newFC := range newCov {
-		if oldFC, exists := g.totalCoverage[funcName]; exists {
-			if newFC.LinesCov > oldFC.LinesCov {
-				g.totalCoverage[funcName] = newFC
-			}
-		} else {
-			g.totalCoverage[funcName] = newFC
-		}
-	}
-
-	// Also merge the .info files on disk using lcov
-	if _, err := os.Stat(g.mergedInfoPath); os.IsNotExist(err) {
-		// First time, just save new coverage as merged
-		return g.saveNewCoverage(newCoverageInfo)
-	}
-
-	// Merge using lcov -a command
-	newInfoPath := filepath.Join(g.buildDir, "new.info")
-	mergeCmd := fmt.Sprintf("cd %s && lcov -a %s -a %s -o %s",
-		g.buildDir, g.mergedInfoPath, newInfoPath, g.mergedInfoPath)
-	_, err = g.vm.Run("", mergeCmd)
-	if err != nil {
-		return fmt.Errorf("failed to merge coverage: %w", err)
+	cleanGcdaCmd = fmt.Sprintf("find %s -name '*.gcov' -delete", g.gcovrExecPath)
+	if _, err := g.executor.Run("sh", "-c", cleanGcdaCmd); err != nil {
+		return fmt.Errorf("failed to clean .gcov files: %w", err)
 	}
 
 	return nil
 }
 
-// saveNewCoverage saves new coverage as the initial merged coverage.
-func (g *GCCCoverage) saveNewCoverage(newCoverageInfo []byte) error {
-	newInfoPath := filepath.Join(g.buildDir, "new.info")
-	cpCmd := fmt.Sprintf("cp %s %s", newInfoPath, g.mergedInfoPath)
-	_, err := g.vm.Run("", cpCmd)
-	return err
-}
+// Measure compiles the seed and generates a coverage report using gcovr.
+// Returns a GcovrReport containing the path to the generated report file.
+func (g *GCCCoverage) Measure(s *seed.Seed) (Report, error) {
+	// Step 1: Clean previous coverage data (.gcda files)
+	if err := g.Clean(); err != nil {
+		return nil, fmt.Errorf("failed to clean coverage files: %w", err)
+	}
 
-// parseCoverageData parses the serialized coverage data.
-func parseCoverageData(data []byte) (map[string]*FunctionCoverage, error) {
-	result := make(map[string]*FunctionCoverage)
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-
-	// Format: function_name:covered/total
-	re := regexp.MustCompile(`^(.+):(\d+)/(\d+)$`)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		matches := re.FindStringSubmatch(line)
-		if len(matches) != 4 {
-			continue
-		}
-
-		funcName := matches[1]
-		linesCov, _ := strconv.Atoi(matches[2])
-		linesTotal, _ := strconv.Atoi(matches[3])
-
-		result[funcName] = &FunctionCoverage{
-			Name:       funcName,
-			LinesCov:   linesCov,
-			LinesTotal: linesTotal,
+	// Step 2: Compile the seed using the provided compile function
+	// This will generate .gcda files in the gcovr execution path
+	if g.compileFunc != nil {
+		if err := g.compileFunc(s); err != nil {
+			return nil, fmt.Errorf("failed to compile seed: %w", err)
 		}
 	}
 
-	return result, scanner.Err()
+	// Step 3: Generate coverage report using gcovr
+	// The output path is determined from the seed ID
+	seedReportPath := filepath.Join(g.seedReportDir, fmt.Sprintf("%s.json", s.ID))
+
+	// Ensure the output directory exists
+	if err := os.MkdirAll(g.seedReportDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create seed report directory: %w", err)
+	}
+
+	// Build the full gcovr command
+	// Example: cd /build/gcc && gcovr --exclude '.*\.(h|hpp|hxx)$' --gcov-executable "gcov-14 --demangled-names" -r .. --json-pretty --json /path/to/<seed>.json
+	fullCommand := fmt.Sprintf("cd %s && %s --json %s",
+		g.gcovrExecPath,
+		g.gcovrCommand,
+		seedReportPath,
+	)
+
+	result, err := g.executor.Run("sh", "-c", fullCommand)
+	if err != nil {
+		return nil, fmt.Errorf("failed to run gcovr: %w (stdout: %s, stderr: %s)",
+			err, result.Stdout, result.Stderr)
+	}
+
+	// Step 4: Verify the report file was created
+	if _, err := os.Stat(seedReportPath); err != nil {
+		return nil, fmt.Errorf("gcovr report file not created: %w", err)
+	}
+
+	return &GcovrReport{path: seedReportPath}, nil
 }
 
-// contains checks if a string slice contains a specific string.
-func contains(slice []string, str string) bool {
-	for _, s := range slice {
-		if s == str {
-			return true
-		}
+// HasIncreased checks if the new report has increased coverage compared to the total.
+// If total.json doesn't exist, this is considered the first seed and returns true.
+func (g *GCCCoverage) HasIncreased(newReport Report) (bool, error) {
+	// Get the path to the new report
+	gcovrRep, ok := newReport.(*GcovrReport)
+	if !ok {
+		return false, fmt.Errorf("expected GcovrReport, got %T", newReport)
 	}
-	return false
+
+	// If total report doesn't exist, this is the first seed
+	if _, err := os.Stat(g.totalReportPath); os.IsNotExist(err) {
+		return true, nil
+	}
+
+	// Parse the base (total) report using gcovr-json-util
+	baseReport, err := gcovr.ParseReport(g.totalReportPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse base report: %w", err)
+	}
+
+	// Parse the new report using gcovr-json-util
+	newReportParsed, err := gcovr.ParseReport(gcovrRep.path)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse new report: %w", err)
+	}
+
+	// Apply filtering if filter config is provided
+	if g.filterConfigPath != "" {
+		filterConfig, err := gcovr.ParseFilterConfig(g.filterConfigPath)
+		if err != nil {
+			return false, fmt.Errorf("failed to parse filter config: %w", err)
+		}
+		baseReport = gcovr.ApplyFilter(baseReport, filterConfig)
+		newReportParsed = gcovr.ApplyFilter(newReportParsed, filterConfig)
+	}
+
+	// Compute coverage increase
+	increaseReport, err := gcovr.ComputeCoverageIncrease(baseReport, newReportParsed)
+	if err != nil {
+		return false, fmt.Errorf("failed to compute coverage increase: %w", err)
+	}
+
+	fmt.Println(gcovr.FormatReport(increaseReport))
+
+	// If the increase report has no increases, there's no coverage increase
+	return len(increaseReport.Increases) > 0, nil
+}
+
+// Merge merges the new coverage report into the total report.
+// If total.json doesn't exist, copies the new report as total.json.
+// Otherwise, uses gcovr to merge: mv total.json tmp.json && gcovr -a tmp.json -a <seed>.json -o total.json && rm tmp.json
+func (g *GCCCoverage) Merge(newReport Report) error {
+	// Get the path to the new report
+	gcovrRep, ok := newReport.(*GcovrReport)
+	if !ok {
+		return fmt.Errorf("expected GcovrReport, got %T", newReport)
+	}
+
+	// If total report doesn't exist, just copy the new report as total
+	if _, err := os.Stat(g.totalReportPath); os.IsNotExist(err) {
+		// Ensure the directory exists
+		if err := os.MkdirAll(filepath.Dir(g.totalReportPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for total report: %w", err)
+		}
+
+		// Copy the seed report to total.json
+		data, err := os.ReadFile(gcovrRep.path)
+		if err != nil {
+			return fmt.Errorf("failed to read new report: %w", err)
+		}
+
+		if err := os.WriteFile(g.totalReportPath, data, 0644); err != nil {
+			return fmt.Errorf("failed to write total report: %w", err)
+		}
+		return nil
+	}
+
+	// Merge using gcovr command as described in README:
+	// mv total.json tmp.json && gcovr --json-pretty --json total.json -a tmp.json -a <seed>.json && rm tmp.json
+	tmpReportPath := g.totalReportPath + ".tmp.json"
+
+	// Rename current total to tmp
+	if err := os.Rename(g.totalReportPath, tmpReportPath); err != nil {
+		return fmt.Errorf("failed to rename total report to tmp: %w", err)
+	}
+
+	// Run gcovr merge command
+	mergeCmd := fmt.Sprintf("gcovr -a %s -a %s --json-pretty --json %s",
+		tmpReportPath,
+		gcovrRep.path,
+		g.totalReportPath,
+	)
+
+	result, err := g.executor.Run("sh", "-c", mergeCmd)
+	if err != nil {
+		// Try to restore the original total.json if merge fails
+		os.Rename(tmpReportPath, g.totalReportPath)
+		return fmt.Errorf("failed to merge reports: %w (stdout: %s, stderr: %s)",
+			err, result.Stdout, result.Stderr)
+	}
+
+	// Remove tmp file
+	os.Remove(tmpReportPath)
+
+	return nil
+}
+
+// GetTotalReport returns the current total accumulated coverage report.
+func (g *GCCCoverage) GetTotalReport() (Report, error) {
+	// Check if total report exists
+	if _, err := os.Stat(g.totalReportPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("total report does not exist: %s", g.totalReportPath)
+	}
+
+	// Validate it's valid JSON by attempting to parse it
+	var js json.RawMessage
+	data, err := os.ReadFile(g.totalReportPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read total report: %w", err)
+	}
+
+	if err := json.Unmarshal(data, &js); err != nil {
+		return nil, fmt.Errorf("total report is not valid JSON: %w", err)
+	}
+
+	return &GcovrReport{path: g.totalReportPath}, nil
 }

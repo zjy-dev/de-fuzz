@@ -1,13 +1,11 @@
 # LLM Configuration for DeFuzz
-llm:
-  provider: "deepseek"
-  model: "deepseek-coder"
-  api_key: "sk-4422180763c845a19ae5999b05ec5088"  # Replace with your actual API key
-  endpoint: ""  # Leave empty to use default endpoint
+llms:
+  - provider: "deepseek"
+    model: "deepseek-coder"
+    api_key: "sk-4422180763c845a19ae5999b05ec5088"  # Replace with your actual API key
+    endpoint: ""  # Leave empty to use default endpoint
+  - provider: "openai"
+    model: "gpt-4"
+    api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with your actual API key
+    endpoint: ""  # Leave empty to use default endpoint
 
-# Fuzzer Configuration
-fuzzer:
-  isa: "x86_64"
-  strategy: "feedback-driven"
-  initial_seeds: 10
-  bug_quota: 5

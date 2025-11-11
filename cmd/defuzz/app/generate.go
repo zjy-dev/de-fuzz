@@ -32,7 +32,7 @@ Each seed consists of:
   - Makefile for compilation
   - Run script (run.sh) for execution
 
-The generated seeds are ready for compilation and fuzzing in a containerized environment.
+The generated seeds are ready for compilation and fuzzing on the host machine.
 
 Examples:
   # Generate 5 seeds for x86_64 with stack guard protection
@@ -42,9 +42,7 @@ Examples:
   defuzz generate --isa arm64 --strategy aslr --output ./my_seeds --count 3
 
   # Generate single seed for RISC-V with CFI
-  defuzz generate --isa riscv64 --strategy cfi
-
-Note: Use './scripts/build-container.sh' to set up the fuzzing environment container.`,
+  defuzz generate --isa riscv64 --strategy cfi`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 1. Load configuration
 			cfg, err := config.LoadConfig()

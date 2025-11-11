@@ -61,7 +61,6 @@ func BenchmarkDeepSeekClient_Analyze(b *testing.B) {
 	testSeed := &seed.Seed{
 		ID:        "bench-seed",
 		Content:   "int main() { return 0; }",
-		Makefile:  "all:\n\tgcc -o test test.c",
 		TestCases: testCases,
 	}
 
@@ -89,7 +88,6 @@ func BenchmarkDeepSeekClient_Mutate(b *testing.B) {
 	testSeed := &seed.Seed{
 		ID:        "bench-seed",
 		Content:   "int main() { return 0; }",
-		Makefile:  "all:\n\tgcc source.c -o prog",
 		TestCases: mutateTestCases,
 	}
 

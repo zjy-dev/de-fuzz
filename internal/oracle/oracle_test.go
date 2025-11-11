@@ -1,5 +1,4 @@
 package oracle
-package oracle
 
 import (
 	"testing"

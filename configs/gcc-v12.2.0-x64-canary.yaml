@@ -1,0 +1,16 @@
+compiler:
+  path: "/root/fuzz-coverage/gcc-build-selective/gcc/xgcc"
+  
+  # execute gcovr in the path below, json files will be generated here
+  gcovr_exec_path: "/root/fuzz-coverage/gcc-build-selective"
+
+
+
+# Configuration pattern: Map each file to its target functions
+# This allows fine-grained control over which functions to track per file
+targets:
+  - file: "gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
+    functions:
+      - "stack_protect_classify_type"
+      - "expand_one_stack_var_at"
+  

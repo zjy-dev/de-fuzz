@@ -1,0 +1,10 @@
+config:
+  llm: "deepseek"
+
+  isa: "x64"
+
+  strategy: "canary"
+
+  compiler: 
+    name: "gcc"
+    version: "12.2.0"

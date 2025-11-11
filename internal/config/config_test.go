@@ -37,32 +37,35 @@ func TestLoad_Success(t *testing.T) {
 	actualConfigPath, cleanup := setupTestConfigs(t)
 	defer cleanup()
 
-	// Create a test LLM config file
-	llmContent := `
-provider: test_provider
-model: test_model
-api_key: test_api_key
-endpoint: http://localhost:8080
+	// Create a test config file with 'config' top-level object
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "canary"
+  llm:
+    provider: "deepseek"
+  compiler:
+    name: "gcc"
+    version: "12.2.0"
 `
-	llmConfigFile := filepath.Join(actualConfigPath, "llm.yaml")
-	err := os.WriteFile(llmConfigFile, []byte(llmContent), 0644)
+	configFile := filepath.Join(actualConfigPath, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
 	assert.NoError(t, err)
 
-	// Test loading the LLM config
-	var loadedLlmCfg LLMConfig
-	err = Load("llm", &loadedLlmCfg)
+	// Test loading the config
+	var loadedCfg Config
+	err = Load("config", &loadedCfg)
 	assert.NoError(t, err)
-	assert.Equal(t, "test_provider", loadedLlmCfg.Provider)
-	assert.Equal(t, "test_model", loadedLlmCfg.Model)
-	assert.Equal(t, "test_api_key", loadedLlmCfg.APIKey)
-	assert.Equal(t, "http://localhost:8080", loadedLlmCfg.Endpoint)
+	assert.Equal(t, "x64", loadedCfg.ISA)
+	assert.Equal(t, "canary", loadedCfg.Strategy)
+	assert.Equal(t, "deepseek", loadedCfg.LLM.Provider)
 }
 
 func TestLoad_FileNotExists(t *testing.T) {
 	_, cleanup := setupTestConfigs(t)
 	defer cleanup()
 
-	var cfg LLMConfig
+	var cfg Config
 	err := Load("non_existent_config", &cfg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read config file")
@@ -77,11 +80,11 @@ func TestLoad_EmptyFile(t *testing.T) {
 	err := os.WriteFile(emptyConfigFile, []byte(""), 0644)
 	assert.NoError(t, err)
 
-	var cfg LLMConfig
+	var cfg Config
 	err = Load("empty", &cfg)
 	assert.NoError(t, err) // Viper doesn't error on empty files, just unmarshals nothing
-	assert.Empty(t, cfg.Provider)
-	assert.Empty(t, cfg.Model)
+	assert.Empty(t, cfg.ISA)
+	assert.Empty(t, cfg.Strategy)
 }
 
 func TestLoad_MalformedYAML(t *testing.T) {
@@ -89,13 +92,116 @@ func TestLoad_MalformedYAML(t *testing.T) {
 	defer cleanup()
 
 	// Create a malformed config file
-	malformedContent := "provider: test\n  model: oops" // Bad indentation
+	malformedContent := "config: test\n  isa: oops" // Bad indentation
 	malformedFile := filepath.Join(actualConfigPath, "malformed.yaml")
 	err := os.WriteFile(malformedFile, []byte(malformedContent), 0644)
 	assert.NoError(t, err)
 
-	var cfg LLMConfig
+	var cfg Config
 	err = Load("malformed", &cfg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read config file")
+}
+
+func TestGetCompilerConfigName(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create main config file with 'config' top-level object
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "canary"
+  llm:
+    provider: "deepseek"
+  compiler:
+    name: "gcc"
+    version: "12.2.0"
+`
+	configFile := filepath.Join(actualConfigPath, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	// Load config
+	var cfg Config
+	err = Load("config", &cfg)
+	assert.NoError(t, err)
+
+	// Test GetCompilerConfigName
+	configName := GetCompilerConfigName(&cfg)
+	assert.Equal(t, "gcc-v12.2.0-x64-canary", configName)
+}
+
+func TestGetCompilerConfigPath(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create main config file with 'config' top-level object
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "canary"
+  llm:
+    provider: "deepseek"
+  compiler:
+    name: "gcc"
+    version: "12.2.0"
+`
+	configFile := filepath.Join(actualConfigPath, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	// Create the expected compiler config file
+	compilerConfigContent := `
+compiler:
+  path: "/path/to/gcc"
+  gcovr_exec_path: "/path/to/build"
+`
+	compilerConfigFile := filepath.Join(actualConfigPath, "gcc-v12.2.0-x64-canary.yaml")
+	err = os.WriteFile(compilerConfigFile, []byte(compilerConfigContent), 0644)
+	assert.NoError(t, err)
+
+	// Load config
+	var cfg Config
+	err = Load("config", &cfg)
+	assert.NoError(t, err)
+
+	// Test GetCompilerConfigPath
+	configPath, err := GetCompilerConfigPath(&cfg)
+	assert.NoError(t, err)
+	assert.Contains(t, configPath, "gcc-v12.2.0-x64-canary.yaml")
+
+	// Verify the file exists
+	_, err = os.Stat(configPath)
+	assert.NoError(t, err)
+}
+
+func TestGetCompilerConfigPath_NotFound(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create main config file with 'config' top-level object
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "stackguard"
+  llm:
+    provider: "deepseek"
+  compiler:
+    name: "clang"
+    version: "15.0.0"
+`
+	configFile := filepath.Join(actualConfigPath, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	// Load config
+	var cfg Config
+	err = Load("config", &cfg)
+	assert.NoError(t, err)
+
+	// Test GetCompilerConfigPath when file doesn't exist
+	_, err = GetCompilerConfigPath(&cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "compiler config file not found")
 }

@@ -136,7 +136,6 @@ func TestDeepSeekRealAPIIntegration(t *testing.T) {
 		testSeed := &seed.Seed{
 			ID:        "test-seed",
 			Content:   "int main() { int x = 2000000000; return x + x; }",
-			Makefile:  "all:\n\tgcc -o test source.c",
 			TestCases: analyzeTestCases,
 		}
 		feedback := "Program returned: -294967296"
@@ -157,7 +156,6 @@ func TestDeepSeekRealAPIIntegration(t *testing.T) {
 		originalSeed := &seed.Seed{
 			ID:        "original",
 			Content:   "int main() { return 42; }",
-			Makefile:  "all:\n\tgcc source.c -o prog",
 			TestCases: mutateTestCases,
 		}
 

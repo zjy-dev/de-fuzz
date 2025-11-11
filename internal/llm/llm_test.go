@@ -108,7 +108,7 @@ func TestDeepSeekClient_Generate(t *testing.T) {
 	result, err := client.Generate("system understanding", "test prompt")
 	require.NoError(t, err)
 	assert.Equal(t, "generated code content", result.Content)
-	assert.Contains(t, result.Makefile, "gcc")
+	assert.NotEmpty(t, result.TestCases)
 }
 
 func TestDeepSeekClient_Analyze(t *testing.T) {
@@ -125,7 +125,6 @@ func TestDeepSeekClient_Analyze(t *testing.T) {
 	testSeed := &seed.Seed{
 		ID:        "test-seed",
 		Content:   "int main() { return 0; }",
-		Makefile:  "all:\n\tgcc -o test source.c",
 		TestCases: testCases,
 	}
 
@@ -148,7 +147,6 @@ func TestDeepSeekClient_Mutate(t *testing.T) {
 	originalSeed := &seed.Seed{
 		ID:        "original-seed",
 		Content:   "original content",
-		Makefile:  "original makefile",
 		TestCases: originalTestCases,
 	}
 
@@ -156,7 +154,7 @@ func TestDeepSeekClient_Mutate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, originalSeed.ID, result.ID)
 	assert.Equal(t, "mutated code content", result.Content)
-	assert.Equal(t, originalSeed.Makefile, result.Makefile)
+	assert.Equal(t, originalSeed.TestCases, result.TestCases)
 }
 
 func TestNewDeepSeekClient_Temperature(t *testing.T) {

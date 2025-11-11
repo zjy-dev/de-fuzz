@@ -6,26 +6,28 @@ import (
 	"path/filepath"
 
 	"defuzz/internal/compiler"
+	"defuzz/internal/exec"
 	"defuzz/internal/seed"
-	"defuzz/internal/vm"
 )
 
-// QemuExecutor implements the Executor interface using QEMU.
+// QemuExecutor implements the Executor interface using QEMU on the host machine.
 type QemuExecutor struct {
 	compiler    compiler.Compiler
-	commandPath string // Path to compile_command.txt
+	commandPath string        // Path to compile_command.txt
+	executor    exec.Executor // For running commands on host
 }
 
 // NewQemuExecutor creates a new QemuExecutor.
-func NewQemuExecutor(compiler compiler.Compiler, commandPath string) *QemuExecutor {
+func NewQemuExecutor(compiler compiler.Compiler, commandPath string, executor exec.Executor) *QemuExecutor {
 	return &QemuExecutor{
 		compiler:    compiler,
 		commandPath: commandPath,
+		executor:    executor,
 	}
 }
 
-// Execute uses the provided VM to execute all test cases for the seed.
-func (e *QemuExecutor) Execute(s *seed.Seed, v vm.VM) ([]ExecutionResult, error) {
+// Execute runs all test cases for the seed on the host machine.
+func (e *QemuExecutor) Execute(s *seed.Seed) ([]ExecutionResult, error) {
 	binaryPath, err := e.compiler.Compile(s, e.commandPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile seed %s: %w", s.ID, err)
@@ -38,23 +40,23 @@ func (e *QemuExecutor) Execute(s *seed.Seed, v vm.VM) ([]ExecutionResult, error)
 	for _, testCase := range s.TestCases {
 		// Create a temporary script for this test case
 		scriptPath := filepath.Join(filepath.Dir(binaryPath), "test_script.sh")
-		scriptContent := fmt.Sprintf("#!/bin/bash\n%s\n", testCase.RunningCommand)
+		scriptContent := fmt.Sprintf("#!/bin/bash\ncd %s\n%s\n", filepath.Dir(binaryPath), testCase.RunningCommand)
 
 		if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
 			return nil, fmt.Errorf("failed to write test script: %w", err)
 		}
 
-		// Execute the test case using VM
-		vmResult, err := v.Run(binaryPath, scriptPath)
+		// Execute the test case directly on the host using bash
+		execResult, err := e.executor.Run("bash", scriptPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute test case: %w", err)
 		}
 
-		// Convert VM result to ExecutionResult
+		// Convert exec result to ExecutionResult
 		result := ExecutionResult{
-			Stdout:   vmResult.Stdout,
-			Stderr:   vmResult.Stderr,
-			ExitCode: vmResult.ExitCode,
+			Stdout:   execResult.Stdout,
+			Stderr:   execResult.Stderr,
+			ExitCode: execResult.ExitCode,
 		}
 
 		results = append(results, result)
