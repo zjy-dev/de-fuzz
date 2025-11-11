@@ -35,31 +35,31 @@ Run seed -> get feedback(return code + stdout + stderr) -> let LLM judge if ther
 
 For each defense startegy and ISA:
 
-1. Prepare environment with podman and qemu
-
-2. Build initial prompt `ip`:
+1. Build initial prompt `ip`:
 
    - current environment and toolchain
    - manually summarize defense startegy and stack layout of the ISA
    - manually summarize pesudo-code of the compiler source code about that startegy and ISA
    - also reserve source code as an "attachment" below
 
-3. Feed `ip` to llm and store its "understanding" as memory
+2. Feed `ip` to llm and store its "understanding" as memory
    <!-- if llm does't understand your demands, then how to fuzz with llm? -->
 
-4. Initialize seed pool:
+3. Initialize seed pool:
 
    - let llm generate initial seed(s)
    - adjust init seeds mannualy
 
-5. Pop seed `s` from seed pool
+4. Pop seed `s` from seed pool
 
-6. Compile `s` and record coverage info
+5. Compile `s` and record coverage info
 
    - if coverage rate increased then mutate `s` to `s'` and push `s'` to seed pool
 
-7. Oracle(`s`):
+6. Oracle(`s`):
    - record if found a bug
+
+**Note:** All compilation and execution happens directly on the host machine. Ensure you have the required toolchain (GCC, QEMU, etc.) installed and available in your system PATH.
 
 ## Implementation
 
@@ -67,58 +67,16 @@ For each defense startegy and ISA:
 
 #### 1. GCC
 
-When fuzzing gcc, use gcc's gcov ecosystem.
+When fuzzing gcc, use gcc's gcov for coverage info generation, and gcovr for coverage info statistics.
 
 The simplified workflow is below:
 
-```bash
-#!/bin/bash
-
-# --- Initial Folder Setup ---
-SRCDIR=/root/fuzz-coverage/gcc-release-gcc-12.2.0
-BUILDDIR=/root/fuzz-coverage/gcc-build
-REPORTDIR=/root/fuzz-coverage/coverage_report
-
-# --- Step 1: Recompile target compiler `tc` with coverage flags ---
-echo "=== [1/4] Configuring and Compiling GCC with coverage flags... ==="
-mkdir -p $BUILDDIR $REPORTDIR
-cd $BUILDDIR
-$SRCDIR/configure \
-    --enable-coverage \
-    --disable-bootstrap \
-    --enable-languages=c,c++
-make -j$(nproc)
-
-# --- Step 2: Run `tc` for .gcda ---ample
-# Below is just an example, in the code we compile the seed
-echo "=== [2/4] Running instrumented GCC to generate coverage data... ==="
-echo 'int main() { return 0; }' > /tmp/test.c
-$BUILDDIR/gcc/xgcc -fstack-protector-strong -o /tmp/test.o -c /tmp/test.c
-
-# --- Step 3: Use lcov to handle coverage info ---
-# Let user specify in `config.yaml` which directories, which  they files, and which functions they want to capture
-echo "=== [3/4] Capturing coverage data with lcov... ==="
-cd $BUILDDIR
-lcov --capture --directory . --output-file total.info
-
-lcov --extract total.info \
-    "*/src/net/*.c" \
-    "*/src/util/log.c" \
-    -o extracted.info
-
-# extract user-specified functions' coverage info into `coverage.info` in go code
-
-# --- Step 4: Obtain the increase in coverage rate ---
-echo "=== [4/4] Merge and Diff ==="
-# assume you generate a new.info, and maintained a merged.info
-lcov --diff merged.info new.info --output-file diff.info # DIFF for increasement
-lcov -a coverage.info -a new.info -o merged.info # UNION
-
-
-# --- Step 5(optional): Gen HTML report ---
-echo "=== Generating HTML report... ==="
-genhtml coverage.info --output-directory $REPORTDIR
-```
+1. Customize target compiler `tc` with gcov coverage compile options
+  Ensure `tc` only produce *.gcda/*.gcno files for specific files and functions
+2. Use `tc` to compile a <seed>, this will generate *.gcda files needed
+3. `cd tc-build-dir && gcovr --gcov-executable "gcov-14 --demangled-names"  -r ..   --json-pretty --json <seed>.json`
+4. Diff with total.json to find if there're coverage increase in <seed>
+5. Merge <seed>.json and total.json
 
 <!-- ## Usage
 
