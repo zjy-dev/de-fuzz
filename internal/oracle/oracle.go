@@ -1,7 +1,7 @@
 package oracle
 
 import (
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 // Result represents the execution result that needs to be analyzed.

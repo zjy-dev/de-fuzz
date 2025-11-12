@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"defuzz/internal/exec"
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/exec"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 func TestGcovrReport_ToBytes(t *testing.T) {

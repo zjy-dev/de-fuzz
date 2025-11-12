@@ -3,8 +3,8 @@ package executor
 import (
 	"testing"
 
-	"defuzz/internal/exec"
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/exec"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

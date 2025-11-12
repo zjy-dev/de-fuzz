@@ -5,16 +5,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"defuzz/internal/analysis"
-	"defuzz/internal/compiler"
-	"defuzz/internal/config"
-	"defuzz/internal/coverage"
-	"defuzz/internal/llm"
-	"defuzz/internal/oracle"
-	"defuzz/internal/prompt"
-	"defuzz/internal/report"
-	"defuzz/internal/seed"
-	executor "defuzz/internal/seed_executor"
+	"github.com/zjy-dev/de-fuzz/internal/analysis"
+	"github.com/zjy-dev/de-fuzz/internal/compiler"
+	"github.com/zjy-dev/de-fuzz/internal/config"
+	"github.com/zjy-dev/de-fuzz/internal/coverage"
+	"github.com/zjy-dev/de-fuzz/internal/llm"
+	"github.com/zjy-dev/de-fuzz/internal/oracle"
+	"github.com/zjy-dev/de-fuzz/internal/prompt"
+	"github.com/zjy-dev/de-fuzz/internal/report"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
+	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 )
 
 // Fuzzer orchestrates the main fuzzing logic.

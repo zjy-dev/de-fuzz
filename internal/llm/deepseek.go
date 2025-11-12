@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 const (

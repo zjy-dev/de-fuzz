@@ -1,7 +1,7 @@
 package main
 
 import (
-	"defuzz/cmd/defuzz/app"
+	"github.com/zjy-dev/de-fuzz/cmd/defuzz/app"
 	"fmt"
 	"os"
 )

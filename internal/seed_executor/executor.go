@@ -1,7 +1,7 @@
 package executor
 
 import (
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 // ExecutionResult holds the outcome of a single command execution.

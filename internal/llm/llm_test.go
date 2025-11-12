@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"defuzz/internal/config"
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/config"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

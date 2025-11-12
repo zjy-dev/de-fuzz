@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 // Builder is responsible for constructing prompts for the LLM.

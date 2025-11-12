@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"defuzz/internal/compiler"
-	"defuzz/internal/exec"
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/compiler"
+	"github.com/zjy-dev/de-fuzz/internal/exec"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 // QemuExecutor implements the Executor interface using QEMU on the host machine.

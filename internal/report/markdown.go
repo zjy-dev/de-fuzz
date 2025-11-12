@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"defuzz/internal/analysis"
+	"github.com/zjy-dev/de-fuzz/internal/analysis"
 )
 
 // MarkdownReporter implements the Reporter interface by saving reports as markdown files.

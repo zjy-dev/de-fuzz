@@ -3,8 +3,8 @@ package llm
 import (
 	"fmt"
 
-	"defuzz/internal/config"
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/config"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 // LLM defines the interface for interacting with a Large Language Model.

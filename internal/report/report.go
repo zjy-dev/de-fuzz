@@ -1,6 +1,6 @@
 package report
 
-import "defuzz/internal/analysis"
+import "github.com/zjy-dev/de-fuzz/internal/analysis"
 
 // Reporter defines the interface for saving bug reports.
 type Reporter interface {

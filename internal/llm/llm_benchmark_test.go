@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 // BenchmarkDeepSeekClient_GetCompletion benchmarks the GetCompletion method

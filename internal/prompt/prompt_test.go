@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

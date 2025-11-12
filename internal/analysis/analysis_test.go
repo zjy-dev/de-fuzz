@@ -3,9 +3,9 @@ package analysis
 import (
 	"testing"
 
-	"defuzz/internal/prompt"
-	"defuzz/internal/seed"
-	executor "defuzz/internal/seed_executor"
+	"github.com/zjy-dev/de-fuzz/internal/prompt"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
+	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

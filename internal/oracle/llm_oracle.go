@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"defuzz/internal/llm"
-	"defuzz/internal/prompt"
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/llm"
+	"github.com/zjy-dev/de-fuzz/internal/prompt"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 // LLMOracle implements the Oracle interface using an LLM for analysis.

@@ -1,6 +1,6 @@
 package coverage
 
-import "defuzz/internal/seed"
+import "github.com/zjy-dev/de-fuzz/internal/seed"
 
 // Report represents a parsed coverage report (e.g., from gcovr or llvm-cov).
 // It serves as a common data structure for different coverage tools.

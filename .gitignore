@@ -11,3 +11,9 @@ CODE_PLAN.md
 workspace/
 
 target-compilers/
+# Exclude target-compilers to avoid Go module scanning issues
+_target-compilers/
+
+
+/defuzz
+

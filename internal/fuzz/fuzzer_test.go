@@ -5,12 +5,12 @@ package fuzz
 // 	"os"
 // 	"testing"
 
-// 	"defuzz/internal/analysis"
-// 	"defuzz/internal/config"
-// 	"defuzz/internal/llm"
-// 	"defuzz/internal/prompt"
-// 	"defuzz/internal/seed"
-// 	"defuzz/internal/vm"
+// 	"github.com/zjy-dev/de-fuzz/internal/analysis"
+// 	"github.com/zjy-dev/de-fuzz/internal/config"
+// 	"github.com/zjy-dev/de-fuzz/internal/llm"
+// 	"github.com/zjy-dev/de-fuzz/internal/prompt"
+// 	"github.com/zjy-dev/de-fuzz/internal/seed"
+// 	"github.com/zjy-dev/de-fuzz/internal/vm"
 // 	"github.com/stretchr/testify/assert"
 // 	"github.com/stretchr/testify/require"
 // )

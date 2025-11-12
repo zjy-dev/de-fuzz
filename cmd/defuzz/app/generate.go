@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"defuzz/internal/config"
-	"defuzz/internal/llm"
-	"defuzz/internal/prompt"
-	"defuzz/internal/seed"
+	"github.com/zjy-dev/de-fuzz/internal/config"
+	"github.com/zjy-dev/de-fuzz/internal/llm"
+	"github.com/zjy-dev/de-fuzz/internal/prompt"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 
 	"github.com/spf13/cobra"
 )
