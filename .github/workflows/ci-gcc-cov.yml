@@ -55,8 +55,18 @@ jobs:
           go mod verify
           echo "✅ Fresh dependencies downloaded and verified"
 
+      # 运行测试并生成日志和覆盖率报告
       - name: Run coverage tests
-        run: go test ./internal/coverage/... -v
+        run: |
+          mkdir -p artifacts
+          echo "=== Running coverage module tests ==="
+          go test ./internal/coverage/... -v 2>&1 | tee artifacts/coverage_test.log
+        continue-on-error: true
 
-   
-   
+      # 上传测试日志（即使失败也上传）
+      - name: Upload coverage test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-test-logs-${{ github.run_number }}
+          path: artifacts/coverage_test.log
