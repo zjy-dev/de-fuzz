@@ -43,6 +43,10 @@ func TestLoadConfig_Integration(t *testing.T) {
 	// Verify compiler config
 	assert.NotEmpty(t, cfg.Compiler.Path, "Compiler path should be loaded")
 	assert.NotEmpty(t, cfg.Compiler.GcovrExecPath, "Gcovr exec path should be loaded")
+	// Note: SourceParentPath is optional, so we just log it if present
+	if cfg.Compiler.SourceParentPath != "" {
+		t.Logf("Source parent path loaded: %s", cfg.Compiler.SourceParentPath)
+	}
 }
 
 func TestGetCompilerConfigPath_Integration(t *testing.T) {

@@ -205,3 +205,55 @@ config:
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "compiler config file not found")
 }
+
+func TestLoad_CompilerConfig_WithSourceParentPath(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create a compiler config file with all fields including source_parent_path
+	compilerConfigContent := `
+compiler:
+  path: "/root/fuzz-coverage/gcc-build-selective/gcc/xgcc"
+  gcovr_exec_path: "/root/fuzz-coverage/gcc-build-selective"
+  source_parent_path: "/root/fuzz-coverage"
+`
+	compilerConfigFile := filepath.Join(actualConfigPath, "test-compiler.yaml")
+	err := os.WriteFile(compilerConfigFile, []byte(compilerConfigContent), 0644)
+	assert.NoError(t, err)
+
+	// Load the compiler config
+	var compilerCfg CompilerConfig
+	err = Load("test-compiler", &compilerCfg)
+	assert.NoError(t, err)
+
+	// Verify all fields are loaded correctly
+	assert.Equal(t, "/root/fuzz-coverage/gcc-build-selective/gcc/xgcc", compilerCfg.Path)
+	assert.Equal(t, "/root/fuzz-coverage/gcc-build-selective", compilerCfg.GcovrExecPath)
+	assert.Equal(t, "/root/fuzz-coverage", compilerCfg.SourceParentPath)
+}
+
+func TestLoad_CompilerConfig_WithoutSourceParentPath(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create a compiler config file without source_parent_path (for backward compatibility)
+	compilerConfigContent := `
+compiler:
+  path: "/path/to/gcc"
+  gcovr_exec_path: "/path/to/build"
+`
+	compilerConfigFile := filepath.Join(actualConfigPath, "legacy-compiler.yaml")
+	err := os.WriteFile(compilerConfigFile, []byte(compilerConfigContent), 0644)
+	assert.NoError(t, err)
+
+	// Load the compiler config
+	var compilerCfg CompilerConfig
+	err = Load("legacy-compiler", &compilerCfg)
+	assert.NoError(t, err)
+
+	// Verify fields are loaded correctly
+	assert.Equal(t, "/path/to/gcc", compilerCfg.Path)
+	assert.Equal(t, "/path/to/build", compilerCfg.GcovrExecPath)
+	// source_parent_path should be empty string when not provided
+	assert.Equal(t, "", compilerCfg.SourceParentPath)
+}

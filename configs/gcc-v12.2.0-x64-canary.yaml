@@ -4,7 +4,7 @@ compiler:
   # execute gcovr in the path below, json files will be generated here
   gcovr_exec_path: "/root/fuzz-coverage/gcc-build-selective"
 
-
+  source_parent_path: "/root/fuzz-coverage"
 
 # Configuration pattern: Map each file to its target functions
 # This allows fine-grained control over which functions to track per file

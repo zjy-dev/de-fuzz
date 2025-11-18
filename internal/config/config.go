@@ -40,8 +40,9 @@ type LLMConfig struct {
 // Note: The compiler config file may contain additional top-level fields (like 'targets')
 // that are used by external tools (e.g., gcovr-json-util) and are not parsed here.
 type CompilerConfig struct {
-	Path          string `mapstructure:"path"`
-	GcovrExecPath string `mapstructure:"gcovr_exec_path"`
+	Path             string `mapstructure:"path"`
+	GcovrExecPath    string `mapstructure:"gcovr_exec_path"`
+	SourceParentPath string `mapstructure:"source_parent_path"`
 }
 
 // Load reads a configuration file from the "configs" directory into a struct.
