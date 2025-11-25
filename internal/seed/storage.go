@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
 	understandingFile = "understanding.md"
-	sourceCFile       = "source.c"
-	inputsFile        = "inputs.json"
+	// separator defines the boundary between C source code and JSON test cases
+	separator = "\n// ||||| JSON_TESTCASES_START |||||\n"
 )
 
 // GetUnderstandingPath returns the full path to the understanding.md file.
@@ -37,27 +38,34 @@ func LoadUnderstanding(basePath string) (string, error) {
 	return string(content), nil
 }
 
-// SaveSeed saves a single seed to a new subdirectory.
+// SaveSeed saves a single seed to a single file.
+// The file format is:
+// <C Source Code>
+// // ||||| JSON_TESTCASES_START |||||
+// <JSON Test Cases>
 func SaveSeed(basePath string, s *Seed) error {
-	seedDir := filepath.Join(basePath, s.ID)
-	if err := os.MkdirAll(seedDir, 0755); err != nil {
-		return fmt.Errorf("failed to create seed directory %s: %w", seedDir, err)
+	if err := os.MkdirAll(basePath, 0755); err != nil {
+		return fmt.Errorf("failed to create base path %s: %w", basePath, err)
 	}
 
-	// Save C source file
-	sourcePath := filepath.Join(seedDir, sourceCFile)
-	if err := os.WriteFile(sourcePath, []byte(s.Content), 0644); err != nil {
-		return fmt.Errorf("failed to write source file for seed %s: %w", s.ID, err)
-	}
-
-	// Save test cases as inputs.json
-	inputsPath := filepath.Join(seedDir, inputsFile)
-	inputsData, err := json.MarshalIndent(s.TestCases, "", "  ")
+	// Marshal test cases to JSON
+	jsonData, err := json.MarshalIndent(s.TestCases, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal test cases for seed %s: %w", s.ID, err)
 	}
-	if err := os.WriteFile(inputsPath, inputsData, 0644); err != nil {
-		return fmt.Errorf("failed to write inputs file for seed %s: %w", s.ID, err)
+
+	// Combine content
+	fullContent := s.Content + separator + string(jsonData)
+
+	// Save to file with .c extension
+	filename := s.ID
+	if !strings.HasSuffix(filename, ".c") {
+		filename += ".c"
+	}
+	filePath := filepath.Join(basePath, filename)
+
+	if err := os.WriteFile(filePath, []byte(fullContent), 0644); err != nil {
+		return fmt.Errorf("failed to write seed file %s: %w", filePath, err)
 	}
 
 	return nil
@@ -76,36 +84,46 @@ func LoadSeeds(basePath string) (Pool, error) {
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if entry.IsDir() {
 			continue
 		}
 
-		id := entry.Name()
-		seedDir := filepath.Join(basePath, id)
+		filename := entry.Name()
+		// Only process .c files
+		if !strings.HasSuffix(filename, ".c") {
+			continue
+		}
 
-		// Load C source file
-		sourcePath := filepath.Join(seedDir, sourceCFile)
-		content, err := os.ReadFile(sourcePath)
+		id := strings.TrimSuffix(filename, ".c")
+		filePath := filepath.Join(basePath, filename)
+
+		contentBytes, err := os.ReadFile(filePath)
 		if err != nil {
 			// Could log this error instead of failing completely
 			continue
 		}
+		content := string(contentBytes)
 
-		// Load test cases from inputs.json
-		inputsPath := filepath.Join(seedDir, inputsFile)
-		inputsData, err := os.ReadFile(inputsPath)
-		if err != nil {
+		// Split content by separator
+		parts := strings.Split(content, separator)
+		if len(parts) != 2 {
+			// Invalid format, skip
+			// fmt.Printf("Warning: invalid seed file format: %s\n", filename)
 			continue
 		}
 
+		sourceCode := parts[0]
+		jsonContent := parts[1]
+
 		var testCases []TestCase
-		if err := json.Unmarshal(inputsData, &testCases); err != nil {
+		if err := json.Unmarshal([]byte(jsonContent), &testCases); err != nil {
+			// fmt.Printf("Warning: failed to unmarshal test cases for %s: %v\n", filename, err)
 			continue
 		}
 
 		pool.Add(&Seed{
 			ID:        id,
-			Content:   string(content),
+			Content:   sourceCode,
 			TestCases: testCases,
 		})
 	}

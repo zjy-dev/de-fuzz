@@ -71,11 +71,16 @@ func TestStorage(t *testing.T) {
 		err := SaveSeed(basePath, s)
 		require.NoError(t, err)
 
-		// Verify directory and files exist
-		seedDir := filepath.Join(basePath, "001")
-		assert.DirExists(t, seedDir)
-		assert.FileExists(t, filepath.Join(seedDir, "source.c"))
-		assert.FileExists(t, filepath.Join(seedDir, "inputs.json"))
+		// Verify file exists
+		seedFile := filepath.Join(basePath, "001.c")
+		assert.FileExists(t, seedFile)
+
+		// Verify content
+		content, err := os.ReadFile(seedFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "int main() { return 0; }")
+		assert.Contains(t, string(content), "JSON_TESTCASES_START")
+		assert.Contains(t, string(content), "running command")
 	})
 
 	t.Run("should save and load different seeds", func(t *testing.T) {
@@ -95,10 +100,10 @@ func TestStorage(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Verify directories exist with correct naming
-		assert.DirExists(t, filepath.Join(basePath, "c001"))
-		assert.DirExists(t, filepath.Join(basePath, "c002"))
-		assert.DirExists(t, filepath.Join(basePath, "c003"))
+		// Verify files exist with correct naming
+		assert.FileExists(t, filepath.Join(basePath, "c001.c"))
+		assert.FileExists(t, filepath.Join(basePath, "c002.c"))
+		assert.FileExists(t, filepath.Join(basePath, "c003.c"))
 	})
 
 	t.Run("should load multiple seeds", func(t *testing.T) {
