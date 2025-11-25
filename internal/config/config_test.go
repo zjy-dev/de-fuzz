@@ -216,6 +216,8 @@ compiler:
   path: "/root/fuzz-coverage/gcc-build-selective/gcc/xgcc"
   gcovr_exec_path: "/root/fuzz-coverage/gcc-build-selective"
   source_parent_path: "/root/fuzz-coverage"
+  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14" -r ..'
+  total_report_path: "/root/fuzz-coverage/workspace/reports/total.json"
 `
 	compilerConfigFile := filepath.Join(actualConfigPath, "test-compiler.yaml")
 	err := os.WriteFile(compilerConfigFile, []byte(compilerConfigContent), 0644)
@@ -230,6 +232,8 @@ compiler:
 	assert.Equal(t, "/root/fuzz-coverage/gcc-build-selective/gcc/xgcc", compilerCfg.Path)
 	assert.Equal(t, "/root/fuzz-coverage/gcc-build-selective", compilerCfg.GcovrExecPath)
 	assert.Equal(t, "/root/fuzz-coverage", compilerCfg.SourceParentPath)
+	assert.Equal(t, `gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14" -r ..`, compilerCfg.GcovrCommand)
+	assert.Equal(t, "/root/fuzz-coverage/workspace/reports/total.json", compilerCfg.TotalReportPath)
 }
 
 func TestLoad_CompilerConfig_WithoutSourceParentPath(t *testing.T) {
@@ -254,6 +258,8 @@ compiler:
 	// Verify fields are loaded correctly
 	assert.Equal(t, "/path/to/gcc", compilerCfg.Path)
 	assert.Equal(t, "/path/to/build", compilerCfg.GcovrExecPath)
-	// source_parent_path should be empty string when not provided
+	// Optional fields should be empty string when not provided
 	assert.Equal(t, "", compilerCfg.SourceParentPath)
+	assert.Equal(t, "", compilerCfg.GcovrCommand)
+	assert.Equal(t, "", compilerCfg.TotalReportPath)
 }

@@ -25,10 +25,10 @@ func (m *MockExecutor) Run(command string, args ...string) (*exec.ExecutionResul
 
 func TestNewGCCCompiler(t *testing.T) {
 	cfg := GCCCompilerConfig{
-		GCCPath:     "/usr/bin/gcc",
-		WorkDir:     "/tmp/test",
-		CFlags:      "-Wall",
-		CoverageDir: "/tmp/coverage",
+		GCCPath:    "/usr/bin/gcc",
+		WorkDir:    "/tmp/test",
+		PrefixPath: "/usr/lib/gcc",
+		CFlags:     []string{"-Wall", "-O2"},
 	}
 
 	compiler := NewGCCCompiler(cfg)
@@ -36,8 +36,8 @@ func TestNewGCCCompiler(t *testing.T) {
 	assert.NotNil(t, compiler)
 	assert.Equal(t, "/usr/bin/gcc", compiler.gccPath)
 	assert.Equal(t, "/tmp/test", compiler.workDir)
-	assert.Equal(t, "-Wall", compiler.cflags)
-	assert.Equal(t, "/tmp/coverage", compiler.coverageDir)
+	assert.Equal(t, "/usr/lib/gcc", compiler.prefixPath)
+	assert.Equal(t, []string{"-Wall", "-O2"}, compiler.cflags)
 }
 
 func TestGCCCompiler_GetWorkDir(t *testing.T) {
@@ -116,46 +116,6 @@ func TestGCCCompiler_Compile_Failure(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Stderr, "error")
-}
-
-func TestGCCCompiler_CompileWithCoverage(t *testing.T) {
-	workDir, err := os.MkdirTemp("", "compiler_test_")
-	require.NoError(t, err)
-	defer os.RemoveAll(workDir)
-
-	cfg := GCCCompilerConfig{
-		GCCPath:     "gcc",
-		WorkDir:     workDir,
-		CoverageDir: "/tmp/cov",
-	}
-	compiler := NewGCCCompiler(cfg)
-
-	var capturedArgs []string
-	compiler.executor = &MockExecutor{
-		RunFunc: func(command string, args ...string) (*exec.ExecutionResult, error) {
-			capturedArgs = args
-			return &exec.ExecutionResult{ExitCode: 0}, nil
-		},
-	}
-
-	testSeed := &seed.Seed{
-		Meta:    seed.Metadata{ID: 3},
-		Content: "int main() { return 0; }",
-	}
-
-	result, err := compiler.CompileWithCoverage(testSeed)
-
-	require.NoError(t, err)
-	assert.True(t, result.Success)
-	// Verify coverage flags were added
-	found := false
-	for _, arg := range capturedArgs {
-		if arg == "--coverage" || arg == "--coverage -fprofile-dir=/tmp/cov" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found || len(capturedArgs) > 0, "Coverage flags should be present")
 }
 
 func TestGCCCompiler_SourceFileWritten(t *testing.T) {

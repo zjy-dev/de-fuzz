@@ -40,9 +40,24 @@ type LLMConfig struct {
 // Note: The compiler config file may contain additional top-level fields (like 'targets')
 // that are used by external tools (e.g., gcovr-json-util) and are not parsed here.
 type CompilerConfig struct {
-	Path             string `mapstructure:"path"`
-	GcovrExecPath    string `mapstructure:"gcovr_exec_path"`
+	// Path is the path to the compiler executable (e.g., /path/to/gcc)
+	Path string `mapstructure:"path"`
+
+	// GcovrExecPath is the path to gcovr executable for coverage analysis
+	GcovrExecPath string `mapstructure:"gcovr_exec_path"`
+
+	// SourceParentPath is the parent directory of source files for coverage reporting
 	SourceParentPath string `mapstructure:"source_parent_path"`
+
+	// GcovrCommand is the complete gcovr command template (optional)
+	// If empty, a default command will be constructed from other config values
+	GcovrCommand string `mapstructure:"gcovr_command"`
+
+	// TotalReportPath is the path to store accumulated coverage report (optional)
+	// If empty, defaults to {output_dir}/state/total.json for resume capability
+	// This file is critical for checkpointing: it stores accumulated coverage data
+	// that allows the fuzzer to resume from where it left off after interruption
+	TotalReportPath string `mapstructure:"total_report_path"`
 }
 
 // Load reads a configuration file from the "configs" directory into a struct.

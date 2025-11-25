@@ -5,7 +5,6 @@ package compiler
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,7 +66,7 @@ func TestGCCCompiler_Integration_CompileWithWarnings(t *testing.T) {
 	compiler := NewGCCCompiler(GCCCompilerConfig{
 		GCCPath: "gcc",
 		WorkDir: tempDir,
-		CFlags:  "-Wall",
+		CFlags:  []string{"-Wall"},
 	})
 
 	// Code with unused variable warning
@@ -115,55 +114,6 @@ func TestGCCCompiler_Integration_CompileError(t *testing.T) {
 	require.NoError(t, err) // Should not return error, just report failure
 	assert.False(t, result.Success, "Compilation should fail")
 	assert.NotEmpty(t, result.Stderr, "Should have error message")
-}
-
-// TestGCCCompiler_Integration_CompileWithCoverage tests coverage instrumentation.
-func TestGCCCompiler_Integration_CompileWithCoverage(t *testing.T) {
-	_, err := exec.LookPath("gcc")
-	if err != nil {
-		t.Skip("GCC not found, skipping integration test")
-	}
-
-	tempDir, err := os.MkdirTemp("", "compiler_coverage_")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	// Don't use CoverageDir to avoid the -fprofile-dir flag issue
-	compiler := NewGCCCompiler(GCCCompilerConfig{
-		GCCPath: "gcc",
-		WorkDir: tempDir,
-	})
-
-	testSeed := &seed.Seed{
-		Meta: seed.Metadata{ID: 4},
-		Content: `
-#include <stdio.h>
-int add(int a, int b) { return a + b; }
-int main() {
-    printf("%d\n", add(1, 2));
-    return 0;
-}
-`,
-	}
-
-	result, err := compiler.CompileWithCoverage(testSeed)
-	require.NoError(t, err)
-
-	if !result.Success {
-		t.Logf("Compilation stderr: %s", result.Stderr)
-	}
-	assert.True(t, result.Success, "Compilation with coverage should succeed")
-	assert.FileExists(t, result.BinaryPath)
-
-	// Run the binary to generate coverage data
-	cmd := exec.Command(result.BinaryPath)
-	output, err := cmd.Output()
-	require.NoError(t, err)
-	assert.Contains(t, string(output), "3")
-
-	// Check that .gcno file was created (compile-time coverage notes)
-	gcnoFiles, _ := filepath.Glob(filepath.Join(tempDir, "*.gcno"))
-	assert.NotEmpty(t, gcnoFiles, "Should have .gcno coverage file")
 }
 
 // TestGCCCompiler_Integration_MultipleSeeds tests compiling multiple seeds.
@@ -290,7 +240,7 @@ func TestCrossGCCCompiler_Integration_Aarch64(t *testing.T) {
 		GCCCompilerConfig: GCCCompilerConfig{
 			GCCPath: "aarch64-linux-gnu-gcc",
 			WorkDir: tempDir,
-			CFlags:  "-static",
+			CFlags:  []string{"-static"},
 		},
 		TargetArch: "aarch64",
 		Sysroot:    "/usr/aarch64-linux-gnu",
@@ -329,7 +279,7 @@ func TestCrossGCCCompiler_Integration_Riscv64(t *testing.T) {
 		GCCCompilerConfig: GCCCompilerConfig{
 			GCCPath: "riscv64-linux-gnu-gcc",
 			WorkDir: tempDir,
-			CFlags:  "-static",
+			CFlags:  []string{"-static"},
 		},
 		TargetArch: "riscv64",
 		Sysroot:    "/usr/riscv64-linux-gnu",
@@ -365,7 +315,7 @@ func TestGCCCompiler_Integration_StackProtection(t *testing.T) {
 	compiler := NewGCCCompiler(GCCCompilerConfig{
 		GCCPath: "gcc",
 		WorkDir: tempDir,
-		CFlags:  "-fstack-protector-strong",
+		CFlags:  []string{"-fstack-protector-strong"},
 	})
 
 	testSeed := &seed.Seed{

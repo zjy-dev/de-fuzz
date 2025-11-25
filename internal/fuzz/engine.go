@@ -122,7 +122,7 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 
 	// Step 1: Compile
 	log.Printf("[Engine] Compiling seed %d...", s.Meta.ID)
-	compileResult, err := e.cfg.Compiler.CompileWithCoverage(s)
+	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
 		return nil, fmt.Errorf("compilation failed: %w", err)
 	}

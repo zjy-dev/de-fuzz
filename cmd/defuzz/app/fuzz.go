@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -81,15 +82,22 @@ func runFuzz(outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU 
 
 	fmt.Printf("[Fuzz] Target: %s / %s\n", cfg.ISA, cfg.Strategy)
 
+	// Create state directory (used for resume capability)
+	stateDir := filepath.Join(outputDir, "state")
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
+		return fmt.Errorf("failed to create state directory: %w", err)
+	}
+
 	// 2. Create corpus manager
 	corpusManager := corpus.NewFileManager(outputDir)
 
 	// 3. Create compiler
+	compilerDir := filepath.Dir(cfg.Compiler.Path)
 	gccCompiler := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
-		GCCPath:     cfg.Compiler.Path,
-		WorkDir:     filepath.Join(outputDir, "build"),
-		CFlags:      "",
-		CoverageDir: filepath.Join(outputDir, "coverage"),
+		GCCPath:    cfg.Compiler.Path,
+		WorkDir:    filepath.Join(outputDir, "build"),
+		PrefixPath: compilerDir,
+		CFlags:     []string{"-fstack-protector-strong", "-O0"},
 	})
 
 	// 4. Create executor (local or QEMU)
@@ -110,7 +118,7 @@ func runFuzz(outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU 
 
 	// Create a compile function wrapper for coverage
 	compileFunc := func(s *seed.Seed) error {
-		result, err := gccCompiler.CompileWithCoverage(s)
+		result, err := gccCompiler.Compile(s)
 		if err != nil {
 			return err
 		}
@@ -122,12 +130,33 @@ func runFuzz(outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU 
 
 	filterConfigPath, _ := config.GetCompilerConfigPath(cfg)
 
+	// Determine gcovr command: use config if set, otherwise use default
+	gcovrCommand := cfg.Compiler.GcovrCommand
+	if gcovrCommand == "" {
+		gcovrCommand = fmt.Sprintf("gcovr --exclude '.*\\.(h|hpp|hxx)$' --gcov-executable 'gcov-14 --demangled-names' -r %s --json-pretty", cfg.Compiler.SourceParentPath)
+	}
+
+	// Determine total report path: use config if set, otherwise use state directory
+	// This is critical for resume capability - the total.json stores accumulated coverage
+	totalReportPath := cfg.Compiler.TotalReportPath
+	if totalReportPath == "" {
+		totalReportPath = filepath.Join(stateDir, "total.json")
+	}
+	fmt.Printf("[Fuzz] Coverage report path: %s\n", totalReportPath)
+
+	// Check if we're resuming (total.json exists)
+	if _, err := os.Stat(totalReportPath); err == nil {
+		fmt.Println("[Fuzz] Found existing coverage data, resuming from checkpoint...")
+	} else {
+		fmt.Println("[Fuzz] Starting fresh fuzzing session...")
+	}
+
 	coverageTracker := coverage.NewGCCCoverage(
 		cmdExecutor,
 		compileFunc,
 		cfg.Compiler.GcovrExecPath,
-		"gcovr --exclude '.*\\.(h|hpp|hxx)$' --gcov-executable 'gcov-14 --demangled-names' -r "+cfg.Compiler.SourceParentPath+" --json-pretty",
-		filepath.Join(outputDir, "coverage", "total.json"),
+		gcovrCommand,
+		totalReportPath,
 		filterConfigPath,
 	)
 

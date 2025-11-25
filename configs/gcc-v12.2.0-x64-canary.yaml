@@ -6,11 +6,63 @@ compiler:
 
   source_parent_path: "/root/fuzz-coverage"
 
+  # gcovr command template (without --json output path)
+  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+
+  # path to the total accumulated coverage report (optional)
+  # If empty, defaults to {fuzz_output}/state/total.json for resume capability
+  # This file stores accumulated coverage and is critical for checkpoint/resume
+  # total_report_path: "/root/fuzz-coverage/workspace/reports/total.json"
+
 # Configuration pattern: Map each file to its target functions
 # This allows fine-grained control over which functions to track per file
+#
+# Stack Canary (Stack Protector) related core functions for x86_64
+# These functions are involved in:
+#   1. Deciding which functions need stack protection
+#   2. Classifying variable types for protection
+#   3. Generating prologue (set canary) and epilogue (check canary)
+#   4. Target-specific guard value handling
+
 targets:
+  # cfgexpand.cc - 栈保护核心逻辑（变量分类、冲突分析、prologue生成）
   - file: "gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
     functions:
+      # 分类变量类型，决定是否需要保护（检测字符数组、聚合类型等）
       - "stack_protect_classify_type"
-      - "expand_one_stack_var_at"
-  
+      # 决定变量的保护阶段（phase 1/2）
+      - "stack_protect_decl_phase"
+      - "stack_protect_decl_phase_1"
+      - "stack_protect_decl_phase_2"
+      # 添加栈变量之间的保护冲突约束
+      - "add_stack_protection_conflicts"
+      # 创建栈上的 guard 变量
+      - "create_stack_guard"
+      # 生成函数入口的 stack canary 设置代码
+      - "stack_protect_prologue"
+      # 检查是否有使用返回槽的调用（-fstack-protector-strong 用）
+      - "stack_protect_return_slot_p"
+
+  # function.cc - 栈保护 epilogue（函数退出时检查 canary）
+  - file: "gcc-releases-gcc-12.2.0/gcc/function.cc"
+    functions:
+      # 生成函数出口的 stack canary 检查代码，失败时调用 __stack_chk_fail
+      - "stack_protect_epilogue"
+
+  # targhooks.cc - 默认的 guard 值和失败处理
+  - file: "gcc-releases-gcc-12.2.0/gcc/targhooks.cc"
+    functions:
+      # 默认的 __stack_chk_guard 全局变量声明
+      - "default_stack_protect_guard"
+      # 默认的 __stack_chk_fail 函数调用生成
+      - "default_external_stack_protect_fail"
+      # 隐藏符号版本的 __stack_chk_fail_local（用于 PIC 代码）
+      - "default_hidden_stack_protect_fail"
+
+  # i386.cc - x86_64 特定的 guard 处理（TLS 段访问）
+  - file: "gcc-releases-gcc-12.2.0/gcc/config/i386/i386.cc"
+    functions:
+      # x86_64 特定的 guard 获取（通过 fs/gs 段寄存器访问 TLS）
+      - "ix86_stack_protect_guard"
+      # x86_64 特定的失败处理
+      - "ix86_stack_protect_fail"

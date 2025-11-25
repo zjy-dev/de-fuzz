@@ -22,49 +22,41 @@ type Compiler interface {
 	// Compile compiles the seed's C source code and returns the path to the binary.
 	Compile(s *seed.Seed) (*CompileResult, error)
 
-	// CompileWithCoverage compiles with coverage instrumentation enabled.
-	CompileWithCoverage(s *seed.Seed) (*CompileResult, error)
-
 	// GetWorkDir returns the working directory for compilation.
 	GetWorkDir() string
 }
 
 // GCCCompiler implements the Compiler interface using GCC.
 type GCCCompiler struct {
-	executor    exec.Executor
-	gccPath     string // Path to gcc executable (e.g., "gcc" or "/usr/bin/aarch64-linux-gnu-gcc")
-	workDir     string // Working directory for compilation
-	cflags      string // Additional compiler flags
-	coverageDir string // Directory for coverage data (.gcda, .gcno)
+	executor   exec.Executor
+	gccPath    string   // Path to gcc executable (e.g., "gcc" or "/usr/bin/aarch64-linux-gnu-gcc")
+	workDir    string   // Working directory for compilation
+	prefixPath string   // -B prefix path for compiler components (cc1, as, ld, etc.)
+	cflags     []string // Additional compiler flags as a slice
 }
 
 // GCCCompilerConfig holds the configuration for GCCCompiler.
 type GCCCompilerConfig struct {
-	GCCPath     string // Path to GCC executable
-	WorkDir     string // Working directory
-	CFlags      string // Additional compiler flags
-	CoverageDir string // Coverage data directory
+	GCCPath    string   // Path to GCC executable
+	WorkDir    string   // Working directory
+	PrefixPath string   // -B prefix path for finding compiler components (cc1, as, ld)
+	CFlags     []string // Additional compiler flags as a slice
 }
 
 // NewGCCCompiler creates a new GCC compiler.
 func NewGCCCompiler(cfg GCCCompilerConfig) *GCCCompiler {
 	return &GCCCompiler{
-		executor:    exec.NewCommandExecutor(),
-		gccPath:     cfg.GCCPath,
-		workDir:     cfg.WorkDir,
-		cflags:      cfg.CFlags,
-		coverageDir: cfg.CoverageDir,
+		executor:   exec.NewCommandExecutor(),
+		gccPath:    cfg.GCCPath,
+		workDir:    cfg.WorkDir,
+		prefixPath: cfg.PrefixPath,
+		cflags:     cfg.CFlags,
 	}
 }
 
 // Compile compiles the seed's C source code.
 func (c *GCCCompiler) Compile(s *seed.Seed) (*CompileResult, error) {
-	return c.compile(s, false)
-}
-
-// CompileWithCoverage compiles with coverage instrumentation.
-func (c *GCCCompiler) CompileWithCoverage(s *seed.Seed) (*CompileResult, error) {
-	return c.compile(s, true)
+	return c.compile(s)
 }
 
 // GetWorkDir returns the working directory.
@@ -72,7 +64,7 @@ func (c *GCCCompiler) GetWorkDir() string {
 	return c.workDir
 }
 
-func (c *GCCCompiler) compile(s *seed.Seed, withCoverage bool) (*CompileResult, error) {
+func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 	// Ensure work directory exists
 	if err := os.MkdirAll(c.workDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create work directory: %w", err)
@@ -87,23 +79,19 @@ func (c *GCCCompiler) compile(s *seed.Seed, withCoverage bool) (*CompileResult, 
 	// Determine output binary path
 	binaryPath := filepath.Join(c.workDir, fmt.Sprintf("seed_%d", s.Meta.ID))
 
-	// Build compile command
-	args := []string{sourceFile, "-o", binaryPath}
+	// Build compile command arguments
+	var args []string
+
+	// Add -B prefix path first if specified (for finding cc1, as, ld, etc.)
+	if c.prefixPath != "" {
+		args = append(args, "-B"+c.prefixPath)
+	}
 
 	// Add user-specified flags
-	if c.cflags != "" {
-		args = append([]string{c.cflags}, args...)
-	}
+	args = append(args, c.cflags...)
 
-	// Add coverage flags if requested
-	if withCoverage {
-		coverageFlags := "--coverage"
-		if c.coverageDir != "" {
-			// Set coverage output directory
-			coverageFlags += fmt.Sprintf(" -fprofile-dir=%s", c.coverageDir)
-		}
-		args = append([]string{coverageFlags}, args...)
-	}
+	// Add source file and output
+	args = append(args, sourceFile, "-o", binaryPath)
 
 	// Run GCC
 	result, err := c.executor.Run(c.gccPath, args...)
