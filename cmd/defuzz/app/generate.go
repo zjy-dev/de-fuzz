@@ -115,9 +115,9 @@ Examples:
 			}
 
 			fmt.Printf("\nSuccessfully generated %d seeds in %s\n", count, basePath)
-			fmt.Printf("Seeds can be found in the following directories:\n")
+			fmt.Printf("Seeds can be found in the following files:\n")
 
-			// List generated seed directories
+			// List generated seed files
 			pool, err := seed.LoadSeeds(basePath)
 			if err != nil {
 				fmt.Printf("Warning: Could not load seeds to display summary: %v\n", err)
@@ -127,7 +127,7 @@ Examples:
 					if s == nil {
 						break
 					}
-					fmt.Printf("  - %s/\n", s.ID)
+					fmt.Printf("  - %s.seed\n", s.ID)
 				}
 			}
 

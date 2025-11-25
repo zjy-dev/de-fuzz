@@ -72,7 +72,7 @@ func TestStorage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify file exists
-		seedFile := filepath.Join(basePath, "001.c")
+		seedFile := filepath.Join(basePath, "001.seed")
 		assert.FileExists(t, seedFile)
 
 		// Verify content
@@ -101,9 +101,9 @@ func TestStorage(t *testing.T) {
 		}
 
 		// Verify files exist with correct naming
-		assert.FileExists(t, filepath.Join(basePath, "c001.c"))
-		assert.FileExists(t, filepath.Join(basePath, "c002.c"))
-		assert.FileExists(t, filepath.Join(basePath, "c003.c"))
+		assert.FileExists(t, filepath.Join(basePath, "c001.seed"))
+		assert.FileExists(t, filepath.Join(basePath, "c002.seed"))
+		assert.FileExists(t, filepath.Join(basePath, "c003.seed"))
 	})
 
 	t.Run("should load multiple seeds", func(t *testing.T) {
