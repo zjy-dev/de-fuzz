@@ -9,41 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInMemoryPool(t *testing.T) {
-	pool := NewInMemoryPool()
-
-	t.Run("should be empty initially", func(t *testing.T) {
-		assert.Equal(t, 0, pool.Len())
-		assert.Nil(t, pool.Next())
-	})
-
-	t.Run("should add and retrieve seeds", func(t *testing.T) {
-		testCases1 := []TestCase{
-			{RunningCommand: "./prog", ExpectedResult: "success"},
-		}
-		testCases2 := []TestCase{
-			{RunningCommand: "./prog -v", ExpectedResult: "verbose output"},
-		}
-
-		s1 := &Seed{ID: "1", Content: "int main(){}", TestCases: testCases1}
-		s2 := &Seed{ID: "2", Content: "int foo(){}", TestCases: testCases2}
-
-		pool.Add(s1)
-		pool.Add(s2)
-		assert.Equal(t, 2, pool.Len())
-
-		nextSeed := pool.Next()
-		assert.Equal(t, s1, nextSeed)
-		assert.Equal(t, 1, pool.Len())
-
-		nextSeed = pool.Next()
-		assert.Equal(t, s2, nextSeed)
-		assert.Equal(t, 0, pool.Len())
-
-		assert.Nil(t, pool.Next())
-	})
-}
-
 func TestStorage(t *testing.T) {
 	basePath, err := os.MkdirTemp("", "seed_storage_test_")
 	require.NoError(t, err)
@@ -106,7 +71,7 @@ func TestStorage(t *testing.T) {
 		assert.FileExists(t, filepath.Join(basePath, "c003.seed"))
 	})
 
-	t.Run("should load multiple seeds", func(t *testing.T) {
+	t.Run("should load multiple seeds with metadata", func(t *testing.T) {
 		// Clear the directory first
 		os.RemoveAll(basePath)
 		os.MkdirAll(basePath, 0755)
@@ -115,38 +80,38 @@ func TestStorage(t *testing.T) {
 		testCases2 := []TestCase{{RunningCommand: "./prog2", ExpectedResult: "result2"}}
 		testCases3 := []TestCase{{RunningCommand: "./prog3", ExpectedResult: "result3"}}
 
-		s1 := &Seed{ID: "s1", Content: "c1", TestCases: testCases1}
-		s2 := &Seed{ID: "s2", Content: "asm2", TestCases: testCases2}
-		s3 := &Seed{ID: "s3", Content: "casm3", TestCases: testCases3}
-		require.NoError(t, SaveSeed(basePath, s1))
-		require.NoError(t, SaveSeed(basePath, s2))
-		require.NoError(t, SaveSeed(basePath, s3))
-
-		pool, err := LoadSeeds(basePath)
+		namer := NewDefaultNamingStrategy()
+		s1 := &Seed{Meta: Metadata{ID: 1}, Content: "c1", TestCases: testCases1}
+		s2 := &Seed{Meta: Metadata{ID: 2}, Content: "asm2", TestCases: testCases2}
+		s3 := &Seed{Meta: Metadata{ID: 3}, Content: "casm3", TestCases: testCases3}
+		_, err := SaveSeedWithMetadata(basePath, s1, namer)
 		require.NoError(t, err)
-		assert.Equal(t, 3, pool.Len())
+		_, err = SaveSeedWithMetadata(basePath, s2, namer)
+		require.NoError(t, err)
+		_, err = SaveSeedWithMetadata(basePath, s3, namer)
+		require.NoError(t, err)
 
-		// Note: LoadSeeds doesn't guarantee order, so we check presence
-		seeds := make(map[string]*Seed)
-		for {
-			s := pool.Next()
-			if s == nil {
-				break
-			}
-			seeds[s.ID] = s
+		seeds, err := LoadSeedsWithMetadata(basePath, namer)
+		require.NoError(t, err)
+		assert.Equal(t, 3, len(seeds))
+
+		// Build a map for easy lookup
+		seedMap := make(map[uint64]*Seed)
+		for _, s := range seeds {
+			seedMap[s.Meta.ID] = s
 		}
-		assert.Contains(t, seeds, "s1")
-		assert.Contains(t, seeds, "s2")
-		assert.Contains(t, seeds, "s3")
-		assert.Equal(t, "c1", seeds["s1"].Content)
-		assert.Equal(t, testCases1, seeds["s1"].TestCases)
-		assert.Equal(t, "asm2", seeds["s2"].Content)
-		assert.Equal(t, testCases2, seeds["s2"].TestCases)
+		assert.Contains(t, seedMap, uint64(1))
+		assert.Contains(t, seedMap, uint64(2))
+		assert.Contains(t, seedMap, uint64(3))
+		assert.Equal(t, "c1", seedMap[1].Content)
+		assert.Equal(t, testCases1, seedMap[1].TestCases)
+		assert.Equal(t, "asm2", seedMap[2].Content)
+		assert.Equal(t, testCases2, seedMap[2].TestCases)
 	})
 
-	t.Run("should return empty pool if base path does not exist", func(t *testing.T) {
-		pool, err := LoadSeeds(filepath.Join(basePath, "non_existent_dir"))
+	t.Run("should return empty slice if base path does not exist", func(t *testing.T) {
+		seeds, err := LoadSeedsWithMetadata(filepath.Join(basePath, "non_existent_dir"), NewDefaultNamingStrategy())
 		require.NoError(t, err)
-		assert.Equal(t, 0, pool.Len())
+		assert.Equal(t, 0, len(seeds))
 	})
 }

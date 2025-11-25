@@ -41,7 +41,8 @@ func LoadUnderstanding(basePath string) (string, error) {
 	return string(content), nil
 }
 
-// SaveSeed saves a single seed to a single file.
+// SaveSeed saves a single seed to a single file (legacy format without metadata).
+// Prefer SaveSeedWithMetadata for new code.
 // The file format is:
 // <C Source Code>
 // // ||||| JSON_TESTCASES_START |||||
@@ -72,66 +73,6 @@ func SaveSeed(basePath string, s *Seed) error {
 	}
 
 	return nil
-}
-
-// LoadSeeds scans a directory, loads all found seeds, and returns them in a Pool.
-func LoadSeeds(basePath string) (Pool, error) {
-	pool := NewInMemoryPool()
-	entries, err := os.ReadDir(basePath)
-	if err != nil {
-		// It's not an error if the directory doesn't exist yet.
-		if os.IsNotExist(err) {
-			return pool, nil
-		}
-		return nil, fmt.Errorf("failed to read base path %s: %w", basePath, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		filename := entry.Name()
-		// Only process .seed files
-		if !strings.HasSuffix(filename, ".seed") {
-			continue
-		}
-
-		id := strings.TrimSuffix(filename, ".seed")
-		filePath := filepath.Join(basePath, filename)
-
-		contentBytes, err := os.ReadFile(filePath)
-		if err != nil {
-			// Could log this error instead of failing completely
-			continue
-		}
-		content := string(contentBytes)
-
-		// Split content by separator
-		parts := strings.Split(content, separator)
-		if len(parts) != 2 {
-			// Invalid format, skip
-			// fmt.Printf("Warning: invalid seed file format: %s\n", filename)
-			continue
-		}
-
-		sourceCode := parts[0]
-		jsonContent := parts[1]
-
-		var testCases []TestCase
-		if err := json.Unmarshal([]byte(jsonContent), &testCases); err != nil {
-			// fmt.Printf("Warning: failed to unmarshal test cases for %s: %v\n", filename, err)
-			continue
-		}
-
-		pool.Add(&Seed{
-			ID:        id,
-			Content:   sourceCode,
-			TestCases: testCases,
-		})
-	}
-
-	return pool, nil
 }
 
 // SaveSeedWithMetadata saves a seed using the specified naming strategy.

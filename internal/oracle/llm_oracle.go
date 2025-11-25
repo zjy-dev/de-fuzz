@@ -26,9 +26,9 @@ func NewLLMOracle(l llm.LLM, prompter *prompt.Builder, llmContext string) *LLMOr
 }
 
 // Analyze uses the LLM to determine if the execution results indicate a bug.
-func (o *LLMOracle) Analyze(s *seed.Seed, results []Result) (bool, string, error) {
+func (o *LLMOracle) Analyze(s *seed.Seed, results []Result) (*Bug, error) {
 	if len(results) == 0 {
-		return false, "", fmt.Errorf("no execution results to analyze")
+		return nil, fmt.Errorf("no execution results to analyze")
 	}
 
 	// First, perform basic checks for obvious crashes or anomalies
@@ -57,14 +57,14 @@ func (o *LLMOracle) Analyze(s *seed.Seed, results []Result) (bool, string, error
 
 	// If no obvious anomalies, no bug
 	if !hasAnomaly {
-		return false, "", nil
+		return nil, nil
 	}
 
 	// Use LLM for deeper analysis
 	feedback := strings.Join(anomalies, "\n")
 	analysisPrompt, err := o.prompter.BuildAnalyzePrompt(s, feedback)
 	if err != nil {
-		return false, "", fmt.Errorf("failed to build analysis prompt: %w", err)
+		return nil, fmt.Errorf("failed to build analysis prompt: %w", err)
 	}
 
 	description, err := o.llm.Analyze(o.llmContext, analysisPrompt, s, feedback)
@@ -73,11 +73,11 @@ func (o *LLMOracle) Analyze(s *seed.Seed, results []Result) (bool, string, error
 		description = fmt.Sprintf("Execution anomalies detected:\n%s", feedback)
 	}
 
-	// The LLM should return a description that indicates whether this is a bug
-	// For simplicity, we assume if anomalies exist and LLM provides analysis, it's a bug
-	isBug := hasAnomaly && description != ""
-
-	return isBug, description, nil
+	return &Bug{
+		Seed:        s,
+		Results:     results,
+		Description: description,
+	}, nil
 }
 
 // containsCrashIndicators checks if output contains common crash indicators.

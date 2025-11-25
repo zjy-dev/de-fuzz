@@ -6,6 +6,7 @@ This document contains a Mermaid flowchart that illustrates the complete workflo
 graph TD
     subgraph Initialization
         A[Start DeFuzz] --> B{Mode?};
+
         B -->|generate| C[Generate Mode];
         B -->|fuzz| D[Fuzz Mode];
     end
@@ -62,5 +63,72 @@ graph TD
         ExitFail --> StopVM;
         StopVM --> FinalEnd[End];
     end
+```
 
+# Module Dependencies
+
+```mermaid
+graph TD
+    subgraph Orchestration
+        Fuzz[fuzz/Engine]
+        Config[config]
+    end
+
+    subgraph Core
+        Seed[seed]
+        State[state]
+        Corpus[corpus]
+    end
+
+    subgraph Execution
+        Compiler[compiler]
+        Executor[seed_executor]
+        VM[vm]
+        Exec[exec]
+    end
+
+    subgraph Analysis
+        Coverage[coverage]
+        Analysis[analysis]
+        Report[report]
+        Oracle[oracle]
+    end
+
+    subgraph AI
+        LLM[llm]
+        Prompt[prompt]
+    end
+
+    %% Dependencies
+    Fuzz --> Config
+    Fuzz --> Seed
+    Fuzz --> Corpus
+    Fuzz --> Compiler
+    Fuzz --> Executor
+    Fuzz --> Coverage
+    Fuzz --> Analysis
+    Fuzz --> LLM
+    Fuzz --> Prompt
+
+    Analysis --> LLM
+    Analysis --> Prompt
+    Analysis --> Seed
+    Analysis --> Executor
+
+    Compiler --> Exec
+    Compiler --> Seed
+
+    Executor --> Seed
+    Executor --> VM
+
+    VM --> Exec
+
+    LLM --> Config
+    LLM --> Seed
+
+    Prompt --> Seed
+
+    Coverage --> Seed
+
+    Report --> Analysis
 ```

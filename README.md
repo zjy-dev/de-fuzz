@@ -72,11 +72,11 @@ When fuzzing gcc, use gcc's gcov for coverage info generation, and gcovr for cov
 The simplified workflow is below:
 
 1. Customize target compiler `tc` with gcov coverage compile options
-  Ensure `tc` only produce *.gcda/*.gcno files for specific files and functions
+   Ensure `tc` only produce _.gcda/_.gcno files for specific files and functions
 2. Clean `gcovr_exec_path` (configured in compiler-isa-strategy.yaml)
-2. Use `tc` to compile a <seed>, this will generate *.gcda files needed
-3. `cd gcovr_exec_path(configured in compiler-isa-strategy.yaml) && gcovr --exclude '.*\.(h|hpp|hxx)$' --gcov-executable "gcov-14 --demangled-names"  -r .. --json-pretty --json /root/project/de-fuzz/cov/gcc/<seed>.json`
-4. Diff with total.json(if exist) to see if there're coverage increase in <seed> using https://github.com/zjy-dev/gcovr-json-util/v2, that go project exposed some apis. Document is below:
+3. Use `tc` to compile a <seed>, this will generate \*.gcda files needed
+4. `cd gcovr_exec_path(configured in compiler-isa-strategy.yaml) && gcovr --exclude '.*\.(h|hpp|hxx)$' --gcov-executable "gcov-14 --demangled-names"  -r .. --json-pretty --json /root/project/de-fuzz/cov/gcc/<seed>.json`
+5. Diff with total.json(if exist) to see if there're coverage increase in <seed> using https://github.com/zjy-dev/gcovr-json-util/v2, that go project exposed some apis. Document is below:
 
 ```go
 import "github.com/zjy-dev/gcovr-json-util/v2/pkg/gcovr"
@@ -110,86 +110,328 @@ if err != nil {
 // (Optional)Format and display results
 output := gcovr.FormatReport(report)
 fmt.Print(output)
-``` 
+```
 
 if total.json not exist, then copy <seed>.json as total.json, and coverage is considered to be increased.
 
 5. Merge <seed>.json and total.json using `mv total.json tmp.json && gcovr --json-pretty --json  -a tmp.json -a <seed>.json -o total.json && rm tmp.json`
 
-<!-- ## Usage
+## Module Architecture
 
-DeFuzz is a command-line tool with multiple subcommands.
+The `internal` directory contains the core logic, organized into modular components:
 
-### `generate`
+### Core Data Structures
 
-This command is used to generate the initial seed pool for a specific ISA and defense strategy.
+- **`seed`**: Defines the `Seed` structure (Source + TestCases + Metadata). It is the central data type passed between modules. Also provides file I/O utilities for seed persistence.
+- **`state`**: Manages the global persistent state of the fuzzing session (e.g., unique IDs, global coverage stats). Supports resume functionality.
+- **`corpus`**: Manages the queue of seeds to be fuzzed, handling prioritization, selection, and persistence. Integrates with `state` for ID allocation and with `seed` for storage.
 
-**Usage:**
+### Execution & Environment
+
+- **`exec`**: A low-level wrapper around `os/exec` to facilitate testing and mocking of shell commands.
+- **`vm`**: Abstracts the execution environment. Implementations include `LocalVM` (host execution) and `QEMUVM` (user-mode emulation for cross-architecture fuzzing).
+- **`compiler`**: Abstracts the compilation process. `GCCCompiler` handles invoking GCC with specific flags and coverage instrumentation.
+- **`seed_executor`**: Orchestrates the execution of a single seed. It uses the `vm` module to run the compiled binary against defined test cases.
+
+### Analysis & Feedback
+
+- **`coverage`**: Handles coverage measurement. It parses reports (e.g., from `gcovr`) and determines if a seed has increased code coverage.
+- **`oracle`**: The test oracle that determines if a seed execution has found a bug. `LLMOracle` uses an LLM to analyze execution results (crashes, unexpected output, etc.) and identify vulnerabilities.
+- **`report`**: Handles the persistence of bug reports in Markdown format.
+
+### LLM Integration
+
+- **`llm`**: Provides a unified interface for Large Language Models (e.g., DeepSeek). Handles generation, mutation, and analysis requests.
+- **`prompt`**: Constructs context-aware prompts for the LLM, incorporating ISA details, defense strategies, and source code.
+
+### Orchestration
+
+- **`fuzz`**: The central engine that ties everything together. It implements the main loop:
+  1.  Pick seed from `corpus`.
+  2.  `compiler` -> Binary.
+  3.  `seed_executor` -> Result.
+  4.  `coverage` -> Feedback.
+  5.  `oracle` -> Bug detection.
+  6.  `llm` -> Mutation (if interesting).
+- **`config`**: Centralized configuration management using Viper.
+
+## Usage
+
+This section describes how to configure and run DeFuzz to fuzz a specific ISA and defense strategy.
+
+### Prerequisites
+
+Before running DeFuzz, ensure you have:
+
+1. **Go 1.21+** installed
+2. **GCC with gcov support** (for coverage measurement)
+3. **gcovr** installed (`pip install gcovr`)
+4. **QEMU user-mode** (optional, for cross-architecture fuzzing)
+5. **LLM API access** (e.g., DeepSeek API key)
+
+### Configuration Files
+
+DeFuzz uses a layered configuration system with three main configuration files in the `configs/` directory:
+
+#### 1. Main Configuration (`configs/config.yaml`)
+
+This file specifies the target ISA, defense strategy, compiler info, and which LLM provider to use:
+
+```yaml
+config:
+  # LLM provider name (must match an entry in llm.yaml)
+  llm: "deepseek"
+
+  # Target ISA (e.g., x64, aarch64, riscv64)
+  isa: "x64"
+
+  # Defense strategy to fuzz (e.g., canary, aslr, cfi)
+  strategy: "canary"
+
+  # Compiler identification (used to locate compiler config file)
+  compiler:
+    name: "gcc"
+    version: "12.2.0"
+```
+
+The `isa` and `strategy` values determine:
+
+- Where initial seeds are loaded from: `initial_seeds/{isa}/{strategy}/`
+- Which compiler config file to load: `configs/{name}-v{version}-{isa}-{strategy}.yaml`
+
+#### 2. LLM Configuration (`configs/llm.yaml`)
+
+This file contains LLM provider configurations. You can define multiple providers:
+
+```yaml
+llms:
+  - provider: "deepseek"
+    model: "deepseek-coder"
+    api_key: "sk-your-api-key-here" # Replace with your actual API key
+    endpoint: "" # Leave empty for default endpoint
+    temperature: 0.7
+
+  - provider: "openai"
+    model: "gpt-4"
+    api_key: "sk-your-openai-key"
+    endpoint: ""
+    temperature: 0.7
+```
+
+**Important**: Keep your API keys secure. Consider using environment variables in production.
+
+#### 3. Compiler Configuration (`configs/{compiler}-v{version}-{isa}-{strategy}.yaml`)
+
+This file contains compiler-specific settings for the target combination. The filename follows the pattern:
+`{compiler.name}-v{compiler.version}-{isa}-{strategy}.yaml`
+
+Example: `configs/gcc-v12.2.0-x64-canary.yaml`
+
+```yaml
+compiler:
+  # Path to the compiler executable (can be a custom build with coverage support)
+  path: "/root/fuzz-coverage/gcc-build-selective/gcc/xgcc"
+
+  # Working directory for gcovr execution (where .gcda/.gcno files are generated)
+  gcovr_exec_path: "/root/fuzz-coverage/gcc-build-selective"
+
+  # Parent path for source code
+  source_parent_path: "/root/fuzz-coverage"
+
+# Target functions for fine-grained coverage tracking
+# Used by gcovr-json-util to filter coverage data
+targets:
+  - file: "gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
+    functions:
+      - "stack_protect_classify_type"
+      - "expand_one_stack_var_at"
+```
+
+### Directory Structure
+
+```
+de-fuzz/
+├── configs/
+│   ├── config.yaml                        # Main configuration
+│   ├── llm.yaml                           # LLM provider configs
+│   └── gcc-v12.2.0-x64-canary.yaml       # Compiler-specific config
+├── initial_seeds/
+│   └── {isa}/
+│       └── {strategy}/
+│           ├── understanding.md           # LLM's understanding (generated)
+│           ├── stack_layout.md            # Manual: ISA stack layout docs
+│           ├── defense_strategy.c         # Manual: Defense strategy code
+│           └── *.seed                     # Initial seed files
+└── fuzz_out/                              # Default output directory
+    ├── corpus/                            # Active seed corpus
+    ├── coverage/                          # Coverage reports
+    ├── build/                             # Compiled binaries
+    └── state/                             # Fuzzing state (for resume)
+```
+
+### Step-by-Step Workflow
+
+#### Step 1: Prepare Initial Context
+
+Create the initial seeds directory structure for your target:
 
 ```bash
-go run ./cmd/defuzz generate --isa <target-isa> --strategy <target-strategy> [flags]
+mkdir -p initial_seeds/{isa}/{strategy}
 ```
 
-**Flags:**
+Add manual context files:
 
-- `--isa`: (Required) Target ISA (e.g., `x86_64`).
-- `--strategy`: (Required) Defense strategy (e.g., `stackguard`).
-- `-o, --output`: Output directory for seeds (default: `initial_seeds`).
-- `-c, --count`: Number of seeds to generate (default: `1`).
+- `stack_layout.md`: Document the stack layout for the target ISA
+- `defense_strategy.c`: Include relevant compiler source code for the defense strategy
 
-**Note:** Before running the generate command, ensure you have set up the fuzzing environment using the provided container script: `./scripts/build-container.sh`
+Example for `x64/canary`:
 
-### Seed Storage
-
-The `initial_seeds/` directory stores all data related to a specific fuzzing target (a combination of ISA and defense strategy). This includes the LLM's cached understanding of the target and the individual seeds.
-
-```
-initial_seeds/<isa>/<defense_strategy>/
-├── understanding.md
-└── <id>/
-    ├── source.c
-    ├── Makefile
-    └── run.sh
+```bash
+mkdir -p initial_seeds/x64/canary
+# Add stack_layout.md and defense_strategy.c
 ```
 
-- **`<isa>`**: The target Instruction Set Architecture (e.g., `x86_64`).
-- **`<defense_strategy>`**: The defense strategy being fuzzed (e.g., `stackguard`).
-- **`understanding.md`**: A cached file containing the LLM's summary and understanding of the initial prompt. This is generated on the first run and reused to save time and API calls.
-- **`<id>`**: A directory for each individual seed, containing:
-  - **`source.c`**: The C source code for the seed
-  - **`Makefile`**: Build instructions and compilation flags
-  - **`run.sh`**: Execution script for testing the compiled binary
+#### Step 2: Configure DeFuzz
 
-## Project Structure
+1. Edit `configs/config.yaml` to set your target:
 
-The project is structured to separate different logical components of the fuzzer, following standard Go project layout conventions. This makes the codebase easier to understand, maintain, and test.
+   ```yaml
+   config:
+     llm: "deepseek"
+     isa: "x64"
+     strategy: "canary"
+     compiler:
+       name: "gcc"
+       version: "12.2.0"
+   ```
 
-- **`cmd/defuzz/`**: This is the main entry point for the application. The `main.go` file in this directory is responsible for parsing command-line arguments, handling the different execution modes (`generate` and `fuzz`), and starting the appropriate process.
+2. Add your LLM API key to `configs/llm.yaml`
 
-- **`internal/`**: This directory contains all the core logic of the fuzzer. As it's `internal`, this code is not meant to be imported by other external projects.
+3. Create the compiler config file `configs/gcc-v12.2.0-x64-canary.yaml` with paths to your coverage-enabled compiler
 
-  - **`config/`**: Provides a generic way to load configurations (e.g., for the LLM) from YAML files stored in the `configs/` directory. It uses the Viper library to automatically find and parse files by name (e.g., `llm.yaml`) and includes robust error handling for malformed or missing files.
-  - **`exec/`**: A low-level utility package that provides robust helper functions for executing external shell commands on the host system.
-  - **`vm/`**: Manages the containerized execution environment. It handles creating, starting, and stopping the Podman container. It provides functions to run commands _inside_ the container (for compiling and executing seeds) by using the `exec` package to call `podman exec`.
-  - **`llm/`**: Responsible for all interactions with the Large Language Model. It features a modular design with an `LLM` interface to support different providers. The `New()` factory function initializes the client (e.g., `DeepSeekClient`) based on `configs/llm.yaml`, allowing for easy extension and testing. Its duties include processing initial prompts, generating and mutating seeds, and analyzing feedback.
-  - **`prompt/`**: Focuses on constructing the detailed initial prompts for the LLM, including environment details and defense strategy summaries.
-  - **`seed_executor/`**: Executes a seed within the VM. It prepares the environment, runs the seed's command, and returns the result.
-  - **`seed/`**: Defines the data structures for seeds and manages the seed pool (e.g., adding, saving, and loading seeds).
-  - **`analysis/`**: Handles the analysis of fuzzing feedback. It will interpret the results of a seed execution to determine if a bug was found.
-  - **`report/`**: Handles the saving of buggy seeds and their associated feedback as reports.
-  - **`fuzz/`**: Contains the high-level orchestration logic. In `generate` mode, it coordinates `prompt`, `llm`, and `seed` to create the initial seed pool. In `fuzz` mode, it runs the main fuzzing loop, manages the bug count, and determines when to exit.
+#### Step 3: Generate Initial Seeds
 
-- **`pkg/`**: Intended for code that can be safely imported and used by external applications. It is currently empty but reserved for future use.
+Use the `generate` command to create initial seeds:
 
-- **`configs/`**: A designated place for configuration files, such as settings for the LLM or different fuzzing targets.
+```bash
+# Generate 5 initial seeds
+./defuzz generate --isa x64 --strategy canary --count 5
 
-- **`scripts/`**: For storing helper scripts, for instance, to automate builds, run tests, or set up environments.
+# Or specify a custom output directory
+./defuzz generate --isa x64 --strategy canary --count 5 -o my_seeds
+```
 
-- **`testdata/`**: Contains sample files and data required for running tests, such as example C/assembly source files.
+This will:
 
-## Work Flow
+1. Generate an LLM understanding (`understanding.md`) if not exists
+2. Create initial seed files (`.seed` format)
 
-- 2025-01-23: Updated documentation to reflect unified seed structure (C + Makefile + run.sh) and removed deprecated seed type parameter.
-- 2025-08-01: Updated seed plan to reflect the three seed types.
-- 2025-07-31: Created plan for the report module.
-- 2025-07-31: Reviewed and updated all module plans. -->
+#### Step 4: Start Fuzzing
+
+Run the fuzzing loop:
+
+```bash
+# Basic fuzzing
+./defuzz fuzz
+
+# With options
+./defuzz fuzz --max-iterations 100 --max-new-seeds 3 --timeout 30
+
+# For cross-architecture fuzzing with QEMU
+./defuzz fuzz --use-qemu --qemu-path qemu-aarch64 --qemu-sysroot /usr/aarch64-linux-gnu
+```
+
+**Command-line Options for `fuzz`:**
+
+| Flag               | Default         | Description                                        |
+| ------------------ | --------------- | -------------------------------------------------- |
+| `-o, --output`     | `fuzz_out`      | Output directory for fuzzing artifacts             |
+| `--max-iterations` | `0` (unlimited) | Maximum number of fuzzing iterations               |
+| `--max-new-seeds`  | `3`             | Maximum new seeds to generate per interesting seed |
+| `--timeout`        | `30`            | Execution timeout in seconds                       |
+| `--use-qemu`       | `false`         | Use QEMU for cross-architecture execution          |
+| `--qemu-path`      | `qemu-aarch64`  | Path to QEMU user-mode executable                  |
+| `--qemu-sysroot`   | `""`            | Sysroot path for QEMU (-L argument)                |
+
+### Fuzzing Workflow Summary
+
+The fuzzing process follows this flow:
+
+1. **Load Configuration**: Read `config.yaml` → locate LLM config → locate compiler config
+2. **Initialize Corpus**: Create/recover corpus from `fuzz_out/corpus/`
+3. **Load Initial Seeds**: If corpus is empty, load from `initial_seeds/{isa}/{strategy}/`
+4. **Main Loop** (for each seed):
+   - Compile with coverage instrumentation
+   - Execute test cases
+   - Measure code coverage
+   - If coverage increased:
+     - Merge coverage report
+     - Generate new mutated seeds using LLM
+   - Analyze execution results using Oracle
+   - Report any discovered bugs
+5. **Save State**: Periodically save state for resume capability
+
+### Resume Capability
+
+DeFuzz automatically saves its state to `fuzz_out/state/`. If interrupted, simply run `defuzz fuzz` again to resume from where it left off. The corpus and coverage data are preserved.
+
+## Testing
+
+### Unit Tests
+
+Run unit tests for all modules:
+
+```bash
+go test ./...
+```
+
+### Integration Tests
+
+The VM module includes comprehensive integration tests for multiple architectures using QEMU user-mode emulation:
+
+| Architecture                       | QEMU Binary    | Cross-Compiler            |
+| ---------------------------------- | -------------- | ------------------------- |
+| aarch64 (ARM64)                    | `qemu-aarch64` | `aarch64-linux-gnu-gcc`   |
+| riscv64 (RISC-V 64-bit)            | `qemu-riscv64` | `riscv64-linux-gnu-gcc`   |
+| arm (ARM 32-bit)                   | `qemu-arm`     | `arm-linux-gnueabihf-gcc` |
+| ppc64 (PowerPC 64-bit, Big-Endian) | `qemu-ppc64`   | `powerpc64-linux-gnu-gcc` |
+| s390x (IBM Z)                      | `qemu-s390x`   | `s390x-linux-gnu-gcc`     |
+
+**Prerequisites for integration tests:**
+
+```bash
+# Install QEMU user-mode emulators
+apt-get install -y qemu-user qemu-user-static
+
+# Install cross-compilers
+apt-get install -y \
+    gcc-aarch64-linux-gnu \
+    gcc-riscv64-linux-gnu \
+    gcc-arm-linux-gnueabihf \
+    gcc-powerpc64-linux-gnu \
+    gcc-s390x-linux-gnu
+```
+
+**Run integration tests:**
+
+```bash
+# Run all integration tests
+go test -tags=integration ./internal/vm/... -v
+
+# Run tests for specific architecture
+go test -tags=integration ./internal/vm/... -v -run "Aarch64"
+go test -tags=integration ./internal/vm/... -v -run "Riscv64"
+
+# Run all architectures hello world test
+go test -tags=integration ./internal/vm/... -v -run "AllArchitectures_HelloWorld"
+```
+
+The integration tests verify:
+
+- Hello World execution on each architecture
+- Exit code handling (0, 1, 42, 255)
+- Command line argument passing
+- Stdout/Stderr separation
+- Timeout functionality
+- Memory allocation
+- Architecture-specific features (e.g., big-endian on ppc64)

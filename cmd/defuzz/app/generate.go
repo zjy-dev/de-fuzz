@@ -118,16 +118,12 @@ Examples:
 			fmt.Printf("Seeds can be found in the following files:\n")
 
 			// List generated seed files
-			pool, err := seed.LoadSeeds(basePath)
+			seeds, err := seed.LoadSeedsWithMetadata(basePath, seed.NewDefaultNamingStrategy())
 			if err != nil {
 				fmt.Printf("Warning: Could not load seeds to display summary: %v\n", err)
 			} else {
-				for {
-					s := pool.Next()
-					if s == nil {
-						break
-					}
-					fmt.Printf("  - %s.seed\n", s.ID)
+				for _, s := range seeds {
+					fmt.Printf("  - %s\n", s.Meta.FilePath)
 				}
 			}
 

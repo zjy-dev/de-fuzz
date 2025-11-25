@@ -1,9 +1,10 @@
 # LLM Configuration for DeFuzz
 llms:
   - provider: "deepseek"
-    model: "deepseek-coder"
-    api_key: "sk-4422180763c845a19ae5999b05ec5088"  # Replace with your actual API key
+    model: "deepseek-chat"
+    api_key: "sk-b52b1156cfe647138ebd5108a5786ee6"  # Replace with your actual API key
     endpoint: ""  # Leave empty to use default endpoint
+    temperature: 0.7
   - provider: "openai"
     model: "gpt-4"
     api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with your actual API key

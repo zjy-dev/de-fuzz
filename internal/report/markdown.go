@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/zjy-dev/de-fuzz/internal/analysis"
+	"github.com/zjy-dev/de-fuzz/internal/oracle"
 )
 
 // MarkdownReporter implements the Reporter interface by saving reports as markdown files.
@@ -22,7 +22,7 @@ func NewMarkdownReporter(outputDir string) *MarkdownReporter {
 }
 
 // Save saves the details of a discovered bug to a markdown file.
-func (r *MarkdownReporter) Save(bug *analysis.Bug) error {
+func (r *MarkdownReporter) Save(bug *oracle.Bug) error {
 	if err := os.MkdirAll(r.outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create report directory: %w", err)
 	}

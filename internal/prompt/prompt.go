@@ -41,16 +41,10 @@ func (b *Builder) BuildUnderstandPrompt(isa, strategy, basePath string) (string,
 
 	// Read auxiliary context files
 	stackLayoutPath := filepath.Join(basePath, "stack_layout.md")
-	sourceCodePath := filepath.Join(basePath, "defense_strategy.c")
 
 	stackLayout, err := readFileOrDefault(stackLayoutPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read stack layout file: %w", err)
-	}
-
-	sourceCode, err := readFileOrDefault(sourceCodePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read defense strategy source code: %w", err)
 	}
 
 	prompt := fmt.Sprintf(`You are a world-class expert in cybersecurity, specializing in low-level exploitation and compiler security. You have a deep understanding of how compilers work, how security mitigations are implemented, and how they can be bypassed.
@@ -63,9 +57,6 @@ Target ISA: %s
 Defense Strategy: %s
 
 [ISA Stack Layout of the target compiler]
-%s
-
-[Defense Strategy Source Code]
 %s
 
 **[YOUR TASK]**
@@ -91,7 +82,7 @@ The generated System Prompt **MUST** contain the following sections:
 -   You must only output the generated **System Prompt**.
 -   Do not include any other text, conversation, or explanations.
 -   The output should be formatted in Markdown.
-`, isa, strategy, stackLayout, sourceCode, strategy, isa)
+`, isa, strategy, stackLayout, strategy, isa)
 
 	return prompt, nil
 }
@@ -243,22 +234,3 @@ Please provide a concise but informative analysis.
 `, s.Content, testCasesJSON, feedback)
 	return prompt, nil
 }
-
-/*
---- UPDATE CODE PLAN ---
-
-1.  **Create `readFileOrDefault` helper:**
-    -   Create a private helper function `readFileOrDefault(path string) (string, error)`.
-    -   This function will read the file at `path`.
-    -   If `os.IsNotExist(err)`, it will return `"Not available for now"` and `nil`.
-    -   For other errors, it will return `""` and the error.
-    -   If successful, it returns the file content as a string.
-
-2.  **Modify `BuildUnderstandPrompt`:**
-    -   Change the signature to `BuildUnderstandPrompt(isa, strategy, basePath string) (string, error)`.
-    -   Define paths for context files:
-        -   `stackLayoutPath := filepath.Join(basePath, "stack_layout.md")`
-        -   `sourceCodePath := filepath.Join(basePath, "defense_strategy.c")`
-    -   Call `readFileOrDefault` for both paths to get their content.
-    -   Update the prompt template to include new sections for "ISA Stack Layout" and "Defense Strategy Source Code", populating them with the content read from the files.
-*/

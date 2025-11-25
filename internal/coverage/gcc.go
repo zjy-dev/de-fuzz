@@ -100,7 +100,7 @@ func (g *GCCCoverage) Measure(s *seed.Seed) (Report, error) {
 
 	// Step 3: Generate coverage report using gcovr
 	// The output path is determined from the seed ID
-	seedReportPath := filepath.Join(g.seedReportDir, fmt.Sprintf("%s.json", s.ID))
+	seedReportPath := filepath.Join(g.seedReportDir, fmt.Sprintf("%d.json", s.Meta.ID))
 
 	// Ensure the output directory exists
 	if err := os.MkdirAll(g.seedReportDir, 0755); err != nil {

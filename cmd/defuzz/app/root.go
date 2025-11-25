@@ -13,7 +13,7 @@ func NewDefuzzCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(NewGenerateCommand())
-	// Future commands like 'fuzz' will be added here.
+	cmd.AddCommand(NewFuzzCommand())
 
 	return cmd
 }
