@@ -1,19 +1,43 @@
-idea.*
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
+# Documentation drafts
 GEMINI.md
-
 CODE_PLAN.md
 
-# plan.md
+# Build artifacts
+/defuzz
+*.exe
+*.dll
+*.so
+*.dylib
 
-# update*
+# Test and coverage outputs
+*.out
+*.test
+coverage.html
+coverage.txt
 
+# Fuzzing outputs
+fuzz_out/
 workspace/
+fuzz.log
 
+# Target compilers (large binary dependencies)
 target-compilers/
-# Exclude target-compilers to avoid Go module scanning issues
 _target-compilers/
 
+# Environment files
+.env
+.env.local
+.env.*.local
 
-/defuzz
+# OS generated files
+.DS_Store
+Thumbs.db
 
+# Go
+vendor/
