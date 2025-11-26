@@ -95,10 +95,15 @@ func (ca *CppAbstractor) abstractFunction(tree *tree_sitter.Tree, sourceCode []b
 	// Find the function in the AST
 	root := tree.RootNode()
 
-	// Try to find by demangled name first, then by function name
+	// Extract the base function name from demangled name (remove parameters)
+	// e.g., "stack_protect_classify_type(tree_node*)" -> "stack_protect_classify_type"
 	searchName := fn.DemangledName
 	if searchName == "" {
 		searchName = fn.FunctionName
+	}
+	// Remove parameter list from demangled name
+	if idx := strings.Index(searchName, "("); idx != -1 {
+		searchName = searchName[:idx]
 	}
 
 	funcNode := ca.findFunction(root, sourceCode, searchName)

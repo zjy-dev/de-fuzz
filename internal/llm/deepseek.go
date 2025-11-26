@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/zjy-dev/de-fuzz/internal/seed"
@@ -14,33 +13,6 @@ import (
 const (
 	DefaultDeepSeekEndpoint = "https://api.deepseek.com/v1/chat/completions"
 )
-
-// parseSeedFromResponse extracts source code and test cases from LLM response
-func parseSeedFromResponse(response string) (string, []seed.TestCase, error) {
-	// Extract source code
-	sourceRegex := regexp.MustCompile(`Source \(c\):\s*---\s*(.*?)\s*---`)
-	sourceMatches := sourceRegex.FindStringSubmatch(response)
-	if len(sourceMatches) < 2 {
-		return "", nil, fmt.Errorf("could not find source code in response")
-	}
-	sourceCode := strings.TrimSpace(sourceMatches[1])
-
-	// Extract test cases JSON
-	testCasesRegex := regexp.MustCompile(`Test Cases \(json\):\s*---\s*(.*?)\s*---`)
-	testCasesMatches := testCasesRegex.FindStringSubmatch(response)
-	if len(testCasesMatches) < 2 {
-		return "", nil, fmt.Errorf("could not find test cases in response")
-	}
-	testCasesJSON := strings.TrimSpace(testCasesMatches[1])
-
-	// Parse test cases JSON
-	var testCases []seed.TestCase
-	if err := json.Unmarshal([]byte(testCasesJSON), &testCases); err != nil {
-		return "", nil, fmt.Errorf("failed to parse test cases JSON: %w", err)
-	}
-
-	return sourceCode, testCases, nil
-}
 
 // DeepSeekClient implements the LLM interface for the DeepSeek model.
 type DeepSeekClient struct {
@@ -151,13 +123,9 @@ func (c *DeepSeekClient) Generate(understanding, prompt string) (*seed.Seed, err
 	}
 
 	// Parse the completion to extract source code and test cases
-	sourceCode, testCases, err := parseSeedFromResponse(completion)
+	sourceCode, testCases, err := seed.ParseSeedFromLLMResponse(completion)
 	if err != nil {
-		// Fallback to using raw completion as source if parsing fails
-		return &seed.Seed{
-			Content:   completion,
-			TestCases: []seed.TestCase{{RunningCommand: "./prog", ExpectedResult: "success"}}, // Default test case
-		}, nil
+		return nil, fmt.Errorf("failed to parse LLM response: %w", err)
 	}
 
 	return &seed.Seed{
@@ -174,18 +142,13 @@ func (c *DeepSeekClient) Mutate(understanding, prompt string, s *seed.Seed) (*se
 	}
 
 	// Parse the completion to extract mutated source code and test cases
-	sourceCode, testCases, err := parseSeedFromResponse(completion)
+	sourceCode, testCases, err := seed.ParseSeedFromLLMResponse(completion)
 	if err != nil {
-		// Fallback: only update the content if parsing fails
-		return &seed.Seed{
-			ID:        s.ID,
-			Content:   completion,  // Use raw completion as mutated source
-			TestCases: s.TestCases, // Keep original test cases
-		}, nil
+		return nil, fmt.Errorf("failed to parse LLM response: %w", err)
 	}
 
 	return &seed.Seed{
-		ID:        s.ID, // Keep the original ID for tracking
+		Meta:      s.Meta, // Preserve parent's metadata for lineage tracking
 		Content:   sourceCode,
 		TestCases: testCases,
 	}, nil

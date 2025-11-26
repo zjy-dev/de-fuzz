@@ -106,7 +106,9 @@ func (m *MockExecutor) Execute(s *seed.Seed, binaryPath string) ([]executor.Exec
 type MockCoverage struct {
 	measureFn     func(s *seed.Seed) (coverage.Report, error)
 	hasIncreaseFn func(report coverage.Report) (bool, error)
+	getIncreaseFn func(report coverage.Report) (*coverage.CoverageIncrease, error)
 	mergeFn       func(report coverage.Report) error
+	getStatsFn    func() (*coverage.CoverageStats, error)
 }
 
 func (m *MockCoverage) Clean() error {
@@ -127,6 +129,16 @@ func (m *MockCoverage) HasIncreased(report coverage.Report) (bool, error) {
 	return false, nil
 }
 
+func (m *MockCoverage) GetIncrease(report coverage.Report) (*coverage.CoverageIncrease, error) {
+	if m.getIncreaseFn != nil {
+		return m.getIncreaseFn(report)
+	}
+	return &coverage.CoverageIncrease{
+		Summary:         "Test coverage increase",
+		FormattedReport: "Detailed report",
+	}, nil
+}
+
 func (m *MockCoverage) Merge(report coverage.Report) error {
 	if m.mergeFn != nil {
 		return m.mergeFn(report)
@@ -136,6 +148,17 @@ func (m *MockCoverage) Merge(report coverage.Report) error {
 
 func (m *MockCoverage) GetTotalReport() (coverage.Report, error) {
 	return nil, nil
+}
+
+func (m *MockCoverage) GetStats() (*coverage.CoverageStats, error) {
+	if m.getStatsFn != nil {
+		return m.getStatsFn()
+	}
+	return &coverage.CoverageStats{
+		CoveragePercentage: 50.0,
+		TotalLines:         100,
+		TotalCoveredLines:  50,
+	}, nil
 }
 
 type MockOracle struct {

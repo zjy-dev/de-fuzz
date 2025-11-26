@@ -4,9 +4,32 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
+
+// MutationContext holds context information for seed mutation.
+type MutationContext struct {
+	// CoverageIncreaseSummary is a brief description of what coverage increased
+	CoverageIncreaseSummary string
+
+	// CoverageIncreaseDetails is the detailed formatted report of coverage increase
+	CoverageIncreaseDetails string
+
+	// TotalCoveragePercentage is the current total coverage percentage
+	TotalCoveragePercentage float64
+
+	// TotalCoveredLines is the number of lines currently covered
+	TotalCoveredLines int
+
+	// TotalLines is the total number of lines to cover
+	TotalLines int
+
+	// UncoveredAbstract is the abstracted code showing uncovered paths
+	// This helps LLM understand what code paths are not yet covered
+	UncoveredAbstract string
+}
 
 // Builder is responsible for constructing prompts for the LLM.
 type Builder struct {
@@ -47,6 +70,17 @@ func (b *Builder) BuildUnderstandPrompt(isa, strategy, basePath string) (string,
 		return "", fmt.Errorf("failed to read stack layout file: %w", err)
 	}
 
+	// Build the output format example - use the same format as storage.Separator
+	// Format: <C source code> + "// ||||| JSON_TESTCASES_START |||||" + <JSON test cases>
+	outputFormatExample := "[C source code here]\n" +
+		"// ||||| JSON_TESTCASES_START |||||\n" +
+		"[\n" +
+		"  {\n" +
+		"    \"running command\": \"[command to execute the compiled binary]\",\n" +
+		"    \"expected result\": \"[expected output or behavior]\"\n" +
+		"  }\n" +
+		"]"
+
 	prompt := fmt.Sprintf(`You are a world-class expert in cybersecurity, specializing in low-level exploitation and compiler security. You have a deep understanding of how compilers work, how security mitigations are implemented, and how they can be bypassed.
 
 Your mission is to craft a high-quality, detailed **System Prompt**. This prompt will be given to another AI assistant whose sole job is to generate and mutate C code to fuzz a compiler's security features. The effectiveness of the entire fuzzing process depends on the quality of your system prompt.
@@ -65,24 +99,33 @@ Analyze the provided context and generate a **System Prompt**. This prompt must 
 
 The generated System Prompt **MUST** contain the following sections:
 
-1.  **`+"`## Goal`"+`**: A clear and concise statement of the objective. (e.g., "Your goal is to generate and mutate C code to discover vulnerabilities in the '%s' defense strategy on the '%s' architecture.")
+1.  **## Goal**: A clear and concise statement of the objective. (e.g., "Your goal is to generate and mutate C code to discover vulnerabilities in the '%s' defense strategy on the '%s' architecture.")
 
-2.  **`+"`## Core Concepts`"+`**: A detailed explanation of the defense strategy and the ISA's stack layout. You must synthesize the provided context, not just copy it. Explain *how* the defense works and what its theoretical weaknesses are.
+2.  **## Core Concepts**: A detailed explanation of the defense strategy and the ISA's stack layout. You must synthesize the provided context, not just copy it. Explain *how* the defense works and what its theoretical weaknesses are.
 
-3.  **`+"`## Attack Vectors & Vulnerability Patterns`"+`**: This is the most critical section. Provide a bulleted list of specific, actionable attack ideas and C code patterns to try. Be creative and think like an attacker. Examples:
+3.  **## Attack Vectors & Vulnerability Patterns**: This is the most critical section. Provide a bulleted list of specific, actionable attack ideas and C code patterns to try. Be creative and think like an attacker. Examples:
     *   Integer overflows to bypass bounds checks.
     *   Tricky pointer arithmetic to confuse alias analysis.
-    *   Using `+"`longjmp`"+` or other control-flow manipulation to skip security checks.
+    *   Using longjmp or other control-flow manipulation to skip security checks.
     *   Exploiting format string vulnerabilities in novel ways.
 
-4.  **`+"`## Seed Generation & Mutation Rules`"+`**: Clear instructions for the AI on how to format its output. It must produce a complete C source file and a Makefile, as well as a run.sh, and mutations should be small and intelligent.
+4.  **## Seed Generation & Mutation Rules**: Clear instructions for the AI on how to format its output. The AI must produce:
+    *   Complete C source code that compiles with the target compiler.
+    *   Test cases in JSON format, each containing a "running command" and "expected result".
+    *   Mutations should be small, focused, and intelligent.
+
+**[OUTPUT FORMAT]**
+
+The generated System Prompt must instruct the AI to format its output as follows:
+
+%s
 
 **[OUTPUT INSTRUCTIONS]**
 
 -   You must only output the generated **System Prompt**.
 -   Do not include any other text, conversation, or explanations.
 -   The output should be formatted in Markdown.
-`, isa, strategy, stackLayout, strategy, isa)
+`, isa, strategy, stackLayout, strategy, isa, outputFormatExample)
 
 	return prompt, nil
 }
@@ -97,45 +140,46 @@ func (b *Builder) BuildGeneratePrompt(basePath string) (string, error) {
 		return "", fmt.Errorf("failed to read stack layout file: %w", err)
 	}
 
-	prompt := fmt.Sprintf(`Generate a new, complete, and valid seed.
+	prompt := fmt.Sprintf(`Generate a new, complete, and valid seed for fuzzing.
 The seed must contain C source code and test cases.
 Please ensure the code has potential vulnerabilities that can be discovered through fuzzing.
 
-Requirements:
-- Provide complete C source code that compiles successfully.
-- The code will be saved as 'source.c' and compiled using a predefined command.
-- Include test cases in JSON format with running commands and expected results.
+**Requirements:**
+- Provide complete, compilable C source code.
+- The code will be saved as 'source.c' and compiled using the target compiler.
+- Include at least one test case with a running command and expected result.
+- The running command should execute the compiled binary (e.g., "./prog", "./prog arg1 arg2").
+- The expected result describes the expected output or behavior.
 - The code should be minimal but demonstrate a potential vulnerability.
 - Focus on the specific ISA and defense strategy from the system context.
 
-And the ISA Stack Layout for the target compiler:
+**ISA Stack Layout:**
 %s
 
-Format your response as:
-Source (c):
----
-[source code here]
----
+**Output Format (MUST follow exactly):**
 
-Test Cases (json):
----
+Your response must be in this exact format - C source code followed by the separator and JSON test cases:
+
+[Your C source code here]
+// ||||| JSON_TESTCASES_START |||||
 [
   {
-    "running command": "[command to run]",
-    "expected result": "[expected outcome]"
-  },
-  {
-    "running command": "[another command]",
-    "expected result": "[another expected outcome]"
+    "running command": "./prog",
+    "expected result": "expected output or behavior"
   }
 ]
----
+
+**IMPORTANT:** 
+- Output ONLY the C source code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
+- Do NOT include any markdown code blocks, headers, or other formatting.
+- The separator must appear exactly as shown: // ||||| JSON_TESTCASES_START |||||
 `, stackLayout)
 	return prompt, nil
 }
 
 // BuildMutatePrompt constructs a prompt to mutate an existing seed.
-func (b *Builder) BuildMutatePrompt(s *seed.Seed) (string, error) {
+// If mutationCtx is provided, it includes coverage information for smarter mutation.
+func (b *Builder) BuildMutatePrompt(s *seed.Seed, mutationCtx *MutationContext) (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("seed must be provided")
 	}
@@ -153,39 +197,88 @@ func (b *Builder) BuildMutatePrompt(s *seed.Seed) (string, error) {
 	}
 	testCasesJSON += "\n]"
 
+	// Build coverage context section if available
+	coverageSection := ""
+	if mutationCtx != nil {
+		// Build uncovered abstract section if available
+		uncoveredSection := ""
+		if mutationCtx.UncoveredAbstract != "" {
+			uncoveredSection = fmt.Sprintf(`
+[UNCOVERED CODE PATHS]
+The following shows abstracted code with uncovered paths (lines marked with full code are NOT covered yet):
+
+%s
+[/UNCOVERED CODE PATHS]
+`, mutationCtx.UncoveredAbstract)
+		}
+
+		coverageSection = fmt.Sprintf(`
+[COVERAGE CONTEXT]
+Current Total Coverage: %.1f%% (%d/%d lines covered)
+
+Coverage Increase from this seed:
+%s
+
+%s
+[/COVERAGE CONTEXT]
+%s
+Based on the coverage increase above, focus your mutation on:
+1. Exploring similar code paths that led to the coverage increase
+2. Varying the inputs that triggered the newly covered code
+3. Trying edge cases around the newly covered functionality
+4. Targeting the UNCOVERED CODE PATHS shown above to increase coverage
+`,
+			mutationCtx.TotalCoveragePercentage,
+			mutationCtx.TotalCoveredLines,
+			mutationCtx.TotalLines,
+			mutationCtx.CoverageIncreaseSummary,
+			mutationCtx.CoverageIncreaseDetails,
+			uncoveredSection,
+		)
+	}
+
 	prompt := fmt.Sprintf(`
 [EXISTING SEED]
-Source (c):
----
 %s
----
-
-Test Cases (json):
----
+// ||||| JSON_TESTCASES_START |||||
 %s
----
 [/EXISTING SEED]
-
-Based on the system context, mutate the existing seed to create a new variant that is more likely to find a bug.
+%s
+Based on the system context, mutate the existing seed to create a new variant that is more likely to find a bug or increase coverage.
 Please make focused changes that could expose different vulnerability patterns.
 
-Format your response as:
-Source (c):
----
-[mutated source code here]
----
+**Output Format (MUST follow exactly):**
 
-Test Cases (json):
----
+Your response must be in this exact format - C source code followed by the separator and JSON test cases:
+
+[mutated C source code here]
+// ||||| JSON_TESTCASES_START |||||
 [
   {
-    "running command": "[command to run]",
-    "expected result": "[expected outcome]"
+    "running command": "./prog",
+    "expected result": "expected output or behavior"
   }
 ]
----
-`, s.Content, testCasesJSON)
+
+**IMPORTANT:** 
+- Output ONLY the C source code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
+- Do NOT include any markdown code blocks, headers, or other formatting.
+`, s.Content, testCasesJSON, coverageSection)
+
+	// DEBUG: Print the generated mutate prompt
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Println("[DEBUG] BuildMutatePrompt - Generated Prompt:")
+	fmt.Println(strings.Repeat("-", 80))
+	fmt.Println(prompt)
+	fmt.Println(strings.Repeat("=", 80) + "\n")
+
 	return prompt, nil
+}
+
+// BuildMutatePromptSimple constructs a simple mutation prompt without coverage context.
+// This is provided for backward compatibility.
+func (b *Builder) BuildMutatePromptSimple(s *seed.Seed) (string, error) {
+	return b.BuildMutatePrompt(s, nil)
 }
 
 // BuildAnalyzePrompt constructs a prompt to analyze execution feedback.
@@ -209,15 +302,9 @@ func (b *Builder) BuildAnalyzePrompt(s *seed.Seed, feedback string) (string, err
 
 	prompt := fmt.Sprintf(`
 [SEED]
-Source (c):
----
 %s
----
-
-Test Cases (json):
----
+// ||||| JSON_TESTCASES_START |||||
 %s
----
 [/SEED]
 
 [EXECUTION FEEDBACK]

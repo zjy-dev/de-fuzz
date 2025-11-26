@@ -1,0 +1,14 @@
+{
+  "id": 2,
+  "file_path": "id-000002-src-000001-cov-00000-50e9b052.seed",
+  "file_size": 2922,
+  "created_at": "0001-01-01T00:00:00Z",
+  "parent_id": 1,
+  "depth": 1,
+  "state": "PROCESSED",
+  "old_cov": 0,
+  "new_cov": 0,
+  "cov_incr": 0,
+  "exec_us": 1613467,
+  "content_hash": "50e9b052"
+}

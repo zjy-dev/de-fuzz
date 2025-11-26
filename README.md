@@ -23,13 +23,13 @@ The compile commands are mannually written.
 
 ### Mutation Strategy
 
-Based on Coverage increasement.
+Based on `Coverage increasement` and `Code Abstract`.
 
 ### Test Oracle
 
 Dynamical Testing.
 
-Run seed -> get feedback(return code + stdout + stderr) -> let LLM judge if there're bugs.
+Run seed(all testcases) -> get feedback(return code + stdout + stderr) -> let LLM judge if there're bugs.
 
 ### Fuzzing Algorithm
 
@@ -39,8 +39,6 @@ For each defense startegy and ISA:
 
    - current environment and toolchain
    - manually summarize defense startegy and stack layout of the ISA
-   - manually summarize pesudo-code of the compiler source code about that startegy and ISA
-   - also reserve source code as an "attachment" below
 
 2. Feed `ip` to llm and store its "understanding" as memory
    <!-- if llm does't understand your demands, then how to fuzz with llm? -->
@@ -57,7 +55,10 @@ For each defense startegy and ISA:
    - if coverage rate increased then mutate `s` to `s'` and push `s'` to seed pool
 
 6. Oracle(`s`):
+
    - record if found a bug
+
+7. back to 4. if pool not empty
 
 **Note:** All compilation and execution happens directly on the host machine. Ensure you have the required toolchain (GCC, QEMU, etc.) installed and available in your system PATH.
 
@@ -116,6 +117,52 @@ if total.json not exist, then copy <seed>.json as total.json, and coverage is co
 
 5. Merge <seed>.json and total.json using `mv total.json tmp.json && gcovr --json-pretty --json  -a tmp.json -a <seed>.json -o total.json && rm tmp.json`
 
+6. Calculate total coverage statistics:
+
+```go
+import "github.com/zjy-dev/gcovr-json-util/v2/pkg/gcovr"
+
+// Parse coverage report
+report, err := gcovr.ParseReport("total.json")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Apply filtering (optional)
+filterConfig, err := gcovr.ParseFilterConfig("filter.yaml")
+if err != nil {
+    log.Fatal(err)
+}
+report = gcovr.ApplyFilter(report, filterConfig)
+
+// Calculate coverage statistics
+coverageReport, err := gcovr.CalculateCoverage(report)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Overall Coverage: %.1f%%\n", coverageReport.CoveragePercentage)
+fmt.Printf("Total Lines: %d, Covered: %d\n", coverageReport.TotalLines, coverageReport.TotalCoveredLines)
+```
+
+### Mutation
+
+Feed original seed + coverage increase details + current coverage statistics to LLM for mutation.
+
+When a seed causes coverage to increase:
+
+1. Get the coverage increase details (which functions/lines were newly covered)
+2. Get the current total coverage statistics (percentage, covered lines, etc.)
+3. Build a mutation prompt that includes:
+   - The original seed source code
+   - Coverage increase summary (e.g., "Covered 10 new lines in function `foo`")
+   - Detailed coverage increase report
+   - Current total coverage percentage
+
+This context helps the LLM generate more targeted mutations that explore similar code paths.
+
+Can specify max mutation seed number.
+
 ## Module Architecture
 
 The `internal` directory contains the core logic, organized into modular components:
@@ -135,14 +182,19 @@ The `internal` directory contains the core logic, organized into modular compone
 
 ### Analysis & Feedback
 
-- **`coverage`**: Handles coverage measurement. It parses reports (e.g., from `gcovr`) and determines if a seed has increased code coverage.
+- **`coverage`**: Handles coverage measurement and analysis. Key capabilities:
+  - `Measure()`: Compile seed and generate coverage report
+  - `HasIncreased()`: Check if new coverage was achieved
+  - `GetIncrease()`: Get detailed info about what coverage increased (functions, lines)
+  - `GetStats()`: Get total coverage statistics (percentage, lines covered)
+  - `Merge()`: Incorporate new coverage into total accumulated coverage
 - **`oracle`**: The test oracle that determines if a seed execution has found a bug. `LLMOracle` uses an LLM to analyze execution results (crashes, unexpected output, etc.) and identify vulnerabilities.
 - **`report`**: Handles the persistence of bug reports in Markdown format.
 
 ### LLM Integration
 
 - **`llm`**: Provides a unified interface for Large Language Models (e.g., DeepSeek). Handles generation, mutation, and analysis requests.
-- **`prompt`**: Constructs context-aware prompts for the LLM, incorporating ISA details, defense strategies, and source code.
+- **`prompt`**: Constructs context-aware prompts for the LLM, incorporating ISA details, defense strategies, source code, and **coverage information for smarter mutation**.
 
 ### Orchestration
 
@@ -150,9 +202,12 @@ The `internal` directory contains the core logic, organized into modular compone
   1.  Pick seed from `corpus`.
   2.  `compiler` -> Binary.
   3.  `seed_executor` -> Result.
-  4.  `coverage` -> Feedback.
-  5.  `oracle` -> Bug detection.
-  6.  `llm` -> Mutation (if interesting).
+  4.  `coverage` -> Measure and check for increase.
+  5.  If coverage increased:
+      - Get coverage increase details
+      - Get current total coverage stats
+      - Generate new seeds using LLM with coverage context
+  6.  `oracle` -> Bug detection.
 - **`config`**: Centralized configuration management using Viper.
 
 ## Usage

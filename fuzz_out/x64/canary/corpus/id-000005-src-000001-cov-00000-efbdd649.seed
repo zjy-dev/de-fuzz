@@ -1,0 +1,149 @@
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdlib.h>
+
+struct container {
+    char data[32];
+    int count;
+};
+
+union mixed_union {
+    char small_arr[8];
+    int numbers[4];
+    struct container nested;
+};
+
+void vulnerable_function() {
+    char buffer[64];
+    struct container c;
+    union mixed_union u;
+    unsigned long canary = 0x1234567890ABCDEF;
+    
+    printf("Enter input: ");
+    fflush(stdout);
+    
+    // Use fgets instead of gets for safer input, but with wrong size
+    fgets(buffer, 128, stdin);  // Wrong size - larger than buffer
+    
+    // Format string vulnerability with array access
+    printf("You entered: ");
+    printf(buffer);
+    printf("\n");
+    
+    // Out-of-bounds read through struct array
+    printf("Struct contents: ");
+    for(int i = 0; i < 40; i++) {  // Read beyond struct bounds
+        printf("%02x ", ((unsigned char*)&c)[i]);
+    }
+    printf("\n");
+    
+    // Union access pattern that might trigger different stack protection logic
+    printf("Union contents: ");
+    for(int i = 0; i < 20; i++) {
+        printf("%02x ", ((unsigned char*)&u)[i]);
+    }
+    printf("\n");
+    
+    // Copy to union small array - testing small char array handling
+    if(strlen(buffer) > 0) {
+        memcpy(u.small_arr, buffer, strlen(buffer));  // May overflow small array
+    }
+    
+    // Stack buffer overflow through struct
+    if(strlen(buffer) > 32) {
+        memcpy(c.data, buffer, strlen(buffer));  // Potential overflow into canary
+    }
+    
+    // Canary check simulation
+    if(canary != 0x1234567890ABCDEF) {
+        printf("*** stack smashing detected ***\n");
+        _exit(1);
+    }
+}
+
+void helper_function(int size) {
+    char local_buf[16];
+    char *dynamic_buf = alloca(size);
+    
+    printf("Helper function - size: %d\n", size);
+    
+    // Potential alloca overflow affecting stack layout
+    if(dynamic_buf && size > 0) {
+        memset(dynamic_buf, 'B', size + 8);  // May overflow into canary region
+    }
+}
+
+void union_test_function() {
+    union mixed_union local_union;
+    char small_buffer[4];  // Very small array
+    
+    printf("Union test function\n");
+    
+    // Test with union containing different types
+    memset(local_union.small_arr, 'U', sizeof(local_union.small_arr));
+    local_union.numbers[0] = 0x41424344;
+    
+    // Copy to small buffer - testing small char array protection
+    memcpy(small_buffer, local_union.small_arr, sizeof(local_union.small_arr));
+    
+    printf("Small buffer: ");
+    for(int i = 0; i < 8; i++) {  // Read beyond small buffer
+        printf("%02x ", (unsigned char)small_buffer[i]);
+    }
+    printf("\n");
+}
+
+int main(int argc, char *argv[]) {
+    printf("Stack Canary Test Program - Union and Struct Variant\n");
+    printf("Canary value: 0x1234567890ABCDEF\n");
+    
+    if(argc > 1) {
+        int size = atoi(argv[1]);
+        helper_function(size);
+    }
+    
+    if(argc > 2) {
+        union_test_function();
+    }
+    
+    vulnerable_function();
+    
+    printf("Program completed successfully\n");
+    return 0;
+}
+// ||||| JSON_TESTCASES_START |||||
+[
+  {
+    "running command": "./prog",
+    "expected result": "Program reads input, leaks stack via format string and out-of-bounds struct/union reads, may corrupt canary through struct overflow"
+  },
+  {
+    "running command": "echo 'AAAA' | ./prog",
+    "expected result": "Normal execution with short input, shows struct and union memory contents"
+  },
+  {
+    "running command": "echo '%p %p %p %p %p %p %p %p' | ./prog",
+    "expected result": "Leaks multiple stack pointer values through format string vulnerability"
+  },
+  {
+    "running command": "python -c \"print 'A'*100\" | ./prog",
+    "expected result": "Triggers buffer overflow through struct copy, potentially corrupting canary"
+  },
+  {
+    "running command": "./prog 24",
+    "expected result": "Calls helper function with alloca, may overflow stack with large size"
+  },
+  {
+    "running command": "./prog 100",
+    "expected result": "Large alloca size may cause stack corruption and bypass canary checks"
+  },
+  {
+    "running command": "./prog 16 1",
+    "expected result": "Tests union functionality with small buffer overread, may trigger different stack protection logic"
+  },
+  {
+    "running command": "echo 'TEST' | ./prog 32 1",
+    "expected result": "Combines union test with normal input, testing multiple stack protection scenarios"
+  }
+]

@@ -152,6 +152,7 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 	// Step 4: Check if coverage increased
 	var coverageIncreased bool
 	var newCoverage uint64
+	var coverageIncrease *coverage.CoverageIncrease
 	if report != nil {
 		coverageIncreased, err = e.cfg.Coverage.HasIncreased(report)
 		if err != nil {
@@ -160,12 +161,28 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 
 		if coverageIncreased {
 			log.Printf("[Engine] Seed %d increased coverage!", s.Meta.ID)
+
+			// Get the coverage increase details BEFORE merging
+			coverageIncrease, err = e.cfg.Coverage.GetIncrease(report)
+			if err != nil {
+				log.Printf("[Engine] Failed to get coverage increase details: %v", err)
+			} else {
+				log.Printf("[Engine] Coverage increase: %s", coverageIncrease.Summary)
+			}
+
+			// Merge the coverage
 			if err := e.cfg.Coverage.Merge(report); err != nil {
 				log.Printf("[Engine] Failed to merge coverage: %v", err)
 			}
 
-			// Generate new seeds from this interesting seed
-			e.generateNewSeeds(s)
+			// Print current total coverage stats
+			if stats, err := e.cfg.Coverage.GetStats(); err == nil {
+				log.Printf("[Engine] Total coverage: %.1f%% (%d/%d lines)",
+					stats.CoveragePercentage, stats.TotalCoveredLines, stats.TotalLines)
+			}
+
+			// Generate new seeds from this interesting seed with coverage context
+			e.generateNewSeeds(s, report, coverageIncrease)
 		}
 	}
 
@@ -210,7 +227,8 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 }
 
 // generateNewSeeds uses LLM to create new seeds from an interesting seed.
-func (e *Engine) generateNewSeeds(parentSeed *seed.Seed) {
+// It uses coverage information to guide the mutation.
+func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report, coverageIncrease *coverage.CoverageIncrease) {
 	if e.cfg.LLM == nil || e.cfg.PromptBuilder == nil {
 		return
 	}
@@ -222,9 +240,31 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed) {
 
 	log.Printf("[Engine] Generating %d new seeds from parent %d...", maxNew, parentSeed.Meta.ID)
 
+	// Build mutation context from coverage information
+	var mutationCtx *prompt.MutationContext
+	if coverageIncrease != nil {
+		// Get current total stats
+		stats, err := e.cfg.Coverage.GetStats()
+		if err != nil {
+			log.Printf("[Engine] Failed to get coverage stats: %v", err)
+		}
+
+		mutationCtx = &prompt.MutationContext{
+			CoverageIncreaseSummary: coverageIncrease.Summary,
+			CoverageIncreaseDetails: coverageIncrease.FormattedReport,
+			UncoveredAbstract:       coverageIncrease.UncoveredAbstract,
+		}
+
+		if stats != nil {
+			mutationCtx.TotalCoveragePercentage = stats.CoveragePercentage
+			mutationCtx.TotalCoveredLines = stats.TotalCoveredLines
+			mutationCtx.TotalLines = stats.TotalLines
+		}
+	}
+
 	for i := 0; i < maxNew; i++ {
-		// Build mutation prompt
-		mutatePrompt, err := e.cfg.PromptBuilder.BuildMutatePrompt(parentSeed)
+		// Build mutation prompt with coverage context
+		mutatePrompt, err := e.cfg.PromptBuilder.BuildMutatePrompt(parentSeed, mutationCtx)
 		if err != nil {
 			log.Printf("[Engine] Failed to build mutate prompt: %v", err)
 			continue

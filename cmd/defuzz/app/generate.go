@@ -4,51 +4,66 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/spf13/cobra"
+
 	"github.com/zjy-dev/de-fuzz/internal/config"
 	"github.com/zjy-dev/de-fuzz/internal/llm"
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
-
-	"github.com/spf13/cobra"
 )
 
 // NewGenerateCommand creates the "generate" subcommand.
 func NewGenerateCommand() *cobra.Command {
 	var (
-		isa      string
-		strategy string
-		output   string
-		count    int
+		output     string
+		count      int
+		maxRetries int
 	)
 
 	cmd := &cobra.Command{
 		Use:   "generate",
-		Short: "Generate initial seeds for a specific ISA and defense strategy.",
-		Long: `This command generates an initial seed pool for a given target.
+		Short: "Generate initial seeds for the configured ISA and defense strategy.",
+		Long: `This command generates an initial seed pool for the configured target.
 It initializes the LLM's understanding of the target and creates a set of starting seeds.
 
-Each seed consists of:
-  - C source code (source.c)
-  - Makefile for compilation
-  - Run script (run.sh) for execution
+The ISA and strategy are read from the config.yaml file under the 'config' section.
 
-The generated seeds are ready for compilation and fuzzing on the host machine.
+Each seed consists of:
+  - C source code
+  - Test cases with running commands and expected results
+
+The seeds are saved in a single-file format (.seed) with metadata encoded in the filename.
+
+Output directory structure:
+  {output}/{isa}/{strategy}/
+    ├── understanding.md     # LLM's understanding of the target
+    └── *.seed               # Generated seed files
 
 Examples:
-  # Generate 5 seeds for x86_64 with stack guard protection
-  defuzz generate --isa x86_64 --strategy stackguard --count 5
+  # Generate 5 seeds using config from config.yaml
+  defuzz generate --count 5
 
-  # Generate ARM64 seeds with ASLR and save to custom directory
-  defuzz generate --isa arm64 --strategy aslr --output ./my_seeds --count 3
+  # Generate seeds to a custom directory
+  defuzz generate --output ./my_seeds --count 3
 
-  # Generate single seed for RISC-V with CFI
-  defuzz generate --isa riscv64 --strategy cfi`,
+  # Generate single seed (default)
+  defuzz generate`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// 1. Load configuration
 			cfg, err := config.LoadConfig()
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
+
+			// Get ISA and strategy from config
+			isa := cfg.ISA
+			strategy := cfg.Strategy
+
+			if isa == "" || strategy == "" {
+				return fmt.Errorf("ISA and strategy must be configured in config.yaml")
+			}
+
+			fmt.Printf("[Generate] Target: %s / %s\n", isa, strategy)
 
 			// 2. Create LLM client
 			llmClient, err := llm.New(cfg)
@@ -61,21 +76,21 @@ Examples:
 
 			// 4. Define base path for seeds
 			basePath := filepath.Join(output, isa, strategy)
+			fmt.Printf("[Generate] Output directory: %s\n", basePath)
 
 			// 5. Load or generate understanding
 			var understanding string
 			understanding, err = seed.LoadUnderstanding(basePath)
 			if err != nil {
 				// If understanding.md doesn't exist, generate it
-				fmt.Printf("Understanding not found, generating LLM understanding for %s/%s...\n", isa, strategy)
+				fmt.Printf("[Generate] Understanding not found, generating LLM understanding...\n")
 
-				understandPrompt, err := promptBuilder.BuildUnderstandPrompt(isa, strategy, basePath)
-
-				fmt.Printf("Understand Prompt:\n%s\n", understandPrompt)
-
-				if err != nil {
-					return fmt.Errorf("failed to build understand prompt: %w", err)
+				understandPrompt, promptErr := promptBuilder.BuildUnderstandPrompt(isa, strategy, basePath)
+				if promptErr != nil {
+					return fmt.Errorf("failed to build understand prompt: %w", promptErr)
 				}
+
+				fmt.Printf("[Generate] Sending understand prompt to LLM...\n")
 
 				understanding, err = llmClient.Understand(understandPrompt)
 				if err != nil {
@@ -86,44 +101,88 @@ Examples:
 					return fmt.Errorf("failed to save understanding: %w", err)
 				}
 
-				fmt.Printf("Understanding saved to %s\n", seed.GetUnderstandingPath(basePath))
+				fmt.Printf("[Generate] Understanding saved to %s\n", seed.GetUnderstandingPath(basePath))
 			} else {
-				fmt.Printf("Using existing understanding from %s\n", seed.GetUnderstandingPath(basePath))
+				fmt.Printf("[Generate] Using existing understanding from %s\n", seed.GetUnderstandingPath(basePath))
 			}
 
-			// 6. Generate seeds
-			fmt.Printf("Generating %d seeds...\n", count)
+			// 6. Create naming strategy for seeds
+			namer := seed.NewDefaultNamingStrategy()
+
+			// 7. Generate seeds with retry logic
+			fmt.Printf("[Generate] Generating %d seeds (max %d retries per seed)...\n", count, maxRetries)
+			successCount := 0
+
 			for i := 0; i < count; i++ {
-				generatePrompt, err := promptBuilder.BuildGeneratePrompt(basePath)
-				if err != nil {
-					return fmt.Errorf("failed to build generate prompt: %w", err)
+				var newSeed *seed.Seed
+				var lastErr error
+
+				// Retry loop for each seed
+				for attempt := 0; attempt <= maxRetries; attempt++ {
+					if attempt > 0 {
+						fmt.Printf("  [%d/%d] Retry %d/%d...\n", i+1, count, attempt, maxRetries)
+					}
+
+					generatePrompt, promptErr := promptBuilder.BuildGeneratePrompt(basePath)
+					if promptErr != nil {
+						lastErr = fmt.Errorf("failed to build generate prompt: %w", promptErr)
+						continue
+					}
+
+					newSeed, lastErr = llmClient.Generate(understanding, generatePrompt)
+					if lastErr != nil {
+						fmt.Printf("  [%d/%d] LLM generation failed: %v\n", i+1, count, lastErr)
+						continue
+					}
+
+					// Validate the generated seed
+					if validateErr := seed.ValidateSeed(newSeed); validateErr != nil {
+						fmt.Printf("  [%d/%d] Validation failed: %v\n", i+1, count, validateErr)
+						lastErr = validateErr
+						continue
+					}
+
+					// Success - break retry loop
+					lastErr = nil
+					break
 				}
 
-				newSeed, err := llmClient.Generate(understanding, generatePrompt)
-				if err != nil {
-					return fmt.Errorf("failed to generate seed %d from LLM: %w", i+1, err)
+				if lastErr != nil {
+					fmt.Printf("  [%d/%d] Failed after %d retries: %v\n", i+1, count, maxRetries, lastErr)
+					continue
 				}
 
-				// Set a unique ID for the seed
-				newSeed.ID = fmt.Sprintf("%s_%s_gen_%03d", isa, strategy, i+1)
+				// Set metadata for the seed
+				newSeed.Meta.ID = uint64(i + 1)
+				newSeed.Meta.ParentID = 0 // Initial seeds have no parent
+				newSeed.Meta.Depth = 0
+				newSeed.Meta.State = seed.SeedStatePending
 
-				if err := seed.SaveSeed(basePath, newSeed); err != nil {
-					return fmt.Errorf("failed to save seed %d: %w", i+1, err)
+				// Save using the new metadata-based format
+				filename, saveErr := seed.SaveSeedWithMetadata(basePath, newSeed, namer)
+				if saveErr != nil {
+					fmt.Printf("  [%d/%d] Failed to save: %v\n", i+1, count, saveErr)
+					continue
 				}
 
-				fmt.Printf("  Generated seed %d: %s\n", i+1, newSeed.ID)
+				successCount++
+				fmt.Printf("  [%d/%d] Generated seed: %s\n", i+1, count, filename)
 			}
 
-			fmt.Printf("\nSuccessfully generated %d seeds in %s\n", count, basePath)
-			fmt.Printf("Seeds can be found in the following files:\n")
+			if successCount == 0 {
+				return fmt.Errorf("failed to generate any seeds")
+			}
+
+			fmt.Printf("\n[Generate] Successfully generated %d/%d seeds in %s\n", successCount, count, basePath)
 
 			// List generated seed files
-			seeds, err := seed.LoadSeedsWithMetadata(basePath, seed.NewDefaultNamingStrategy())
+			seeds, err := seed.LoadSeedsWithMetadata(basePath, namer)
 			if err != nil {
 				fmt.Printf("Warning: Could not load seeds to display summary: %v\n", err)
 			} else {
+				fmt.Printf("\n[Generate] Seed files:\n")
 				for _, s := range seeds {
-					fmt.Printf("  - %s\n", s.Meta.FilePath)
+					fmt.Printf("  - %s (ID=%d, Depth=%d)\n", s.Meta.FilePath, s.Meta.ID, s.Meta.Depth)
 				}
 			}
 
@@ -131,15 +190,10 @@ Examples:
 		},
 	}
 
-	// Required flags
-	cmd.Flags().StringVar(&isa, "isa", "", "Target ISA (e.g., x86_64, arm64)")
-	cmd.Flags().StringVar(&strategy, "strategy", "", "Defense strategy (e.g., stackguard, aslr)")
-	_ = cmd.MarkFlagRequired("isa")
-	_ = cmd.MarkFlagRequired("strategy")
-
-	// Optional flags
-	cmd.Flags().StringVarP(&output, "output", "o", "initial_seeds", "Output directory for seeds")
+	// Optional flags - ISA and strategy now come from config
+	cmd.Flags().StringVarP(&output, "output", "o", "initial_seeds", "Base output directory for seeds")
 	cmd.Flags().IntVarP(&count, "count", "c", 1, "Number of seeds to generate")
+	cmd.Flags().IntVar(&maxRetries, "max-retries", 3, "Maximum retries for failed seed generation")
 
 	return cmd
 }

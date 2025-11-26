@@ -193,3 +193,77 @@ func LoadSeedsWithMetadata(dir string, namer NamingStrategy) ([]*Seed, error) {
 
 	return seeds, nil
 }
+
+// SaveMetadataJSON saves the metadata as a JSON file.
+// The filename is id-XXXXXX.json (e.g., id-000001.json).
+func SaveMetadataJSON(dir string, meta *Metadata) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	}
+
+	// Generate filename: id-XXXXXX.json
+	filename := fmt.Sprintf("id-%06d.json", meta.ID)
+	filePath := filepath.Join(dir, filename)
+
+	// Marshal metadata to JSON
+	jsonData, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write metadata file %s: %w", filePath, err)
+	}
+
+	return nil
+}
+
+// LoadMetadataJSON loads a metadata JSON file.
+func LoadMetadataJSON(filePath string) (*Metadata, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read metadata file %s: %w", filePath, err)
+	}
+
+	var meta Metadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	}
+
+	return &meta, nil
+}
+
+// LoadAllMetadataJSON loads all metadata JSON files from a directory.
+func LoadAllMetadataJSON(dir string) ([]*Metadata, error) {
+	var metas []*Metadata
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return metas, nil
+		}
+		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := entry.Name()
+		if !strings.HasSuffix(filename, ".json") {
+			continue
+		}
+
+		filePath := filepath.Join(dir, filename)
+		meta, err := LoadMetadataJSON(filePath)
+		if err != nil {
+			// Skip invalid files
+			continue
+		}
+
+		metas = append(metas, meta)
+	}
+
+	return metas, nil
+}

@@ -1,0 +1,14 @@
+{
+  "id": 4,
+  "file_path": "id-000004-src-000001-cov-00000-d2b745e4.seed",
+  "file_size": 4430,
+  "created_at": "0001-01-01T00:00:00Z",
+  "parent_id": 1,
+  "depth": 2,
+  "state": "PROCESSED",
+  "old_cov": 0,
+  "new_cov": 0,
+  "cov_incr": 0,
+  "exec_us": 229709727,
+  "content_hash": "d2b745e4"
+}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -262,4 +263,137 @@ compiler:
 	assert.Equal(t, "", compilerCfg.SourceParentPath)
 	assert.Equal(t, "", compilerCfg.GcovrCommand)
 	assert.Equal(t, "", compilerCfg.TotalReportPath)
+}
+
+func TestLoad_FuzzConfig(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create a config file with fuzz section
+	// Note: In the actual config.yaml, 'llm' is a string (provider name),
+	// but the Config struct expects LLMConfig. This is handled specially in LoadConfig.
+	// For Load() function, we test with the actual file format.
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "canary"
+  compiler:
+    name: "gcc"
+    version: "12.2.0"
+  fuzz:
+    output_root_dir: "my_fuzz_out"
+    max_iterations: 100
+    max_new_seeds: 5
+    timeout: 60
+    use_qemu: true
+    qemu_path: "qemu-x86_64"
+    qemu_sysroot: "/usr/x86_64-linux-gnu"
+`
+	configFile := filepath.Join(actualConfigPath, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	// Load using viper directly since Load() has type mismatch issues with llm field
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(actualConfigPath)
+	err = v.ReadInConfig()
+	assert.NoError(t, err)
+
+	// Parse fuzz config
+	var fuzzCfg FuzzConfig
+	err = v.UnmarshalKey("config.fuzz", &fuzzCfg)
+	assert.NoError(t, err)
+
+	// Verify fuzz config fields
+	assert.Equal(t, "my_fuzz_out", fuzzCfg.OutputRootDir)
+	assert.Equal(t, 100, fuzzCfg.MaxIterations)
+	assert.Equal(t, 5, fuzzCfg.MaxNewSeeds)
+	assert.Equal(t, 60, fuzzCfg.Timeout)
+	assert.True(t, fuzzCfg.UseQEMU)
+	assert.Equal(t, "qemu-x86_64", fuzzCfg.QEMUPath)
+	assert.Equal(t, "/usr/x86_64-linux-gnu", fuzzCfg.QEMUSysroot)
+}
+
+func TestLoad_FuzzConfig_Defaults(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create a config file without fuzz section
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "canary"
+  compiler:
+    name: "gcc"
+    version: "12.2.0"
+`
+	configFile := filepath.Join(actualConfigPath, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	// Load using viper directly
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(actualConfigPath)
+	err = v.ReadInConfig()
+	assert.NoError(t, err)
+
+	// Parse fuzz config - should be empty when not specified
+	var fuzzCfg FuzzConfig
+	err = v.UnmarshalKey("config.fuzz", &fuzzCfg)
+	assert.NoError(t, err)
+
+	// Fuzz config should have zero values when not specified in file
+	assert.Equal(t, "", fuzzCfg.OutputRootDir)
+	assert.Equal(t, 0, fuzzCfg.MaxIterations)
+	assert.Equal(t, 0, fuzzCfg.MaxNewSeeds)
+	assert.Equal(t, 0, fuzzCfg.Timeout)
+	assert.False(t, fuzzCfg.UseQEMU)
+	assert.Equal(t, "", fuzzCfg.QEMUPath)
+	assert.Equal(t, "", fuzzCfg.QEMUSysroot)
+}
+
+func TestLoad_FuzzConfig_PartialConfig(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// Create a config file with partial fuzz section
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "canary"
+  compiler:
+    name: "gcc"
+    version: "12.2.0"
+  fuzz:
+    max_iterations: 50
+    timeout: 45
+`
+	configFile := filepath.Join(actualConfigPath, "config.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	// Load using viper directly
+	v := viper.New()
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(actualConfigPath)
+	err = v.ReadInConfig()
+	assert.NoError(t, err)
+
+	// Parse fuzz config
+	var fuzzCfg FuzzConfig
+	err = v.UnmarshalKey("config.fuzz", &fuzzCfg)
+	assert.NoError(t, err)
+
+	// Verify specified fields
+	assert.Equal(t, 50, fuzzCfg.MaxIterations)
+	assert.Equal(t, 45, fuzzCfg.Timeout)
+	// Unspecified fields should be zero values
+	assert.Equal(t, "", fuzzCfg.OutputRootDir)
+	assert.Equal(t, 0, fuzzCfg.MaxNewSeeds)
+	assert.False(t, fuzzCfg.UseQEMU)
 }

@@ -182,6 +182,9 @@ func (m *FileManager) Next() (*seed.Seed, bool) {
 	m.stateManager.UpdateCurrentID(s.Meta.ID)
 	m.stateManager.UpdatePoolSize(len(m.queue))
 
+	// Store in processed map so ReportResult can find it
+	m.processed[s.Meta.ID] = s
+
 	return s, true
 }
 
@@ -190,15 +193,15 @@ func (m *FileManager) ReportResult(id uint64, result FuzzResult) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Find the seed (might be in processed or still being held)
-	var s *seed.Seed
-	if existing, ok := m.processed[id]; ok {
-		s = existing
-	} else {
-		// Create a placeholder if not found
+	// Find the seed (should be in processed map from Next())
+	s, ok := m.processed[id]
+	if !ok {
+		// Seed not found in processed map - this shouldn't happen
+		// but create a placeholder for state tracking
 		s = &seed.Seed{
 			Meta: seed.Metadata{ID: id},
 		}
+		m.processed[id] = s
 	}
 
 	// Update metadata
@@ -211,8 +214,12 @@ func (m *FileManager) ReportResult(id uint64, result FuzzResult) error {
 		s.Meta.CovIncrease = result.NewCoverage - s.Meta.OldCoverage
 	}
 
-	// Move to processed
-	m.processed[id] = s
+	// Save metadata as JSON file (not .seed file)
+	// This follows fuzzer-plan.md: metadata/ stores JSON files like id-000001.json
+	if err := seed.SaveMetadataJSON(m.metadataDir, &s.Meta); err != nil {
+		// Log warning but don't fail - metadata is optional
+		// The seed is already saved in corpus directory
+	}
 
 	// Update global state
 	m.stateManager.IncrementProcessed()

@@ -14,6 +14,33 @@ type Config struct {
 	ISA      string         `mapstructure:"isa"`
 	Strategy string         `mapstructure:"strategy"`
 	Compiler CompilerConfig `mapstructure:"compiler"`
+	Fuzz     FuzzConfig     `mapstructure:"fuzz"`
+}
+
+// FuzzConfig holds the configuration for the fuzzing process.
+// These values serve as defaults and can be overridden by command line flags.
+type FuzzConfig struct {
+	// OutputRootDir is the root directory for fuzzing artifacts (default: "fuzz_out")
+	// Actual output will be at {OutputRootDir}/{isa}/{strategy}
+	OutputRootDir string `mapstructure:"output_root_dir"`
+
+	// MaxIterations is the maximum number of fuzzing iterations (0 = unlimited)
+	MaxIterations int `mapstructure:"max_iterations"`
+
+	// MaxNewSeeds is the maximum new seeds to generate per interesting seed
+	MaxNewSeeds int `mapstructure:"max_new_seeds"`
+
+	// Timeout is the execution timeout in seconds
+	Timeout int `mapstructure:"timeout"`
+
+	// UseQEMU enables QEMU for cross-architecture execution
+	UseQEMU bool `mapstructure:"use_qemu"`
+
+	// QEMUPath is the path to QEMU user-mode executable
+	QEMUPath string `mapstructure:"qemu_path"`
+
+	// QEMUSysroot is the sysroot path for QEMU (-L argument)
+	QEMUSysroot string `mapstructure:"qemu_sysroot"`
 }
 
 // InternalLLMConfig is used for unmarshaling the config.yaml which only contains the provider string
@@ -142,6 +169,22 @@ func LoadConfig() (*Config, error) {
 
 	cfg.ISA = v.GetString("config.isa")
 	cfg.Strategy = v.GetString("config.strategy")
+
+	// Parse fuzz config with defaults
+	cfg.Fuzz = FuzzConfig{
+		OutputRootDir: "fuzz_out",
+		MaxIterations: 0,
+		MaxNewSeeds:   3,
+		Timeout:       30,
+		UseQEMU:       false,
+		QEMUPath:      "qemu-aarch64",
+		QEMUSysroot:   "",
+	}
+	if v.IsSet("config.fuzz") {
+		if err := v.UnmarshalKey("config.fuzz", &cfg.Fuzz); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal fuzz config: %w", err)
+		}
+	}
 
 	// Parse compiler name and version from config.yaml
 	var compilerInfo CompilerInfo

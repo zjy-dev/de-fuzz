@@ -97,6 +97,7 @@ func TestGCCCoverage_Clean(t *testing.T) {
 		"gcovr",
 		filepath.Join(tmpDir, "total.json"),
 		"",
+		"",
 	)
 
 	// Test Clean method
@@ -133,6 +134,7 @@ func TestGCCCoverage_GetTotalReport_NotExist(t *testing.T) {
 		"gcovr",
 		filepath.Join(tmpDir, "total.json"),
 		"",
+		"",
 	)
 
 	// Test GetTotalReport when file doesn't exist
@@ -166,6 +168,7 @@ func TestGCCCoverage_GetTotalReport_ValidJSON(t *testing.T) {
 		tmpDir,
 		"gcovr",
 		totalPath,
+		"",
 		"",
 	)
 
@@ -204,6 +207,7 @@ func TestGCCCoverage_HasIncreased_FirstSeed(t *testing.T) {
 		tmpDir,
 		"gcovr",
 		filepath.Join(tmpDir, "total.json"),
+		"",
 		"",
 	)
 

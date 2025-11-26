@@ -24,7 +24,7 @@ import (
 // NewFuzzCommand creates the "fuzz" subcommand.
 func NewFuzzCommand() *cobra.Command {
 	var (
-		outputDir     string
+		outputRootDir string
 		maxIterations int
 		maxNewSeeds   int
 		timeout       int
@@ -47,9 +47,23 @@ This command:
 
 The fuzzer will automatically resume from the last saved state if interrupted.
 
+Output directory structure:
+  {output_root_dir}/{isa}/{strategy}/
+    ├── corpus/      # Seed corpus
+    ├── build/       # Compiled binaries
+    ├── coverage/    # Coverage reports
+    └── state/       # Fuzzing state (for resume)
+
+Configuration:
+  Default values are loaded from config.yaml under 'fuzz' section.
+  Command line flags override the config file values.
+
 Examples:
-  # Start fuzzing with default settings
+  # Start fuzzing with default settings from config
   defuzz fuzz
+
+  # Override output root directory
+  defuzz fuzz --output-root my_fuzz_out
 
   # Fuzz with a maximum of 100 iterations
   defuzz fuzz --max-iterations 100
@@ -57,12 +71,44 @@ Examples:
   # Use QEMU for cross-architecture fuzzing
   defuzz fuzz --use-qemu --qemu-path qemu-aarch64 --qemu-sysroot /usr/aarch64-linux-gnu`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runFuzz(outputDir, maxIterations, maxNewSeeds, timeout, useQEMU, qemuPath, qemuSysroot)
+			// Load config first to get defaults
+			cfg, err := config.LoadConfig()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+
+			// Use config values as defaults, command line flags override
+			if !cmd.Flags().Changed("output-root") {
+				outputRootDir = cfg.Fuzz.OutputRootDir
+			}
+			if !cmd.Flags().Changed("max-iterations") {
+				maxIterations = cfg.Fuzz.MaxIterations
+			}
+			if !cmd.Flags().Changed("max-new-seeds") {
+				maxNewSeeds = cfg.Fuzz.MaxNewSeeds
+			}
+			if !cmd.Flags().Changed("timeout") {
+				timeout = cfg.Fuzz.Timeout
+			}
+			if !cmd.Flags().Changed("use-qemu") {
+				useQEMU = cfg.Fuzz.UseQEMU
+			}
+			if !cmd.Flags().Changed("qemu-path") {
+				qemuPath = cfg.Fuzz.QEMUPath
+			}
+			if !cmd.Flags().Changed("qemu-sysroot") {
+				qemuSysroot = cfg.Fuzz.QEMUSysroot
+			}
+
+			// Build the actual output directory: {output_root_dir}/{isa}/{strategy}
+			outputDir := filepath.Join(outputRootDir, cfg.ISA, cfg.Strategy)
+
+			return runFuzz(cfg, outputDir, maxIterations, maxNewSeeds, timeout, useQEMU, qemuPath, qemuSysroot)
 		},
 	}
 
-	// Flags
-	cmd.Flags().StringVarP(&outputDir, "output", "o", "fuzz_out", "Output directory for fuzzing artifacts")
+	// Flags (these are placeholder defaults, actual defaults come from config)
+	cmd.Flags().StringVar(&outputRootDir, "output-root", "fuzz_out", "Root output directory (actual output at {root}/{isa}/{strategy})")
 	cmd.Flags().IntVar(&maxIterations, "max-iterations", 0, "Maximum number of fuzzing iterations (0 = unlimited)")
 	cmd.Flags().IntVar(&maxNewSeeds, "max-new-seeds", 3, "Maximum new seeds to generate per interesting seed")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "Execution timeout in seconds")
@@ -73,14 +119,9 @@ Examples:
 	return cmd
 }
 
-func runFuzz(outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot string) error {
-	// 1. Load configuration
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot string) error {
 	fmt.Printf("[Fuzz] Target: %s / %s\n", cfg.ISA, cfg.Strategy)
+	fmt.Printf("[Fuzz] Output directory: %s\n", outputDir)
 
 	// Create state directory (used for resume capability)
 	stateDir := filepath.Join(outputDir, "state")
@@ -92,6 +133,8 @@ func runFuzz(outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU 
 	corpusManager := corpus.NewFileManager(outputDir)
 
 	// 3. Create compiler
+	// Note: We do NOT add --coverage here. Coverage tracking is for the COMPILER itself,
+	// not the compiled binary. The instrumented compiler generates .gcda files when it runs.
 	compilerDir := filepath.Dir(cfg.Compiler.Path)
 	gccCompiler := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
 		GCCPath:    cfg.Compiler.Path,
@@ -133,7 +176,7 @@ func runFuzz(outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU 
 	// Determine gcovr command: use config if set, otherwise use default
 	gcovrCommand := cfg.Compiler.GcovrCommand
 	if gcovrCommand == "" {
-		gcovrCommand = fmt.Sprintf("gcovr --exclude '.*\\.(h|hpp|hxx)$' --gcov-executable 'gcov-14 --demangled-names' -r %s --json-pretty", cfg.Compiler.SourceParentPath)
+		return fmt.Errorf("gcovr command not specified in config")
 	}
 
 	// Determine total report path: use config if set, otherwise use state directory
@@ -158,6 +201,7 @@ func runFuzz(outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU 
 		gcovrCommand,
 		totalReportPath,
 		filterConfigPath,
+		cfg.Compiler.SourceParentPath,
 	)
 
 	// 6. Create LLM client

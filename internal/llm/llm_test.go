@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -97,9 +98,23 @@ func TestDeepSeekClient_Understand(t *testing.T) {
 }
 
 func TestDeepSeekClient_Generate(t *testing.T) {
+	mockResponse := `int main() { return 0; }
+// ||||| JSON_TESTCASES_START |||||
+[
+  {
+    "running command": "./prog",
+    "expected result": "success"
+  }
+]`
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices": [{"message": {"content": "generated code content"}}]}`))
+		responseJSON, _ := json.Marshal(map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{"message": map[string]string{"content": mockResponse}},
+			},
+		})
+		w.Write(responseJSON)
 	}))
 	defer server.Close()
 
@@ -107,8 +122,9 @@ func TestDeepSeekClient_Generate(t *testing.T) {
 
 	result, err := client.Generate("system understanding", "test prompt")
 	require.NoError(t, err)
-	assert.Equal(t, "generated code content", result.Content)
-	assert.NotEmpty(t, result.TestCases)
+	assert.Equal(t, "int main() { return 0; }", result.Content)
+	assert.Len(t, result.TestCases, 1)
+	assert.Equal(t, "./prog", result.TestCases[0].RunningCommand)
 }
 
 func TestDeepSeekClient_Analyze(t *testing.T) {
@@ -134,9 +150,23 @@ func TestDeepSeekClient_Analyze(t *testing.T) {
 }
 
 func TestDeepSeekClient_Mutate(t *testing.T) {
+	mockResponse := `int main() { return 1; }
+// ||||| JSON_TESTCASES_START |||||
+[
+  {
+    "running command": "./prog arg1",
+    "expected result": "mutated output"
+  }
+]`
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices": [{"message": {"content": "mutated code content"}}]}`))
+		responseJSON, _ := json.Marshal(map[string]interface{}{
+			"choices": []map[string]interface{}{
+				{"message": map[string]string{"content": mockResponse}},
+			},
+		})
+		w.Write(responseJSON)
 	}))
 	defer server.Close()
 
@@ -146,15 +176,21 @@ func TestDeepSeekClient_Mutate(t *testing.T) {
 	}
 	originalSeed := &seed.Seed{
 		ID:        "original-seed",
+		Meta:      seed.Metadata{ID: 123, ParentID: 0, Depth: 1},
 		Content:   "original content",
 		TestCases: originalTestCases,
 	}
 
 	result, err := client.Mutate("system understanding", "mutate this", originalSeed)
 	require.NoError(t, err)
-	assert.Equal(t, originalSeed.ID, result.ID)
-	assert.Equal(t, "mutated code content", result.Content)
-	assert.Equal(t, originalSeed.TestCases, result.TestCases)
+	// Meta should be preserved from original seed
+	assert.Equal(t, originalSeed.Meta.ID, result.Meta.ID)
+	assert.Equal(t, originalSeed.Meta.Depth, result.Meta.Depth)
+	// Content should be mutated
+	assert.Equal(t, "int main() { return 1; }", result.Content)
+	// Test cases should be from the new response
+	assert.Len(t, result.TestCases, 1)
+	assert.Equal(t, "./prog arg1", result.TestCases[0].RunningCommand)
 }
 
 func TestNewDeepSeekClient_Temperature(t *testing.T) {

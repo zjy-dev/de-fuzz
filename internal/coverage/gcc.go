@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/zjy-dev/de-fuzz/internal/exec"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
@@ -41,6 +42,13 @@ type GCCCoverage struct {
 	totalReportPath  string                 // Path to total.json
 	filterConfigPath string                 // Path to filter config YAML (from compiler-isa-strategy.yaml)
 	seedReportDir    string                 // Directory to store individual seed reports
+	sourceParentPath string                 // Parent path for source files (for abstract generation)
+
+	// Cached filter config (loaded once)
+	filterConfig *gcovr.FilterConfig
+
+	// Cache for last computed increase (to avoid recomputing in GetIncrease)
+	lastIncreaseReport *gcovr.CoverageIncreaseReport
 }
 
 // NewGCCCoverage creates a new GCC coverage tracker using gcovr.
@@ -51,16 +59,36 @@ func NewGCCCoverage(
 	gcovrCommand string,
 	totalReportPath string,
 	filterConfigPath string,
+	sourceParentPath string,
 ) *GCCCoverage {
-	return &GCCCoverage{
+	// Ensure totalReportPath is absolute for consistent file operations
+	// This is critical because gcovr runs in a different directory (gcovrExecPath)
+	absTotalReportPath := totalReportPath
+	if !filepath.IsAbs(totalReportPath) {
+		if abs, err := filepath.Abs(totalReportPath); err == nil {
+			absTotalReportPath = abs
+		}
+	}
+
+	g := &GCCCoverage{
 		executor:         executor,
 		compileFunc:      compileFunc,
 		gcovrExecPath:    gcovrExecPath,
 		gcovrCommand:     gcovrCommand,
-		totalReportPath:  totalReportPath,
+		totalReportPath:  absTotalReportPath,
 		filterConfigPath: filterConfigPath,
-		seedReportDir:    filepath.Dir(totalReportPath), // Store seed reports in same dir as total.json
+		seedReportDir:    filepath.Dir(absTotalReportPath), // Store seed reports in same dir as total.json
+		sourceParentPath: sourceParentPath,
 	}
+
+	// Pre-load filter config if available
+	if filterConfigPath != "" {
+		if fc, err := gcovr.ParseFilterConfig(filterConfigPath); err == nil {
+			g.filterConfig = fc
+		}
+	}
+
+	return g
 }
 
 // Clean removes all .gcda files from the gcovr execution path.
@@ -132,6 +160,9 @@ func (g *GCCCoverage) Measure(s *seed.Seed) (Report, error) {
 // HasIncreased checks if the new report has increased coverage compared to the total.
 // If total.json doesn't exist, this is considered the first seed and returns true.
 func (g *GCCCoverage) HasIncreased(newReport Report) (bool, error) {
+	// Reset cached increase report
+	g.lastIncreaseReport = nil
+
 	// Get the path to the new report
 	gcovrRep, ok := newReport.(*GcovrReport)
 	if !ok {
@@ -155,14 +186,10 @@ func (g *GCCCoverage) HasIncreased(newReport Report) (bool, error) {
 		return false, fmt.Errorf("failed to parse new report: %w", err)
 	}
 
-	// Apply filtering if filter config is provided
-	if g.filterConfigPath != "" {
-		filterConfig, err := gcovr.ParseFilterConfig(g.filterConfigPath)
-		if err != nil {
-			return false, fmt.Errorf("failed to parse filter config: %w", err)
-		}
-		baseReport = gcovr.ApplyFilter(baseReport, filterConfig)
-		newReportParsed = gcovr.ApplyFilter(newReportParsed, filterConfig)
+	// Apply filtering if filter config is available
+	if g.filterConfig != nil {
+		baseReport = gcovr.ApplyFilter(baseReport, g.filterConfig)
+		newReportParsed = gcovr.ApplyFilter(newReportParsed, g.filterConfig)
 	}
 
 	// Compute coverage increase
@@ -171,7 +198,8 @@ func (g *GCCCoverage) HasIncreased(newReport Report) (bool, error) {
 		return false, fmt.Errorf("failed to compute coverage increase: %w", err)
 	}
 
-	fmt.Println(gcovr.FormatReport(increaseReport))
+	// Cache the increase report for GetIncrease
+	g.lastIncreaseReport = increaseReport
 
 	// If the increase report has no increases, there's no coverage increase
 	return len(increaseReport.Increases) > 0, nil
@@ -255,4 +283,226 @@ func (g *GCCCoverage) GetTotalReport() (Report, error) {
 	}
 
 	return &GcovrReport{path: g.totalReportPath}, nil
+}
+
+// GetIncrease returns detailed information about the coverage increase.
+// Should be called after HasIncreased returns true to get the details.
+func (g *GCCCoverage) GetIncrease(newReport Report) (*CoverageIncrease, error) {
+	// If we have a cached increase report from HasIncreased, use it
+	if g.lastIncreaseReport == nil {
+		// Need to recompute - call HasIncreased first
+		_, err := g.HasIncreased(newReport)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compute increase: %w", err)
+		}
+	}
+
+	// If still nil (first seed case), return a special increase
+	if g.lastIncreaseReport == nil {
+		// For first seed, generate uncovered abstract from the new report
+		uncoveredAbstract := g.generateUncoveredAbstract(newReport)
+		return &CoverageIncrease{
+			Summary:           "First seed - initial coverage established",
+			FormattedReport:   "This is the first seed, establishing baseline coverage.",
+			UncoveredAbstract: uncoveredAbstract,
+		}, nil
+	}
+
+	// Build the formatted report for LLM
+	var sb strings.Builder
+	sb.WriteString("## Coverage Increase Summary\n\n")
+
+	totalNewLines := 0
+	totalNewFunctions := 0
+
+	for _, inc := range g.lastIncreaseReport.Increases {
+		totalNewLines += inc.LinesIncreased
+		if inc.OldCoveredLines == 0 && inc.NewCoveredLines > 0 {
+			totalNewFunctions++
+		}
+
+		sb.WriteString(fmt.Sprintf("### File: %s\n", inc.File))
+		sb.WriteString(fmt.Sprintf("- Function: `%s`\n", inc.DemangledName))
+		sb.WriteString(fmt.Sprintf("- New lines covered: %d (lines: %v)\n", inc.LinesIncreased, inc.IncreasedLineNumbers))
+		sb.WriteString(fmt.Sprintf("- Coverage: %d/%d lines\n\n", inc.NewCoveredLines, inc.TotalLines))
+	}
+
+	summary := fmt.Sprintf("Covered %d new lines across %d functions", totalNewLines, len(g.lastIncreaseReport.Increases))
+	if totalNewFunctions > 0 {
+		summary += fmt.Sprintf(" (%d newly reached functions)", totalNewFunctions)
+	}
+
+	// Generate uncovered abstract from total coverage
+	uncoveredAbstract := g.generateUncoveredAbstractFromTotal()
+
+	return &CoverageIncrease{
+		Summary:               summary,
+		FormattedReport:       sb.String(),
+		NewlyCoveredLines:     totalNewLines,
+		NewlyCoveredFunctions: totalNewFunctions,
+		UncoveredAbstract:     uncoveredAbstract,
+	}, nil
+}
+
+// GetStats returns the current total coverage statistics.
+func (g *GCCCoverage) GetStats() (*CoverageStats, error) {
+	// Check if total report exists
+	if _, err := os.Stat(g.totalReportPath); os.IsNotExist(err) {
+		return &CoverageStats{}, nil // Return zero stats if no coverage yet
+	}
+
+	// Parse the total report
+	totalReport, err := gcovr.ParseReport(g.totalReportPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse total report: %w", err)
+	}
+
+	// Apply filtering if available
+	if g.filterConfig != nil {
+		totalReport = gcovr.ApplyFilter(totalReport, g.filterConfig)
+	}
+
+	// Calculate coverage statistics using gcovr-json-util
+	coverageReport, err := gcovr.CalculateCoverage(totalReport)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate coverage: %w", err)
+	}
+
+	return &CoverageStats{
+		CoveragePercentage:    coverageReport.CoveragePercentage,
+		TotalLines:            coverageReport.TotalLines,
+		TotalCoveredLines:     coverageReport.TotalCoveredLines,
+		TotalFunctions:        len(coverageReport.Functions),
+		TotalCoveredFunctions: countCoveredFunctions(coverageReport.Functions),
+	}, nil
+}
+
+// countCoveredFunctions counts functions with at least one covered line.
+func countCoveredFunctions(functions []gcovr.FunctionCoverage) int {
+	count := 0
+	for _, f := range functions {
+		if f.CoveredLines > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+// generateUncoveredAbstract generates abstracted code for uncovered paths from a report.
+func (g *GCCCoverage) generateUncoveredAbstract(report Report) string {
+	gcovrRep, ok := report.(*GcovrReport)
+	if !ok {
+		return ""
+	}
+
+	// Parse the report
+	parsedReport, err := gcovr.ParseReport(gcovrRep.path)
+	if err != nil {
+		return ""
+	}
+
+	// Apply filtering if available
+	if g.filterConfig != nil {
+		parsedReport = gcovr.ApplyFilter(parsedReport, g.filterConfig)
+	}
+
+	return g.generateAbstractFromReport(parsedReport)
+}
+
+// generateUncoveredAbstractFromTotal generates abstracted code for uncovered paths from total coverage.
+func (g *GCCCoverage) generateUncoveredAbstractFromTotal() string {
+	// Check if total report exists
+	if _, err := os.Stat(g.totalReportPath); os.IsNotExist(err) {
+		return ""
+	}
+
+	// Parse the total report
+	totalReport, err := gcovr.ParseReport(g.totalReportPath)
+	if err != nil {
+		return ""
+	}
+
+	// Apply filtering if available
+	if g.filterConfig != nil {
+		totalReport = gcovr.ApplyFilter(totalReport, g.filterConfig)
+	}
+
+	return g.generateAbstractFromReport(totalReport)
+}
+
+// generateAbstractFromReport generates abstracted code from a parsed gcovr report.
+func (g *GCCCoverage) generateAbstractFromReport(report *gcovr.GcovrReport) string {
+	// Find uncovered lines using gcovr-json-util
+	uncoveredReport, err := gcovr.FindUncoveredLines(report)
+	if err != nil {
+		return ""
+	}
+
+	// If no uncovered lines, return empty
+	if uncoveredReport == nil || len(uncoveredReport.Files) == 0 {
+		return ""
+	}
+
+	// Convert gcovr uncovered report to our UncoveredInput format
+	input := &UncoveredInput{
+		Files: make([]UncoveredFile, 0, len(uncoveredReport.Files)),
+	}
+
+	for _, file := range uncoveredReport.Files {
+		// Construct full path by joining sourceParentPath with FilePath
+		fullPath := file.FilePath
+		if g.sourceParentPath != "" {
+			fullPath = filepath.Join(g.sourceParentPath, file.FilePath)
+		}
+
+		uncoveredFile := UncoveredFile{
+			FilePath:  fullPath,
+			Functions: make([]UncoveredFunction, 0, len(file.UncoveredFunctions)),
+		}
+
+		for _, fn := range file.UncoveredFunctions {
+			uncoveredFile.Functions = append(uncoveredFile.Functions, UncoveredFunction{
+				FunctionName:   fn.FunctionName,
+				DemangledName:  fn.DemangledName,
+				UncoveredLines: fn.UncoveredLineNumbers,
+				TotalLines:     fn.TotalLines,
+				CoveredLines:   fn.CoveredLines,
+			})
+		}
+
+		input.Files = append(input.Files, uncoveredFile)
+	}
+
+	// Use CppAbstractor to generate abstracted code
+	abstractor := NewCppAbstractor()
+	abstractedOutput, err := abstractor.Abstract(input)
+	if err != nil || abstractedOutput == nil {
+		return ""
+	}
+
+	// Build the formatted abstract output
+	var sb strings.Builder
+	for _, fn := range abstractedOutput.Functions {
+		// Skip functions with errors (e.g., source file not found)
+		if fn.Error != nil {
+			continue
+		}
+		if fn.AbstractedCode == "" {
+			continue
+		}
+
+		// Use short filename for display
+		shortPath := fn.FilePath
+		if idx := strings.LastIndex(fn.FilePath, "/"); idx != -1 {
+			shortPath = fn.FilePath[idx+1:]
+		}
+
+		sb.WriteString(fmt.Sprintf("### %s::%s\n", shortPath, fn.DemangledName))
+		sb.WriteString(fmt.Sprintf("Uncovered lines: %v\n\n", fn.UncoveredLines))
+		sb.WriteString("```cpp\n")
+		sb.WriteString(fn.AbstractedCode)
+		sb.WriteString("\n```\n\n")
+	}
+
+	return sb.String()
 }

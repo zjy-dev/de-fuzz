@@ -92,9 +92,9 @@ func TestBuilder_BuildGeneratePrompt(t *testing.T) {
 	t.Run("should build a valid generate prompt", func(t *testing.T) {
 		prompt, err := builder.BuildGeneratePrompt("nothing")
 		require.NoError(t, err)
-		assert.Contains(t, prompt, "Generate a new, complete, and valid seed.")
+		assert.Contains(t, prompt, "Generate a new, complete, and valid seed for fuzzing.")
 		assert.Contains(t, prompt, "source code")
-		assert.Contains(t, prompt, "Test Cases (json)")
+		assert.Contains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
 		assert.Contains(t, prompt, "source.c")
 	})
 }
@@ -109,18 +109,37 @@ func TestBuilder_BuildMutatePrompt(t *testing.T) {
 		TestCases: testCases,
 	}
 
-	t.Run("should build a valid mutate prompt", func(t *testing.T) {
-		prompt, err := builder.BuildMutatePrompt(s)
+	t.Run("should build a valid mutate prompt without context", func(t *testing.T) {
+		prompt, err := builder.BuildMutatePrompt(s, nil)
 		require.NoError(t, err)
 		assert.Contains(t, prompt, "[EXISTING SEED]")
 		assert.Contains(t, prompt, s.Content)
 		assert.Contains(t, prompt, "running command")
 		assert.Contains(t, prompt, "expected result")
 		assert.Contains(t, prompt, "system context")
+		assert.NotContains(t, prompt, "[COVERAGE CONTEXT]")
+	})
+
+	t.Run("should build a valid mutate prompt with coverage context", func(t *testing.T) {
+		mutationCtx := &MutationContext{
+			CoverageIncreaseSummary: "Covered 10 new lines in function foo",
+			CoverageIncreaseDetails: "Detailed coverage info here",
+			TotalCoveragePercentage: 45.5,
+			TotalCoveredLines:       100,
+			TotalLines:              220,
+		}
+		prompt, err := builder.BuildMutatePrompt(s, mutationCtx)
+		require.NoError(t, err)
+		assert.Contains(t, prompt, "[EXISTING SEED]")
+		assert.Contains(t, prompt, s.Content)
+		assert.Contains(t, prompt, "[COVERAGE CONTEXT]")
+		assert.Contains(t, prompt, "45.5%")
+		assert.Contains(t, prompt, "100/220 lines covered")
+		assert.Contains(t, prompt, "Covered 10 new lines in function foo")
 	})
 
 	t.Run("should return error if seed is nil", func(t *testing.T) {
-		_, err := builder.BuildMutatePrompt(nil)
+		_, err := builder.BuildMutatePrompt(nil, nil)
 		assert.Error(t, err)
 	})
 }

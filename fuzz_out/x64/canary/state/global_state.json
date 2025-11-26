@@ -1,0 +1,9 @@
+{
+  "last_allocated_id": 8,
+  "current_fuzzing_id": 4,
+  "total_coverage": 0,
+  "queue_stats": {
+    "pool_size": 4,
+    "processed_count": 5
+  }
+}

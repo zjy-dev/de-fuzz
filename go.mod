@@ -8,7 +8,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/tree-sitter/tree-sitter-cpp v0.23.4
-	github.com/zjy-dev/gcovr-json-util/v2 v2.1.0
+	github.com/zjy-dev/gcovr-json-util/v2 v2.2.0
 )
 
 require (

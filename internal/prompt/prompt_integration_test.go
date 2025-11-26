@@ -112,7 +112,7 @@ Stack pointer: x2/sp
 	assert.Contains(t, prompt, "source.c")
 	assert.Contains(t, prompt, "Test Cases")
 	assert.Contains(t, prompt, "RISC-V Stack Layout")
-	assert.Contains(t, prompt, "Source (c):")
+	assert.Contains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
 	assert.Contains(t, prompt, "running command")
 	assert.Contains(t, prompt, "expected result")
 }
@@ -156,7 +156,7 @@ int main() {
 		},
 	}
 
-	prompt, err := builder.BuildMutatePrompt(testSeed)
+	prompt, err := builder.BuildMutatePrompt(testSeed, nil)
 	require.NoError(t, err)
 
 	// Verify prompt contains seed content
@@ -166,15 +166,15 @@ int main() {
 	assert.Contains(t, prompt, "./a.out")
 	assert.Contains(t, prompt, "Hello")
 	assert.Contains(t, prompt, "mutate the existing seed")
-	assert.Contains(t, prompt, "Source (c):")
-	assert.Contains(t, prompt, "Test Cases (json):")
+	assert.Contains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
+}
 }
 
 // TestBuilder_Integration_BuildMutatePrompt_NilSeed tests error handling for nil seed.
 func TestBuilder_Integration_BuildMutatePrompt_NilSeed(t *testing.T) {
 	builder := NewBuilder()
 
-	_, err := builder.BuildMutatePrompt(nil)
+	_, err := builder.BuildMutatePrompt(nil, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "seed must be provided")
 }
@@ -188,12 +188,12 @@ func TestBuilder_Integration_BuildMutatePrompt_EmptyTestCases(t *testing.T) {
 		TestCases: []seed.TestCase{},
 	}
 
-	prompt, err := builder.BuildMutatePrompt(testSeed)
+	prompt, err := builder.BuildMutatePrompt(testSeed, nil)
 	require.NoError(t, err)
 
 	assert.Contains(t, prompt, "int main()")
 	// When test cases are empty, the JSON array is formatted as "[\n\n]"
-	assert.Contains(t, prompt, "Test Cases (json):")
+	assert.Contains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
 }
 
 // TestBuilder_Integration_BuildAnalyzePrompt tests building analysis prompts.
@@ -312,7 +312,7 @@ int main() {
 		},
 	}
 
-	mutatePrompt, err := builder.BuildMutatePrompt(generatedSeed)
+	mutatePrompt, err := builder.BuildMutatePrompt(generatedSeed, nil)
 	require.NoError(t, err)
 	assert.Contains(t, mutatePrompt, "func_ptr")
 
@@ -343,7 +343,7 @@ int main() {
 		},
 	}
 
-	prompt, err := builder.BuildMutatePrompt(testSeed)
+	prompt, err := builder.BuildMutatePrompt(testSeed, nil)
 	require.NoError(t, err)
 	assert.Contains(t, prompt, "Hello \\\"World\\\"!")
 }
@@ -388,7 +388,7 @@ int main() {
 		TestCases: testCases,
 	}
 
-	prompt, err := builder.BuildMutatePrompt(testSeed)
+	prompt, err := builder.BuildMutatePrompt(testSeed, nil)
 	require.NoError(t, err)
 	assert.NotEmpty(t, prompt)
 	// Large prompts should still be handled
