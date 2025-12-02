@@ -25,8 +25,12 @@ type EngineConfig struct {
 	Oracle   oracle.Oracle
 	LLM      llm.LLM
 
-	// Prompt builder for LLM interactions
+	// Prompt builder for LLM interactions (deprecated, use PromptStrategy instead)
 	PromptBuilder *prompt.Builder
+
+	// PromptStrategy defines how to build mutation prompts (for ablation studies)
+	// If nil, defaults to StandardStrategy
+	PromptStrategy prompt.Strategy
 
 	// Understanding context for LLM
 	Understanding string
@@ -229,8 +233,19 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 // generateNewSeeds uses LLM to create new seeds from an interesting seed.
 // It uses coverage information to guide the mutation.
 func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report, coverageIncrease *coverage.CoverageIncrease) {
-	if e.cfg.LLM == nil || e.cfg.PromptBuilder == nil {
+	if e.cfg.LLM == nil {
 		return
+	}
+
+	// Ensure we have a prompt strategy (either from config or default)
+	strategy := e.cfg.PromptStrategy
+	if strategy == nil {
+		// Fallback to legacy PromptBuilder if available
+		if e.cfg.PromptBuilder != nil {
+			strategy = &prompt.StandardStrategy{}
+		} else {
+			return
+		}
 	}
 
 	maxNew := e.cfg.MaxNewSeeds
@@ -238,33 +253,29 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 		maxNew = 3 // Default
 	}
 
-	log.Printf("[Engine] Generating %d new seeds from parent %d...", maxNew, parentSeed.Meta.ID)
+	log.Printf("[Engine] Generating %d new seeds from parent %d using %s strategy...", maxNew, parentSeed.Meta.ID, strategy.Name())
 
-	// Build mutation context from coverage information
-	var mutationCtx *prompt.MutationContext
+	// Build prompt context from coverage information
+	promptCtx := &prompt.PromptContext{
+		ExistingSeed: parentSeed,
+	}
+
 	if coverageIncrease != nil {
+		promptCtx.CoverageIncreaseSummary = coverageIncrease.Summary
+		promptCtx.CoverageIncreaseDetails = coverageIncrease.FormattedReport
+		promptCtx.UncoveredAbstract = coverageIncrease.UncoveredAbstract
+
 		// Get current total stats
-		stats, err := e.cfg.Coverage.GetStats()
-		if err != nil {
-			log.Printf("[Engine] Failed to get coverage stats: %v", err)
-		}
-
-		mutationCtx = &prompt.MutationContext{
-			CoverageIncreaseSummary: coverageIncrease.Summary,
-			CoverageIncreaseDetails: coverageIncrease.FormattedReport,
-			UncoveredAbstract:       coverageIncrease.UncoveredAbstract,
-		}
-
-		if stats != nil {
-			mutationCtx.TotalCoveragePercentage = stats.CoveragePercentage
-			mutationCtx.TotalCoveredLines = stats.TotalCoveredLines
-			mutationCtx.TotalLines = stats.TotalLines
+		if stats, err := e.cfg.Coverage.GetStats(); err == nil && stats != nil {
+			promptCtx.TotalCoveragePercentage = stats.CoveragePercentage
+			promptCtx.TotalCoveredLines = stats.TotalCoveredLines
+			promptCtx.TotalLines = stats.TotalLines
 		}
 	}
 
 	for i := 0; i < maxNew; i++ {
-		// Build mutation prompt with coverage context
-		mutatePrompt, err := e.cfg.PromptBuilder.BuildMutatePrompt(parentSeed, mutationCtx)
+		// Build mutation prompt using strategy
+		mutatePrompt, err := strategy.Build(promptCtx)
 		if err != nil {
 			log.Printf("[Engine] Failed to build mutate prompt: %v", err)
 			continue

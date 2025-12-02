@@ -24,13 +24,14 @@ import (
 // NewFuzzCommand creates the "fuzz" subcommand.
 func NewFuzzCommand() *cobra.Command {
 	var (
-		outputRootDir string
-		maxIterations int
-		maxNewSeeds   int
-		timeout       int
-		useQEMU       bool
-		qemuPath      string
-		qemuSysroot   string
+		outputRootDir  string
+		maxIterations  int
+		maxNewSeeds    int
+		timeout        int
+		useQEMU        bool
+		qemuPath       string
+		qemuSysroot    string
+		promptStrategy string
 	)
 
 	cmd := &cobra.Command{
@@ -58,6 +59,13 @@ Configuration:
   Default values are loaded from config.yaml under 'fuzz' section.
   Command line flags override the config file values.
 
+Ablation Study:
+  Use --prompt-strategy to select different prompt building strategies:
+    - standard:    Full context (coverage + abstract) - default baseline
+    - no-abstract: Coverage info without code abstraction
+    - no-coverage: Only seed code, no coverage feedback
+    - random:      Minimal guidance, random-like mutation
+
 Examples:
   # Start fuzzing with default settings from config
   defuzz fuzz
@@ -69,7 +77,10 @@ Examples:
   defuzz fuzz --max-iterations 100
 
   # Use QEMU for cross-architecture fuzzing
-  defuzz fuzz --use-qemu --qemu-path qemu-aarch64 --qemu-sysroot /usr/aarch64-linux-gnu`,
+  defuzz fuzz --use-qemu --qemu-path qemu-aarch64 --qemu-sysroot /usr/aarch64-linux-gnu
+  
+  # Run ablation study without code abstraction
+  defuzz fuzz --prompt-strategy no-abstract`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load config first to get defaults
 			cfg, err := config.LoadConfig()
@@ -99,11 +110,14 @@ Examples:
 			if !cmd.Flags().Changed("qemu-sysroot") {
 				qemuSysroot = cfg.Fuzz.QEMUSysroot
 			}
+			if !cmd.Flags().Changed("prompt-strategy") {
+				promptStrategy = cfg.Ablation.PromptStrategy
+			}
 
 			// Build the actual output directory: {output_root_dir}/{isa}/{strategy}
 			outputDir := filepath.Join(outputRootDir, cfg.ISA, cfg.Strategy)
 
-			return runFuzz(cfg, outputDir, maxIterations, maxNewSeeds, timeout, useQEMU, qemuPath, qemuSysroot)
+			return runFuzz(cfg, outputDir, maxIterations, maxNewSeeds, timeout, useQEMU, qemuPath, qemuSysroot, promptStrategy)
 		},
 	}
 
@@ -115,13 +129,15 @@ Examples:
 	cmd.Flags().BoolVar(&useQEMU, "use-qemu", false, "Use QEMU for execution (for cross-architecture)")
 	cmd.Flags().StringVar(&qemuPath, "qemu-path", "qemu-aarch64", "Path to QEMU user-mode executable")
 	cmd.Flags().StringVar(&qemuSysroot, "qemu-sysroot", "", "Sysroot path for QEMU (-L argument)")
+	cmd.Flags().StringVar(&promptStrategy, "prompt-strategy", "standard", "Prompt strategy for ablation study (standard, no-abstract, no-coverage, random)")
 
 	return cmd
 }
 
-func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot string) error {
+func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot, promptStrategy string) error {
 	fmt.Printf("[Fuzz] Target: %s / %s\n", cfg.ISA, cfg.Strategy)
 	fmt.Printf("[Fuzz] Output directory: %s\n", outputDir)
+	fmt.Printf("[Fuzz] Prompt strategy: %s\n", promptStrategy)
 
 	// Create state directory (used for resume capability)
 	stateDir := filepath.Join(outputDir, "state")
@@ -248,18 +264,19 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		fmt.Printf("[Fuzz] Loaded %d initial seeds\n", len(initialSeeds))
 	}
 
-	// 10. Create fuzzing engine
+	// 10. Create fuzzing engine with prompt strategy
 	engine := fuzz.NewEngine(fuzz.EngineConfig{
-		Corpus:        corpusManager,
-		Compiler:      gccCompiler,
-		Executor:      seedExecutor,
-		Coverage:      coverageTracker,
-		Oracle:        llmOracle,
-		LLM:           llmClient,
-		PromptBuilder: promptBuilder,
-		Understanding: understanding,
-		MaxIterations: maxIterations,
-		MaxNewSeeds:   maxNewSeeds,
+		Corpus:         corpusManager,
+		Compiler:       gccCompiler,
+		Executor:       seedExecutor,
+		Coverage:       coverageTracker,
+		Oracle:         llmOracle,
+		LLM:            llmClient,
+		PromptBuilder:  promptBuilder,
+		PromptStrategy: prompt.NewStrategy(promptStrategy),
+		Understanding:  understanding,
+		MaxIterations:  maxIterations,
+		MaxNewSeeds:    maxNewSeeds,
 	})
 
 	// 11. Run the fuzzing loop

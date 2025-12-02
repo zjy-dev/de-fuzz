@@ -15,6 +15,17 @@ type Config struct {
 	Strategy string         `mapstructure:"strategy"`
 	Compiler CompilerConfig `mapstructure:"compiler"`
 	Fuzz     FuzzConfig     `mapstructure:"fuzz"`
+	Ablation AblationConfig `mapstructure:"ablation"`
+}
+
+// AblationConfig holds the configuration for ablation study experiments.
+type AblationConfig struct {
+	// Mode is the name of the ablation experiment (for logging and output directory)
+	Mode string `mapstructure:"mode"`
+
+	// PromptStrategy determines how prompts are built for the LLM
+	// Options: "standard", "no-abstract", "no-coverage", "random"
+	PromptStrategy string `mapstructure:"prompt_strategy"`
 }
 
 // FuzzConfig holds the configuration for the fuzzing process.
