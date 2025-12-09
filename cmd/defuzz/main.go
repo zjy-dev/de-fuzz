@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/zjy-dev/de-fuzz/cmd/defuzz/app"
-	_ "github.com/zjy-dev/de-fuzz/internal/oracle/plugins" // Register oracle plugins
+	_ "github.com/zjy-dev/de-fuzz/internal/oracle" // Register oracle plugins
 )
 
 func main() {

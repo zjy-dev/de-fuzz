@@ -162,12 +162,12 @@ func (m *MockCoverage) GetStats() (*coverage.CoverageStats, error) {
 }
 
 type MockOracle struct {
-	analyzeFn func(s *seed.Seed, results []oracle.Result) (*oracle.Bug, error)
+	analyzeFn func(s *seed.Seed, ctx *oracle.AnalyzeContext, results []oracle.Result) (*oracle.Bug, error)
 }
 
-func (m *MockOracle) Analyze(s *seed.Seed, results []oracle.Result) (*oracle.Bug, error) {
+func (m *MockOracle) Analyze(s *seed.Seed, ctx *oracle.AnalyzeContext, results []oracle.Result) (*oracle.Bug, error) {
 	if m.analyzeFn != nil {
-		return m.analyzeFn(s, results)
+		return m.analyzeFn(s, ctx, results)
 	}
 	return nil, nil
 }
@@ -281,7 +281,7 @@ func TestEngine_Run_BugDetection(t *testing.T) {
 	}
 	mockCoverage := &MockCoverage{}
 	mockOracle := &MockOracle{
-		analyzeFn: func(s *seed.Seed, results []oracle.Result) (*oracle.Bug, error) {
+		analyzeFn: func(s *seed.Seed, ctx *oracle.AnalyzeContext, results []oracle.Result) (*oracle.Bug, error) {
 			return &oracle.Bug{
 				Seed:        s,
 				Description: "Null pointer dereference",

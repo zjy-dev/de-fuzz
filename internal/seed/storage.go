@@ -76,33 +76,45 @@ func SaveSeed(basePath string, s *Seed) error {
 }
 
 // SaveSeedWithMetadata saves a seed using the specified naming strategy.
-// It returns the generated filename.
+// It saves the seed content to a separate source.c file and returns the generated filename.
+// The metadata's ContentPath field will be updated to point to the source.c file.
 func SaveSeedWithMetadata(dir string, s *Seed, namer NamingStrategy) (string, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	// Marshal test cases to JSON
-	jsonData, err := json.MarshalIndent(s.TestCases, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal test cases: %w", err)
-	}
-
-	// Combine content
-	fullContent := s.Content + Separator + string(jsonData)
-
 	// Generate filename using naming strategy
 	filename := namer.GenerateFilename(&s.Meta, s.Content)
 
+	// Create a subdirectory for this seed's files
+	seedDir := filepath.Join(dir, strings.TrimSuffix(filename, filepath.Ext(filename)))
+	if err := os.MkdirAll(seedDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create seed directory %s: %w", seedDir, err)
+	}
+
+	// Save source code to source.c
+	sourceFile := filepath.Join(seedDir, "source.c")
+	if err := os.WriteFile(sourceFile, []byte(s.Content), 0644); err != nil {
+		return "", fmt.Errorf("failed to write source file %s: %w", sourceFile, err)
+	}
+
+	// Save test cases to testcases.json if they exist
+	if len(s.TestCases) > 0 {
+		jsonData, err := json.MarshalIndent(s.TestCases, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal test cases: %w", err)
+		}
+		testCasesFile := filepath.Join(seedDir, "testcases.json")
+		if err := os.WriteFile(testCasesFile, jsonData, 0644); err != nil {
+			return "", fmt.Errorf("failed to write test cases file %s: %w", testCasesFile, err)
+		}
+	}
+
 	// Update metadata
 	s.Meta.FilePath = filename
-	s.Meta.FileSize = int64(len(fullContent))
+	s.Meta.ContentPath = sourceFile // Store absolute path to source.c
+	s.Meta.FileSize = int64(len(s.Content))
 	s.Meta.ContentHash = GenerateContentHash(s.Content)
-
-	filePath := filepath.Join(dir, filename)
-	if err := os.WriteFile(filePath, []byte(fullContent), 0644); err != nil {
-		return "", fmt.Errorf("failed to write seed file %s: %w", filePath, err)
-	}
 
 	return filename, nil
 }
@@ -172,10 +184,53 @@ func LoadSeedsWithMetadata(dir string, namer NamingStrategy) ([]*Seed, error) {
 	}
 
 	for _, entry := range entries {
+		// New format: each seed is a directory
 		if entry.IsDir() {
+			seedDir := filepath.Join(dir, entry.Name())
+
+			// Check if source.c exists
+			sourceFile := filepath.Join(seedDir, "source.c")
+			if _, err := os.Stat(sourceFile); err != nil {
+				continue // Not a valid seed directory
+			}
+
+			// Read source code
+			sourceBytes, err := os.ReadFile(sourceFile)
+			if err != nil {
+				continue
+			}
+
+			// Try to parse metadata from directory name
+			meta, err := namer.ParseFilename(entry.Name() + ".seed")
+			if err != nil {
+				continue
+			}
+
+			// Read test cases if they exist
+			var testCases []TestCase
+			testCasesFile := filepath.Join(seedDir, "testcases.json")
+			if data, err := os.ReadFile(testCasesFile); err == nil {
+				json.Unmarshal(data, &testCases)
+			}
+
+			// Update metadata
+			meta.FilePath = entry.Name()
+			meta.ContentPath = sourceFile
+			meta.FileSize = int64(len(sourceBytes))
+
+			if meta.State == "" {
+				meta.State = SeedStatePending
+			}
+
+			seeds = append(seeds, &Seed{
+				Meta:      *meta,
+				Content:   string(sourceBytes),
+				TestCases: testCases,
+			})
 			continue
 		}
 
+		// Old format: single .seed file (for backward compatibility)
 		filename := entry.Name()
 		if !strings.HasSuffix(filename, ".seed") {
 			continue

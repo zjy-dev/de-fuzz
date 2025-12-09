@@ -20,10 +20,11 @@ const (
 // This is used for lineage tracking, resume functionality, and coverage analysis.
 type Metadata struct {
 	// Basic Info
-	ID        uint64    `json:"id"`         // Global unique ID, starts from 1
-	FilePath  string    `json:"file_path"`  // Relative path in corpus directory
-	FileSize  int64     `json:"file_size"`  // File size in bytes
-	CreatedAt time.Time `json:"created_at"` // Creation timestamp
+	ID          uint64    `json:"id"`           // Global unique ID, starts from 1
+	FilePath    string    `json:"file_path"`    // Relative path in corpus directory (legacy, for metadata file)
+	ContentPath string    `json:"content_path"` // Path to the actual seed content file (source.c)
+	FileSize    int64     `json:"file_size"`    // File size in bytes
+	CreatedAt   time.Time `json:"created_at"`   // Creation timestamp
 
 	// Lineage
 	ParentID uint64 `json:"parent_id"` // Parent seed ID (0 for initial seeds)

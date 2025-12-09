@@ -29,6 +29,15 @@ type FuzzConfig struct {
 	// MaxNewSeeds is the maximum new seeds to generate per interesting seed
 	MaxNewSeeds int `mapstructure:"max_new_seeds"`
 
+	// MaxTestCases is the maximum number of test cases to generate per seed
+	// If 0, test cases will not be generated (useful for oracles like canary that don't need test cases)
+	MaxTestCases int `mapstructure:"max_test_cases"`
+
+	// FunctionTemplate is the path to a C code template file (optional)
+	// If provided, LLM will only generate the function body, and the result will be merged with the template
+	// This is useful for strategies like canary where we need specific program structure
+	FunctionTemplate string `mapstructure:"function_template"`
+
 	// Timeout is the execution timeout in seconds
 	Timeout int `mapstructure:"timeout"`
 

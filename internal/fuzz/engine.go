@@ -198,7 +198,13 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 			}
 		}
 
-		bug, err := e.cfg.Oracle.Analyze(s, oracleResults)
+		// Create analyze context for active oracles
+		ctx := &oracle.AnalyzeContext{
+			BinaryPath: compileResult.BinaryPath,
+			Executor:   executor.NewOracleExecutorAdapter(e.cfg.CoverageTimeout),
+		}
+
+		bug, err := e.cfg.Oracle.Analyze(s, ctx, oracleResults)
 		if err != nil {
 			log.Printf("[Engine] Analysis failed: %v", err)
 		} else if bug != nil {
@@ -270,10 +276,17 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 			continue
 		}
 
-		// Generate new seed
-		newSeed, err := e.cfg.LLM.Generate(e.cfg.Understanding, mutatePrompt)
+		// Call LLM with understanding as system prompt
+		completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, mutatePrompt)
 		if err != nil {
-			log.Printf("[Engine] Failed to generate new seed: %v", err)
+			log.Printf("[Engine] Failed to get LLM completion: %v", err)
+			continue
+		}
+
+		// Parse LLM response using PromptBuilder (handles function template mode)
+		newSeed, err := e.cfg.PromptBuilder.ParseLLMResponse(completion)
+		if err != nil {
+			log.Printf("[Engine] Failed to parse LLM response: %v", err)
 			continue
 		}
 

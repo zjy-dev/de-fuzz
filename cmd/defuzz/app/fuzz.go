@@ -218,7 +218,7 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 	}
 
 	// 8. Create prompt builder and oracle
-	promptBuilder := prompt.NewBuilder()
+	promptBuilder := prompt.NewBuilder(cfg.Compiler.Fuzz.MaxTestCases, cfg.Compiler.Fuzz.FunctionTemplate)
 
 	// Create oracle using the registry
 	oracleInstance, err := oracle.New(

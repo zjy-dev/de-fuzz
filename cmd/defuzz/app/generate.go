@@ -29,15 +29,17 @@ It initializes the LLM's understanding of the target and creates a set of starti
 The ISA and strategy are read from the config.yaml file under the 'config' section.
 
 Each seed consists of:
-  - C source code
-  - Test cases with running commands and expected results
+  - C source code (source.c)
+  - Optional test cases (testcases.json)
 
-The seeds are saved in a single-file format (.seed) with metadata encoded in the filename.
+The seeds are saved in a directory-based format with metadata encoded in the directory name.
 
 Output directory structure:
   {output}/{isa}/{strategy}/
     ├── understanding.md     # LLM's understanding of the target
-    └── *.seed               # Generated seed files
+    └── {seed-name}/         # Each seed is a directory
+        ├── source.c         # C source code
+        └── testcases.json   # Optional test cases
 
 Examples:
   # Generate 5 seeds using config from config.yaml
@@ -71,8 +73,17 @@ Examples:
 				return fmt.Errorf("failed to create LLM client: %w", err)
 			}
 
-			// 3. Create prompt builder
-			promptBuilder := prompt.NewBuilder()
+			// 3. Create prompt builder with configuration
+			promptBuilder := prompt.NewBuilder(cfg.Compiler.Fuzz.MaxTestCases, cfg.Compiler.Fuzz.FunctionTemplate)
+
+			// Log mode
+			if promptBuilder.IsFunctionTemplateMode() {
+				fmt.Printf("[Generate] Mode: Function Template (template: %s)\n", cfg.Compiler.Fuzz.FunctionTemplate)
+			} else if promptBuilder.RequiresTestCases() {
+				fmt.Printf("[Generate] Mode: Standard (with test cases, max: %d)\n", cfg.Compiler.Fuzz.MaxTestCases)
+			} else {
+				fmt.Printf("[Generate] Mode: Code Only (no test cases)\n")
+			}
 
 			// 4. Define base path for seeds
 			basePath := filepath.Join(output, isa, strategy)
@@ -129,16 +140,18 @@ Examples:
 						continue
 					}
 
-					newSeed, lastErr = llmClient.Generate(understanding, generatePrompt)
-					if lastErr != nil {
-						fmt.Printf("  [%d/%d] LLM generation failed: %v\n", i+1, count, lastErr)
+					// Get raw LLM response
+					response, llmErr := llmClient.GetCompletionWithSystem(understanding, generatePrompt)
+					if llmErr != nil {
+						fmt.Printf("  [%d/%d] LLM request failed: %v\n", i+1, count, llmErr)
+						lastErr = llmErr
 						continue
 					}
 
-					// Validate the generated seed
-					if validateErr := seed.ValidateSeed(newSeed); validateErr != nil {
-						fmt.Printf("  [%d/%d] Validation failed: %v\n", i+1, count, validateErr)
-						lastErr = validateErr
+					// Parse response using prompt builder (handles different modes)
+					newSeed, lastErr = promptBuilder.ParseLLMResponse(response)
+					if lastErr != nil {
+						fmt.Printf("  [%d/%d] Parse failed: %v\n", i+1, count, lastErr)
 						continue
 					}
 

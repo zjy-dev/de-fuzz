@@ -33,12 +33,24 @@ type MutationContext struct {
 
 // Builder is responsible for constructing prompts for the LLM.
 type Builder struct {
-	// In the future, this could hold paths to template files or other configuration.
+	// MaxTestCases specifies the maximum number of test cases to generate per seed
+	// If 0, test case generation will be disabled in prompts
+	MaxTestCases int
+
+	// FunctionTemplate contains the C code template where LLM fills in function bodies
+	// If empty, LLM generates complete programs
+	FunctionTemplate string
 }
 
 // NewBuilder creates a new prompt builder.
-func NewBuilder() *Builder {
-	return &Builder{}
+// maxTestCases specifies the maximum number of test cases to generate per seed.
+// If maxTestCases is 0, test case generation will be disabled in prompts.
+// functionTemplate is optional - if provided, LLM only generates function bodies.
+func NewBuilder(maxTestCases int, functionTemplate string) *Builder {
+	return &Builder{
+		MaxTestCases:     maxTestCases,
+		FunctionTemplate: functionTemplate,
+	}
 }
 
 // readFileOrDefault safely reads auxiliary context files.
@@ -70,16 +82,35 @@ func (b *Builder) BuildUnderstandPrompt(isa, strategy, basePath string) (string,
 		return "", fmt.Errorf("failed to read stack layout file: %w", err)
 	}
 
-	// Build the output format example - use the same format as storage.Separator
-	// Format: <C source code> + "// ||||| JSON_TESTCASES_START |||||" + <JSON test cases>
-	outputFormatExample := "[C source code here]\n" +
-		"// ||||| JSON_TESTCASES_START |||||\n" +
-		"[\n" +
-		"  {\n" +
-		"    \"running command\": \"[command to execute the compiled binary]\",\n" +
-		"    \"expected result\": \"[expected output or behavior]\"\n" +
-		"  }\n" +
-		"]"
+	// Build the output format example based on MaxTestCases and FunctionTemplate
+	var outputFormatExample string
+	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
+		// Function template + test cases mode
+		outputFormatExample = "[function implementation here]\n" +
+			"// ||||| JSON_TESTCASES_START |||||\n" +
+			"[\n" +
+			"  {\n" +
+			"    \"running command\": \"[command to execute the compiled binary]\",\n" +
+			"    \"expected result\": \"[expected output or behavior]\"\n" +
+			"  }\n" +
+			"]"
+	} else if b.FunctionTemplate != "" {
+		// Function-only mode (no test cases)
+		outputFormatExample = "[function implementation here]"
+	} else if b.MaxTestCases > 0 {
+		// With test cases
+		outputFormatExample = "[C source code here]\n" +
+			"// ||||| JSON_TESTCASES_START |||||\n" +
+			"[\n" +
+			"  {\n" +
+			"    \"running command\": \"[command to execute the compiled binary]\",\n" +
+			"    \"expected result\": \"[expected output or behavior]\"\n" +
+			"  }\n" +
+			"]"
+	} else {
+		// Without test cases
+		outputFormatExample = "[C source code here]"
+	}
 
 	prompt := fmt.Sprintf(`You are a world-class expert in cybersecurity, specializing in low-level exploitation and compiler security. You have a deep understanding of how compilers work, how security mitigations are implemented, and how they can be bypassed.
 
@@ -140,23 +171,67 @@ func (b *Builder) BuildGeneratePrompt(basePath string) (string, error) {
 		return "", fmt.Errorf("failed to read stack layout file: %w", err)
 	}
 
-	prompt := fmt.Sprintf(`Generate a new, complete, and valid seed for fuzzing.
-The seed must contain C source code and test cases.
-Please ensure the code has potential vulnerabilities that can be discovered through fuzzing.
+	// Read template if configured
+	var templateInstruction string
+	if b.FunctionTemplate != "" {
+		templateContent, err := os.ReadFile(b.FunctionTemplate)
+		if err != nil {
+			return "", fmt.Errorf("failed to read function template: %w", err)
+		}
+		templateInstruction = fmt.Sprintf(`
+**Code Template:**
+You will generate code based on this template. Only implement the function body marked with FUNCTION_PLACEHOLDER.
 
-**Requirements:**
-- Provide complete, compilable C source code.
-- The code will be saved as 'source.c' and compiled using the target compiler.
-- Include at least one test case with a running command and expected result.
-- The running command should execute the compiled binary (e.g., "./prog", "./prog arg1 arg2").
-- The expected result describes the expected output or behavior.
-- The code should be minimal but demonstrate a potential vulnerability.
-- Focus on the specific ISA and defense strategy from the system context.
-
-**ISA Stack Layout:**
 %s
 
-**Output Format (MUST follow exactly):**
+**Template Instructions:**
+- The template provides the main() function and program structure.
+- You ONLY need to implement the function body where you see // FUNCTION_PLACEHOLDER: function_name
+- Do NOT modify or include the template code in your output.
+- Output ONLY the function implementation.
+`, string(templateContent))
+	}
+
+	// Build output format based on MaxTestCases and FunctionTemplate
+	var outputFormat string
+	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
+		// Function template + test cases mode
+		outputFormat = fmt.Sprintf(`**Output Format (MUST follow exactly):**
+
+Your response must be in this exact format - function implementation followed by the separator and JSON test cases:
+
+void function_name(parameters) {
+    // Your function implementation here
+}
+// ||||| JSON_TESTCASES_START |||||
+[
+  {
+    "running command": "./prog arg1",
+    "expected result": "expected output or behavior"
+  }
+]
+
+**IMPORTANT:** 
+- Output ONLY the function code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
+- Do NOT include the template or any other code besides the function.
+- Do NOT include any markdown code blocks, headers, or other formatting.
+- Include %d to %d test cases with running commands and expected results.`, 1, b.MaxTestCases)
+	} else if b.FunctionTemplate != "" {
+		// Function-only mode (no test cases)
+		outputFormat = `**Output Format (MUST follow exactly):**
+
+Your response must contain only the function implementation:
+
+void vulnerable_function(char *input) {
+    // Your function implementation here
+}
+
+**IMPORTANT:** 
+- Output ONLY the function code.
+- Do NOT include the template or any other code.
+- Do NOT include any markdown code blocks, headers, or other formatting.`
+	} else if b.MaxTestCases > 0 {
+		outputFormat = `**Output Format (MUST follow exactly):**
 
 Your response must be in this exact format - C source code followed by the separator and JSON test cases:
 
@@ -172,8 +247,57 @@ Your response must be in this exact format - C source code followed by the separ
 **IMPORTANT:** 
 - Output ONLY the C source code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
 - Do NOT include any markdown code blocks, headers, or other formatting.
-- The separator must appear exactly as shown: // ||||| JSON_TESTCASES_START |||||
-`, stackLayout)
+- The separator must appear exactly as shown: // ||||| JSON_TESTCASES_START |||||`
+	} else {
+		outputFormat = `**Output Format (MUST follow exactly):**
+
+Your response must contain only C source code:
+
+[Your C source code here]
+
+**IMPORTANT:** 
+- Output ONLY the C source code.
+- Do NOT include any markdown code blocks, headers, or other formatting.
+- Do NOT include test cases - they are not needed for this configuration.`
+	}
+
+	prompt := fmt.Sprintf(`Generate a new, complete, and valid seed for fuzzing.
+The seed must contain C source code%s.
+Please ensure the code has potential vulnerabilities that can be discovered through fuzzing.
+
+**Requirements:**
+- Provide complete, compilable C source code%s.
+- The code will be saved as 'source.c' and compiled using the target compiler.%s
+- The code should be minimal but demonstrate a potential vulnerability.
+- Focus on the specific ISA and defense strategy from the system context.
+
+**ISA Stack Layout:**
+%s
+%s
+%s
+`,
+		func() string {
+			if b.MaxTestCases > 0 {
+				return " and test cases"
+			}
+			return ""
+		}(),
+		func() string {
+			if b.FunctionTemplate != "" {
+				return " (function body only)"
+			}
+			return ""
+		}(),
+		func() string {
+			if b.MaxTestCases > 0 {
+				return fmt.Sprintf("\n- Include at least one test case (up to %d test cases) with a running command and expected result.\n- The running command should execute the compiled binary (e.g., \"./prog\", \"./prog arg1 arg2\").\n- The expected result describes the expected output or behavior.", b.MaxTestCases)
+			}
+			return ""
+		}(),
+		stackLayout,
+		templateInstruction,
+		outputFormat,
+	)
 	return prompt, nil
 }
 
@@ -237,17 +361,46 @@ Based on the coverage increase above, focus your mutation on:
 		)
 	}
 
-	prompt := fmt.Sprintf(`
-[EXISTING SEED]
-%s
-// ||||| JSON_TESTCASES_START |||||
-%s
-[/EXISTING SEED]
-%s
-Based on the system context, mutate the existing seed to create a new variant that is more likely to find a bug or increase coverage.
-Please make focused changes that could expose different vulnerability patterns.
+	// Build output format based on MaxTestCases and FunctionTemplate
+	var outputFormat string
+	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
+		// Function template + test cases mode
+		outputFormat = fmt.Sprintf(`**Output Format (MUST follow exactly):**
 
-**Output Format (MUST follow exactly):**
+Your response must be in this exact format - mutated function implementation followed by the separator and JSON test cases:
+
+void function_name(parameters) {
+    // Your mutated function implementation here
+}
+// ||||| JSON_TESTCASES_START |||||
+[
+  {
+    "running command": "./prog arg1",
+    "expected result": "expected output or behavior"
+  }
+]
+
+**IMPORTANT:** 
+- Output ONLY the function code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
+- Do NOT include the template or any other code besides the function.
+- Do NOT include any markdown code blocks, headers, or other formatting.
+- Include %d to %d test cases with running commands and expected results.`, 1, b.MaxTestCases)
+	} else if b.FunctionTemplate != "" {
+		// Function-only mode (no test cases)
+		outputFormat = `**Output Format (MUST follow exactly):**
+
+Your response must contain only the mutated function implementation:
+
+void vulnerable_function(char *input) {
+    // Your mutated function implementation here
+}
+
+**IMPORTANT:** 
+- Output ONLY the function code.
+- Do NOT include the template or any other code.
+- Do NOT include any markdown code blocks, headers, or other formatting.`
+	} else if b.MaxTestCases > 0 {
+		outputFormat = `**Output Format (MUST follow exactly):**
 
 Your response must be in this exact format - C source code followed by the separator and JSON test cases:
 
@@ -262,8 +415,32 @@ Your response must be in this exact format - C source code followed by the separ
 
 **IMPORTANT:** 
 - Output ONLY the C source code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
+- Do NOT include any markdown code blocks, headers, or other formatting.`
+	} else {
+		outputFormat = `**Output Format (MUST follow exactly):**
+
+Your response must contain only mutated C source code:
+
+[mutated C source code here]
+
+**IMPORTANT:** 
+- Output ONLY the mutated C source code.
 - Do NOT include any markdown code blocks, headers, or other formatting.
-`, s.Content, testCasesJSON, coverageSection)
+- Do NOT include test cases - they are not needed for this configuration.`
+	}
+
+	prompt := fmt.Sprintf(`
+[EXISTING SEED]
+%s
+// ||||| JSON_TESTCASES_START |||||
+%s
+[/EXISTING SEED]
+%s
+Based on the system context, mutate the existing seed to create a new variant that is more likely to find a bug or increase coverage.
+Please make focused changes that could expose different vulnerability patterns.
+
+%s
+`, s.Content, testCasesJSON, coverageSection, outputFormat)
 
 	// DEBUG: Print the generated mutate prompt
 	fmt.Println("\n" + strings.Repeat("=", 80))
@@ -320,4 +497,100 @@ Provide insights about:
 Please provide a concise but informative analysis.
 `, s.Content, testCasesJSON, feedback)
 	return prompt, nil
+}
+
+// ParseLLMResponse parses the LLM response based on the Builder's configuration.
+// It handles four modes:
+// 1. FunctionTemplate + TestCases mode: Extracts function code with test cases, merges into template
+// 2. FunctionTemplate only mode: Extracts function code and merges it into the template
+// 3. No test cases mode (MaxTestCases == 0): Extracts code without test cases
+// 4. Standard mode: Extracts code with test cases using ParseSeedFromLLMResponse
+//
+// Returns a Seed with Content and TestCases populated appropriately.
+func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
+	// Mode 1: Function template + test cases mode
+	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
+		// Read the template
+		templateContent, err := os.ReadFile(b.FunctionTemplate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read function template: %w", err)
+		}
+
+		// Parse function code and test cases from response
+		functionCode, testCases, err := seed.ParseFunctionWithTestCasesFromLLMResponse(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse function with test cases from response: %w", err)
+		}
+
+		// Merge function into template
+		mergedCode, err := seed.MergeTemplate(string(templateContent), functionCode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge function into template: %w", err)
+		}
+
+		return &seed.Seed{
+			Content:   mergedCode,
+			TestCases: testCases,
+		}, nil
+	}
+
+	// Mode 2: Function template only mode (no test cases)
+	if b.FunctionTemplate != "" {
+		// Read the template
+		templateContent, err := os.ReadFile(b.FunctionTemplate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read function template: %w", err)
+		}
+
+		// Parse function code from response
+		functionCode, err := seed.ParseFunctionFromLLMResponse(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse function from response: %w", err)
+		}
+
+		// Merge function into template
+		mergedCode, err := seed.MergeTemplate(string(templateContent), functionCode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge function into template: %w", err)
+		}
+
+		return &seed.Seed{
+			Content:   mergedCode,
+			TestCases: []seed.TestCase{}, // No test cases in template-only mode
+		}, nil
+	}
+
+	// Mode 2: No test cases mode
+	if b.MaxTestCases == 0 {
+		sourceCode, err := seed.ParseCodeOnlyFromLLMResponse(response)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse code from response: %w", err)
+		}
+
+		return &seed.Seed{
+			Content:   sourceCode,
+			TestCases: []seed.TestCase{},
+		}, nil
+	}
+
+	// Mode 3: Standard mode with test cases
+	sourceCode, testCases, err := seed.ParseSeedFromLLMResponse(response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse seed from response: %w", err)
+	}
+
+	return &seed.Seed{
+		Content:   sourceCode,
+		TestCases: testCases,
+	}, nil
+}
+
+// IsFunctionTemplateMode returns true if the builder is configured for function template mode
+func (b *Builder) IsFunctionTemplateMode() bool {
+	return b.FunctionTemplate != ""
+}
+
+// RequiresTestCases returns true if the builder requires test cases in responses
+func (b *Builder) RequiresTestCases() bool {
+	return b.MaxTestCases > 0
 }

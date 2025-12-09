@@ -9,6 +9,25 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
+func init() {
+	Register("llm", NewLLMOracle)
+}
+
+// NewLLMOracle creates a new LLM-based oracle.
+func NewLLMOracle(options map[string]interface{}, l llm.LLM, prompter *prompt.Builder, context string) (Oracle, error) {
+	if l == nil {
+		return nil, fmt.Errorf("LLM client is required for LLM oracle")
+	}
+	if prompter == nil {
+		return nil, fmt.Errorf("prompt builder is required for LLM oracle")
+	}
+	return &LLMOracle{
+		llm:        l,
+		prompter:   prompter,
+		llmContext: context,
+	}, nil
+}
+
 // LLMOracle implements the Oracle interface using an LLM for analysis.
 type LLMOracle struct {
 	llm        llm.LLM
@@ -16,17 +35,9 @@ type LLMOracle struct {
 	llmContext string // The "understanding" context from the LLM
 }
 
-// NewLLMOracle creates a new LLM-based oracle.
-func NewLLMOracle(l llm.LLM, prompter *prompt.Builder, llmContext string) *LLMOracle {
-	return &LLMOracle{
-		llm:        l,
-		prompter:   prompter,
-		llmContext: llmContext,
-	}
-}
-
 // Analyze uses the LLM to determine if the execution results indicate a bug.
-func (o *LLMOracle) Analyze(s *seed.Seed, results []Result) (*Bug, error) {
+// ctx is not used by LLMOracle as it's a passive oracle.
+func (o *LLMOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Result) (*Bug, error) {
 	if len(results) == 0 {
 		return nil, fmt.Errorf("no execution results to analyze")
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 func TestBuilder_BuildUnderstandPrompt(t *testing.T) {
-	builder := NewBuilder()
+	builder := NewBuilder(3, "")
 
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "prompt_test_")
@@ -87,7 +87,7 @@ func TestReadFileOrDefault(t *testing.T) {
 }
 
 func TestBuilder_BuildGeneratePrompt(t *testing.T) {
-	builder := NewBuilder()
+	builder := NewBuilder(3, "")
 
 	t.Run("should build a valid generate prompt", func(t *testing.T) {
 		prompt, err := builder.BuildGeneratePrompt("nothing")
@@ -100,7 +100,7 @@ func TestBuilder_BuildGeneratePrompt(t *testing.T) {
 }
 
 func TestBuilder_BuildMutatePrompt(t *testing.T) {
-	builder := NewBuilder()
+	builder := NewBuilder(3, "")
 	testCases := []seed.TestCase{
 		{RunningCommand: "./prog", ExpectedResult: "success"},
 	}
@@ -145,7 +145,7 @@ func TestBuilder_BuildMutatePrompt(t *testing.T) {
 }
 
 func TestBuilder_BuildAnalyzePrompt(t *testing.T) {
-	builder := NewBuilder()
+	builder := NewBuilder(3, "")
 	testCases := []seed.TestCase{
 		{RunningCommand: "./prog", ExpectedResult: "success"},
 	}
@@ -174,5 +174,110 @@ func TestBuilder_BuildAnalyzePrompt(t *testing.T) {
 	t.Run("should return error if feedback is empty", func(t *testing.T) {
 		_, err := builder.BuildAnalyzePrompt(s, "")
 		assert.Error(t, err)
+	})
+}
+
+func TestBuilder_ParseLLMResponse(t *testing.T) {
+	t.Run("should parse standard response with test cases", func(t *testing.T) {
+		builder := NewBuilder(3, "")
+		response := `int main() { return 0; }
+// ||||| JSON_TESTCASES_START |||||
+[{"running command": "./prog", "expected result": "success"}]`
+
+		s, err := builder.ParseLLMResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, "int main() { return 0; }", s.Content)
+		assert.Len(t, s.TestCases, 1)
+		assert.Equal(t, "./prog", s.TestCases[0].RunningCommand)
+	})
+
+	t.Run("should parse code-only response when MaxTestCases is 0", func(t *testing.T) {
+		builder := NewBuilder(0, "")
+		response := `int main() {
+    printf("hello");
+    return 0;
+}`
+
+		s, err := builder.ParseLLMResponse(response)
+		require.NoError(t, err)
+		assert.Contains(t, s.Content, "int main()")
+		assert.Empty(t, s.TestCases)
+	})
+
+	t.Run("should strip markdown code blocks", func(t *testing.T) {
+		builder := NewBuilder(0, "")
+		response := "```c\nint main() { return 0; }\n```"
+
+		s, err := builder.ParseLLMResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, "int main() { return 0; }", s.Content)
+	})
+
+	t.Run("should parse function and merge with template", func(t *testing.T) {
+		// Create a temporary template file
+		tempDir, err := os.MkdirTemp("", "prompt_test_")
+		require.NoError(t, err)
+		defer os.RemoveAll(tempDir)
+
+		templateContent := `#include <stdio.h>
+
+// FUNCTION_PLACEHOLDER: my_func
+
+int main() {
+    my_func();
+    return 0;
+}`
+		templatePath := filepath.Join(tempDir, "template.c")
+		err = os.WriteFile(templatePath, []byte(templateContent), 0644)
+		require.NoError(t, err)
+
+		builder := NewBuilder(0, templatePath)
+		response := `void my_func() {
+    printf("Hello from function!\n");
+}`
+
+		s, err := builder.ParseLLMResponse(response)
+		require.NoError(t, err)
+		assert.Contains(t, s.Content, "#include <stdio.h>")
+		assert.Contains(t, s.Content, "void my_func()")
+		assert.Contains(t, s.Content, "printf(\"Hello from function!\\n\");")
+		assert.Contains(t, s.Content, "int main()")
+		assert.NotContains(t, s.Content, "FUNCTION_PLACEHOLDER")
+		assert.Empty(t, s.TestCases)
+	})
+}
+
+func TestBuilder_IsFunctionTemplateMode(t *testing.T) {
+	t.Run("returns true when template is set", func(t *testing.T) {
+		builder := NewBuilder(0, "/path/to/template.c")
+		assert.True(t, builder.IsFunctionTemplateMode())
+	})
+
+	t.Run("returns false when template is empty", func(t *testing.T) {
+		builder := NewBuilder(3, "")
+		assert.False(t, builder.IsFunctionTemplateMode())
+	})
+}
+
+func TestBuilder_RequiresTestCases(t *testing.T) {
+	t.Run("returns true when MaxTestCases > 0 and no template", func(t *testing.T) {
+		builder := NewBuilder(3, "")
+		assert.True(t, builder.RequiresTestCases())
+	})
+
+	t.Run("returns false when MaxTestCases is 0", func(t *testing.T) {
+		builder := NewBuilder(0, "")
+		assert.False(t, builder.RequiresTestCases())
+	})
+
+	t.Run("returns true when template mode is enabled with MaxTestCases > 0", func(t *testing.T) {
+		// Now function template + test cases is supported
+		builder := NewBuilder(3, "/path/to/template.c")
+		assert.True(t, builder.RequiresTestCases())
+	})
+
+	t.Run("returns false when template mode is enabled with MaxTestCases = 0", func(t *testing.T) {
+		builder := NewBuilder(0, "/path/to/template.c")
+		assert.False(t, builder.RequiresTestCases())
 	})
 }

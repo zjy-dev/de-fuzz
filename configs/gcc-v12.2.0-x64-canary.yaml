@@ -23,6 +23,12 @@ compiler:
     max_iterations: 0
     # Maximum new seeds to generate per interesting seed
     max_new_seeds: 3
+    # Maximum number of test cases to generate per seed (0 = no test cases)
+    # For canary oracle, test cases are not needed - the oracle analyzes binary behavior directly
+    max_test_cases: 0
+    # Function template for code generation (optional)
+    # If provided, LLM generates only the function body which is merged with this template
+    function_template: "initial_seeds/x64/canary/function_template.c"
     # Execution timeout in seconds
     timeout: 30
     # Use QEMU for execution (for cross-architecture)
@@ -34,10 +40,12 @@ compiler:
 
   # Oracle configuration
   oracle:
-    # Type of oracle to use: "llm", "crash", "diff", etc.
-    type: "llm"
+    # Type of oracle to use: "llm", "crash", "diff", "canary", etc.
+    type: "canary"
     # Options specific to the chosen oracle
-    options: {}
+    options:
+      # Maximum buffer size to test during binary search
+      max_buffer_size: 1024
 
 # Configuration pattern: Map each file to its target functions
 # This allows fine-grained control over which functions to track per file

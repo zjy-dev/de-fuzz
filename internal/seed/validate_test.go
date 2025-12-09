@@ -130,14 +130,13 @@ func TestValidateSeed(t *testing.T) {
 		assert.Contains(t, err.Error(), "content is empty")
 	})
 
-	t.Run("should fail for empty test cases", func(t *testing.T) {
+	t.Run("should pass for empty test cases (function template mode)", func(t *testing.T) {
 		s := &Seed{
 			Content:   "int main() {}",
 			TestCases: []TestCase{},
 		}
 		err := ValidateSeed(s)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "at least one test case")
+		assert.NoError(t, err) // Empty test cases are now allowed
 	})
 
 	t.Run("should fail for test case with empty running command", func(t *testing.T) {
@@ -159,4 +158,79 @@ func TestValidationError(t *testing.T) {
 		Message: "test message",
 	}
 	assert.Equal(t, "validation error in test_field: test message", err.Error())
+}
+
+func TestParseFunctionWithTestCasesFromLLMResponse(t *testing.T) {
+	t.Run("should parse valid function with test cases", func(t *testing.T) {
+		response := `void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+// ||||| JSON_TESTCASES_START |||||
+[
+  {
+    "running command": "./prog 10",
+    "expected result": "success"
+  },
+  {
+    "running command": "./prog 100",
+    "expected result": "crash"
+  }
+]`
+
+		functionCode, testCases, err := ParseFunctionWithTestCasesFromLLMResponse(response)
+		require.NoError(t, err)
+		assert.Contains(t, functionCode, "void seed")
+		assert.Contains(t, functionCode, "char buffer[64]")
+		assert.Len(t, testCases, 2)
+		assert.Equal(t, "./prog 10", testCases[0].RunningCommand)
+		assert.Equal(t, "./prog 100", testCases[1].RunningCommand)
+	})
+
+	t.Run("should strip markdown code blocks", func(t *testing.T) {
+		response := "```c\nvoid foo() { return; }\n```\n// ||||| JSON_TESTCASES_START |||||\n[{\"running command\": \"./prog\", \"expected result\": \"ok\"}]"
+
+		functionCode, testCases, err := ParseFunctionWithTestCasesFromLLMResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, "void foo() { return; }", functionCode)
+		assert.Len(t, testCases, 1)
+	})
+
+	t.Run("should fail when separator is missing", func(t *testing.T) {
+		response := `void foo() { return; }`
+
+		_, _, err := ParseFunctionWithTestCasesFromLLMResponse(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "separator")
+	})
+
+	t.Run("should fail when function code is empty", func(t *testing.T) {
+		response := `
+// ||||| JSON_TESTCASES_START |||||
+[{"running command": "./prog", "expected result": "ok"}]`
+
+		_, _, err := ParseFunctionWithTestCasesFromLLMResponse(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "function code is empty")
+	})
+
+	t.Run("should fail when test cases array is empty", func(t *testing.T) {
+		response := `void foo() {}
+// ||||| JSON_TESTCASES_START |||||
+[]`
+
+		_, _, err := ParseFunctionWithTestCasesFromLLMResponse(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "at least one test case")
+	})
+
+	t.Run("should fail when test case has empty running command", func(t *testing.T) {
+		response := `void foo() {}
+// ||||| JSON_TESTCASES_START |||||
+[{"running command": "", "expected result": "ok"}]`
+
+		_, _, err := ParseFunctionWithTestCasesFromLLMResponse(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "running command is empty")
+	})
 }
