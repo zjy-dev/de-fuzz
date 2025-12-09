@@ -14,7 +14,6 @@ type Config struct {
 	ISA      string         `mapstructure:"isa"`
 	Strategy string         `mapstructure:"strategy"`
 	Compiler CompilerConfig `mapstructure:"compiler"`
-	Fuzz     FuzzConfig     `mapstructure:"fuzz"`
 }
 
 // FuzzConfig holds the configuration for the fuzzing process.
@@ -54,6 +53,15 @@ type CompilerInfo struct {
 	Version string `mapstructure:"version"`
 }
 
+// OracleConfig holds the configuration for the oracle.
+type OracleConfig struct {
+	// Type specifies the name of the oracle plugin to use (e.g., "llm", "crash", "diff")
+	Type string `mapstructure:"type"`
+
+	// Options holds arbitrary configuration for the specific oracle implementation
+	Options map[string]interface{} `mapstructure:"options"`
+}
+
 // LLMConfig holds the configuration for the Large Language Model.
 type LLMConfig struct {
 	Provider    string  `mapstructure:"provider"`
@@ -85,6 +93,12 @@ type CompilerConfig struct {
 	// This file is critical for checkpointing: it stores accumulated coverage data
 	// that allows the fuzzer to resume from where it left off after interruption
 	TotalReportPath string `mapstructure:"total_report_path"`
+
+	// Fuzz holds the fuzzing configuration for this compiler/ISA/strategy combination
+	Fuzz FuzzConfig `mapstructure:"fuzz"`
+
+	// Oracle holds the oracle configuration for this compiler/ISA/strategy combination
+	Oracle OracleConfig `mapstructure:"oracle"`
 }
 
 // Load reads a configuration file from the "configs" directory into a struct.
@@ -170,22 +184,6 @@ func LoadConfig() (*Config, error) {
 	cfg.ISA = v.GetString("config.isa")
 	cfg.Strategy = v.GetString("config.strategy")
 
-	// Parse fuzz config with defaults
-	cfg.Fuzz = FuzzConfig{
-		OutputRootDir: "fuzz_out",
-		MaxIterations: 0,
-		MaxNewSeeds:   3,
-		Timeout:       30,
-		UseQEMU:       false,
-		QEMUPath:      "qemu-aarch64",
-		QEMUSysroot:   "",
-	}
-	if v.IsSet("config.fuzz") {
-		if err := v.UnmarshalKey("config.fuzz", &cfg.Fuzz); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal fuzz config: %w", err)
-		}
-	}
-
 	// Parse compiler name and version from config.yaml
 	var compilerInfo CompilerInfo
 	if err := v.UnmarshalKey("config.compiler", &compilerInfo); err != nil {
@@ -250,6 +248,31 @@ func LoadConfig() (*Config, error) {
 	// Other top-level objects (like 'targets') are ignored as they're for external tools
 	if err := compilerViper.UnmarshalKey("compiler", &cfg.Compiler); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal compiler config: %w", err)
+	}
+
+	// Set defaults for fuzz config if not specified
+	if cfg.Compiler.Fuzz.OutputRootDir == "" {
+		cfg.Compiler.Fuzz.OutputRootDir = "fuzz_out"
+	}
+	if cfg.Compiler.Fuzz.MaxIterations == 0 {
+		cfg.Compiler.Fuzz.MaxIterations = 0 // 0 means unlimited
+	}
+	if cfg.Compiler.Fuzz.MaxNewSeeds == 0 {
+		cfg.Compiler.Fuzz.MaxNewSeeds = 3
+	}
+	if cfg.Compiler.Fuzz.Timeout == 0 {
+		cfg.Compiler.Fuzz.Timeout = 30
+	}
+	if cfg.Compiler.Fuzz.QEMUPath == "" {
+		cfg.Compiler.Fuzz.QEMUPath = "qemu-aarch64"
+	}
+
+	// Set defaults for oracle config if not specified
+	if cfg.Compiler.Oracle.Type == "" {
+		cfg.Compiler.Oracle.Type = "llm"
+	}
+	if cfg.Compiler.Oracle.Options == nil {
+		cfg.Compiler.Oracle.Options = make(map[string]interface{})
 	}
 
 	return &cfg, nil

@@ -1,9 +1,11 @@
 package main
 
 import (
-	"github.com/zjy-dev/de-fuzz/cmd/defuzz/app"
 	"fmt"
 	"os"
+
+	"github.com/zjy-dev/de-fuzz/cmd/defuzz/app"
+	_ "github.com/zjy-dev/de-fuzz/internal/oracle/plugins" // Register oracle plugins
 )
 
 func main() {

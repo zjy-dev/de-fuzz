@@ -14,6 +14,31 @@ compiler:
   # This file stores accumulated coverage and is critical for checkpoint/resume
   # total_report_path: "/root/fuzz-coverage/workspace/reports/total.json"
 
+  # Fuzzing configuration (can be overridden by command line flags)
+  fuzz:
+    # Root output directory for fuzzing artifacts
+    # Actual output will be at {output_root_dir}/{isa}/{strategy}
+    output_root_dir: "fuzz_out"
+    # Maximum number of fuzzing iterations (0 = unlimited)
+    max_iterations: 0
+    # Maximum new seeds to generate per interesting seed
+    max_new_seeds: 3
+    # Execution timeout in seconds
+    timeout: 30
+    # Use QEMU for execution (for cross-architecture)
+    use_qemu: false
+    # Path to QEMU user-mode executable
+    qemu_path: "qemu-aarch64"
+    # Sysroot path for QEMU (-L argument)
+    qemu_sysroot: ""
+
+  # Oracle configuration
+  oracle:
+    # Type of oracle to use: "llm", "crash", "diff", etc.
+    type: "llm"
+    # Options specific to the chosen oracle
+    options: {}
+
 # Configuration pattern: Map each file to its target functions
 # This allows fine-grained control over which functions to track per file
 #

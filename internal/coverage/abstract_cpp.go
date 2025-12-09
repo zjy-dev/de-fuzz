@@ -118,19 +118,93 @@ func (ca *CppAbstractor) abstractFunction(tree *tree_sitter.Tree, sourceCode []b
 		uncoveredLines[line] = true
 	}
 
-	// Identify uncovered nodes
-	uncoveredNodes := make(map[uintptr]bool)
-	ca.identifyUncoveredNodes(funcNode, sourceCode, uncoveredLines, uncoveredNodes)
+	// Special case: if no uncovered lines info (0% coverage function from filter config),
+	// mark ALL lines in the function as uncovered
+	isZeroCoverageFunction := len(fn.UncoveredLines) == 0 && fn.TotalLines == 0
 
-	// Identify critical path (control flow nodes on path to uncovered code)
+	uncoveredNodes := make(map[uintptr]bool)
 	criticalNodes := make(map[uintptr]bool)
-	ca.identifyCriticalPath(funcNode, uncoveredNodes, criticalNodes)
+
+	if isZeroCoverageFunction {
+		// For 0% coverage functions, mark all statement nodes as uncovered
+		ca.markAllNodesAsUncovered(funcNode, uncoveredNodes)
+		// All control flow nodes are critical for 0% coverage functions
+		ca.identifyCriticalPathForAll(funcNode, criticalNodes)
+	} else {
+		// Normal case: identify uncovered nodes based on line numbers
+		ca.identifyUncoveredNodes(funcNode, sourceCode, uncoveredLines, uncoveredNodes)
+		// Identify critical path (control flow nodes on path to uncovered code)
+		ca.identifyCriticalPath(funcNode, uncoveredNodes, criticalNodes)
+	}
 
 	// Generate abstracted code
 	abstractedCode := ca.generateAbstractedCode(funcNode, sourceCode, uncoveredNodes, criticalNodes)
 	result.AbstractedCode = abstractedCode
 
 	return result
+}
+
+// markAllNodesAsUncovered marks all statement nodes in a function as uncovered.
+// This is used for 0% coverage functions where we don't have line-level info.
+func (ca *CppAbstractor) markAllNodesAsUncovered(funcNode *tree_sitter.Node, uncoveredNodes map[uintptr]bool) {
+	statementTypes := map[string]bool{
+		"expression_statement": true,
+		"return_statement":     true,
+		"declaration":          true,
+		"break_statement":      true,
+		"continue_statement":   true,
+		"goto_statement":       true,
+	}
+
+	var traverse func(*tree_sitter.Node)
+	traverse = func(node *tree_sitter.Node) {
+		if node == nil {
+			return
+		}
+
+		// If this is a statement node, mark it as uncovered
+		if statementTypes[node.Kind()] {
+			uncoveredNodes[node.Id()] = true
+		}
+
+		// Recurse into children
+		for i := uint(0); i < node.ChildCount(); i++ {
+			traverse(node.Child(i))
+		}
+	}
+
+	traverse(funcNode)
+}
+
+// identifyCriticalPathForAll marks all control flow nodes as critical.
+// This is used for 0% coverage functions where all paths are relevant.
+func (ca *CppAbstractor) identifyCriticalPathForAll(funcNode *tree_sitter.Node, criticalNodes map[uintptr]bool) {
+	controlFlowTypes := map[string]bool{
+		"if_statement":     true,
+		"else_clause":      true,
+		"switch_statement": true,
+		"case_statement":   true,
+		"for_statement":    true,
+		"while_statement":  true,
+		"do_statement":     true,
+	}
+
+	var traverse func(*tree_sitter.Node)
+	traverse = func(node *tree_sitter.Node) {
+		if node == nil {
+			return
+		}
+
+		if controlFlowTypes[node.Kind()] {
+			criticalNodes[node.Id()] = true
+		}
+
+		for i := uint(0); i < node.ChildCount(); i++ {
+			traverse(node.Child(i))
+		}
+	}
+
+	traverse(funcNode)
 }
 
 // findFunction searches for a function definition by name in the AST.

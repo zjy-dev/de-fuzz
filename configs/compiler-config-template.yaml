@@ -1,0 +1,56 @@
+# Compiler Configuration Template
+# Pattern: {compiler}-v{version}-{isa}-{strategy}.yaml
+# Example: gcc-v12.2.0-x64-canary.yaml
+
+compiler:
+  # Path to the compiler executable
+  path: "/path/to/compiler/executable"
+  
+  # Execute gcovr in the path below, json files will be generated here
+  gcovr_exec_path: "/path/to/build/directory"
+
+  # Parent directory of source files for coverage reporting
+  source_parent_path: "/path/to/source/parent"
+
+  # Gcovr command template (without --json output path)
+  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+
+  # Path to the total accumulated coverage report (optional)
+  # If empty, defaults to {fuzz_output}/state/total.json for resume capability
+  # This file stores accumulated coverage and is critical for checkpoint/resume
+  # total_report_path: "/custom/path/to/total.json"
+
+  # Fuzzing configuration (can be overridden by command line flags)
+  fuzz:
+    # Root output directory for fuzzing artifacts
+    # Actual output will be at {output_root_dir}/{isa}/{strategy}
+    output_root_dir: "fuzz_out"
+    # Maximum number of fuzzing iterations (0 = unlimited)
+    max_iterations: 0
+    # Maximum new seeds to generate per interesting seed
+    max_new_seeds: 3
+    # Execution timeout in seconds
+    timeout: 30
+    # Use QEMU for execution (for cross-architecture)
+    use_qemu: false
+    # Path to QEMU user-mode executable
+    qemu_path: "qemu-aarch64"
+    # Sysroot path for QEMU (-L argument)
+    qemu_sysroot: ""
+
+  # Oracle configuration
+  oracle:
+    # Type of oracle to use: "llm", "crash", "diff", etc.
+    type: "llm"
+    # Options specific to the chosen oracle
+    options: {}
+
+# Configuration pattern: Map each file to its target functions
+# This allows fine-grained control over which functions to track per file
+#
+# Example for Stack Canary (Stack Protector) related core functions for x86_64:
+targets:
+  - file: "path/to/source/file.cc"
+    functions:
+      - "function_name_1"
+      - "function_name_2"

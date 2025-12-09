@@ -79,25 +79,25 @@ Examples:
 
 			// Use config values as defaults, command line flags override
 			if !cmd.Flags().Changed("output-root") {
-				outputRootDir = cfg.Fuzz.OutputRootDir
+				outputRootDir = cfg.Compiler.Fuzz.OutputRootDir
 			}
 			if !cmd.Flags().Changed("max-iterations") {
-				maxIterations = cfg.Fuzz.MaxIterations
+				maxIterations = cfg.Compiler.Fuzz.MaxIterations
 			}
 			if !cmd.Flags().Changed("max-new-seeds") {
-				maxNewSeeds = cfg.Fuzz.MaxNewSeeds
+				maxNewSeeds = cfg.Compiler.Fuzz.MaxNewSeeds
 			}
 			if !cmd.Flags().Changed("timeout") {
-				timeout = cfg.Fuzz.Timeout
+				timeout = cfg.Compiler.Fuzz.Timeout
 			}
 			if !cmd.Flags().Changed("use-qemu") {
-				useQEMU = cfg.Fuzz.UseQEMU
+				useQEMU = cfg.Compiler.Fuzz.UseQEMU
 			}
 			if !cmd.Flags().Changed("qemu-path") {
-				qemuPath = cfg.Fuzz.QEMUPath
+				qemuPath = cfg.Compiler.Fuzz.QEMUPath
 			}
 			if !cmd.Flags().Changed("qemu-sysroot") {
-				qemuSysroot = cfg.Fuzz.QEMUSysroot
+				qemuSysroot = cfg.Compiler.Fuzz.QEMUSysroot
 			}
 
 			// Build the actual output directory: {output_root_dir}/{isa}/{strategy}
@@ -219,7 +219,18 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 
 	// 8. Create prompt builder and oracle
 	promptBuilder := prompt.NewBuilder()
-	llmOracle := oracle.NewLLMOracle(llmClient, promptBuilder, understanding)
+
+	// Create oracle using the registry
+	oracleInstance, err := oracle.New(
+		cfg.Compiler.Oracle.Type,
+		cfg.Compiler.Oracle.Options,
+		llmClient,
+		promptBuilder,
+		understanding,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create oracle: %w", err)
+	}
 
 	// 9. Initialize corpus and load initial seeds if needed
 	if err := corpusManager.Initialize(); err != nil {
@@ -254,7 +265,7 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		Compiler:      gccCompiler,
 		Executor:      seedExecutor,
 		Coverage:      coverageTracker,
-		Oracle:        llmOracle,
+		Oracle:        oracleInstance,
 		LLM:           llmClient,
 		PromptBuilder: promptBuilder,
 		Understanding: understanding,
