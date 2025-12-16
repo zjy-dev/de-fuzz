@@ -14,6 +14,7 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/exec"
 	"github.com/zjy-dev/de-fuzz/internal/fuzz"
 	"github.com/zjy-dev/de-fuzz/internal/llm"
+	"github.com/zjy-dev/de-fuzz/internal/logger"
 	"github.com/zjy-dev/de-fuzz/internal/oracle"
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
@@ -120,8 +121,16 @@ Examples:
 }
 
 func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot string) error {
-	fmt.Printf("[Fuzz] Target: %s / %s\n", cfg.ISA, cfg.Strategy)
-	fmt.Printf("[Fuzz] Output directory: %s\n", outputDir)
+	// Initialize logger with configured level
+	logLevel := cfg.LogLevel
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	logger.Init(logLevel)
+
+	logger.Info("Target: %s / %s", cfg.ISA, cfg.Strategy)
+	logger.Info("Output directory: %s", outputDir)
+	logger.Debug("Log level: %s", logLevel)
 
 	// Create state directory (used for resume capability)
 	stateDir := filepath.Join(outputDir, "state")
@@ -243,7 +252,7 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 
 	// If corpus is empty, load initial seeds
 	if corpusManager.Len() == 0 {
-		fmt.Printf("[Fuzz] Corpus is empty, loading initial seeds from %s...\n", basePath)
+		logger.Info("Corpus is empty, loading initial seeds from %s...", basePath)
 		initialSeeds, err := seed.LoadSeedsWithMetadata(basePath, seed.NewDefaultNamingStrategy())
 		if err != nil {
 			return fmt.Errorf("failed to load initial seeds: %w", err)
@@ -252,11 +261,13 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 			return fmt.Errorf("no initial seeds found in %s, please run 'defuzz generate' first", basePath)
 		}
 		for _, s := range initialSeeds {
+			// Reset ID to 0 so corpus manager assigns a new unique ID
+			s.Meta.ID = 0
 			if err := corpusManager.Add(s); err != nil {
 				return fmt.Errorf("failed to add initial seed to corpus: %w", err)
 			}
 		}
-		fmt.Printf("[Fuzz] Loaded %d initial seeds\n", len(initialSeeds))
+		logger.Info("Loaded %d initial seeds", len(initialSeeds))
 	}
 
 	// 10. Create fuzzing engine

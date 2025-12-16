@@ -2,13 +2,13 @@ package fuzz
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/zjy-dev/de-fuzz/internal/compiler"
 	"github.com/zjy-dev/de-fuzz/internal/corpus"
 	"github.com/zjy-dev/de-fuzz/internal/coverage"
 	"github.com/zjy-dev/de-fuzz/internal/llm"
+	"github.com/zjy-dev/de-fuzz/internal/logger"
 	"github.com/zjy-dev/de-fuzz/internal/oracle"
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
@@ -57,36 +57,36 @@ func NewEngine(cfg EngineConfig) *Engine {
 // Run starts the main fuzzing loop.
 func (e *Engine) Run() error {
 	e.startTime = time.Now()
-	log.Println("[Engine] Starting fuzzing loop...")
+	logger.Info("Starting fuzzing loop...")
 
 	// Note: Corpus initialization and recovery should be done by the caller
 	// to allow for initial seed loading. If corpus is empty, the caller
 	// should load initial seeds before calling Run().
 
-	log.Printf("[Engine] Corpus has %d seeds in queue", e.cfg.Corpus.Len())
+	logger.Info("Corpus has %d seeds in queue", e.cfg.Corpus.Len())
 
 	// Main fuzzing loop
 	for {
 		// Check iteration limit
 		if e.cfg.MaxIterations > 0 && e.iterationCount >= e.cfg.MaxIterations {
-			log.Printf("[Engine] Reached max iterations (%d), stopping", e.cfg.MaxIterations)
+			logger.Info("Reached max iterations (%d), stopping", e.cfg.MaxIterations)
 			break
 		}
 
 		// Get next seed from corpus
 		currentSeed, ok := e.cfg.Corpus.Next()
 		if !ok {
-			log.Println("[Engine] No more seeds in queue, stopping")
+			logger.Info("No more seeds in queue, stopping")
 			break
 		}
 
 		e.iterationCount++
-		log.Printf("[Engine] Iteration %d: Processing seed ID=%d", e.iterationCount, currentSeed.Meta.ID)
+		logger.Info("Iteration %d: Processing seed ID=%d", e.iterationCount, currentSeed.Meta.ID)
 
 		// Process the seed
 		result, err := e.processSeed(currentSeed)
 		if err != nil {
-			log.Printf("[Engine] Error processing seed %d: %v", currentSeed.Meta.ID, err)
+			logger.Error("Error processing seed %d: %v", currentSeed.Meta.ID, err)
 			// Report as error state
 			e.cfg.Corpus.ReportResult(currentSeed.Meta.ID, corpus.FuzzResult{
 				State: seed.SeedStateTimeout,
@@ -96,20 +96,20 @@ func (e *Engine) Run() error {
 
 		// Report result to corpus
 		if err := e.cfg.Corpus.ReportResult(currentSeed.Meta.ID, *result); err != nil {
-			log.Printf("[Engine] Error reporting result for seed %d: %v", currentSeed.Meta.ID, err)
+			logger.Error("Error reporting result for seed %d: %v", currentSeed.Meta.ID, err)
 		}
 
 		// Save state periodically
 		if e.iterationCount%10 == 0 {
 			if err := e.cfg.Corpus.Save(); err != nil {
-				log.Printf("[Engine] Warning: failed to save state: %v", err)
+				logger.Warn("Failed to save state: %v", err)
 			}
 		}
 	}
 
 	// Final save
 	if err := e.cfg.Corpus.Save(); err != nil {
-		log.Printf("[Engine] Warning: failed to save final state: %v", err)
+		logger.Warn("Failed to save final state: %v", err)
 	}
 
 	e.printSummary()
@@ -121,14 +121,14 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 	startTime := time.Now()
 
 	// Step 1: Compile
-	log.Printf("[Engine] Compiling seed %d...", s.Meta.ID)
+	logger.Debug("Compiling seed %d...", s.Meta.ID)
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
 		return nil, fmt.Errorf("compilation failed: %w", err)
 	}
 
 	if !compileResult.Success {
-		log.Printf("[Engine] Seed %d failed to compile: %s", s.Meta.ID, compileResult.Stderr)
+		logger.Warn("Seed %d failed to compile: %s", s.Meta.ID, compileResult.Stderr)
 		return &corpus.FuzzResult{
 			State:      seed.SeedStateProcessed,
 			ExecTimeUs: time.Since(startTime).Microseconds(),
@@ -136,17 +136,17 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 	}
 
 	// Step 2: Execute
-	log.Printf("[Engine] Executing seed %d...", s.Meta.ID)
+	logger.Debug("Executing seed %d...", s.Meta.ID)
 	execResults, err := e.cfg.Executor.Execute(s, compileResult.BinaryPath)
 	if err != nil {
 		return nil, fmt.Errorf("execution failed: %w", err)
 	}
 
 	// Step 3: Measure coverage
-	log.Printf("[Engine] Measuring coverage for seed %d...", s.Meta.ID)
+	logger.Debug("Measuring coverage for seed %d...", s.Meta.ID)
 	report, err := e.cfg.Coverage.Measure(s)
 	if err != nil {
-		log.Printf("[Engine] Coverage measurement failed: %v", err)
+		logger.Warn("Coverage measurement failed: %v", err)
 	}
 
 	// Step 4: Check if coverage increased
@@ -156,28 +156,28 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 	if report != nil {
 		coverageIncreased, err = e.cfg.Coverage.HasIncreased(report)
 		if err != nil {
-			log.Printf("[Engine] Failed to check coverage increase: %v", err)
+			logger.Warn("Failed to check coverage increase: %v", err)
 		}
 
 		if coverageIncreased {
-			log.Printf("[Engine] Seed %d increased coverage!", s.Meta.ID)
+			logger.Info("Seed %d increased coverage!", s.Meta.ID)
 
 			// Get the coverage increase details BEFORE merging
 			coverageIncrease, err = e.cfg.Coverage.GetIncrease(report)
 			if err != nil {
-				log.Printf("[Engine] Failed to get coverage increase details: %v", err)
+				logger.Warn("Failed to get coverage increase details: %v", err)
 			} else {
-				log.Printf("[Engine] Coverage increase: %s", coverageIncrease.Summary)
+				logger.Info("Coverage increase: %s", coverageIncrease.Summary)
 			}
 
 			// Merge the coverage
 			if err := e.cfg.Coverage.Merge(report); err != nil {
-				log.Printf("[Engine] Failed to merge coverage: %v", err)
+				logger.Warn("Failed to merge coverage: %v", err)
 			}
 
 			// Print current total coverage stats
 			if stats, err := e.cfg.Coverage.GetStats(); err == nil {
-				log.Printf("[Engine] Total coverage: %.1f%% (%d/%d lines)",
+				logger.Info("Total coverage: %.1f%% (%d/%d lines)",
 					stats.CoveragePercentage, stats.TotalCoveredLines, stats.TotalLines)
 			}
 
@@ -206,9 +206,9 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 
 		bug, err := e.cfg.Oracle.Analyze(s, ctx, oracleResults)
 		if err != nil {
-			log.Printf("[Engine] Analysis failed: %v", err)
+			logger.Error("Analysis failed: %v", err)
 		} else if bug != nil {
-			log.Printf("[Engine] BUG FOUND in seed %d: %s", s.Meta.ID, bug.Description)
+			logger.Error("BUG FOUND in seed %d: %s", s.Meta.ID, bug.Description)
 			e.bugsFound = append(e.bugsFound, bug)
 		}
 	}
@@ -244,7 +244,7 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 		maxNew = 3 // Default
 	}
 
-	log.Printf("[Engine] Generating %d new seeds from parent %d...", maxNew, parentSeed.Meta.ID)
+	logger.Info("Generating %d new seeds from parent %d...", maxNew, parentSeed.Meta.ID)
 
 	// Build mutation context from coverage information
 	var mutationCtx *prompt.MutationContext
@@ -252,7 +252,7 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 		// Get current total stats
 		stats, err := e.cfg.Coverage.GetStats()
 		if err != nil {
-			log.Printf("[Engine] Failed to get coverage stats: %v", err)
+			logger.Warn("Failed to get coverage stats: %v", err)
 		}
 
 		mutationCtx = &prompt.MutationContext{
@@ -272,21 +272,22 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 		// Build mutation prompt with coverage context
 		mutatePrompt, err := e.cfg.PromptBuilder.BuildMutatePrompt(parentSeed, mutationCtx)
 		if err != nil {
-			log.Printf("[Engine] Failed to build mutate prompt: %v", err)
+			logger.Error("Failed to build mutate prompt: %v", err)
 			continue
 		}
 
 		// Call LLM with understanding as system prompt
+		logger.Debug("Calling LLM for seed mutation...")
 		completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, mutatePrompt)
 		if err != nil {
-			log.Printf("[Engine] Failed to get LLM completion: %v", err)
+			logger.Error("Failed to get LLM completion: %v", err)
 			continue
 		}
 
 		// Parse LLM response using PromptBuilder (handles function template mode)
 		newSeed, err := e.cfg.PromptBuilder.ParseLLMResponse(completion)
 		if err != nil {
-			log.Printf("[Engine] Failed to parse LLM response: %v", err)
+			logger.Error("Failed to parse LLM response: %v", err)
 			continue
 		}
 
@@ -296,30 +297,30 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 
 		// Add to corpus
 		if err := e.cfg.Corpus.Add(newSeed); err != nil {
-			log.Printf("[Engine] Failed to add new seed to corpus: %v", err)
+			logger.Error("Failed to add new seed to corpus: %v", err)
 			continue
 		}
 
-		log.Printf("[Engine] Generated new seed %d from parent %d", newSeed.Meta.ID, parentSeed.Meta.ID)
+		logger.Info("Generated new seed %d from parent %d", newSeed.Meta.ID, parentSeed.Meta.ID)
 	}
 }
 
 // printSummary prints a summary of the fuzzing session.
 func (e *Engine) printSummary() {
 	elapsed := time.Since(e.startTime)
-	log.Println("========================================")
-	log.Println("           FUZZING SUMMARY")
-	log.Println("========================================")
-	log.Printf("Duration:     %v", elapsed)
-	log.Printf("Iterations:   %d", e.iterationCount)
-	log.Printf("Bugs found:   %d", len(e.bugsFound))
-	log.Printf("Seeds/sec:    %.2f", float64(e.iterationCount)/elapsed.Seconds())
-	log.Println("========================================")
+	logger.Info("=========================================")
+	logger.Info("           FUZZING SUMMARY")
+	logger.Info("=========================================")
+	logger.Info("Duration:     %v", elapsed)
+	logger.Info("Iterations:   %d", e.iterationCount)
+	logger.Info("Bugs found:   %d", len(e.bugsFound))
+	logger.Info("Seeds/sec:    %.2f", float64(e.iterationCount)/elapsed.Seconds())
+	logger.Info("=========================================")
 
 	if len(e.bugsFound) > 0 {
-		log.Println("Bugs:")
+		logger.Info("Bugs:")
 		for i, bug := range e.bugsFound {
-			log.Printf("  [%d] Seed %d: %s", i+1, bug.Seed.Meta.ID, bug.Description)
+			logger.Info("  [%d] Seed %d: %s", i+1, bug.Seed.Meta.ID, bug.Description)
 		}
 	}
 }

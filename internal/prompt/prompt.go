@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/zjy-dev/de-fuzz/internal/logger"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -442,12 +443,12 @@ Please make focused changes that could expose different vulnerability patterns.
 %s
 `, s.Content, testCasesJSON, coverageSection, outputFormat)
 
-	// DEBUG: Print the generated mutate prompt
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("[DEBUG] BuildMutatePrompt - Generated Prompt:")
-	fmt.Println(strings.Repeat("-", 80))
-	fmt.Println(prompt)
-	fmt.Println(strings.Repeat("=", 80) + "\n")
+	// DEBUG: Print the generated mutate prompt at debug level
+	logger.Debug("\n" + strings.Repeat("=", 80))
+	logger.Debug("BuildMutatePrompt - Generated Prompt:")
+	logger.Debug(strings.Repeat("-", 80))
+	logger.Debug("%s", prompt)
+	logger.Debug(strings.Repeat("=", 80) + "\n")
 
 	return prompt, nil
 }

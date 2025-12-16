@@ -102,7 +102,8 @@ Stack pointer: x2/sp
 	err = os.WriteFile(filepath.Join(tempDir, "stack_layout.md"), []byte(stackLayout), 0644)
 	require.NoError(t, err)
 
-	builder := NewBuilder(0, "")
+	// Test with maxTestCases=5 to enable test case generation in prompts
+	builder := NewBuilder(5, "")
 
 	prompt, err := builder.BuildGeneratePrompt(tempDir)
 	require.NoError(t, err)
@@ -110,11 +111,41 @@ Stack pointer: x2/sp
 	// Verify prompt structure
 	assert.Contains(t, prompt, "Generate a new")
 	assert.Contains(t, prompt, "source.c")
-	assert.Contains(t, prompt, "Test Cases")
+	assert.Contains(t, prompt, "test cases")
 	assert.Contains(t, prompt, "RISC-V Stack Layout")
 	assert.Contains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
 	assert.Contains(t, prompt, "running command")
 	assert.Contains(t, prompt, "expected result")
+}
+
+// TestBuilder_Integration_BuildGeneratePrompt_NoTestCases tests with test cases disabled.
+func TestBuilder_Integration_BuildGeneratePrompt_NoTestCases(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "prompt_gen_no_testcases_")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create stack layout file
+	stackLayout := `# RISC-V Stack Layout
+Stack grows downward
+Frame pointer: x8/fp
+Stack pointer: x2/sp
+`
+	err = os.WriteFile(filepath.Join(tempDir, "stack_layout.md"), []byte(stackLayout), 0644)
+	require.NoError(t, err)
+
+	// maxTestCases=0 disables test case generation
+	builder := NewBuilder(0, "")
+
+	prompt, err := builder.BuildGeneratePrompt(tempDir)
+	require.NoError(t, err)
+
+	// Verify prompt structure - should NOT contain test case related content
+	assert.Contains(t, prompt, "Generate a new")
+	assert.Contains(t, prompt, "source.c")
+	assert.Contains(t, prompt, "RISC-V Stack Layout")
+	assert.NotContains(t, prompt, "Test Cases")
+	assert.NotContains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
+	assert.Contains(t, prompt, "Do NOT include test cases")
 }
 
 // TestBuilder_Integration_BuildGeneratePrompt_NoStackLayout tests with no stack layout file.
@@ -167,7 +198,6 @@ int main() {
 	assert.Contains(t, prompt, "Hello")
 	assert.Contains(t, prompt, "mutate the existing seed")
 	assert.Contains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
-}
 }
 
 // TestBuilder_Integration_BuildMutatePrompt_NilSeed tests error handling for nil seed.

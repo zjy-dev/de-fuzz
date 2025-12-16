@@ -1,10 +1,10 @@
 compiler:
-  path: "/root/fuzz-coverage/gcc-build-selective/gcc/xgcc"
+  path: "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/xgcc"
   
   # execute gcovr in the path below, json files will be generated here
-  gcovr_exec_path: "/root/fuzz-coverage/gcc-build-selective"
+  gcovr_exec_path: "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build"
 
-  source_parent_path: "/root/fuzz-coverage"
+  source_parent_path: "/root/project/de-fuzz/gcc-v12.2.0-x64"
 
   # gcovr command template (without --json output path)
   gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
@@ -12,7 +12,7 @@ compiler:
   # path to the total accumulated coverage report (optional)
   # If empty, defaults to {fuzz_output}/state/total.json for resume capability
   # This file stores accumulated coverage and is critical for checkpoint/resume
-  # total_report_path: "/root/fuzz-coverage/workspace/reports/total.json"
+  # total_report_path: "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/workspace/reports/total.json"
 
   # Fuzzing configuration (can be overridden by command line flags)
   fuzz:

@@ -137,7 +137,7 @@ func (g *GCCCoverage) Measure(s *seed.Seed) (Report, error) {
 
 	// Build the full gcovr command
 	// Example: cd /build/gcc && gcovr --exclude '.*\.(h|hpp|hxx)$' --gcov-executable "gcov-14 --demangled-names" -r .. --json-pretty --json /path/to/<seed>.json
-	fullCommand := fmt.Sprintf("cd %s && %s --json %s",
+	fullCommand := fmt.Sprintf("cd %s && %s --json-pretty --json %s",
 		g.gcovrExecPath,
 		g.gcovrCommand,
 		seedReportPath,
@@ -619,4 +619,37 @@ func (g *GCCCoverage) generateAbstractFromReport(report *gcovr.GcovrReport) stri
 	}
 
 	return sb.String()
+}
+
+// ExtractCoveredLines extracts covered lines from a gcovr JSON report.
+// Returns a list of "file:line" strings for all lines with count > 0.
+func ExtractCoveredLines(report Report) ([]string, error) {
+	gcovrRep, ok := report.(*GcovrReport)
+	if !ok {
+		return nil, fmt.Errorf("expected GcovrReport, got %T", report)
+	}
+
+	// Parse the report
+	parsed, err := gcovr.ParseReport(gcovrRep.path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse report: %w", err)
+	}
+
+	var coveredLines []string
+	for _, file := range parsed.Files {
+		for _, line := range file.Lines {
+			if line.Count > 0 {
+				lineStr := fmt.Sprintf("%s:%d", file.FilePath, line.LineNumber)
+				coveredLines = append(coveredLines, lineStr)
+			}
+		}
+	}
+
+	return coveredLines, nil
+}
+
+// ExtractCoveredLinesFromPath extracts covered lines from a gcovr JSON file path.
+func ExtractCoveredLinesFromPath(reportPath string) ([]string, error) {
+	report := &GcovrReport{path: reportPath}
+	return ExtractCoveredLines(report)
 }

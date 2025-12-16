@@ -13,6 +13,7 @@ type Config struct {
 	LLM      LLMConfig      `mapstructure:"llm"`
 	ISA      string         `mapstructure:"isa"`
 	Strategy string         `mapstructure:"strategy"`
+	LogLevel string         `mapstructure:"log_level"`
 	Compiler CompilerConfig `mapstructure:"compiler"`
 }
 
@@ -80,6 +81,16 @@ type LLMConfig struct {
 	Temperature float64 `mapstructure:"temperature"`
 }
 
+// TargetFunction specifies a source file and the functions within it to track for coverage.
+// This is used for fine-grained coverage analysis and CFG-based fuzzing.
+type TargetFunction struct {
+	// File is the relative path to the source file (e.g., "gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc")
+	File string `mapstructure:"file"`
+
+	// Functions is the list of function names to track within this file
+	Functions []string `mapstructure:"functions"`
+}
+
 // CompilerConfig holds the configuration for the target compiler.
 // Note: The compiler config file may contain additional top-level fields (like 'targets')
 // that are used by external tools (e.g., gcovr-json-util) and are not parsed here.
@@ -108,6 +119,10 @@ type CompilerConfig struct {
 
 	// Oracle holds the oracle configuration for this compiler/ISA/strategy combination
 	Oracle OracleConfig `mapstructure:"oracle"`
+
+	// Targets specifies the source files and functions to focus on for coverage-guided fuzzing.
+	// This enables fine-grained control over which code paths the fuzzer should explore.
+	Targets []TargetFunction `mapstructure:"targets"`
 }
 
 // Load reads a configuration file from the "configs" directory into a struct.
@@ -192,6 +207,7 @@ func LoadConfig() (*Config, error) {
 
 	cfg.ISA = v.GetString("config.isa")
 	cfg.Strategy = v.GetString("config.strategy")
+	cfg.LogLevel = v.GetString("config.log_level")
 
 	// Parse compiler name and version from config.yaml
 	var compilerInfo CompilerInfo
