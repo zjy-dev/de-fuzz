@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// getSourceFileFromCFG extracts the actual source file path from CFG data
+// The CFG contains full paths like /root/project/de-fuzz/gcc-v12.2.0-x64/gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc
+const testSourceFile = "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
+
 func TestCFGGuidedAnalyzer_Integration_FullWorkflow(t *testing.T) {
 	// Use the real CFG file from GCC build
 	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
@@ -55,11 +59,12 @@ func TestCFGGuidedAnalyzer_Integration_FullWorkflow(t *testing.T) {
 	// Test 2: Record initial coverage
 	t.Run("record_initial_coverage", func(t *testing.T) {
 		// Simulate covering some lines in stack_protect_classify_type
+		// Use full path as it appears in CFG file
 		coveredLines := []string{
-			"gcc/cfgexpand.cc:1819",
-			"gcc/cfgexpand.cc:1820",
-			"gcc/cfgexpand.cc:1821",
-			"gcc/cfgexpand.cc:1822",
+			testSourceFile + ":1819",
+			testSourceFile + ":1820",
+			testSourceFile + ":1821",
+			testSourceFile + ":1822",
 		}
 
 		analyzer.RecordCoverage(1, coveredLines)
@@ -86,23 +91,23 @@ func TestCFGGuidedAnalyzer_Integration_FullWorkflow(t *testing.T) {
 			{
 				id: 2,
 				lines: []string{
-					"gcc/cfgexpand.cc:1823",
-					"gcc/cfgexpand.cc:1824",
+					testSourceFile + ":1823",
+					testSourceFile + ":1824",
 				},
 			},
 			{
 				id: 3,
 				lines: []string{
-					"gcc/cfgexpand.cc:1830",
-					"gcc/cfgexpand.cc:1831",
-					"gcc/cfgexpand.cc:1832",
+					testSourceFile + ":1830",
+					testSourceFile + ":1831",
+					testSourceFile + ":1832",
 				},
 			},
 			{
 				id: 4,
 				lines: []string{
-					"gcc/cfgexpand.cc:1840",
-					"gcc/cfgexpand.cc:1841",
+					testSourceFile + ":1840",
+					testSourceFile + ":1841",
 				},
 			},
 		}
@@ -284,13 +289,13 @@ func TestCFGGuidedAnalyzer_Integration_GetCoveredLines(t *testing.T) {
 	coveredLines := analyzer.GetCoveredLines()
 	assert.Empty(t, coveredLines)
 
-	// Record some coverage
+	// Record some coverage - use full paths matching CFG format
 	lines := []string{
-		"gcc/cfgexpand.cc:1819",
-		"gcc/cfgexpand.cc:1820",
-		"gcc/cfgexpand.cc:1821",
-		"gcc/tree.cc:100",
-		"gcc/tree.cc:101",
+		testSourceFile + ":1819",
+		testSourceFile + ":1820",
+		testSourceFile + ":1821",
+		"/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-releases-gcc-12.2.0/gcc/tree.cc:100",
+		"/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-releases-gcc-12.2.0/gcc/tree.cc:101",
 	}
 	analyzer.RecordCoverage(1, lines)
 
@@ -298,19 +303,29 @@ func TestCFGGuidedAnalyzer_Integration_GetCoveredLines(t *testing.T) {
 	coveredLinesMap := analyzer.GetCoveredLines()
 	assert.Equal(t, 5, len(coveredLinesMap))
 
-	// Verify all recorded lines are present
+	// Verify all recorded lines are present using proper string parsing
 	for _, line := range lines {
-		var file string
-		var lineNum int
-		fmt.Sscanf(line, "%[^:]:%d", &file, &lineNum)
-		lineID := LineID{File: file, Line: lineNum}
-		assert.True(t, coveredLinesMap[lineID], "Line %s should be covered", line)
+		// Find last colon to split file and line
+		lastColon := -1
+		for i := len(line) - 1; i >= 0; i-- {
+			if line[i] == ':' {
+				lastColon = i
+				break
+			}
+		}
+		if lastColon > 0 {
+			file := line[:lastColon]
+			var lineNum int
+			fmt.Sscanf(line[lastColon+1:], "%d", &lineNum)
+			lineID := LineID{File: file, Line: lineNum}
+			assert.True(t, coveredLinesMap[lineID], "Line %s should be covered", line)
+		}
 	}
 
 	// Record more coverage
 	lines2 := []string{
-		"gcc/cfgexpand.cc:1822", // New
-		"gcc/cfgexpand.cc:1820", // Duplicate
+		testSourceFile + ":1822", // New
+		testSourceFile + ":1820", // Duplicate
 	}
 	analyzer.RecordCoverage(2, lines2)
 

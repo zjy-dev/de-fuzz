@@ -7,11 +7,25 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// parseLineString parses a "file:line" string into file path and line number.
+func parseLineString(s string) (string, int) {
+	// Find the last colon to handle file paths with colons
+	idx := strings.LastIndex(s, ":")
+	if idx == -1 {
+		return s, 0
+	}
+	file := s[:idx]
+	line, _ := strconv.Atoi(s[idx+1:])
+	return file, line
+}
 
 func TestCoverageMapping_Integration_PersistenceAndRecovery(t *testing.T) {
 	// Create temp directory for testing
@@ -146,9 +160,7 @@ func TestCoverageMapping_Integration_BatchRecording(t *testing.T) {
 	// Convert string lines to LineID
 	lineIDs := make([]LineID, len(lines))
 	for i, line := range lines {
-		var file string
-		var lineNum int
-		fmt.Sscanf(line, "%[^:]:%d", &file, &lineNum)
+		file, lineNum := parseLineString(line)
 		lineIDs[i] = LineID{File: file, Line: lineNum}
 	}
 	newCount := mapping.RecordLines(lineIDs, 10)
@@ -165,9 +177,7 @@ func TestCoverageMapping_Integration_BatchRecording(t *testing.T) {
 	// Convert lines2 to LineID
 	lineIDs2 := make([]LineID, len(lines2))
 	for i, line := range lines2 {
-		var file string
-		var lineNum int
-		fmt.Sscanf(line, "%[^:]:%d", &file, &lineNum)
+		file, lineNum := parseLineString(line)
 		lineIDs2[i] = LineID{File: file, Line: lineNum}
 	}
 	newCount = mapping.RecordLines(lineIDs2, 11)
@@ -266,9 +276,7 @@ func TestCoverageMapping_Integration_LargeScale(t *testing.T) {
 		// Convert to LineID and record
 		lineIDs := make([]LineID, len(lines))
 		for i, line := range lines {
-			var file string
-			var lineNum int
-			fmt.Sscanf(line, "%[^:]:%d", &file, &lineNum)
+			file, lineNum := parseLineString(line)
 			lineIDs[i] = LineID{File: file, Line: lineNum}
 		}
 		mapping.RecordLines(lineIDs, int64(seedID))
