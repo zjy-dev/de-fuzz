@@ -42,7 +42,6 @@ type GCCCoverage struct {
 	totalReportPath  string                 // Path to total.json
 	filterConfigPath string                 // Path to filter config YAML (from compiler-isa-strategy.yaml)
 	seedReportDir    string                 // Directory to store individual seed reports
-	sourceParentPath string                 // Parent path for source files (for abstract generation)
 
 	// Cached filter config (loaded once)
 	filterConfig *gcovr.FilterConfig
@@ -59,7 +58,6 @@ func NewGCCCoverage(
 	gcovrCommand string,
 	totalReportPath string,
 	filterConfigPath string,
-	sourceParentPath string,
 ) *GCCCoverage {
 	// Ensure totalReportPath is absolute for consistent file operations
 	// This is critical because gcovr runs in a different directory (gcovrExecPath)
@@ -78,7 +76,6 @@ func NewGCCCoverage(
 		totalReportPath:  absTotalReportPath,
 		filterConfigPath: filterConfigPath,
 		seedReportDir:    filepath.Dir(absTotalReportPath), // Store seed reports in same dir as total.json
-		sourceParentPath: sourceParentPath,
 	}
 
 	// Pre-load filter config if available
@@ -299,12 +296,9 @@ func (g *GCCCoverage) GetIncrease(newReport Report) (*CoverageIncrease, error) {
 
 	// If still nil (first seed case), return a special increase
 	if g.lastIncreaseReport == nil {
-		// For first seed, generate uncovered abstract from the new report
-		uncoveredAbstract := g.generateUncoveredAbstract(newReport)
 		return &CoverageIncrease{
-			Summary:           "First seed - initial coverage established",
-			FormattedReport:   "This is the first seed, establishing baseline coverage.",
-			UncoveredAbstract: uncoveredAbstract,
+			Summary:         "First seed - initial coverage established",
+			FormattedReport: "This is the first seed, establishing baseline coverage.",
 		}, nil
 	}
 
@@ -332,15 +326,11 @@ func (g *GCCCoverage) GetIncrease(newReport Report) (*CoverageIncrease, error) {
 		summary += fmt.Sprintf(" (%d newly reached functions)", totalNewFunctions)
 	}
 
-	// Generate uncovered abstract from total coverage
-	uncoveredAbstract := g.generateUncoveredAbstractFromTotal()
-
 	return &CoverageIncrease{
 		Summary:               summary,
 		FormattedReport:       sb.String(),
 		NewlyCoveredLines:     totalNewLines,
 		NewlyCoveredFunctions: totalNewFunctions,
-		UncoveredAbstract:     uncoveredAbstract,
 	}, nil
 }
 
@@ -386,239 +376,6 @@ func countCoveredFunctions(functions []gcovr.FunctionCoverage) int {
 		}
 	}
 	return count
-}
-
-// addMissingFilteredFunctions adds functions from filter config that are completely missing from the report.
-// These are functions with 0% coverage that were never executed - they don't appear in gcovr output at all.
-// This is critical because 0% coverage functions are the most important targets for the LLM to focus on.
-func (g *GCCCoverage) addMissingFilteredFunctions(report *gcovr.GcovrReport, uncoveredReport *gcovr.UncoveredReport) {
-	if g.filterConfig == nil {
-		return
-	}
-
-	// Build a set of files present in the report
-	reportFiles := make(map[string]bool)
-	for _, file := range report.Files {
-		reportFiles[file.FilePath] = true
-	}
-
-	// Build a set of (file, function) pairs already in uncovered report
-	existingUncovered := make(map[string]map[string]bool)
-	for _, file := range uncoveredReport.Files {
-		if existingUncovered[file.FilePath] == nil {
-			existingUncovered[file.FilePath] = make(map[string]bool)
-		}
-		for _, fn := range file.UncoveredFunctions {
-			existingUncovered[file.FilePath][fn.FunctionName] = true
-		}
-	}
-
-	// Check each target in filter config
-	for _, target := range g.filterConfig.Targets {
-		// If file is completely missing from report, ALL its functions are 0% coverage
-		if !reportFiles[target.File] {
-			// Add all functions from this target as 0% coverage
-			fileUncovered := gcovr.FileUncovered{
-				FilePath:           target.File,
-				UncoveredFunctions: make([]gcovr.FunctionUncovered, 0, len(target.Functions)),
-			}
-
-			for _, funcName := range target.Functions {
-				fileUncovered.UncoveredFunctions = append(fileUncovered.UncoveredFunctions, gcovr.FunctionUncovered{
-					FunctionName:         funcName,
-					DemangledName:        funcName, // Will be updated by abstractor if possible
-					UncoveredLineNumbers: nil,      // Unknown - function was never executed
-					TotalLines:           0,        // Unknown
-					CoveredLines:         0,        // 0% coverage
-				})
-			}
-
-			uncoveredReport.Files = append(uncoveredReport.Files, fileUncovered)
-		} else {
-			// File exists in report, but some functions might still be missing
-			// (e.g., functions that were never called)
-			for _, funcName := range target.Functions {
-				// Check if this function is already in the uncovered report
-				if existingUncovered[target.File] != nil && existingUncovered[target.File][funcName] {
-					continue // Already tracked
-				}
-
-				// Check if function exists in the report with any coverage
-				funcInReport := false
-				for _, file := range report.Files {
-					if file.FilePath == target.File {
-						for _, line := range file.Lines {
-							if line.FunctionName == funcName {
-								funcInReport = true
-								break
-							}
-						}
-						break
-					}
-				}
-
-				// If function is not in report at all, it's 0% coverage
-				if !funcInReport {
-					// Find or create the file entry in uncovered report
-					var fileEntry *gcovr.FileUncovered
-					for i := range uncoveredReport.Files {
-						if uncoveredReport.Files[i].FilePath == target.File {
-							fileEntry = &uncoveredReport.Files[i]
-							break
-						}
-					}
-
-					if fileEntry == nil {
-						uncoveredReport.Files = append(uncoveredReport.Files, gcovr.FileUncovered{
-							FilePath:           target.File,
-							UncoveredFunctions: make([]gcovr.FunctionUncovered, 0),
-						})
-						fileEntry = &uncoveredReport.Files[len(uncoveredReport.Files)-1]
-					}
-
-					fileEntry.UncoveredFunctions = append(fileEntry.UncoveredFunctions, gcovr.FunctionUncovered{
-						FunctionName:         funcName,
-						DemangledName:        funcName,
-						UncoveredLineNumbers: nil,
-						TotalLines:           0,
-						CoveredLines:         0,
-					})
-				}
-			}
-		}
-	}
-}
-
-// generateUncoveredAbstract generates abstracted code for uncovered paths from a report.
-func (g *GCCCoverage) generateUncoveredAbstract(report Report) string {
-	gcovrRep, ok := report.(*GcovrReport)
-	if !ok {
-		return ""
-	}
-
-	// Parse the report
-	parsedReport, err := gcovr.ParseReport(gcovrRep.path)
-	if err != nil {
-		return ""
-	}
-
-	// Apply filtering if available
-	if g.filterConfig != nil {
-		parsedReport = gcovr.ApplyFilter(parsedReport, g.filterConfig)
-	}
-
-	return g.generateAbstractFromReport(parsedReport)
-}
-
-// generateUncoveredAbstractFromTotal generates abstracted code for uncovered paths from total coverage.
-func (g *GCCCoverage) generateUncoveredAbstractFromTotal() string {
-	// Check if total report exists
-	if _, err := os.Stat(g.totalReportPath); os.IsNotExist(err) {
-		return ""
-	}
-
-	// Parse the total report
-	totalReport, err := gcovr.ParseReport(g.totalReportPath)
-	if err != nil {
-		return ""
-	}
-
-	// Apply filtering if available
-	if g.filterConfig != nil {
-		totalReport = gcovr.ApplyFilter(totalReport, g.filterConfig)
-	}
-
-	return g.generateAbstractFromReport(totalReport)
-}
-
-// generateAbstractFromReport generates abstracted code from a parsed gcovr report.
-func (g *GCCCoverage) generateAbstractFromReport(report *gcovr.GcovrReport) string {
-	// Find uncovered lines using gcovr-json-util
-	uncoveredReport, err := gcovr.FindUncoveredLines(report)
-	if err != nil {
-		return ""
-	}
-
-	// Initialize uncovered report if nil
-	if uncoveredReport == nil {
-		uncoveredReport = &gcovr.UncoveredReport{
-			Files: make([]gcovr.FileUncovered, 0),
-		}
-	}
-
-	// IMPORTANT: Add functions from filter config that are completely missing from the report
-	// These are functions with 0% coverage - never executed at all
-	if g.filterConfig != nil {
-		g.addMissingFilteredFunctions(report, uncoveredReport)
-	}
-
-	// If still no uncovered lines after adding missing functions, return empty
-	if len(uncoveredReport.Files) == 0 {
-		return ""
-	}
-
-	// Convert gcovr uncovered report to our UncoveredInput format
-	input := &UncoveredInput{
-		Files: make([]UncoveredFile, 0, len(uncoveredReport.Files)),
-	}
-
-	for _, file := range uncoveredReport.Files {
-		// Construct full path by joining sourceParentPath with FilePath
-		fullPath := file.FilePath
-		if g.sourceParentPath != "" {
-			fullPath = filepath.Join(g.sourceParentPath, file.FilePath)
-		}
-
-		uncoveredFile := UncoveredFile{
-			FilePath:  fullPath,
-			Functions: make([]UncoveredFunction, 0, len(file.UncoveredFunctions)),
-		}
-
-		for _, fn := range file.UncoveredFunctions {
-			uncoveredFile.Functions = append(uncoveredFile.Functions, UncoveredFunction{
-				FunctionName:   fn.FunctionName,
-				DemangledName:  fn.DemangledName,
-				UncoveredLines: fn.UncoveredLineNumbers,
-				TotalLines:     fn.TotalLines,
-				CoveredLines:   fn.CoveredLines,
-			})
-		}
-
-		input.Files = append(input.Files, uncoveredFile)
-	}
-
-	// Use CppAbstractor to generate abstracted code
-	abstractor := NewCppAbstractor()
-	abstractedOutput, err := abstractor.Abstract(input)
-	if err != nil || abstractedOutput == nil {
-		return ""
-	}
-
-	// Build the formatted abstract output
-	var sb strings.Builder
-	for _, fn := range abstractedOutput.Functions {
-		// Skip functions with errors (e.g., source file not found)
-		if fn.Error != nil {
-			continue
-		}
-		if fn.AbstractedCode == "" {
-			continue
-		}
-
-		// Use short filename for display
-		shortPath := fn.FilePath
-		if idx := strings.LastIndex(fn.FilePath, "/"); idx != -1 {
-			shortPath = fn.FilePath[idx+1:]
-		}
-
-		sb.WriteString(fmt.Sprintf("### %s::%s\n", shortPath, fn.DemangledName))
-		sb.WriteString(fmt.Sprintf("Uncovered lines: %v\n\n", fn.UncoveredLines))
-		sb.WriteString("```cpp\n")
-		sb.WriteString(fn.AbstractedCode)
-		sb.WriteString("\n```\n\n")
-	}
-
-	return sb.String()
 }
 
 // ExtractCoveredLines extracts covered lines from a gcovr JSON report.

@@ -133,7 +133,6 @@ int main() {
 		gcovrCommand,
 		totalReportPath,
 		compilerConfigPath,
-		cfg.Compiler.SourceParentPath,
 	)
 
 	// Helper function to create a seed with proper Metadata

@@ -26,10 +26,6 @@ type MutationContext struct {
 
 	// TotalLines is the total number of lines to cover
 	TotalLines int
-
-	// UncoveredAbstract is the abstracted code showing uncovered paths
-	// This helps LLM understand what code paths are not yet covered
-	UncoveredAbstract string
 }
 
 // Builder is responsible for constructing prompts for the LLM.
@@ -325,18 +321,6 @@ func (b *Builder) BuildMutatePrompt(s *seed.Seed, mutationCtx *MutationContext) 
 	// Build coverage context section if available
 	coverageSection := ""
 	if mutationCtx != nil {
-		// Build uncovered abstract section if available
-		uncoveredSection := ""
-		if mutationCtx.UncoveredAbstract != "" {
-			uncoveredSection = fmt.Sprintf(`
-[UNCOVERED CODE PATHS]
-The following shows abstracted code with uncovered paths (lines marked with full code are NOT covered yet):
-
-%s
-[/UNCOVERED CODE PATHS]
-`, mutationCtx.UncoveredAbstract)
-		}
-
 		coverageSection = fmt.Sprintf(`
 [COVERAGE CONTEXT]
 Current Total Coverage: %.1f%% (%d/%d lines covered)
@@ -346,19 +330,17 @@ Coverage Increase from this seed:
 
 %s
 [/COVERAGE CONTEXT]
-%s
+
 Based on the coverage increase above, focus your mutation on:
 1. Exploring similar code paths that led to the coverage increase
 2. Varying the inputs that triggered the newly covered code
 3. Trying edge cases around the newly covered functionality
-4. Targeting the UNCOVERED CODE PATHS shown above to increase coverage
 `,
 			mutationCtx.TotalCoveragePercentage,
 			mutationCtx.TotalCoveredLines,
 			mutationCtx.TotalLines,
 			mutationCtx.CoverageIncreaseSummary,
 			mutationCtx.CoverageIncreaseDetails,
-			uncoveredSection,
 		)
 	}
 
@@ -444,11 +426,11 @@ Please make focused changes that could expose different vulnerability patterns.
 `, s.Content, testCasesJSON, coverageSection, outputFormat)
 
 	// DEBUG: Print the generated mutate prompt at debug level
-	logger.Debug("\n" + strings.Repeat("=", 80))
+	logger.Debug("\n%s", strings.Repeat("=", 80))
 	logger.Debug("BuildMutatePrompt - Generated Prompt:")
-	logger.Debug(strings.Repeat("-", 80))
+	logger.Debug("%s", strings.Repeat("-", 80))
 	logger.Debug("%s", prompt)
-	logger.Debug(strings.Repeat("=", 80) + "\n")
+	logger.Debug("%s\n", strings.Repeat("=", 80))
 
 	return prompt, nil
 }

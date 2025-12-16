@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/zjy-dev/de-fuzz/internal/logger"
 )
 
 // BasicBlock represents a basic block in the control flow graph.
@@ -406,12 +408,12 @@ func FindCFGFiles(buildDir string, sourceFile string) ([]string, error) {
 func (c *CFGAnalyzer) PrintFunctionSummary(funcName string) {
 	fn, ok := c.functions[funcName]
 	if !ok {
-		fmt.Printf("Function %s not found\n", funcName)
+		logger.Debug("Function %s not found", funcName)
 		return
 	}
 
-	fmt.Printf("Function: %s (mangled: %s)\n", fn.Name, fn.MangledName)
-	fmt.Printf("  Basic blocks: %d\n", len(fn.Blocks))
+	logger.Debug("Function: %s (mangled: %s)", fn.Name, fn.MangledName)
+	logger.Debug("  Basic blocks: %d", len(fn.Blocks))
 
 	// Sort BBs by ID for consistent output
 	bbIDs := make([]int, 0, len(fn.Blocks))
@@ -422,13 +424,13 @@ func (c *CFGAnalyzer) PrintFunctionSummary(funcName string) {
 
 	for _, bbID := range bbIDs {
 		bb := fn.Blocks[bbID]
-		fmt.Printf("  BB %d: %d successors, %d lines", bbID, len(bb.Successors), len(bb.Lines))
+		info := fmt.Sprintf("  BB %d: %d successors, %d lines", bbID, len(bb.Successors), len(bb.Lines))
 		if len(bb.Successors) > 0 {
-			fmt.Printf(", succs: %v", bb.Successors)
+			info += fmt.Sprintf(", succs: %v", bb.Successors)
 		}
 		if len(bb.Lines) > 0 {
-			fmt.Printf(", lines: %v", bb.Lines)
+			info += fmt.Sprintf(", lines: %v", bb.Lines)
 		}
-		fmt.Println()
+		logger.Debug("%s", info)
 	}
 }

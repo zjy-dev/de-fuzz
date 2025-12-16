@@ -258,7 +258,6 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 		mutationCtx = &prompt.MutationContext{
 			CoverageIncreaseSummary: coverageIncrease.Summary,
 			CoverageIncreaseDetails: coverageIncrease.FormattedReport,
-			UncoveredAbstract:       coverageIncrease.UncoveredAbstract,
 		}
 
 		if stats != nil {

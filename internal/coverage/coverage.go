@@ -35,10 +35,6 @@ type CoverageIncrease struct {
 	// Raw increase data for programmatic access
 	NewlyCoveredLines     int
 	NewlyCoveredFunctions int
-
-	// UncoveredAbstract is the abstracted code showing uncovered paths
-	// This helps LLM understand what code paths are not yet covered
-	UncoveredAbstract string
 }
 
 // Coverage defines the interface for coverage measurement and analysis.
