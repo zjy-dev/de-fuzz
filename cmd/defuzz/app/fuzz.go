@@ -19,6 +19,7 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
+	"github.com/zjy-dev/de-fuzz/internal/state"
 	"github.com/zjy-dev/de-fuzz/internal/vm"
 )
 
@@ -32,6 +33,7 @@ func NewFuzzCommand() *cobra.Command {
 		useQEMU       bool
 		qemuPath      string
 		qemuSysroot   string
+		enableUI      bool
 	)
 
 	cmd := &cobra.Command{
@@ -104,7 +106,7 @@ Examples:
 			// Build the actual output directory: {output_root_dir}/{isa}/{strategy}
 			outputDir := filepath.Join(outputRootDir, cfg.ISA, cfg.Strategy)
 
-			return runFuzz(cfg, outputDir, maxIterations, maxNewSeeds, timeout, useQEMU, qemuPath, qemuSysroot)
+			return runFuzz(cfg, outputDir, maxIterations, maxNewSeeds, timeout, useQEMU, qemuPath, qemuSysroot, enableUI)
 		},
 	}
 
@@ -116,11 +118,12 @@ Examples:
 	cmd.Flags().BoolVar(&useQEMU, "use-qemu", false, "Use QEMU for execution (for cross-architecture)")
 	cmd.Flags().StringVar(&qemuPath, "qemu-path", "qemu-aarch64", "Path to QEMU user-mode executable")
 	cmd.Flags().StringVar(&qemuSysroot, "qemu-sysroot", "", "Sysroot path for QEMU (-L argument)")
+	cmd.Flags().BoolVar(&enableUI, "ui", true, "Enable real-time terminal UI (default: true)")
 
 	return cmd
 }
 
-func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot string) error {
+func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot string, enableUI bool) error {
 	// Initialize logger with configured level
 	logLevel := cfg.LogLevel
 	if logLevel == "" {
@@ -210,7 +213,6 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		gcovrCommand,
 		totalReportPath,
 		filterConfigPath,
-		cfg.Compiler.SourceParentPath,
 	)
 
 	// 6. Create LLM client
@@ -270,7 +272,13 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		logger.Info("Loaded %d initial seeds", len(initialSeeds))
 	}
 
-	// 10. Create fuzzing engine
+	// 10. Create metrics manager
+	metricsManager := state.NewFileMetricsManager(stateDir)
+	if err := metricsManager.Load(); err != nil {
+		logger.Warn("Failed to load existing metrics: %v", err)
+	}
+
+	// 11. Create fuzzing engine
 	engine := fuzz.NewEngine(fuzz.EngineConfig{
 		Corpus:        corpusManager,
 		Compiler:      gccCompiler,
@@ -278,13 +286,16 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		Coverage:      coverageTracker,
 		Oracle:        oracleInstance,
 		LLM:           llmClient,
+		Metrics:       metricsManager,
 		PromptBuilder: promptBuilder,
 		Understanding: understanding,
 		MaxIterations: maxIterations,
 		MaxNewSeeds:   maxNewSeeds,
+		PrintInterval: 1, // Update UI every iteration
+		EnableUI:      enableUI,
 	})
 
-	// 11. Run the fuzzing loop
+	// 12. Run the fuzzing loop
 	fmt.Println("[Fuzz] Starting fuzzing engine...")
 	return engine.Run()
 }

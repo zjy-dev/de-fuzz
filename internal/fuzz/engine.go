@@ -41,6 +41,10 @@ type EngineConfig struct {
 	SaveInterval    time.Duration // How often to save state
 	CoverageTimeout int           // Timeout for coverage measurement in seconds
 	PrintInterval   int           // How often to print progress (in iterations, 0 = never)
+
+	// UI settings
+	EnableUI    bool // Enable terminal UI (default: false for backward compatibility)
+	UIRefreshMs int  // UI refresh rate in milliseconds (default: 200)
 }
 
 // Engine orchestrates the main fuzzing loop.
@@ -49,14 +53,23 @@ type Engine struct {
 	iterationCount int
 	bugsFound      []*oracle.Bug
 	startTime      time.Time
+	uiEnabled      bool
 }
 
 // NewEngine creates a new fuzzing engine.
 func NewEngine(cfg EngineConfig) *Engine {
-	return &Engine{
+	e := &Engine{
 		cfg:       cfg,
 		bugsFound: make([]*oracle.Bug, 0),
+		uiEnabled: cfg.EnableUI,
 	}
+
+	// Enable terminal UI if configured
+	if cfg.EnableUI && cfg.Metrics != nil {
+		cfg.Metrics.SetUIEnabled(true)
+	}
+
+	return e
 }
 
 // Run starts the main fuzzing loop.
@@ -376,9 +389,12 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 	}
 }
 
-// printProgress prints a one-line progress summary.
+// printProgress prints a one-line progress summary or renders UI.
 func (e *Engine) printProgress() {
-	if e.cfg.Metrics != nil {
+	if e.uiEnabled && e.cfg.Metrics != nil {
+		// Render the terminal UI
+		e.cfg.Metrics.RenderUI()
+	} else if e.cfg.Metrics != nil {
 		logger.Info("Progress: %s", e.cfg.Metrics.FormatOneLine())
 	} else {
 		elapsed := time.Since(e.startTime)
@@ -389,6 +405,13 @@ func (e *Engine) printProgress() {
 
 // printSummary prints a summary of the fuzzing session.
 func (e *Engine) printSummary() {
+	// Clear UI if enabled
+	if e.uiEnabled && e.cfg.Metrics != nil {
+		if ui := e.cfg.Metrics.GetUI(); ui != nil {
+			ui.Clear()
+		}
+	}
+
 	// Print metrics summary if available
 	if e.cfg.Metrics != nil {
 		logger.Info("%s", e.cfg.Metrics.FormatSummary())

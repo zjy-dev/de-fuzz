@@ -75,6 +75,11 @@ type MetricsManager interface {
 	// Formatted output
 	FormatSummary() string
 	FormatOneLine() string
+
+	// Terminal UI support
+	GetUI() *TerminalUI
+	SetUIEnabled(enabled bool)
+	RenderUI()
 }
 
 // FileMetricsManager is a file-backed implementation of MetricsManager.
@@ -82,16 +87,21 @@ type FileMetricsManager struct {
 	mu       sync.Mutex
 	filePath string
 	metrics  FuzzMetrics
+	ui       *TerminalUI
 }
 
 // NewFileMetricsManager creates a new FileMetricsManager for the given directory.
 func NewFileMetricsManager(dir string) *FileMetricsManager {
-	return &FileMetricsManager{
+	mgr := &FileMetricsManager{
 		filePath: filepath.Join(dir, MetricsFileName),
 		metrics: FuzzMetrics{
 			StartTime: time.Now(),
 		},
+		ui: NewTerminalUI(),
 	}
+	// Link UI to metrics
+	mgr.ui.SetMetrics(&mgr.metrics)
+	return mgr
 }
 
 // Load reads the metrics from disk or initializes with defaults.
@@ -323,6 +333,25 @@ func (m *FileMetricsManager) FormatOneLine() string {
 // GetFilePath returns the path to the metrics file.
 func (m *FileMetricsManager) GetFilePath() string {
 	return m.filePath
+}
+
+// GetUI returns the terminal UI associated with this metrics manager.
+func (m *FileMetricsManager) GetUI() *TerminalUI {
+	return m.ui
+}
+
+// SetUIEnabled enables or disables the terminal UI.
+func (m *FileMetricsManager) SetUIEnabled(enabled bool) {
+	m.ui.SetEnabled(enabled)
+}
+
+// RenderUI renders the terminal UI with current metrics.
+func (m *FileMetricsManager) RenderUI() {
+	m.mu.Lock()
+	m.updateTimingLocked()
+	m.mu.Unlock()
+
+	m.ui.Render()
 }
 
 // Helper functions
