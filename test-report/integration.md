@@ -1,9 +1,9 @@
 # Integration Test Report
 
 ## Test Environment
-- **Commit ID**: d9fd912089a00c4ef8f4038c34c3b24f15ff614a
-- **Commit Short**: d9fd912
-- **Test Time**: 2025-12-17 01:53:56 CST
+- **Commit ID**: 609300f59b101ccfa6a5bcaf43bf58350529b859
+- **Commit Short**: 609300f
+- **Test Time**: 2025-12-17 01:56:01 CST
 - **CPU**: Intel(R) Core(TM) Ultra 9 275HX
 - **CPU Cores**: 24
 - **Memory**: 15Gi

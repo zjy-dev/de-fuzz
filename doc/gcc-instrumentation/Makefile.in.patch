@@ -1,0 +1,100 @@
+# GCC Makefile.in Instrumentation Patch
+# =====================================
+# This file contains the modifications needed to add selective coverage
+# and CFG dump instrumentation to GCC's Makefile.in
+#
+# How to apply:
+# 1. Locate the lines mentioned in each section
+# 2. Insert/modify the code blocks as shown
+#
+# Target file: gcc/Makefile.in (in GCC source tree)
+
+# ============================================================================
+# SECTION 1: After line ~163 (after "coverageexts = .{gcda,gcno}")
+# Insert the following block:
+# ============================================================================
+
+# ====================================================================
+# FUZZ-COVERAGE-INSTRUMENTATION-1: Selective Coverage Whitelist
+# ====================================================================
+# Selective coverage: only instrument specific files to reduce overhead
+# Add target files here that should have coverage instrumentation
+COVERAGE_WHITELIST = cfgexpand.o
+
+# Function to determine if a target should use coverage flags
+# Returns COVERAGE_FLAGS if the target is in whitelist, empty otherwise
+coverage-for = $(if $(filter $(1),$(COVERAGE_WHITELIST)),$(COVERAGE_FLAGS),)
+
+# Per-file coverage flags (empty by default, overridden for whitelisted files)
+CFLAGS-cfgexpand.o = $(COVERAGE_FLAGS)
+
+# CFG Dump flags for static analysis (control flow graph generation)
+# This enables CFG dump for specific files to support constraint solving
+CFG_DUMP_WHITELIST = cfgexpand.o
+CFG_DUMP_FLAGS = -fdump-tree-cfg-lineno
+
+# Per-file CFG dump flags
+CFLAGS-cfgexpand.o += $(CFG_DUMP_FLAGS)
+# ====================================================================
+
+
+# ============================================================================
+# SECTION 2: Around line ~1066 (replace the ALL_CFLAGS and ALL_CXXFLAGS definitions)
+# Original:
+#   ALL_CFLAGS = $(T_CFLAGS) $(CFLAGS) $(INTERNAL_CFLAGS) $(COVERAGE_FLAGS) ...
+# Replace with:
+# ============================================================================
+
+# ====================================================================
+# FUZZ-COVERAGE-INSTRUMENTATION-2: Selective CFLAGS Application
+# ====================================================================
+# This is the variable actually used when we compile. If you change this,
+# you probably want to update BUILD_CFLAGS in configure.ac
+# NOTE: COVERAGE_FLAGS is now applied selectively via CFLAGS-$@ for whitelisted files only
+ALL_CFLAGS = $(T_CFLAGS) $(CFLAGS-$@) \
+  $(CFLAGS) $(INTERNAL_CFLAGS) $(WARN_CFLAGS) @DEFS@
+
+# The C++ version.
+# NOTE: COVERAGE_FLAGS is now applied selectively via CFLAGS-$@ for whitelisted files only
+ALL_CXXFLAGS = $(T_CFLAGS) $(CFLAGS-$@) $(CXXFLAGS) $(INTERNAL_CFLAGS) \
+  $(ALIASING_FLAGS) $(NOEXCEPTION_FLAGS) \
+  $(WARN_CXXFLAGS) @DEFS@
+# ====================================================================
+
+
+# ============================================================================
+# SECTION 3: Around line ~1089 (replace/modify ALL_LINKERFLAGS definition)
+# Original:
+#   ALL_LINKERFLAGS = $(ALL_CXXFLAGS)
+# Replace with:
+# ============================================================================
+
+# ====================================================================
+# FUZZ-COVERAGE-INSTRUMENTATION-3: Coverage Linker Flags
+# ====================================================================
+# This is the variable to use when using $(LINKER).
+# NOTE: Add coverage linker flags to link libgcov when any object has coverage instrumentation
+ALL_LINKERFLAGS = $(ALL_CXXFLAGS) $(COVERAGE_LDFLAGS)
+
+# Coverage linker flags - needed when linking executables with coverage-instrumented objects
+COVERAGE_LDFLAGS = -lgcov --coverage
+# ====================================================================
+
+
+# ============================================================================
+# NOTES:
+# ============================================================================
+# 
+# 1. The key insight is using $(CFLAGS-$@) which expands to target-specific flags
+#    For cfgexpand.o, it expands to: $(COVERAGE_FLAGS) -fdump-tree-cfg-lineno
+#    For other targets, it expands to empty string
+#
+# 2. Search for "FUZZ-COVERAGE-INSTRUMENTATION" to find all modified sections
+#
+# 3. To add more files to instrumentation, add them to:
+#    - COVERAGE_WHITELIST (for coverage)
+#    - CFG_DUMP_WHITELIST (for CFG dump)
+#    And add corresponding CFLAGS-xxx.o lines
+#
+# 4. For cross-compilers (aarch64), the same patch applies to:
+#    arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/Makefile.in

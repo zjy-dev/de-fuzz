@@ -30,6 +30,9 @@ fuzz.log
 target-compilers/
 _target-compilers/
 
+# GCC build directories (very large, do not commit)
+gcc-v12.2.0-*/
+
 # Environment files
 .env
 .env.local
@@ -42,6 +45,5 @@ Thumbs.db
 # Go
 vendor/
 
-gcc*
-
+# Planning documents (drafts)
 *plan*

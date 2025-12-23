@@ -13,6 +13,7 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
+	"github.com/zjy-dev/de-fuzz/internal/state"
 )
 
 // EngineConfig holds the configuration for the fuzzing engine.
@@ -25,6 +26,9 @@ type EngineConfig struct {
 	Oracle   oracle.Oracle
 	LLM      llm.LLM
 
+	// Metrics tracking
+	Metrics state.MetricsManager
+
 	// Prompt builder for LLM interactions
 	PromptBuilder *prompt.Builder
 
@@ -36,6 +40,7 @@ type EngineConfig struct {
 	MaxNewSeeds     int           // Max new seeds to generate per interesting seed
 	SaveInterval    time.Duration // How often to save state
 	CoverageTimeout int           // Timeout for coverage measurement in seconds
+	PrintInterval   int           // How often to print progress (in iterations, 0 = never)
 }
 
 // Engine orchestrates the main fuzzing loop.
@@ -99,10 +104,21 @@ func (e *Engine) Run() error {
 			logger.Error("Error reporting result for seed %d: %v", currentSeed.Meta.ID, err)
 		}
 
+		// Print progress periodically
+		if e.cfg.PrintInterval > 0 && e.iterationCount%e.cfg.PrintInterval == 0 {
+			e.printProgress()
+		}
+
 		// Save state periodically
 		if e.iterationCount%10 == 0 {
 			if err := e.cfg.Corpus.Save(); err != nil {
 				logger.Warn("Failed to save state: %v", err)
+			}
+			// Save metrics
+			if e.cfg.Metrics != nil {
+				if err := e.cfg.Metrics.Save(); err != nil {
+					logger.Warn("Failed to save metrics: %v", err)
+				}
 			}
 		}
 	}
@@ -110,6 +126,12 @@ func (e *Engine) Run() error {
 	// Final save
 	if err := e.cfg.Corpus.Save(); err != nil {
 		logger.Warn("Failed to save final state: %v", err)
+	}
+	// Final metrics save
+	if e.cfg.Metrics != nil {
+		if err := e.cfg.Metrics.Save(); err != nil {
+			logger.Warn("Failed to save final metrics: %v", err)
+		}
 	}
 
 	e.printSummary()
@@ -120,6 +142,11 @@ func (e *Engine) Run() error {
 func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 	startTime := time.Now()
 
+	// Record seed processed
+	if e.cfg.Metrics != nil {
+		e.cfg.Metrics.RecordSeedProcessed()
+	}
+
 	// Step 1: Compile
 	logger.Debug("Compiling seed %d...", s.Meta.ID)
 	compileResult, err := e.cfg.Compiler.Compile(s)
@@ -129,6 +156,10 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 
 	if !compileResult.Success {
 		logger.Warn("Seed %d failed to compile: %s", s.Meta.ID, compileResult.Stderr)
+		// Record compile failure
+		if e.cfg.Metrics != nil {
+			e.cfg.Metrics.RecordCompileFailure()
+		}
 		return &corpus.FuzzResult{
 			State:      seed.SeedStateProcessed,
 			ExecTimeUs: time.Since(startTime).Microseconds(),
@@ -162,6 +193,11 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 		if coverageIncreased {
 			logger.Info("Seed %d increased coverage!", s.Meta.ID)
 
+			// Record coverage increase
+			if e.cfg.Metrics != nil {
+				e.cfg.Metrics.RecordCoverageIncrease()
+			}
+
 			// Get the coverage increase details BEFORE merging
 			coverageIncrease, err = e.cfg.Coverage.GetIncrease(report)
 			if err != nil {
@@ -175,10 +211,14 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 				logger.Warn("Failed to merge coverage: %v", err)
 			}
 
-			// Print current total coverage stats
+			// Print current total coverage stats and update metrics
 			if stats, err := e.cfg.Coverage.GetStats(); err == nil {
 				logger.Info("Total coverage: %.1f%% (%d/%d lines)",
 					stats.CoveragePercentage, stats.TotalCoveredLines, stats.TotalLines)
+				// Update metrics with coverage stats
+				if e.cfg.Metrics != nil {
+					e.cfg.Metrics.UpdateCoverageStats(stats.CoveragePercentage, stats.TotalCoveredLines, stats.TotalLines)
+				}
 			}
 
 			// Generate new seeds from this interesting seed with coverage context
@@ -204,29 +244,46 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 			Executor:   executor.NewOracleExecutorAdapter(e.cfg.CoverageTimeout),
 		}
 
+		// Record oracle check
+		if e.cfg.Metrics != nil {
+			e.cfg.Metrics.RecordOracleCheck()
+		}
+
 		bug, err := e.cfg.Oracle.Analyze(s, ctx, oracleResults)
 		if err != nil {
 			logger.Error("Analysis failed: %v", err)
+			// Record oracle error
+			if e.cfg.Metrics != nil {
+				e.cfg.Metrics.RecordOracleError()
+			}
 		} else if bug != nil {
 			logger.Error("BUG FOUND in seed %d: %s", s.Meta.ID, bug.Description)
 			e.bugsFound = append(e.bugsFound, bug)
+			// Record oracle failure (bug found)
+			if e.cfg.Metrics != nil {
+				e.cfg.Metrics.RecordOracleFailure()
+			}
 		}
 	}
 
 	// Determine final state
-	state := seed.SeedStateProcessed
+	finalState := seed.SeedStateProcessed
 	for _, r := range execResults {
 		if r.ExitCode != 0 {
 			// Check if it's a crash
 			if oracle.IsCrashExit(r.ExitCode) {
-				state = seed.SeedStateCrash
+				finalState = seed.SeedStateCrash
+				// Record crash
+				if e.cfg.Metrics != nil {
+					e.cfg.Metrics.RecordCrash()
+				}
 				break
 			}
 		}
 	}
 
 	return &corpus.FuzzResult{
-		State:       state,
+		State:       finalState,
 		ExecTimeUs:  time.Since(startTime).Microseconds(),
 		NewCoverage: newCoverage,
 	}, nil
@@ -277,9 +334,19 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 
 		// Call LLM with understanding as system prompt
 		logger.Debug("Calling LLM for seed mutation...")
+
+		// Record LLM call
+		if e.cfg.Metrics != nil {
+			e.cfg.Metrics.RecordLLMCall()
+		}
+
 		completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, mutatePrompt)
 		if err != nil {
 			logger.Error("Failed to get LLM completion: %v", err)
+			// Record LLM error
+			if e.cfg.Metrics != nil {
+				e.cfg.Metrics.RecordLLMError()
+			}
 			continue
 		}
 
@@ -300,12 +367,34 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 			continue
 		}
 
+		// Record seed generated
+		if e.cfg.Metrics != nil {
+			e.cfg.Metrics.RecordSeedGenerated()
+		}
+
 		logger.Info("Generated new seed %d from parent %d", newSeed.Meta.ID, parentSeed.Meta.ID)
+	}
+}
+
+// printProgress prints a one-line progress summary.
+func (e *Engine) printProgress() {
+	if e.cfg.Metrics != nil {
+		logger.Info("Progress: %s", e.cfg.Metrics.FormatOneLine())
+	} else {
+		elapsed := time.Since(e.startTime)
+		logger.Info("Progress: [%v] iterations:%d bugs:%d",
+			elapsed.Round(time.Second), e.iterationCount, len(e.bugsFound))
 	}
 }
 
 // printSummary prints a summary of the fuzzing session.
 func (e *Engine) printSummary() {
+	// Print metrics summary if available
+	if e.cfg.Metrics != nil {
+		logger.Info("%s", e.cfg.Metrics.FormatSummary())
+	}
+
+	// Also print basic summary
 	elapsed := time.Since(e.startTime)
 	logger.Info("=========================================")
 	logger.Info("           FUZZING SUMMARY")
