@@ -28,7 +28,7 @@ compiler:
     # Maximum number of fuzzing iterations (0 = unlimited)
     max_iterations: 0
     # Maximum new seeds to generate per interesting seed
-    max_new_seeds: 3
+    max_new_seeds: 1
     # Execution timeout in seconds
     timeout: 30
     # Use QEMU for execution (for cross-architecture)

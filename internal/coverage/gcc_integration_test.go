@@ -101,11 +101,31 @@ int main() {
 
 	// Create GCC compiler using the compiler module with PrefixPath support
 	compilerDir := filepath.Dir(cfg.Compiler.Path)
+
+	// Build CFlags based on whether this is cross-compilation
+	cflags := []string{"-fstack-protector-all", "-O0"}
+	if cfg.Compiler.Fuzz.UseQEMU && cfg.Compiler.Fuzz.QEMUSysroot != "" {
+		// Cross-compilation: add sysroot and library paths
+		sysroot := cfg.Compiler.Fuzz.QEMUSysroot
+		cflags = append(cflags, "--sysroot="+sysroot)
+
+		// -B for GCC runtime libraries (crtbegin.o, libgcc, etc.)
+		installPrefix := filepath.Dir(filepath.Dir(sysroot))
+		gccLibPath := filepath.Join(installPrefix, "lib", "gcc", "aarch64-none-linux-gnu", "12.2.1")
+		cflags = append(cflags, "-B"+gccLibPath)
+
+		// -L for libgcc_s
+		libgccSPath := filepath.Join(installPrefix, "aarch64-none-linux-gnu", "lib64")
+		cflags = append(cflags, "-L"+libgccSPath)
+
+		t.Logf("Cross-compilation mode: sysroot=%s", sysroot)
+	}
+
 	gccCompiler := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
 		GCCPath:    cfg.Compiler.Path,
 		WorkDir:    seedDir,
 		PrefixPath: compilerDir, // -B flag for finding cc1, as, ld
-		CFlags:     []string{"-fstack-protector-all", "-O0"},
+		CFlags:     cflags,
 	})
 	t.Logf("Created GCC compiler with path: %s, prefix: %s", cfg.Compiler.Path, compilerDir)
 

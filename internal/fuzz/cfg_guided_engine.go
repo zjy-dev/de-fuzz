@@ -269,6 +269,10 @@ func (e *CFGGuidedEngine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Pre-allocate ID for the new seed before compilation
+	// This ensures the seed has a valid ID when being compiled
+	newSeed.Meta.ID = e.cfg.Corpus.AllocateID()
+
 	return newSeed, nil
 }
 

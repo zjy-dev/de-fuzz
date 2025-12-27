@@ -22,6 +22,7 @@ type MockCorpusManager struct {
 	recoverFn     func() error
 	addFn         func(s *seed.Seed) error
 	reportResults []corpus.FuzzResult
+	nextID        uint64
 }
 
 func (m *MockCorpusManager) Initialize() error {
@@ -44,6 +45,11 @@ func (m *MockCorpusManager) Add(s *seed.Seed) error {
 	}
 	m.seeds = append(m.seeds, s)
 	return nil
+}
+
+func (m *MockCorpusManager) AllocateID() uint64 {
+	m.nextID++
+	return m.nextID
 }
 
 func (m *MockCorpusManager) Next() (*seed.Seed, bool) {

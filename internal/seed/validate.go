@@ -3,6 +3,7 @@ package seed
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -163,8 +164,27 @@ func ParseCodeOnlyFromLLMResponse(response string) (string, error) {
 	return sourceCode, nil
 }
 
-// stripMarkdownCodeBlocks removes markdown code block markers (```c, ```, etc.)
+// stripMarkdownCodeBlocks extracts code from markdown code blocks or strips markers.
+// If the response contains code blocks (```...```), it extracts only the code inside.
+// If no code blocks are found, it returns the original text with any stray ``` markers removed.
 func stripMarkdownCodeBlocks(code string) string {
+	// First, try to extract code from markdown code blocks
+	// Pattern: ```[language]\n...code...\n```
+	codeBlockRegex := regexp.MustCompile("(?s)```(?:c|cpp|C|CPP)?\\s*\\n(.+?)\\n?```")
+	matches := codeBlockRegex.FindAllStringSubmatch(code, -1)
+
+	if len(matches) > 0 {
+		// Extract and concatenate all code blocks
+		var codeBlocks []string
+		for _, match := range matches {
+			if len(match) > 1 {
+				codeBlocks = append(codeBlocks, strings.TrimSpace(match[1]))
+			}
+		}
+		return strings.TrimSpace(strings.Join(codeBlocks, "\n\n"))
+	}
+
+	// No code blocks found, fall back to removing stray ``` markers
 	lines := strings.Split(code, "\n")
 	var result []string
 

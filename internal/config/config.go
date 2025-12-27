@@ -50,6 +50,15 @@ type FuzzConfig struct {
 
 	// QEMUSysroot is the sysroot path for QEMU (-L argument)
 	QEMUSysroot string `mapstructure:"qemu_sysroot"`
+
+	// CFGFilePath is the path to the GCC CFG dump file (optional)
+	// Used for CFG-guided coverage analysis and target function tracking
+	// Example: "/path/to/gcc-build/gcc/cfgexpand.cc.015t.cfg"
+	CFGFilePath string `mapstructure:"cfg_file_path"`
+
+	// MappingPath is the path to store/load coverage mapping (optional)
+	// If empty, defaults to {output_dir}/state/coverage_mapping.json
+	MappingPath string `mapstructure:"mapping_path"`
 }
 
 // InternalLLMConfig is used for unmarshaling the config.yaml which only contains the provider string
@@ -107,6 +116,10 @@ type CompilerConfig struct {
 	// GcovrCommand is the complete gcovr command template (optional)
 	// If empty, a default command will be constructed from other config values
 	GcovrCommand string `mapstructure:"gcovr_command"`
+
+	// CFlags are additional compiler flags to pass to GCC
+	// Example: ["-fstack-protector-strong", "-O0", "-B/path/to/lib"]
+	CFlags []string `mapstructure:"cflags"`
 
 	// TotalReportPath is the path to store accumulated coverage report (optional)
 	// If empty, defaults to {output_dir}/state/total.json for resume capability
@@ -172,8 +185,15 @@ func Load(configFileName string, result interface{}) error {
 				return fmt.Errorf("failed to unmarshal compiler config: %w", err)
 			}
 		}
-		// Note: We intentionally do NOT parse 'targets' or other top-level fields
-		// as they are meant for external tools like gcovr-json-util
+		// Also parse top-level 'targets' field for CFG-guided fuzzing
+		// The 'targets' field specifies which source files and functions to focus on
+		if v.IsSet("targets") {
+			var targets []TargetFunction
+			if err := v.UnmarshalKey("targets", &targets); err != nil {
+				return fmt.Errorf("failed to unmarshal targets config: %w", err)
+			}
+			compCfg.Targets = targets
+		}
 		return nil
 	}
 
@@ -273,6 +293,16 @@ func LoadConfig() (*Config, error) {
 	// Other top-level objects (like 'targets') are ignored as they're for external tools
 	if err := compilerViper.UnmarshalKey("compiler", &cfg.Compiler); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal compiler config: %w", err)
+	}
+
+	// Also parse top-level 'targets' field for CFG-guided fuzzing
+	// The 'targets' field specifies which source files and functions to focus on
+	if compilerViper.IsSet("targets") {
+		var targets []TargetFunction
+		if err := compilerViper.UnmarshalKey("targets", &targets); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal targets config: %w", err)
+		}
+		cfg.Compiler.Targets = targets
 	}
 
 	// Set defaults for fuzz config if not specified

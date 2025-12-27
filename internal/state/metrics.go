@@ -42,6 +42,10 @@ type FuzzMetrics struct {
 	TotalCoveredLines int     `json:"total_covered_lines"` // Total covered lines
 	TotalLines        int     `json:"total_lines"`         // Total lines in source
 
+	// Target function coverage (if using CFG-guided fuzzing)
+	TargetTotalLines   int `json:"target_total_lines,omitempty"`   // Total lines in target functions
+	TargetCoveredLines int `json:"target_covered_lines,omitempty"` // Covered lines in target functions
+
 	// Performance
 	AvgSeedTimeMs  float64 `json:"avg_seed_time_ms"` // Average time per seed in ms
 	SeedsPerSecond float64 `json:"seeds_per_second"` // Seeds processed per second
@@ -70,6 +74,8 @@ type MetricsManager interface {
 	RecordLLMError()
 	RecordSeedGenerated()
 	UpdateCoverageStats(percentage float64, covered, total int)
+	SetTargetFunctionLines(total int) // Set total lines in target functions
+	UpdateTargetCoverage(covered int) // Update covered lines in target functions
 	UpdateTiming()
 
 	// Formatted output
@@ -242,6 +248,21 @@ func (m *FileMetricsManager) UpdateCoverageStats(percentage float64, covered, to
 	m.metrics.CurrentCoverage = percentage
 	m.metrics.TotalCoveredLines = covered
 	m.metrics.TotalLines = total
+}
+
+// SetTargetFunctionLines sets the total number of lines in target functions.
+// This should be called once during initialization when using CFG-guided fuzzing.
+func (m *FileMetricsManager) SetTargetFunctionLines(total int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.metrics.TargetTotalLines = total
+}
+
+// UpdateTargetCoverage updates the covered lines count for target functions.
+func (m *FileMetricsManager) UpdateTargetCoverage(covered int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.metrics.TargetCoveredLines = covered
 }
 
 // UpdateTiming updates the elapsed time and performance metrics.

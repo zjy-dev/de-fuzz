@@ -1,0 +1,100 @@
+pp_set_prefix(); 
+} /* pretty_printer::pretty_printer */ 
+file_cache::file_cache(); 
+diagnostic_option_classifier::init(); 
+get_terminal_width(); 
+make_compiler_data_hooks(); 
+diagnostic_context::set_client_data_hooks(); 
+make_gcc_urlifier(); 
+ht_create(); 
+ht_create(); 
+htab_create(); 
+} /* linemap_init */ 
+init_reg_sets(); 
+gcc::dump_manager::dump_manager(); 
+} /* gcc::context::context */ 
+opt_pass::opt_pass(); 
+} /* make_pass_warn_unused_result */ 
+opt_pass::opt_pass(); 
+} /* make_pass_diagnose_omp_blocks */ 
+opt_pass::opt_pass(); 
+} /* make_pass_diagnose_tm_blocks */ 
+opt_pass::opt_pass(); 
+} /* make_pass_omp_oacc_kernels_decompose */ 
+opt_pass::opt_pass(); 
+} /* make_pass_lower_omp */ 
+opt_pass::opt_pass(); 
+} /* make_pass_lower_cf */ 
+opt_pass::opt_pass(); 
+} /* make_pass_lower_tm */ 
+opt_pass::opt_pass(); 
+} /* make_pass_refactor_eh */ 
+opt_pass::opt_pass(); 
+} /* make_pass_lower_eh */ 
+opt_pass::opt_pass(); 
+} /* make_pass_coroutine_lower_builtins */ 
+opt_pass::opt_pass(); 
+} /* make_pass_build_cfg */ 
+opt_pass::opt_pass(); 
+} /* make_pass_warn_function_return */ 
+opt_pass::opt_pass(); 
+} /* make_pass_coroutine_early_expand_ifns */ 
+opt_pass::opt_pass(); 
+} /* make_pass_expand_omp */ 
+opt_pass::opt_pass(); 
+} /* make_pass_build_cgraph_edges */ 
+opt_pass::opt_pass(); 
+} /* make_pass_ipa_free_lang_data */ 
+opt_pass::opt_pass(); 
+} /* make_pass_ipa_function_and_variable_visibility */ 
+opt_pass::opt_pass(); 
+} /* make_pass_ipa_strub_mode */ 
+make_pass_build_ssa_passes(); 
+opt_pass::opt_pass(); 
+} /* make_pass_fixup_cfg */ 
+opt_pass::opt_pass(); 
+} /* make_pass_build_ssa */ 
+opt_pass::opt_pass(); 
+} /* make_pass_walloca */ 
+opt_pass::opt_pass(); 
+} /* make_pass_warn_printf */ 
+opt_pass::opt_pass(); 
+} /* make_pass_warn_nonnull_compare */ 
+opt_pass::opt_pass(); 
+} /* make_pass_early_warn_uninitialized */ 
+opt_pass::opt_pass(); 
+pointer_query::pointer_query(); 
+} /* make_pass_warn_access */ 
+opt_pass::opt_pass(); 
+} /* make_pass_ubsan */ 
+opt_pass::opt_pass(); 
+} /* make_pass_nothrow */ 
+opt_pass::opt_pass(); 
+} /* make_pass_rebuild_cgraph_edges */ 
+make_pass_local_optimization_passes(); 
+opt_pass::opt_pass(); 
+opt_pass::opt_pass(); 
+opt_pass::opt_pass(); 
+} /* make_pass_local_fn_summary */ 
+opt_pass::opt_pass(); 
+} /* make_pass_early_inline */ 
+opt_pass::opt_pass(); 
+} /* make_pass_warn_recursion */ 
+opt_pass::opt_pass(); 
+} /* make_pass_remove_cgraph_callee_edges */ 
+opt_pass::opt_pass(); 
+} /* make_pass_early_object_sizes */ 
+opt_pass::opt_pass(); 
+} /* make_pass_ccp */ 
+opt_pass::opt_pass(); 
+} /* make_pass_forwprop */ 
+opt_pass::opt_pass(); 
+} /* make_pass_early_thread_jumps */ 
+opt_pass::opt_pass(); 
+} /* make_pass_sra_early */ 
+opt_pass::opt_pass(); 
+} /* make_pass_build_ealias */ 
+opt_pass::opt_pass(); 
+} /* make_pass_phiprop */ 
+opt_pass::opt_pass(); 
+} /* make_pass_fre */ 

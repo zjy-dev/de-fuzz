@@ -266,14 +266,33 @@ func (t *TerminalUI) formatRow(width int, label, value string, valueColor string
 }
 
 // formatCoverageBar formats a coverage progress bar.
+// If target function lines are set, shows both target and global coverage.
 func (t *TerminalUI) formatCoverageBar(width int, m *FuzzMetrics) string {
 	var sb strings.Builder
+
+	// Determine which coverage to display
+	// Priority: Target function coverage > Global coverage
+	displayCovered := m.TotalCoveredLines
+	displayTotal := m.TotalLines
+	coverageType := "Global"
+
+	if m.TargetTotalLines > 0 {
+		displayCovered = m.TargetCoveredLines
+		displayTotal = m.TargetTotalLines
+		coverageType = "Target"
+	}
+
+	// Calculate percentage for display
+	displayPercent := 0.0
+	if displayTotal > 0 {
+		displayPercent = float64(displayCovered) / float64(displayTotal) * 100
+	}
 
 	// Label row
 	sb.WriteString(t.colorize(boxVertical, colorCyan))
 	sb.WriteString(" ")
 
-	coverageLabel := fmt.Sprintf("Coverage: %.2f%% (%d/%d lines)", m.CurrentCoverage, m.TotalCoveredLines, m.TotalLines)
+	coverageLabel := fmt.Sprintf("%s Coverage: %.2f%% (%d/%d lines)", coverageType, displayPercent, displayCovered, displayTotal)
 	sb.WriteString(t.colorize(coverageLabel, colorWhite))
 	sb.WriteString(strings.Repeat(" ", width-3-len(coverageLabel)))
 	sb.WriteString(t.colorize(boxVertical, colorCyan))
@@ -285,8 +304,8 @@ func (t *TerminalUI) formatCoverageBar(width int, m *FuzzMetrics) string {
 
 	barWidth := width - 6
 	filledWidth := 0
-	if m.TotalLines > 0 {
-		filledWidth = int(float64(barWidth) * float64(m.TotalCoveredLines) / float64(m.TotalLines))
+	if displayTotal > 0 {
+		filledWidth = int(float64(barWidth) * float64(displayCovered) / float64(displayTotal))
 	}
 	if filledWidth > barWidth {
 		filledWidth = barWidth

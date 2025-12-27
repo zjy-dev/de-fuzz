@@ -482,6 +482,107 @@ Please provide a concise but informative analysis.
 	return prompt, nil
 }
 
+// DivergenceContext holds information about execution divergence for refined mutation.
+type DivergenceContext struct {
+	// Function names at the divergence point
+	BaseFunction    string
+	MutatedFunction string
+
+	// Index in call sequence where divergence occurred
+	DivergenceIndex int
+
+	// Common function calls before divergence
+	CommonPrefix []string
+
+	// Divergent paths after the divergence point
+	BasePath    []string
+	MutatedPath []string
+
+	// Formatted string for LLM (from DivergencePoint.ForLLM())
+	FormattedReport string
+}
+
+// BuildDivergenceRefinedPrompt constructs a prompt for refined mutation based on divergence analysis.
+// This is used when a mutated seed doesn't achieve the target coverage, and we want to guide
+// the LLM using function-level divergence information.
+func (b *Builder) BuildDivergenceRefinedPrompt(
+	baseSeed *seed.Seed,
+	mutatedSeed *seed.Seed,
+	divCtx *DivergenceContext,
+) (string, error) {
+	if baseSeed == nil || mutatedSeed == nil {
+		return "", fmt.Errorf("both baseSeed and mutatedSeed must be provided")
+	}
+
+	// Build output format based on MaxTestCases and FunctionTemplate
+	var outputFormat string
+	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
+		outputFormat = fmt.Sprintf(`**Output Format:**
+Output ONLY the function code, then "// ||||| JSON_TESTCASES_START |||||", then %d-%d test cases in JSON format.`, 1, b.MaxTestCases)
+	} else if b.FunctionTemplate != "" {
+		outputFormat = `**Output Format:**
+Output ONLY the function implementation code.`
+	} else if b.MaxTestCases > 0 {
+		outputFormat = `**Output Format:**
+Output C source code, then "// ||||| JSON_TESTCASES_START |||||", then JSON test cases.`
+	} else {
+		outputFormat = `**Output Format:**
+Output ONLY the mutated C source code.`
+	}
+
+	// Build divergence section
+	divergenceSection := ""
+	if divCtx != nil && divCtx.FormattedReport != "" {
+		divergenceSection = fmt.Sprintf(`
+[DIVERGENCE ANALYSIS]
+The previous mutation did not achieve the target coverage. Here's where the execution paths diverged:
+
+%s
+
+**What this means:**
+- The base seed (which covered our target) called function '%s'
+- Your mutated seed called function '%s' instead
+- To reach the target coverage, your mutation needs to take the same path as the base seed
+
+**Hint:** Look at the common prefix functions - these represent the shared execution path. 
+The divergence function names often indicate what kind of code pattern is being compiled differently.
+[/DIVERGENCE ANALYSIS]
+`, divCtx.FormattedReport, divCtx.BaseFunction, divCtx.MutatedFunction)
+	}
+
+	prompt := fmt.Sprintf(`
+[BASE SEED - This seed achieved the target coverage]
+%s
+[/BASE SEED]
+
+[YOUR PREVIOUS MUTATION - This did NOT achieve target coverage]
+%s
+[/YOUR PREVIOUS MUTATION]
+%s
+[TASK]
+Your previous mutation took a different execution path than the base seed. 
+Please create a NEW mutation that:
+1. Stays closer to the structure of the BASE SEED
+2. Makes smaller, more conservative changes
+3. Aims to trigger the same compiler code path as the base seed
+
+Think about what syntax or code patterns in the base seed caused it to reach the target.
+Your mutation should preserve those patterns while still introducing variation.
+
+%s
+
+**IMPORTANT:** Do NOT include markdown code blocks or explanations. Output only the code.
+`, baseSeed.Content, mutatedSeed.Content, divergenceSection, outputFormat)
+
+	logger.Debug("\n%s", strings.Repeat("=", 80))
+	logger.Debug("BuildDivergenceRefinedPrompt - Generated Prompt:")
+	logger.Debug("%s", strings.Repeat("-", 80))
+	logger.Debug("%s", prompt)
+	logger.Debug("%s\n", strings.Repeat("=", 80))
+
+	return prompt, nil
+}
+
 // ParseLLMResponse parses the LLM response based on the Builder's configuration.
 // It handles four modes:
 // 1. FunctionTemplate + TestCases mode: Extracts function code with test cases, merges into template

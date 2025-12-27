@@ -9,6 +9,12 @@ compiler:
   # gcovr command template (without --json output path)
   gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
 
+  # Compiler flags (CFlags)
+  # These flags are passed to GCC during compilation
+  cflags:
+    - "-fstack-protector-strong"  # Enable stack canary protection
+    - "-O0"                         # No optimization for better debugging
+
   # path to the total accumulated coverage report (optional)
   # If empty, defaults to {fuzz_output}/state/total.json for resume capability
   # This file stores accumulated coverage and is critical for checkpoint/resume
@@ -22,7 +28,7 @@ compiler:
     # Maximum number of fuzzing iterations (0 = unlimited)
     max_iterations: 0
     # Maximum new seeds to generate per interesting seed
-    max_new_seeds: 3
+    max_new_seeds: 1
     # Maximum number of test cases to generate per seed (0 = no test cases)
     # For canary oracle, test cases are not needed - the oracle analyzes binary behavior directly
     max_test_cases: 0
@@ -34,9 +40,11 @@ compiler:
     # Use QEMU for execution (for cross-architecture)
     use_qemu: false
     # Path to QEMU user-mode executable
-    qemu_path: "qemu-aarch64"
+    qemu_path: ""
     # Sysroot path for QEMU (-L argument)
     qemu_sysroot: ""
+    # CFG dump file path for target function analysis
+    cfg_file_path: "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 
   # Oracle configuration
   oracle:
@@ -75,27 +83,3 @@ targets:
       - "stack_protect_prologue"
       # 检查是否有使用返回槽的调用（-fstack-protector-strong 用）
       - "stack_protect_return_slot_p"
-
-  # function.cc - 栈保护 epilogue（函数退出时检查 canary）
-  - file: "gcc-releases-gcc-12.2.0/gcc/function.cc"
-    functions:
-      # 生成函数出口的 stack canary 检查代码，失败时调用 __stack_chk_fail
-      - "stack_protect_epilogue"
-
-  # targhooks.cc - 默认的 guard 值和失败处理
-  - file: "gcc-releases-gcc-12.2.0/gcc/targhooks.cc"
-    functions:
-      # 默认的 __stack_chk_guard 全局变量声明
-      - "default_stack_protect_guard"
-      # 默认的 __stack_chk_fail 函数调用生成
-      - "default_external_stack_protect_fail"
-      # 隐藏符号版本的 __stack_chk_fail_local（用于 PIC 代码）
-      - "default_hidden_stack_protect_fail"
-
-  # i386.cc - x86_64 特定的 guard 处理（TLS 段访问）
-  - file: "gcc-releases-gcc-12.2.0/gcc/config/i386/i386.cc"
-    functions:
-      # x86_64 特定的 guard 获取（通过 fs/gs 段寄存器访问 TLS）
-      - "ix86_stack_protect_guard"
-      # x86_64 特定的失败处理
-      - "ix86_stack_protect_fail"

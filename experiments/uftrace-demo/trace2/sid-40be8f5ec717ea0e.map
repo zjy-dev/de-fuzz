@@ -1,0 +1,15 @@
+400000-46b000 r-xp 00000000 00:00 0                          /usr/libexec/gcc/x86_64-linux-gnu/14/collect2 build-id:6b54b74ad753520fbb684d11604c37a326feae9f
+7bdc48a00000-7bdc49049000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libcapstone.so.4 build-id:ad1d96e6290fa4a1e84876af311f093cfffda514
+7bdc49200000-7bdc4947a000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.33 build-id:ca77dae775ec87540acd7218fa990c40d1c94ab1
+7bdc494e4000-7bdc494f8000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libbz2.so.1.0.4 build-id:1894aac4398509365349cf4f1d9c98bef58527e7
+7bdc494f8000-7bdc4952a000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/liblzma.so.5.4.5 build-id:f07c9fea905a3cd52a7fbd46fabf0c5b73b30f65
+7bdc4952a000-7bdc495e4000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libzstd.so.1.5.5 build-id:2eb24b0ff23c45cba38f7fdf72e16b529ddbd353
+7bdc495e4000-7bdc49600000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libz.so.1.3 build-id:bbefe2bbdc367b0c3cfbfcf80c579930496fb963
+7bdc49600000-7bdc49805000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libc.so.6 build-id:274eec488d230825a136fa9c4d85370fed7a0a5e
+7bdc49819000-7bdc49847000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 build-id:3072445288dd2aba348bf583c65f70509aab8141
+7bdc49847000-7bdc49930000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libm.so.6 build-id:f834d7308d2660218ed4f7486a58e28c8464fe4b
+7bdc49932000-7bdc499e6000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libdw-0.190.so build-id:f42ea1acec449b8cf6b9ab42d6a2a3dfa9df6f78
+7bdc499e6000-7bdc49a05000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/libelf-0.190.so build-id:bb9b8ea33788154ebd8ffbf9cb89ea2f5608cdb2
+7bdc49a15000-7bdc49a5d000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/uftrace/libmcount.so build-id:eb47caa6b2f2e586377d4c7d38fbf351b963844f
+7bdc49a60000-7bdc49a9a000 r-xp 00000000 00:00 0                          /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 build-id:520e05878220fb2fc6d28ff46b63b3fd5d48e763
+7ffdf8138000-7ffdf815b000 rw-p 00000000 00:00 0                          [stack]

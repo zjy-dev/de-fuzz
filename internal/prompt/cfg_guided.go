@@ -83,10 +83,11 @@ The following is the function code with coverage annotations:
 	// Build the base seed section
 	baseSeedSection := ""
 	if ctx.BaseSeedCode != "" {
-		baseSeedSection = fmt.Sprintf(`## Example Seed (Base)
+		baseSeedSection = fmt.Sprintf(`## Base Seed (MUST MODIFY)
 
-This seed covers line %d, which is close to your target (lines %v).
-Study this seed and modify it to reach the target lines.
+This is your starting point. This seed covers line %d, which is close to your target (lines %v).
+**You MUST modify this seed to reach the target lines. Do NOT write a completely new program.**
+**Keep the same program structure and main() function. Only modify what's necessary to reach the target.**
 
 %s
 %s
@@ -98,7 +99,69 @@ Study this seed and modify it to reach the target lines.
 	// Build output format based on configuration
 	outputFormat := b.getOutputFormat()
 
-	prompt := fmt.Sprintf(`You are an expert at generating test cases for compiler fuzzing. Your task is to create a C program that will trigger specific code paths in the compiler.
+	// Build CRITICAL RULES section based on mode
+	criticalRules := ""
+	if b.FunctionTemplate != "" {
+		criticalRules = `**CRITICAL RULES (Function Template Mode):**
+- **You are generating ONLY the seed() function body.**
+- **DO NOT generate main() function.** The template already provides main().
+- **DO NOT generate #include statements.** The template already has them.
+- **DO NOT generate a complete program.** Only the seed() function.
+- Focus on modifying the seed() function to trigger different compiler paths.`
+	} else {
+		criticalRules = `**CRITICAL RULES:**
+- **DO NOT create a new program from scratch.** You must modify the provided base seed.
+- **DO NOT add a new main() function.** The base seed already has one.
+- **Keep the same overall structure.** Only change what's necessary to reach the target.
+- Focus on modifying variables, conditions, or adding small code snippets.`
+	}
+
+	// Build output example based on mode
+	outputExample := ""
+	if b.FunctionTemplate != "" {
+		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
+
+**DO NOT include ANY explanations, analysis, or natural language text in your response.**
+**Output ONLY the seed() function inside a markdown code block.**
+**NO text before or after the code block.**
+**NO main() function. NO #include statements.**
+
+Example of CORRECT output:
+%s
+void seed(int fill_size) {
+    char buffer[64];
+    // Your modifications here
+    memset(buffer, 'A', fill_size);
+}
+%s
+
+Example of WRONG output (DO NOT DO THIS):
+%s
+#include <stdio.h>  // WRONG - no includes
+void seed(...) { }
+int main() { }  // WRONG - no main function
+%s
+`, "```c", "```", "```c", "```")
+	} else {
+		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
+
+**DO NOT include ANY explanations, analysis, or natural language text in your response.**
+**Output ONLY the code inside a markdown code block.**
+**NO text before or after the code block.**
+
+Example of CORRECT output format:
+%s
+// your modified C code here
+int main() { ... }
+%s
+
+Example of WRONG output (DO NOT DO THIS):
+Here is my analysis... [WRONG - no explanations allowed]
+The code works by... [WRONG - no descriptions allowed]
+`, "```c", "```")
+	}
+
+	prompt := fmt.Sprintf(`You are an expert at generating test cases for compiler fuzzing. Your task is to MODIFY an existing C program to trigger specific code paths in the compiler.
 
 %s
 %s
@@ -106,8 +169,10 @@ Study this seed and modify it to reach the target lines.
 ## Your Task
 
 1. Analyze the target basic block and understand what conditions would cause the compiler to take that code path.
-2. Study the example seed that reaches nearby code.
-3. Modify or create a new C program that will cause the compiler to execute the target lines (%v).
+2. Study the base seed that reaches nearby code.
+3. **MODIFY the base seed** to cause the compiler to execute the target lines (%v).
+
+%s
 
 **Key Insights:**
 - The target is in function %s at BB%d with %d possible branches.
@@ -116,19 +181,18 @@ Study this seed and modify it to reach the target lines.
 
 %s
 
-**Important:**
-- Output ONLY the C source code (and test cases if required).
-- The code must be compilable with GCC.
-- Make sure the code triggers the specific compiler behavior you're targeting.
+%s
 `,
 		targetDesc,
 		functionCodeSection,
 		baseSeedSection,
 		ctx.TargetLines,
+		criticalRules,
 		ctx.TargetFunction,
 		ctx.TargetBBID,
 		ctx.SuccessorCount,
 		outputFormat,
+		outputExample,
 	)
 
 	return prompt, nil
@@ -193,9 +257,11 @@ The following seed was tried but did NOT reach the target:
 	// Build base seed section
 	baseSeedSection := ""
 	if ctx.BaseSeedCode != "" {
-		baseSeedSection = fmt.Sprintf(`## Working Example
+		baseSeedSection = fmt.Sprintf(`## Base Seed (MUST MODIFY)
 
-This seed successfully reaches line %d (near the target):
+This seed successfully reaches line %d (near the target).
+**You MUST modify this seed to reach the target. Do NOT create a new program from scratch.**
+**Keep the same program structure and main() function. Only modify what's necessary.**
 
 %s
 %s
@@ -206,7 +272,68 @@ This seed successfully reaches line %d (near the target):
 
 	outputFormat := b.getOutputFormat()
 
-	prompt := fmt.Sprintf(`You are an expert at debugging and refining compiler test cases. A previous attempt to reach a specific code path failed. Your task is to analyze why and create a better solution.
+	// Build CRITICAL RULES section based on mode
+	criticalRules := ""
+	if b.FunctionTemplate != "" {
+		criticalRules = `**CRITICAL RULES (Function Template Mode):**
+- **You are generating ONLY the seed() function body.**
+- **DO NOT generate main() function.** The template already provides main().
+- **DO NOT generate #include statements.** The template already has them.
+- **DO NOT generate a complete program.** Only the seed() function.
+- Focus on modifying the seed() function to trigger different compiler paths.`
+	} else {
+		criticalRules = `**CRITICAL RULES:**
+- **DO NOT create a new program from scratch.** You must modify the provided base seed.
+- **DO NOT add a new main() function.** The base seed already has one.
+- **Keep the same overall structure.** Only change what's necessary to reach the target.`
+	}
+
+	// Build output example based on mode
+	outputExample := ""
+	if b.FunctionTemplate != "" {
+		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
+
+**DO NOT include ANY explanations, analysis, or natural language text in your response.**
+**Output ONLY the seed() function inside a markdown code block.**
+**NO text before or after the code block.**
+**NO main() function. NO #include statements.**
+
+Example of CORRECT output:
+%s
+void seed(int fill_size) {
+    char buffer[64];
+    // Your modifications here
+    memset(buffer, 'A', fill_size);
+}
+%s
+
+Example of WRONG output (DO NOT DO THIS):
+%s
+#include <stdio.h>  // WRONG - no includes
+void seed(...) { }
+int main() { }  // WRONG - no main function
+%s
+`, "```c", "```", "```c", "```")
+	} else {
+		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
+
+**DO NOT include ANY explanations, analysis, or natural language text in your response.**
+**Output ONLY the code inside a markdown code block.**
+**NO text before or after the code block.**
+
+Example of CORRECT output format:
+%s
+// your modified C code here
+int main() { ... }
+%s
+
+Example of WRONG output (DO NOT DO THIS):
+Here is my analysis... [WRONG - no explanations allowed]
+The code works by... [WRONG - no descriptions allowed]
+`, "```c", "```")
+	}
+
+	prompt := fmt.Sprintf(`You are an expert at debugging and refining compiler test cases. A previous attempt to reach a specific code path failed. Your task is to analyze why and MODIFY the base seed to create a better solution.
 
 %s
 %s
@@ -216,7 +343,9 @@ This seed successfully reaches line %d (near the target):
 
 1. Understand why the previous mutation diverged at %s.
 2. Study the divergence point code to see what conditions caused the wrong branch.
-3. Modify your approach to avoid the divergence and reach the target.
+3. **MODIFY the base seed** to avoid the divergence and reach the target.
+
+%s
 
 **Strategy:**
 - Focus on the condition at the divergence point.
@@ -225,19 +354,16 @@ This seed successfully reaches line %d (near the target):
 
 %s
 
-**Important:**
-- Output ONLY the C source code (and test cases if required).
-- Learn from the failed attempt - don't make the same mistake.
-- The goal is to reach lines %v in function %s.
+%s
 `,
 		divergenceSection,
 		failedSection,
 		targetReminder,
 		baseSeedSection,
 		div.DivergentFunction,
+		criticalRules,
 		outputFormat,
-		ctx.TargetLines,
-		ctx.TargetFunction,
+		outputExample,
 	)
 
 	return prompt, nil
@@ -248,20 +374,52 @@ func (b *Builder) getOutputFormat() string {
 	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format
 
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
 Output ONLY:
-1. The function implementation
+1. The seed() function implementation
 2. Followed by test cases in JSON format
 
-Example:
-[function body code]
+Example of CORRECT output:
+%s
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+%s
 // ||||| JSON_TESTCASES_START |||||
-[{"running command": "./prog", "expected result": "..."}]
+[{"running command": "./prog 100", "expected result": "..."}]
 
-Maximum %d test case(s).`, b.MaxTestCases)
+Maximum %d test case(s).`, "```c", "```", b.MaxTestCases)
 	} else if b.FunctionTemplate != "" {
 		return `## Output Format
 
-Output ONLY the function implementation (no test cases needed).`
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
+Example of CORRECT output:
+` + "```c" + `
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+` + "```" + `
+
+Example of WRONG output (DO NOT DO THIS):
+` + "```c" + `
+#include <stdio.h>
+void seed(int fill_size) { ... }
+int main() { ... }  // WRONG! Do not include main()
+` + "```"
 	} else if b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format
 

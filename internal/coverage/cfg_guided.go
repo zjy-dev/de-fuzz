@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/zjy-dev/de-fuzz/internal/logger"
 )
 
 // TargetInfo represents a target basic block with context for fuzzing.
@@ -86,6 +88,8 @@ func (a *CFGGuidedAnalyzer) GetMapping() *CoverageMapping {
 
 // RecordCoverage records coverage for a seed based on covered lines.
 // coveredLines is a list of "File:Line" strings from gcovr output.
+// If sourceDir is set, relative paths from gcovr are converted to absolute paths
+// to match the paths used in CFG files.
 func (a *CFGGuidedAnalyzer) RecordCoverage(seedID int64, coveredLines []string) {
 	lineIDs := make([]LineID, 0, len(coveredLines))
 	for _, line := range coveredLines {
@@ -94,7 +98,14 @@ func (a *CFGGuidedAnalyzer) RecordCoverage(seedID int64, coveredLines []string) 
 			var lineNum int
 			fmt.Sscanf(parts[1], "%d", &lineNum)
 			if lineNum > 0 {
-				lineIDs = append(lineIDs, LineID{File: parts[0], Line: lineNum})
+				filePath := parts[0]
+				// Convert relative path to absolute if sourceDir is set
+				// gcovr outputs paths like "gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
+				// CFG files use absolute paths like "/root/.../gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
+				if a.sourceDir != "" && !filepath.IsAbs(filePath) {
+					filePath = filepath.Join(a.sourceDir, filePath)
+				}
+				lineIDs = append(lineIDs, LineID{File: filePath, Line: lineNum})
 			}
 		}
 	}
@@ -108,17 +119,20 @@ func (a *CFGGuidedAnalyzer) GetCoveredLines() map[LineID]bool {
 
 // SelectTarget selects the best uncovered basic block to target.
 // Returns nil if all basic blocks in target functions are covered.
+// Uses predecessor-based base seed selection: finds a covered predecessor BB
+// and uses the seed that covered it as the base.
 func (a *CFGGuidedAnalyzer) SelectTarget() *TargetInfo {
 	coveredLines := a.GetCoveredLines()
+	logger.Debug("[CFGGuided] Selecting target with %d covered lines", len(coveredLines))
 
 	candidate := a.cfgAnalyzer.SelectTargetBB(a.targetFunctions, coveredLines)
 	if candidate == nil {
+		logger.Debug("[CFGGuided] No uncovered BBs found - all covered!")
 		return nil
 	}
 
-	// Find the closest covered seed as a base
-	targetLine := candidate.Lines[0]
-	baseLine, baseSeedID, found := a.mapping.FindClosestCoveredLine(candidate.File, targetLine)
+	logger.Debug("[CFGGuided] Selected candidate: %s:BB%d (weight=%.2f, succs=%d, preds=%v)",
+		candidate.Function, candidate.BBID, candidate.Weight, candidate.SuccessorCount, candidate.Predecessors)
 
 	info := &TargetInfo{
 		Function:       candidate.Function,
@@ -128,19 +142,79 @@ func (a *CFGGuidedAnalyzer) SelectTarget() *TargetInfo {
 		File:           candidate.File,
 	}
 
+	// Try to find a base seed from a covered predecessor BB
+	baseSeedID, baseLine, found := a.findCoveredPredecessorSeed(candidate)
+
 	if found {
 		info.BaseSeed = fmt.Sprintf("%d", baseSeedID)
 		info.BaseSeedLine = baseLine.Line
-		// Estimate distance
-		if baseLine.Line > 0 && targetLine > 0 {
-			info.DistanceFromBase = abs(targetLine - baseLine.Line)
+		info.DistanceFromBase = 1 // Direct predecessor
+		logger.Debug("[CFGGuided] Found predecessor-based base seed: %d (line %d)", baseSeedID, baseLine.Line)
+	} else {
+		// Fallback: use closest covered line approach
+		targetLine := candidate.Lines[0]
+		baseLine, baseSeedID, found := a.mapping.FindClosestCoveredLine(candidate.File, targetLine)
+		if found {
+			info.BaseSeed = fmt.Sprintf("%d", baseSeedID)
+			info.BaseSeedLine = baseLine.Line
+			if baseLine.Line > 0 && targetLine > 0 {
+				info.DistanceFromBase = abs(targetLine - baseLine.Line)
+			}
+			logger.Debug("[CFGGuided] Using fallback closest-line base seed: %d (line %d, distance=%d)",
+				baseSeedID, baseLine.Line, info.DistanceFromBase)
+		} else {
+			logger.Debug("[CFGGuided] No base seed found")
 		}
 	}
 
 	return info
 }
 
+// findCoveredPredecessorSeed finds a seed that covered a predecessor of the given BB.
+// Returns the seed ID, the covered line in the predecessor, and whether a seed was found.
+func (a *CFGGuidedAnalyzer) findCoveredPredecessorSeed(candidate *BBCandidate) (int64, LineID, bool) {
+	coveredLines := a.GetCoveredLines()
+
+	// Get covered predecessors
+	coveredPreds := a.cfgAnalyzer.GetCoveredPredecessors(
+		candidate.Function, candidate.BBID, coveredLines,
+	)
+
+	if len(coveredPreds) == 0 {
+		return 0, LineID{}, false
+	}
+
+	// Get the function to access predecessor blocks
+	fn, ok := a.cfgAnalyzer.GetFunction(candidate.Function)
+	if !ok {
+		return 0, LineID{}, false
+	}
+
+	// Find a seed that covered any line in any covered predecessor
+	for _, predID := range coveredPreds {
+		predBB, ok := fn.Blocks[predID]
+		if !ok {
+			continue
+		}
+
+		// Look for a covered line in this predecessor and its seed
+		for _, lineNum := range predBB.Lines {
+			lid := LineID{File: predBB.File, Line: lineNum}
+			if coveredLines[lid] {
+				seedID, found := a.mapping.GetSeedForLine(lid)
+				if found {
+					return seedID, lid, true
+				}
+			}
+		}
+	}
+
+	return 0, LineID{}, false
+}
+
 // GetFunctionCoverage returns BB coverage statistics for target functions.
+// GetFunctionCoverage returns BB coverage statistics for target functions.
+// Note: This returns BB counts, not line counts. Use GetFunctionLineCoverage for lines.
 func (a *CFGGuidedAnalyzer) GetFunctionCoverage() map[string]struct{ Covered, Total int } {
 	coveredLines := a.GetCoveredLines()
 	result := make(map[string]struct{ Covered, Total int })
@@ -153,6 +227,39 @@ func (a *CFGGuidedAnalyzer) GetFunctionCoverage() map[string]struct{ Covered, To
 	return result
 }
 
+// GetFunctionLineCoverage returns line coverage statistics for target functions.
+func (a *CFGGuidedAnalyzer) GetFunctionLineCoverage() map[string]struct{ Covered, Total int } {
+	coveredLines := a.GetCoveredLines()
+	result := make(map[string]struct{ Covered, Total int })
+
+	for _, funcName := range a.targetFunctions {
+		covered, total := a.cfgAnalyzer.GetFunctionLineCoverage(funcName, coveredLines)
+		result[funcName] = struct{ Covered, Total int }{covered, total}
+	}
+
+	return result
+}
+
+// GetTotalTargetLines returns the total number of unique source lines across all target functions.
+func (a *CFGGuidedAnalyzer) GetTotalTargetLines() int {
+	total := 0
+	for _, funcName := range a.targetFunctions {
+		total += a.cfgAnalyzer.GetFunctionTotalLines(funcName)
+	}
+	return total
+}
+
+// GetTotalCoveredTargetLines returns the total number of covered lines across all target functions.
+func (a *CFGGuidedAnalyzer) GetTotalCoveredTargetLines() int {
+	coveredLines := a.GetCoveredLines()
+	total := 0
+	for _, funcName := range a.targetFunctions {
+		covered, _ := a.cfgAnalyzer.GetFunctionLineCoverage(funcName, coveredLines)
+		total += covered
+	}
+	return total
+}
+
 // GetAllUncoveredBBs returns all uncovered BBs across target functions, sorted by priority.
 func (a *CFGGuidedAnalyzer) GetAllUncoveredBBs() []BBCandidate {
 	coveredLines := a.GetCoveredLines()
@@ -163,10 +270,10 @@ func (a *CFGGuidedAnalyzer) GetAllUncoveredBBs() []BBCandidate {
 		allUncovered = append(allUncovered, uncovered...)
 	}
 
-	// Sort by successor count descending
+	// Sort by weight descending (includes decay factor)
 	sort.Slice(allUncovered, func(i, j int) bool {
-		if allUncovered[i].SuccessorCount != allUncovered[j].SuccessorCount {
-			return allUncovered[i].SuccessorCount > allUncovered[j].SuccessorCount
+		if allUncovered[i].Weight != allUncovered[j].Weight {
+			return allUncovered[i].Weight > allUncovered[j].Weight
 		}
 		return allUncovered[i].BBID < allUncovered[j].BBID
 	})
@@ -277,4 +384,30 @@ func abs(x int) int {
 		return -x
 	}
 	return x
+}
+
+// RecordAttempt records a fuzz attempt for a target basic block.
+// After 64 failed attempts, the BB's weight is reduced by 10%.
+func (a *CFGGuidedAnalyzer) RecordAttempt(target *TargetInfo) {
+	a.cfgAnalyzer.RecordAttempt(target.Function, target.BBID)
+}
+
+// RecordSuccess records a successful coverage of a target basic block.
+func (a *CFGGuidedAnalyzer) RecordSuccess(target *TargetInfo) {
+	a.cfgAnalyzer.RecordSuccess(target.Function, target.BBID)
+}
+
+// GetBBWeight returns the current weight for a target.
+func (a *CFGGuidedAnalyzer) GetBBWeight(target *TargetInfo) float64 {
+	return a.cfgAnalyzer.GetBBWeight(target.Function, target.BBID)
+}
+
+// GetBBAttempts returns the current attempt count for a target.
+func (a *CFGGuidedAnalyzer) GetBBAttempts(target *TargetInfo) int {
+	return a.cfgAnalyzer.GetBBAttempts(target.Function, target.BBID)
+}
+
+// GetCFGAnalyzer returns the underlying CFGAnalyzer.
+func (a *CFGGuidedAnalyzer) GetCFGAnalyzer() *CFGAnalyzer {
+	return a.cfgAnalyzer
 }

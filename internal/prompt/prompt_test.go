@@ -281,3 +281,86 @@ func TestBuilder_RequiresTestCases(t *testing.T) {
 		assert.False(t, builder.RequiresTestCases())
 	})
 }
+
+func TestBuilder_BuildDivergenceRefinedPrompt(t *testing.T) {
+	builder := NewBuilder(3, "")
+
+	baseSeed := &seed.Seed{
+		Content: "int main() { return 1 + 2; }",
+		TestCases: []seed.TestCase{
+			{RunningCommand: "./prog", ExpectedResult: "3"},
+		},
+	}
+
+	mutatedSeed := &seed.Seed{
+		Content: "int main() { return 1 * 2; }",
+		TestCases: []seed.TestCase{
+			{RunningCommand: "./prog", ExpectedResult: "2"},
+		},
+	}
+
+	t.Run("should build a valid divergence refined prompt", func(t *testing.T) {
+		divCtx := &DivergenceContext{
+			BaseFunction:    "gen_addsi3",
+			MutatedFunction: "optimize_insn_for_speed_p",
+			DivergenceIndex: 3746,
+			CommonPrefix:    []string{"update_bb_for_insn", "find_edge"},
+			BasePath:        []string{"gen_addsi3", "start_sequence"},
+			MutatedPath:     []string{"optimize_insn_for_speed_p", "register_operand"},
+			FormattedReport: "## Divergence Analysis\nTest divergence report",
+		}
+
+		prompt, err := builder.BuildDivergenceRefinedPrompt(baseSeed, mutatedSeed, divCtx)
+		require.NoError(t, err)
+
+		// Check base seed is included
+		assert.Contains(t, prompt, "return 1 + 2")
+		// Check mutated seed is included
+		assert.Contains(t, prompt, "return 1 * 2")
+		// Check divergence info is included
+		assert.Contains(t, prompt, "gen_addsi3")
+		assert.Contains(t, prompt, "optimize_insn_for_speed_p")
+		assert.Contains(t, prompt, "DIVERGENCE ANALYSIS")
+		// Check output format instructions
+		assert.Contains(t, prompt, "JSON_TESTCASES_START")
+	})
+
+	t.Run("should work without divergence context", func(t *testing.T) {
+		prompt, err := builder.BuildDivergenceRefinedPrompt(baseSeed, mutatedSeed, nil)
+		require.NoError(t, err)
+
+		// Should still have base and mutated seeds
+		assert.Contains(t, prompt, "return 1 + 2")
+		assert.Contains(t, prompt, "return 1 * 2")
+		// Should not have divergence section
+		assert.NotContains(t, prompt, "DIVERGENCE ANALYSIS")
+	})
+
+	t.Run("should return error if base seed is nil", func(t *testing.T) {
+		_, err := builder.BuildDivergenceRefinedPrompt(nil, mutatedSeed, nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("should return error if mutated seed is nil", func(t *testing.T) {
+		_, err := builder.BuildDivergenceRefinedPrompt(baseSeed, nil, nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("should work in function template mode", func(t *testing.T) {
+		// Create a temp template file
+		tempDir, err := os.MkdirTemp("", "prompt_test_")
+		require.NoError(t, err)
+		defer os.RemoveAll(tempDir)
+
+		templatePath := filepath.Join(tempDir, "template.c")
+		err = os.WriteFile(templatePath, []byte("// FUNCTION_PLACEHOLDER: test_func"), 0644)
+		require.NoError(t, err)
+
+		templateBuilder := NewBuilder(3, templatePath)
+		prompt, err := templateBuilder.BuildDivergenceRefinedPrompt(baseSeed, mutatedSeed, nil)
+		require.NoError(t, err)
+
+		// Should have function-specific output format
+		assert.Contains(t, prompt, "function")
+	})
+}

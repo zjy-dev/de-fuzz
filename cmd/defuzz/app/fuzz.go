@@ -148,11 +148,20 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 	// Note: We do NOT add --coverage here. Coverage tracking is for the COMPILER itself,
 	// not the compiled binary. The instrumented compiler generates .gcda files when it runs.
 	compilerDir := filepath.Dir(cfg.Compiler.Path)
+
+	// Use CFlags from config (allows customization per ISA/strategy)
+	// Default to basic flags if not specified in config
+	cflags := cfg.Compiler.CFlags
+	if len(cflags) == 0 {
+		logger.Warn("No cflags specified in config, using defaults")
+		cflags = []string{"-fstack-protector-strong", "-O0"}
+	}
+
 	gccCompiler := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
 		GCCPath:    cfg.Compiler.Path,
 		WorkDir:    filepath.Join(outputDir, "build"),
 		PrefixPath: compilerDir,
-		CFlags:     []string{"-fstack-protector-strong", "-O0"},
+		CFlags:     cflags,
 	})
 
 	// 4. Create executor (local or QEMU)
@@ -278,7 +287,66 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		logger.Warn("Failed to load existing metrics: %v", err)
 	}
 
-	// 11. Create fuzzing engine
+	// 11. Create CFG-guided analyzer if configured
+	var cfgAnalyzer *coverage.CFGGuidedAnalyzer
+	if cfg.Compiler.Fuzz.CFGFilePath != "" && len(cfg.Compiler.Targets) > 0 {
+		// Collect all target function names
+		var targetFunctions []string
+		for _, target := range cfg.Compiler.Targets {
+			targetFunctions = append(targetFunctions, target.Functions...)
+		}
+
+		// Determine mapping path
+		mappingPath := cfg.Compiler.Fuzz.MappingPath
+		if mappingPath == "" {
+			mappingPath = filepath.Join(stateDir, "coverage_mapping.json")
+		}
+
+		logger.Info("Creating CFG-guided analyzer with %d target functions", len(targetFunctions))
+		logger.Debug("CFG file: %s", cfg.Compiler.Fuzz.CFGFilePath)
+		logger.Debug("Target functions: %v", targetFunctions)
+
+		cfgAnalyzer, err = coverage.NewCFGGuidedAnalyzer(
+			cfg.Compiler.Fuzz.CFGFilePath,
+			targetFunctions,
+			cfg.Compiler.SourceParentPath,
+			mappingPath,
+		)
+		if err != nil {
+			logger.Warn("Failed to create CFG analyzer: %v (continuing without target function tracking)", err)
+			cfgAnalyzer = nil
+		} else {
+			logger.Info("CFG analyzer initialized, total target lines: %d", cfgAnalyzer.GetTotalTargetLines())
+		}
+	}
+
+	// 12. Create and run fuzzing engine
+	// Use CFGGuidedEngine if CFGAnalyzer is available (HLPFuzz-style constraint solving)
+	// Otherwise use regular Engine (coverage-guided fuzzing)
+	fmt.Println("[Fuzz] Starting fuzzing engine...")
+
+	if cfgAnalyzer != nil {
+		// CFG-guided mode: progressive constraint solving targeting uncovered BBs
+		logger.Info("Using CFG-guided engine (HLPFuzz-style)")
+		cfgEngine := fuzz.NewCFGGuidedEngine(fuzz.CFGGuidedConfig{
+			Corpus:        corpusManager,
+			Compiler:      gccCompiler,
+			Executor:      seedExecutor,
+			Coverage:      coverageTracker,
+			Oracle:        oracleInstance,
+			LLM:           llmClient,
+			CFGAnalyzer:   cfgAnalyzer,
+			PromptBuilder: promptBuilder,
+			Understanding: understanding,
+			MaxIterations: maxIterations,
+			MaxRetries:    3, // Max retries with divergence analysis per target BB
+			MappingPath:   filepath.Join(stateDir, "coverage_mapping.json"),
+		})
+		return cfgEngine.Run()
+	}
+
+	// Regular coverage-guided mode
+	logger.Info("Using regular coverage-guided engine")
 	engine := fuzz.NewEngine(fuzz.EngineConfig{
 		Corpus:        corpusManager,
 		Compiler:      gccCompiler,
@@ -287,6 +355,7 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		Oracle:        oracleInstance,
 		LLM:           llmClient,
 		Metrics:       metricsManager,
+		CFGAnalyzer:   cfgAnalyzer,
 		PromptBuilder: promptBuilder,
 		Understanding: understanding,
 		MaxIterations: maxIterations,
@@ -294,8 +363,5 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		PrintInterval: 1, // Update UI every iteration
 		EnableUI:      enableUI,
 	})
-
-	// 12. Run the fuzzing loop
-	fmt.Println("[Fuzz] Starting fuzzing engine...")
 	return engine.Run()
 }

@@ -2,6 +2,8 @@ package fuzz
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/zjy-dev/de-fuzz/internal/compiler"
@@ -35,12 +37,26 @@ type EngineConfig struct {
 	// Understanding context for LLM
 	Understanding string
 
+	// Divergence analyzer for execution path analysis (optional)
+	// If set, enables divergence-guided mutation refinement
+	DivergenceAnalyzer coverage.DivergenceAnalyzer
+
+	// CFG-guided analyzer for target function coverage tracking (optional)
+	// If set, enables UI to show target function coverage instead of global coverage
+	CFGAnalyzer *coverage.CFGGuidedAnalyzer
+
+	// CompilerPath is the path to the target compiler (used for divergence analysis)
+	CompilerPath string
+
 	// Fuzzing parameters
 	MaxIterations   int           // Maximum number of fuzzing iterations (0 = unlimited)
 	MaxNewSeeds     int           // Max new seeds to generate per interesting seed
 	SaveInterval    time.Duration // How often to save state
 	CoverageTimeout int           // Timeout for coverage measurement in seconds
 	PrintInterval   int           // How often to print progress (in iterations, 0 = never)
+
+	// Divergence analysis parameters
+	MaxDivergenceRetries int // Max retries with divergence feedback (default: 2)
 
 	// UI settings
 	EnableUI    bool // Enable terminal UI (default: false for backward compatibility)
@@ -67,6 +83,13 @@ func NewEngine(cfg EngineConfig) *Engine {
 	// Enable terminal UI if configured
 	if cfg.EnableUI && cfg.Metrics != nil {
 		cfg.Metrics.SetUIEnabled(true)
+	}
+
+	// Set target function total lines if CFGAnalyzer is configured
+	if cfg.CFGAnalyzer != nil && cfg.Metrics != nil {
+		totalTargetLines := cfg.CFGAnalyzer.GetTotalTargetLines()
+		cfg.Metrics.SetTargetFunctionLines(totalTargetLines)
+		logger.Info("Target function total lines: %d", totalTargetLines)
 	}
 
 	return e
@@ -234,6 +257,13 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 				}
 			}
 
+			// Update target function coverage if CFGAnalyzer is configured
+			if e.cfg.CFGAnalyzer != nil && e.cfg.Metrics != nil {
+				coveredTargetLines := e.cfg.CFGAnalyzer.GetTotalCoveredTargetLines()
+				e.cfg.Metrics.UpdateTargetCoverage(coveredTargetLines)
+				logger.Debug("Target function coverage: %d lines", coveredTargetLines)
+			}
+
 			// Generate new seeds from this interesting seed with coverage context
 			e.generateNewSeeds(s, report, coverageIncrease)
 		}
@@ -304,6 +334,7 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 
 // generateNewSeeds uses LLM to create new seeds from an interesting seed.
 // It uses coverage information to guide the mutation.
+// If divergence analysis is enabled, it will refine failed mutations.
 func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report, coverageIncrease *coverage.CoverageIncrease) {
 	if e.cfg.LLM == nil || e.cfg.PromptBuilder == nil {
 		return
@@ -338,55 +369,188 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 	}
 
 	for i := 0; i < maxNew; i++ {
-		// Build mutation prompt with coverage context
-		mutatePrompt, err := e.cfg.PromptBuilder.BuildMutatePrompt(parentSeed, mutationCtx)
-		if err != nil {
-			logger.Error("Failed to build mutate prompt: %v", err)
-			continue
+		newSeed := e.generateSingleSeed(parentSeed, mutationCtx)
+		if newSeed != nil {
+			logger.Info("Generated new seed %d from parent %d", newSeed.Meta.ID, parentSeed.Meta.ID)
+		}
+	}
+}
+
+// generateSingleSeed generates a single new seed using LLM mutation.
+// Returns the new seed if successful, nil otherwise.
+func (e *Engine) generateSingleSeed(parentSeed *seed.Seed, mutationCtx *prompt.MutationContext) *seed.Seed {
+	// Build mutation prompt with coverage context
+	mutatePrompt, err := e.cfg.PromptBuilder.BuildMutatePrompt(parentSeed, mutationCtx)
+	if err != nil {
+		logger.Error("Failed to build mutate prompt: %v", err)
+		return nil
+	}
+
+	// Call LLM with understanding as system prompt
+	logger.Debug("Calling LLM for seed mutation...")
+
+	// Record LLM call
+	if e.cfg.Metrics != nil {
+		e.cfg.Metrics.RecordLLMCall()
+	}
+
+	completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, mutatePrompt)
+	if err != nil {
+		logger.Error("Failed to get LLM completion: %v", err)
+		if e.cfg.Metrics != nil {
+			e.cfg.Metrics.RecordLLMError()
+		}
+		return nil
+	}
+
+	// Parse LLM response using PromptBuilder (handles function template mode)
+	newSeed, err := e.cfg.PromptBuilder.ParseLLMResponse(completion)
+	if err != nil {
+		logger.Error("Failed to parse LLM response: %v", err)
+		return nil
+	}
+
+	// Set lineage information
+	newSeed.Meta.ParentID = parentSeed.Meta.ID
+	newSeed.Meta.Depth = parentSeed.Meta.Depth + 1
+
+	// Add to corpus
+	if err := e.cfg.Corpus.Add(newSeed); err != nil {
+		logger.Error("Failed to add new seed to corpus: %v", err)
+		return nil
+	}
+
+	// Record seed generated
+	if e.cfg.Metrics != nil {
+		e.cfg.Metrics.RecordSeedGenerated()
+	}
+
+	return newSeed
+}
+
+// TryDivergenceRefinedMutation attempts to refine a mutation using divergence analysis.
+// This is called when a mutated seed doesn't achieve the expected coverage.
+//
+// Parameters:
+//   - baseSeed: The seed that achieved the target coverage
+//   - mutatedSeed: The seed that failed to achieve target coverage
+//
+// Returns the refined seed if successful, nil otherwise.
+func (e *Engine) TryDivergenceRefinedMutation(baseSeed, mutatedSeed *seed.Seed) *seed.Seed {
+	if e.cfg.DivergenceAnalyzer == nil {
+		logger.Debug("Divergence analysis not available")
+		return nil
+	}
+
+	if e.cfg.CompilerPath == "" {
+		logger.Warn("CompilerPath not set, skipping divergence analysis")
+		return nil
+	}
+
+	maxRetries := e.cfg.MaxDivergenceRetries
+	if maxRetries <= 0 {
+		maxRetries = 2
+	}
+
+	// Save seeds to temporary files for analysis
+	tmpDir, err := os.MkdirTemp("", "defuzz-div-")
+	if err != nil {
+		logger.Error("Failed to create temp dir for divergence analysis: %v", err)
+		return nil
+	}
+	defer os.RemoveAll(tmpDir)
+
+	basePath := filepath.Join(tmpDir, "base.c")
+	if err := os.WriteFile(basePath, []byte(baseSeed.Content), 0644); err != nil {
+		logger.Error("Failed to write base seed: %v", err)
+		return nil
+	}
+
+	currentMutated := mutatedSeed
+	for retry := 0; retry < maxRetries; retry++ {
+		mutatedPath := filepath.Join(tmpDir, fmt.Sprintf("mutated_%d.c", retry))
+		if err := os.WriteFile(mutatedPath, []byte(currentMutated.Content), 0644); err != nil {
+			logger.Error("Failed to write mutated seed: %v", err)
+			return nil
 		}
 
-		// Call LLM with understanding as system prompt
-		logger.Debug("Calling LLM for seed mutation...")
+		// Analyze divergence
+		logger.Info("Analyzing divergence (retry %d/%d)...", retry+1, maxRetries)
+		divPoint, err := e.cfg.DivergenceAnalyzer.Analyze(basePath, mutatedPath, e.cfg.CompilerPath)
+		if err != nil {
+			logger.Warn("Divergence analysis failed: %v", err)
+			return nil
+		}
 
-		// Record LLM call
+		if divPoint == nil {
+			logger.Info("No divergence found - execution paths are identical")
+			return nil
+		}
+
+		logger.Info("Divergence found at index %d: %s vs %s",
+			divPoint.Index, divPoint.Function1, divPoint.Function2)
+
+		// Build divergence context for LLM
+		divCtx := &prompt.DivergenceContext{
+			BaseFunction:    divPoint.Function1,
+			MutatedFunction: divPoint.Function2,
+			DivergenceIndex: divPoint.Index,
+			CommonPrefix:    divPoint.CommonPrefix,
+			BasePath:        divPoint.Path1,
+			MutatedPath:     divPoint.Path2,
+			FormattedReport: divPoint.ForLLM(),
+		}
+
+		// Build refined prompt
+		refinedPrompt, err := e.cfg.PromptBuilder.BuildDivergenceRefinedPrompt(
+			baseSeed, currentMutated, divCtx)
+		if err != nil {
+			logger.Error("Failed to build divergence refined prompt: %v", err)
+			return nil
+		}
+
+		// Call LLM with refined prompt
 		if e.cfg.Metrics != nil {
 			e.cfg.Metrics.RecordLLMCall()
 		}
 
-		completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, mutatePrompt)
+		completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, refinedPrompt)
 		if err != nil {
-			logger.Error("Failed to get LLM completion: %v", err)
-			// Record LLM error
+			logger.Error("Failed to get LLM completion for refined mutation: %v", err)
 			if e.cfg.Metrics != nil {
 				e.cfg.Metrics.RecordLLMError()
 			}
-			continue
+			return nil
 		}
 
-		// Parse LLM response using PromptBuilder (handles function template mode)
-		newSeed, err := e.cfg.PromptBuilder.ParseLLMResponse(completion)
+		// Parse response
+		refinedSeed, err := e.cfg.PromptBuilder.ParseLLMResponse(completion)
 		if err != nil {
-			logger.Error("Failed to parse LLM response: %v", err)
+			logger.Error("Failed to parse refined LLM response: %v", err)
 			continue
 		}
 
-		// Set lineage information
-		newSeed.Meta.ParentID = parentSeed.Meta.ID
-		newSeed.Meta.Depth = parentSeed.Meta.Depth + 1
+		// Set lineage
+		refinedSeed.Meta.ParentID = baseSeed.Meta.ID
+		refinedSeed.Meta.Depth = baseSeed.Meta.Depth + 1
 
 		// Add to corpus
-		if err := e.cfg.Corpus.Add(newSeed); err != nil {
-			logger.Error("Failed to add new seed to corpus: %v", err)
-			continue
+		if err := e.cfg.Corpus.Add(refinedSeed); err != nil {
+			logger.Error("Failed to add refined seed to corpus: %v", err)
+			return nil
 		}
 
-		// Record seed generated
 		if e.cfg.Metrics != nil {
 			e.cfg.Metrics.RecordSeedGenerated()
 		}
 
-		logger.Info("Generated new seed %d from parent %d", newSeed.Meta.ID, parentSeed.Meta.ID)
+		logger.Info("Generated refined seed %d using divergence feedback", refinedSeed.Meta.ID)
+
+		// Update for next iteration
+		currentMutated = refinedSeed
 	}
+
+	return currentMutated
 }
 
 // printProgress prints a one-line progress summary or renders UI.

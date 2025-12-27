@@ -347,3 +347,139 @@ func containsStringHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestCFGGuidedAnalyzer_PredecessorBasedSeedSelection(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// CFG with clear predecessor relationships:
+	// BB 2 -> BB 3, BB 4
+	// BB 3 -> BB 4
+	// So BB 4 has predecessors: BB 2, BB 3
+	cfgContent := `;; Function test_func (_Z9test_funcii, funcdef_no=1, decl_uid=100, cgraph_uid=1, symbol_order=1)
+;; 2 succs { 3 4 }
+;; 3 succs { 4 }
+;; 4 succs { 1 }
+int test_func (int a, int b)
+{
+  <bb 2> :
+  [/path/to/test.cc:10:3] if (a > b)
+    goto <bb 3>; [INV]
+  else
+    goto <bb 4>; [INV]
+
+  <bb 3> :
+  [/path/to/test.cc:15:5] result = a;
+  goto <bb 4>; [INV]
+
+  <bb 4> :
+  [/path/to/test.cc:20:3] return result;
+}
+`
+	cfgPath := filepath.Join(tmpDir, "test.cc.015t.cfg")
+	os.WriteFile(cfgPath, []byte(cfgContent), 0644)
+
+	mappingPath := filepath.Join(tmpDir, "mapping.json")
+	analyzer, err := NewCFGGuidedAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Record coverage for BB 2 (line 10) with seed 100
+	analyzer.RecordCoverage(100, []string{"/path/to/test.cc:10"})
+
+	// BB 2 is now covered, so target should be BB 3 (next highest by weight)
+	// But we want to check if BB 3 or BB 4 is targeted, it uses BB 2 as base
+	target := analyzer.SelectTarget()
+	if target == nil {
+		t.Fatal("SelectTarget() returned nil")
+	}
+
+	// Target should be BB 3 or BB 4 (BB 2 is covered)
+	if target.BBID == 2 {
+		t.Error("Should not select BB2 after it's covered")
+	}
+
+	// Check that base seed is from predecessor (seed 100 from BB 2)
+	if target.BaseSeed != "100" {
+		t.Logf("Target BB: %d, BaseSeed: %s, BaseSeedLine: %d", target.BBID, target.BaseSeed, target.BaseSeedLine)
+		// This may be empty if predecessor-based selection didn't find a match
+		// which is valid for BB 3 (predecessor is BB 2 which is covered)
+	}
+
+	// Now cover BB 3 with seed 200
+	analyzer.RecordCoverage(200, []string{"/path/to/test.cc:15"})
+
+	// Target should now be BB 4
+	target = analyzer.SelectTarget()
+	if target == nil {
+		t.Fatal("SelectTarget() returned nil")
+	}
+	if target.BBID != 4 {
+		t.Errorf("Expected BB4 to be selected, got BB%d", target.BBID)
+	}
+
+	// BB 4's predecessors are BB 2 and BB 3, both covered
+	// So base seed should be from one of them (100 or 200)
+	if target.BaseSeed != "100" && target.BaseSeed != "200" {
+		t.Errorf("Expected base seed to be 100 or 200, got %s", target.BaseSeed)
+	}
+}
+
+func TestCFGGuidedAnalyzer_RecordAttemptAndSuccess(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfgContent := `;; Function test_func (_Z9test_funcii, funcdef_no=1, decl_uid=100, cgraph_uid=1, symbol_order=1)
+;; 2 succs { 3 4 }
+;; 3 succs { 4 }
+;; 4 succs { 1 }
+int test_func (int a, int b)
+{
+  <bb 2> :
+  [/path/to/test.cc:10:3] if (a > b)
+
+  <bb 3> :
+  [/path/to/test.cc:11:5] result = a;
+
+  <bb 4> :
+  [/path/to/test.cc:13:3] return result;
+}
+`
+	cfgPath := filepath.Join(tmpDir, "test.cc.015t.cfg")
+	os.WriteFile(cfgPath, []byte(cfgContent), 0644)
+
+	mappingPath := filepath.Join(tmpDir, "mapping.json")
+	analyzer, err := NewCFGGuidedAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	target := analyzer.SelectTarget()
+	if target == nil {
+		t.Fatal("No target")
+	}
+
+	// Initial weight should be successor count
+	weight := analyzer.GetBBWeight(target)
+	if weight != float64(target.SuccessorCount) {
+		t.Errorf("Initial weight should be %d, got %.2f", target.SuccessorCount, weight)
+	}
+
+	// Record 64 attempts
+	for i := 0; i < 64; i++ {
+		analyzer.RecordAttempt(target)
+	}
+
+	// Weight should now be decayed by 10%
+	expectedWeight := float64(target.SuccessorCount) * 0.9
+	weight = analyzer.GetBBWeight(target)
+	if weight != expectedWeight {
+		t.Errorf("Weight after 64 attempts should be %.2f, got %.2f", expectedWeight, weight)
+	}
+
+	// Record success
+	analyzer.RecordSuccess(target)
+	attempts := analyzer.GetBBAttempts(target)
+	if attempts != 0 {
+		t.Errorf("Attempts should be 0 after success, got %d", attempts)
+	}
+}

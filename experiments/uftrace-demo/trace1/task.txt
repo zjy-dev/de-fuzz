@@ -1,0 +1,11 @@
+SESS timestamp=9164.615609045 pid=852222 sid=2defbc0a5e26bd5d exename="/usr/bin/x86_64-linux-gnu-gcc-14"
+TASK timestamp=9164.615657151 tid=852222 pid=852222
+SESS timestamp=9165.291905130 pid=852229 sid=62f1e504df2ee983 exename="/usr/libexec/gcc/x86_64-linux-gnu/14/cc1"
+TASK timestamp=9165.292194321 tid=852229 pid=852229
+SESS timestamp=9165.339029759 pid=852233 sid=346c8f5b8292d3e8 exename="/usr/bin/x86_64-linux-gnu-as"
+TASK timestamp=9165.339069830 tid=852233 pid=852233
+SESS timestamp=9165.350014321 pid=852234 sid=9c61f07b142973f5 exename="/usr/libexec/gcc/x86_64-linux-gnu/14/collect2"
+TASK timestamp=9165.350045367 tid=852234 pid=852234
+SESS timestamp=9165.426724475 pid=852235 sid=dfc46c4b26fcd3eb exename="/usr/bin/x86_64-linux-gnu-ld.bfd"
+TASK timestamp=9165.426763492 tid=852235 pid=852235
+DLOP timestamp=9165.427408662 tid=852235 sid=dfc46c4b26fcd3eb base=71dcf4e66000 libname="/usr/libexec/gcc/x86_64-linux-gnu/14/liblto_plugin.so"

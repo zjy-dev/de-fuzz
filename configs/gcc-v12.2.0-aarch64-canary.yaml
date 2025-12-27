@@ -1,0 +1,85 @@
+compiler:
+  # Cross-compiler for aarch64
+  path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
+  
+  # gcovr execution path - should be the source root directory
+  # gcovr will be executed from here with --object-directory pointing to build
+  gcovr_exec_path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1"
+
+  source_parent_path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile"
+
+  # gcovr command template (without --json output path)
+  # Note: For cross-compile builds, we need --object-directory to find .gcda/.gcno files
+  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" --object-directory /root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc'
+
+  # Compiler flags (CFlags) for cross-compilation
+  # These flags are passed to GCC during compilation
+  cflags:
+    - "-fstack-protector-strong"  # Enable stack canary protection
+    - "-O0"                         # No optimization for better debugging
+    # Cross-compilation specific flags:
+    - "--sysroot=/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+    - "-B/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/12.2.1"
+    - "-L/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
+
+  # Fuzzing configuration
+  fuzz:
+    # Root output directory for fuzzing artifacts
+    # Actual output will be at {output_root_dir}/{isa}/{strategy}
+    output_root_dir: "fuzz_out"
+    # Maximum number of fuzzing iterations (0 = unlimited)
+    max_iterations: 10
+    # Maximum new seeds to generate per interesting seed
+    max_new_seeds: 1
+    # Maximum number of test cases to generate per seed (0 = no test cases)
+    max_test_cases: 0
+    # Function template for code generation
+    function_template: "initial_seeds/aarch64/canary/function_template.c"
+    # Execution timeout in seconds
+    timeout: 30
+    # Use QEMU for execution (required for cross-architecture)
+    use_qemu: true
+    # Path to QEMU user-mode executable for aarch64
+    qemu_path: "qemu-aarch64"
+    # Sysroot path for QEMU (-L argument)
+    # This should point to the cross-compiled sysroot with aarch64 libraries
+    qemu_sysroot: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+    # CFG dump file path for target function analysis
+    cfg_file_path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+
+  # Oracle configuration
+  oracle:
+    # Type of oracle to use: "llm", "crash", "diff", "canary", etc.
+    type: "canary"
+    # Options specific to the chosen oracle
+    options:
+      # Maximum buffer size to test during binary search
+      max_buffer_size: 1024
+
+# Configuration pattern: Map each file to its target functions
+# Stack Canary (Stack Protector) related core functions for AArch64
+# These functions are the same as x86_64, but compiled for ARM64 target
+#
+# Note: AArch64 has its own stack protection mechanism:
+#   - Uses X18 register as stack canary register (platform-dependent)
+#   - Different prologue/epilogue code generation
+#   - Similar high-level logic in cfgexpand.cc
+
+targets:
+  # cfgexpand.cc - 栈保护核心逻辑（变量分类、冲突分析、prologue生成）
+  - file: "arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/gcc/cfgexpand.cc"
+    functions:
+      # 分类变量类型，决定是否需要保护（检测字符数组、聚合类型等）
+      - "stack_protect_classify_type"
+      # 决定变量的保护阶段（phase 1/2）
+      - "stack_protect_decl_phase"
+      - "stack_protect_decl_phase_1"
+      - "stack_protect_decl_phase_2"
+      # 添加栈变量之间的保护冲突约束
+      - "add_stack_protection_conflicts"
+      # 创建栈上的 guard 变量
+      - "create_stack_guard"
+      # 生成函数入口的 stack canary 设置代码
+      - "stack_protect_prologue"
+      # 检查是否有使用返回槽的调用（-fstack-protector-strong 用）
+      - "stack_protect_return_slot_p"

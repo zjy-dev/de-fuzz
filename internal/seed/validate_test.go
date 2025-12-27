@@ -234,3 +234,50 @@ func TestParseFunctionWithTestCasesFromLLMResponse(t *testing.T) {
 		assert.Contains(t, err.Error(), "running command is empty")
 	})
 }
+
+func TestStripMarkdownCodeBlocks(t *testing.T) {
+	t.Run("should extract code from markdown code block", func(t *testing.T) {
+		response := "Here is my analysis...\n```c\nint main() { return 0; }\n```\nThis code does..."
+		result := stripMarkdownCodeBlocks(response)
+		assert.Equal(t, "int main() { return 0; }", result)
+	})
+
+	t.Run("should extract code from code block without language", func(t *testing.T) {
+		response := "```\nint main() { return 0; }\n```"
+		result := stripMarkdownCodeBlocks(response)
+		assert.Equal(t, "int main() { return 0; }", result)
+	})
+
+	t.Run("should extract multiple code blocks and concatenate", func(t *testing.T) {
+		response := "```c\n#include <stdio.h>\n```\nSome text\n```c\nint main() {}\n```"
+		result := stripMarkdownCodeBlocks(response)
+		assert.Contains(t, result, "#include <stdio.h>")
+		assert.Contains(t, result, "int main()")
+	})
+
+	t.Run("should handle response with natural language mixed in", func(t *testing.T) {
+		response := `Looking at the target basic block...
+
+Here is the modified code:
+
+` + "```c" + `
+int main() {
+    return 0;
+}
+` + "```" + `
+
+This modification adds...`
+
+		result := stripMarkdownCodeBlocks(response)
+		assert.Contains(t, result, "int main()")
+		assert.Contains(t, result, "return 0;")
+		assert.NotContains(t, result, "Looking at")
+		assert.NotContains(t, result, "modification")
+	})
+
+	t.Run("should fall back to removing markers when no code blocks found", func(t *testing.T) {
+		response := "int main() { return 0; }"
+		result := stripMarkdownCodeBlocks(response)
+		assert.Equal(t, "int main() { return 0; }", result)
+	})
+}

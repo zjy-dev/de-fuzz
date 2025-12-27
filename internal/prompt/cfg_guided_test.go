@@ -33,7 +33,7 @@ func TestBuilder_BuildConstraintSolvingPrompt(t *testing.T) {
 		"BB5",                         // Basic block ID
 		"2 successors",                // Branching factor
 		"1826",                        // Target line
-		"Example Seed",                // Base seed section
+		"Base Seed (MUST MODIFY)",     // Base seed section
 		"char buf[100]",               // Base seed code
 	}
 
@@ -105,7 +105,7 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 		"stack_protect_classify_type", // Divergent function
 		"1825",                        // Divergent line
 		"Failed Mutation",
-		"Working Example",
+		"Base Seed (MUST MODIFY)",
 	}
 
 	for _, check := range checks {
@@ -230,13 +230,13 @@ func TestBuilder_GetOutputFormat(t *testing.T) {
 			name:         "template with test cases",
 			maxTestCases: 2,
 			template:     "template.c",
-			wantContains: "function implementation",
+			wantContains: "seed() function",
 		},
 		{
 			name:         "template no test cases",
 			maxTestCases: 0,
 			template:     "template.c",
-			wantContains: "function implementation",
+			wantContains: "DO NOT generate main()",
 		},
 	}
 

@@ -40,6 +40,10 @@ type Manager interface {
 	// It handles ID allocation via the State Manager.
 	Add(s *seed.Seed) error
 
+	// AllocateID allocates and returns the next unique seed ID without persisting.
+	// Use this to pre-assign an ID to a seed before compilation.
+	AllocateID() uint64
+
 	// Next retrieves the next seed to process from the queue.
 	Next() (*seed.Seed, bool)
 
@@ -162,6 +166,12 @@ func (m *FileManager) Add(s *seed.Seed) error {
 	m.stateManager.UpdatePoolSize(len(m.queue))
 
 	return nil
+}
+
+// AllocateID allocates and returns the next unique seed ID without persisting.
+// This allows pre-assigning an ID to a seed before compilation.
+func (m *FileManager) AllocateID() uint64 {
+	return m.stateManager.NextID()
 }
 
 // Next retrieves the next seed to process from the queue.
