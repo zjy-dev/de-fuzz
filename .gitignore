@@ -25,6 +25,7 @@ coverage.txt
 fuzz_out/
 workspace/
 fuzz.log
+experiments/
 
 # Target compilers (large binary dependencies)
 target-compilers/
@@ -48,6 +49,5 @@ vendor/
 # Planning documents (drafts)
 *plan*
 
-experiments/
 
 
