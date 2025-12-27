@@ -46,4 +46,8 @@ Thumbs.db
 vendor/
 
 # Planning documents (drafts)
-*plan*experiments/
+*plan*
+
+experiments/
+
+
