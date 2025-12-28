@@ -33,36 +33,45 @@ type SeedMetadata struct {
 }
 ```
 
-### Architecture
+### Algorithm
 
 ```
 +------------------------------------------------------------------+
-|                     Constraint Solving Loop                      |
+|  1. Maintain mapping: Line -> FirstSeedID that covered it        |
 +------------------------------------------------------------------+
                                   |
                                   v
-    +--------------------------------------------------+
-    |  Select Target: Uncovered BB with most successors |
-    |  (CFG-Guided via GCC CFG Dump)                    |
-    +--------------------------------------------------+
++------------------------------------------------------------------+
+|  2. Run initial seeds, establish mapping, persist to disk       |
++------------------------------------------------------------------+
                                   |
                                   v
-    +--------------------------------------------------+
-    |  Build Prompt                                      |
-    |  - Target function code (annotated)               |
-    |  - Shot: Seed covering target's predecessor       |
-    +--------------------------------------------------+
+                        +-------------------+
+                        | Constraint Solving|
+                        |      Loop         |
+                        +-------------------+
                                   |
                                   v
-    +--------------------------------------------------+
-    |  LLM Mutation                                      |
-    |  (DeepSeek: Generate seed to cover target BB)     |
-    +--------------------------------------------------+
++------------------------------------------------------------------+
+|  3. Select Target: Uncovered BB with most successors (CFG-guided)|
++------------------------------------------------------------------+
                                   |
                                   v
-    +--------------------------------------------------+
-    |  Compile & Test                                    |
-    +--------------------------------------------------+
++------------------------------------------------------------------+
+|  4. Build Prompt:                                                |
+|     - Target function code (annotated: covered/uncovered/target) |
+|     - Shot: Seed covering target's predecessor                   |
++------------------------------------------------------------------+
+                                  |
+                                  v
++------------------------------------------------------------------+
+|  5. LLM Mutation: Mutate shot to cover target BB (LLM Plugin)   |
++------------------------------------------------------------------+
+                                  |
+                                  v
++------------------------------------------------------------------+
+|  6. Compile and Test Seed                                        |
++------------------------------------------------------------------+
                                   |
                     +-------------+-------------+
                     |                           |
@@ -85,7 +94,7 @@ type SeedMetadata struct {
                                 |
                                 v
                     +-----------------------+
-                    | Continue Loop         |
+                    | Return to Step 3      |
                     +-----------------------+
 ```
 
@@ -131,8 +140,8 @@ Run with buffer size N (fill with 'A' = 0x41)
   - Exit 139 (SIGSEGV): Return address modified before check (BUG!)
 
 Binary search in [0, MaxBufferSize] to find minimum crash size:
-  - If min crash exits with 139 → Canary bypass detected
-  - If min crash exits with 134 → Canary working correctly
+  - If min crash exits with 139 -> Canary bypass detected
+  - If min crash exits with 134 -> Canary working correctly
 ```
 
 #### LLM Oracle (Fallback)
@@ -140,7 +149,7 @@ Binary search in [0, MaxBufferSize] to find minimum crash size:
 When no traditional oracle exists, use LLM-based analysis:
 
 ```
-Run seed → Get feedback (exit code + stdout + stderr) → LLM judges if bugs exist
+Run seed -> Get feedback (exit code + stdout + stderr) -> LLM judges if bugs exist
 ```
 
 **Note:** All compilation and execution happens directly on the host machine. Ensure you have the required toolchain (GCC, QEMU, etc.) installed and available in your system PATH.
