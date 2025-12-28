@@ -57,6 +57,11 @@ Configuration:
   Default values are loaded from config.yaml.
   Command line flags override the config file values.
 
+Constraints:
+  --limit and --timeout work independently:
+    --limit: Maximum number of target BBs to attempt (0 = unlimited)
+    --timeout: Maximum execution time per seed in seconds
+
 Examples:
   # Start fuzzing with defaults from config
   defuzz fuzz
@@ -68,7 +73,10 @@ Examples:
   defuzz fuzz --limit 50
 
   # Use QEMU for cross-architecture fuzzing
-  defuzz fuzz --use-qemu`,
+  defuzz fuzz --use-qemu
+
+  # Limit to 30 targets with 60s timeout each
+  defuzz fuzz --limit 30 --timeout 60`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load config first to get defaults
 			cfg, err := config.LoadConfig()
