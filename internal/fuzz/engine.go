@@ -50,7 +50,6 @@ type EngineConfig struct {
 
 	// Fuzzing parameters
 	MaxIterations   int           // Maximum number of fuzzing iterations (0 = unlimited)
-	MaxNewSeeds     int           // Max new seeds to generate per interesting seed
 	SaveInterval    time.Duration // How often to save state
 	CoverageTimeout int           // Timeout for coverage measurement in seconds
 	PrintInterval   int           // How often to print progress (in iterations, 0 = never)
@@ -332,20 +331,15 @@ func (e *Engine) processSeed(s *seed.Seed) (*corpus.FuzzResult, error) {
 	}, nil
 }
 
-// generateNewSeeds uses LLM to create new seeds from an interesting seed.
+// generateNewSeeds uses LLM to create a new seed from an interesting seed.
 // It uses coverage information to guide the mutation.
-// If divergence analysis is enabled, it will refine failed mutations.
+// Generates exactly one seed per coverage increase (constraint solving model).
 func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report, coverageIncrease *coverage.CoverageIncrease) {
 	if e.cfg.LLM == nil || e.cfg.PromptBuilder == nil {
 		return
 	}
 
-	maxNew := e.cfg.MaxNewSeeds
-	if maxNew <= 0 {
-		maxNew = 3 // Default
-	}
-
-	logger.Info("Generating %d new seeds from parent %d...", maxNew, parentSeed.Meta.ID)
+	logger.Info("Generating new seed from parent %d...", parentSeed.Meta.ID)
 
 	// Build mutation context from coverage information
 	var mutationCtx *prompt.MutationContext
@@ -368,11 +362,10 @@ func (e *Engine) generateNewSeeds(parentSeed *seed.Seed, report coverage.Report,
 		}
 	}
 
-	for i := 0; i < maxNew; i++ {
-		newSeed := e.generateSingleSeed(parentSeed, mutationCtx)
-		if newSeed != nil {
-			logger.Info("Generated new seed %d from parent %d", newSeed.Meta.ID, parentSeed.Meta.ID)
-		}
+	// Generate exactly one seed
+	newSeed := e.generateSingleSeed(parentSeed, mutationCtx)
+	if newSeed != nil {
+		logger.Info("Generated new seed %d from parent %d", newSeed.Meta.ID, parentSeed.Meta.ID)
 	}
 }
 

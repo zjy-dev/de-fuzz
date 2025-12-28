@@ -183,14 +183,12 @@ func (m *MockOracle) Analyze(s *seed.Seed, ctx *oracle.AnalyzeContext, results [
 func TestNewEngine(t *testing.T) {
 	cfg := EngineConfig{
 		MaxIterations: 100,
-		MaxNewSeeds:   5,
 	}
 
 	engine := NewEngine(cfg)
 
 	assert.NotNil(t, engine)
 	assert.Equal(t, 100, engine.cfg.MaxIterations)
-	assert.Equal(t, 5, engine.cfg.MaxNewSeeds)
 	assert.Empty(t, engine.bugsFound)
 }
 

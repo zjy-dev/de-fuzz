@@ -26,14 +26,11 @@ import (
 // NewFuzzCommand creates the "fuzz" subcommand.
 func NewFuzzCommand() *cobra.Command {
 	var (
-		outputRootDir string
-		maxIterations int
-		maxNewSeeds   int
-		timeout       int
-		useQEMU       bool
-		qemuPath      string
-		qemuSysroot   string
-		enableUI      bool
+		output   string
+		limit    int
+		timeout  int
+		useQEMU  bool
+		enableUI bool
 	)
 
 	cmd := &cobra.Command{
@@ -42,37 +39,36 @@ func NewFuzzCommand() *cobra.Command {
 		Long: `Start the main fuzzing loop for the configured target.
 
 This command:
-  1. Loads initial seeds from the corpus
-  2. Compiles and executes each seed
-  3. Measures code coverage
-  4. Generates new seeds using LLM when coverage increases
-  5. Reports any discovered bugs
+  1. Selects uncovered basic blocks with most successors (CFG-guided)
+  2. Uses LLM to generate seeds that satisfy path constraints
+  3. Refines failed mutations with divergence analysis
+  4. Reports any discovered bugs
 
 The fuzzer will automatically resume from the last saved state if interrupted.
 
 Output directory structure:
-  {output_root_dir}/{isa}/{strategy}/
+  {output}/{isa}/{strategy}/
     ├── corpus/      # Seed corpus
     ├── build/       # Compiled binaries
     ├── coverage/    # Coverage reports
     └── state/       # Fuzzing state (for resume)
 
 Configuration:
-  Default values are loaded from config.yaml under 'fuzz' section.
+  Default values are loaded from config.yaml.
   Command line flags override the config file values.
 
 Examples:
-  # Start fuzzing with default settings from config
+  # Start fuzzing with defaults from config
   defuzz fuzz
 
-  # Override output root directory
-  defuzz fuzz --output-root my_fuzz_out
+  # Override output directory
+  defuzz fuzz --output my_fuzz_out
 
-  # Fuzz with a maximum of 100 iterations
-  defuzz fuzz --max-iterations 100
+  # Limit to 50 target basic blocks for constraint solving
+  defuzz fuzz --limit 50
 
   # Use QEMU for cross-architecture fuzzing
-  defuzz fuzz --use-qemu --qemu-path qemu-aarch64 --qemu-sysroot /usr/aarch64-linux-gnu`,
+  defuzz fuzz --use-qemu`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load config first to get defaults
 			cfg, err := config.LoadConfig()
@@ -81,14 +77,11 @@ Examples:
 			}
 
 			// Use config values as defaults, command line flags override
-			if !cmd.Flags().Changed("output-root") {
-				outputRootDir = cfg.Compiler.Fuzz.OutputRootDir
+			if !cmd.Flags().Changed("output") {
+				output = cfg.Compiler.Fuzz.OutputRootDir
 			}
-			if !cmd.Flags().Changed("max-iterations") {
-				maxIterations = cfg.Compiler.Fuzz.MaxIterations
-			}
-			if !cmd.Flags().Changed("max-new-seeds") {
-				maxNewSeeds = cfg.Compiler.Fuzz.MaxNewSeeds
+			if !cmd.Flags().Changed("limit") {
+				limit = cfg.Compiler.Fuzz.MaxIterations
 			}
 			if !cmd.Flags().Changed("timeout") {
 				timeout = cfg.Compiler.Fuzz.Timeout
@@ -96,34 +89,25 @@ Examples:
 			if !cmd.Flags().Changed("use-qemu") {
 				useQEMU = cfg.Compiler.Fuzz.UseQEMU
 			}
-			if !cmd.Flags().Changed("qemu-path") {
-				qemuPath = cfg.Compiler.Fuzz.QEMUPath
-			}
-			if !cmd.Flags().Changed("qemu-sysroot") {
-				qemuSysroot = cfg.Compiler.Fuzz.QEMUSysroot
-			}
 
-			// Build the actual output directory: {output_root_dir}/{isa}/{strategy}
-			outputDir := filepath.Join(outputRootDir, cfg.ISA, cfg.Strategy)
+			// Build the actual output directory: {output}/{isa}/{strategy}
+			outputDir := filepath.Join(output, cfg.ISA, cfg.Strategy)
 
-			return runFuzz(cfg, outputDir, maxIterations, maxNewSeeds, timeout, useQEMU, qemuPath, qemuSysroot, enableUI)
+			return runFuzz(cfg, outputDir, limit, timeout, useQEMU, enableUI)
 		},
 	}
 
-	// Flags (these are placeholder defaults, actual defaults come from config)
-	cmd.Flags().StringVar(&outputRootDir, "output-root", "fuzz_out", "Root output directory (actual output at {root}/{isa}/{strategy})")
-	cmd.Flags().IntVar(&maxIterations, "max-iterations", 0, "Maximum number of fuzzing iterations (0 = unlimited)")
-	cmd.Flags().IntVar(&maxNewSeeds, "max-new-seeds", 3, "Maximum new seeds to generate per interesting seed")
+	// Core flags only - detailed config should be in config files
+	cmd.Flags().StringVar(&output, "output", "fuzz_out", "Output directory (actual output at {output}/{isa}/{strategy})")
+	cmd.Flags().IntVar(&limit, "limit", 0, "Max number of target BBs for constraint solving (0 = unlimited)")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "Execution timeout in seconds")
-	cmd.Flags().BoolVar(&useQEMU, "use-qemu", false, "Use QEMU for execution (for cross-architecture)")
-	cmd.Flags().StringVar(&qemuPath, "qemu-path", "qemu-aarch64", "Path to QEMU user-mode executable")
-	cmd.Flags().StringVar(&qemuSysroot, "qemu-sysroot", "", "Sysroot path for QEMU (-L argument)")
-	cmd.Flags().BoolVar(&enableUI, "ui", true, "Enable real-time terminal UI (default: true)")
+	cmd.Flags().BoolVar(&useQEMU, "use-qemu", false, "Use QEMU for cross-architecture execution")
+	cmd.Flags().BoolVar(&enableUI, "ui", true, "Enable real-time terminal UI")
 
 	return cmd
 }
 
-func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, timeout int, useQEMU bool, qemuPath, qemuSysroot string, enableUI bool) error {
+func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU, enableUI bool) error {
 	// Initialize logger with configured level
 	logLevel := cfg.LogLevel
 	if logLevel == "" {
@@ -168,10 +152,10 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 	var seedExecutor executor.Executor
 	if useQEMU {
 		seedExecutor = executor.NewQEMUExecutor(vm.QEMUConfig{
-			QEMUPath: qemuPath,
-			Sysroot:  qemuSysroot,
+			QEMUPath: cfg.Compiler.Fuzz.QEMUPath,
+			Sysroot:  cfg.Compiler.Fuzz.QEMUSysroot,
 		}, timeout)
-		fmt.Printf("[Fuzz] Using QEMU executor: %s\n", qemuPath)
+		fmt.Printf("[Fuzz] Using QEMU executor: %s\n", cfg.Compiler.Fuzz.QEMUPath)
 	} else {
 		seedExecutor = executor.NewLocalExecutor(timeout)
 		fmt.Println("[Fuzz] Using local executor")
@@ -338,7 +322,7 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 			CFGAnalyzer:   cfgAnalyzer,
 			PromptBuilder: promptBuilder,
 			Understanding: understanding,
-			MaxIterations: maxIterations,
+			MaxIterations: limit,
 			MaxRetries:    3, // Max retries with divergence analysis per target BB
 			MappingPath:   filepath.Join(stateDir, "coverage_mapping.json"),
 		})
@@ -358,8 +342,7 @@ func runFuzz(cfg *config.Config, outputDir string, maxIterations, maxNewSeeds, t
 		CFGAnalyzer:   cfgAnalyzer,
 		PromptBuilder: promptBuilder,
 		Understanding: understanding,
-		MaxIterations: maxIterations,
-		MaxNewSeeds:   maxNewSeeds,
+		MaxIterations: limit,
 		PrintInterval: 1, // Update UI every iteration
 		EnableUI:      enableUI,
 	})
