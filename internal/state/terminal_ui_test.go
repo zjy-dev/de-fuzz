@@ -50,6 +50,8 @@ func TestTerminalUI_SetEnabled(t *testing.T) {
 
 func TestTerminalUI_buildDisplay(t *testing.T) {
 	ui := NewTerminalUI()
+	// Note: TotalCoveredLines and TotalLines are used to calculate coverage percentage
+	// 456/1000 = 45.60%, so we use 45.60 for CurrentCoverage to match
 	metrics := &FuzzMetrics{
 		StartTime:          time.Now().Add(-time.Hour),
 		LastUpdateTime:     time.Now(),
@@ -64,8 +66,8 @@ func TestTerminalUI_buildDisplay(t *testing.T) {
 		LLMCalls:           50,
 		LLMErrors:          2,
 		SeedsGenerated:     48,
-		CurrentCoverage:    45.67,
-		TotalCoveredLines:  456,
+		CurrentCoverage:    45.60,  // Matches TotalCoveredLines/TotalLines
+		TotalCoveredLines:  456,    // 456/1000 = 45.60%
 		TotalLines:         1000,
 		SeedsPerSecond:     0.042,
 		AvgSeedTimeMs:      24000,
@@ -88,7 +90,7 @@ func TestTerminalUI_buildDisplay(t *testing.T) {
 		"LLM Calls",
 		"Coverage:",
 		"150",      // Total seeds
-		"45.67%",   // Coverage percentage
+		"45.60%",   // Coverage percentage (456/1000 = 45.60%)
 		"456/1000", // Covered/total lines
 	}
 

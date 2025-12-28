@@ -3,6 +3,7 @@ package seed
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,46 +30,56 @@ func TestStorage(t *testing.T) {
 			{RunningCommand: "./prog", ExpectedResult: "success"},
 		}
 		s := &Seed{
-			ID:        "001",
+			Meta:      Metadata{ID: 1},
 			Content:   "int main() { return 0; }",
 			TestCases: testCases,
 		}
-		err := SaveSeed(basePath, s)
+		namer := NewDefaultNamingStrategy()
+		filename, err := SaveSeedWithMetadata(basePath, s, namer)
 		require.NoError(t, err)
 
-		// Verify file exists
-		seedFile := filepath.Join(basePath, "001.seed")
-		assert.FileExists(t, seedFile)
+		// Verify directory exists (filename without .seed extension)
+		seedDir := filepath.Join(basePath, strings.TrimSuffix(filename, ".seed"))
+		assert.DirExists(t, seedDir)
+
+		// Verify source.c exists
+		sourceFile := filepath.Join(seedDir, "source.c")
+		assert.FileExists(t, sourceFile)
 
 		// Verify content
-		content, err := os.ReadFile(seedFile)
+		content, err := os.ReadFile(sourceFile)
 		require.NoError(t, err)
 		assert.Contains(t, string(content), "int main() { return 0; }")
-		assert.Contains(t, string(content), "JSON_TESTCASES_START")
-		assert.Contains(t, string(content), "running command")
 	})
 
 	t.Run("should save and load different seeds", func(t *testing.T) {
+		// Clear and recreate the directory
+		os.RemoveAll(basePath)
+		os.MkdirAll(basePath, 0755)
+
 		// Test multiple seeds with different content
 		testCases1 := []TestCase{{RunningCommand: "./prog", ExpectedResult: "success"}}
 		testCases2 := []TestCase{{RunningCommand: "./prog", ExpectedResult: "hello"}}
 		testCases3 := []TestCase{{RunningCommand: "./prog", ExpectedResult: "segfault"}}
 
+		namer := NewDefaultNamingStrategy()
 		seeds := []*Seed{
-			{ID: "c001", Content: "int main() { return 0; }", TestCases: testCases1},
-			{ID: "c002", Content: "#include <stdio.h>\nint main() { printf(\"hello\"); }", TestCases: testCases2},
-			{ID: "c003", Content: "int main() { int x[10]; return x[20]; }", TestCases: testCases3},
+			{Meta: Metadata{ID: 1}, Content: "int main() { return 0; }", TestCases: testCases1},
+			{Meta: Metadata{ID: 2}, Content: "#include <stdio.h>\nint main() { printf(\"hello\"); }", TestCases: testCases2},
+			{Meta: Metadata{ID: 3}, Content: "int main() { int x[10]; return x[20]; }", TestCases: testCases3},
 		}
 
+		var filenames []string
 		for _, s := range seeds {
-			err := SaveSeed(basePath, s)
+			filename, err := SaveSeedWithMetadata(basePath, s, namer)
 			require.NoError(t, err)
+			filenames = append(filenames, strings.TrimSuffix(filename, ".seed"))
 		}
 
-		// Verify files exist with correct naming
-		assert.FileExists(t, filepath.Join(basePath, "c001.seed"))
-		assert.FileExists(t, filepath.Join(basePath, "c002.seed"))
-		assert.FileExists(t, filepath.Join(basePath, "c003.seed"))
+		// Verify directories exist with correct naming
+		assert.DirExists(t, filepath.Join(basePath, filenames[0]))
+		assert.DirExists(t, filepath.Join(basePath, filenames[1]))
+		assert.DirExists(t, filepath.Join(basePath, filenames[2]))
 	})
 
 	t.Run("should load multiple seeds with metadata", func(t *testing.T) {

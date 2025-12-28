@@ -435,12 +435,6 @@ Please make focused changes that could expose different vulnerability patterns.
 	return prompt, nil
 }
 
-// BuildMutatePromptSimple constructs a simple mutation prompt without coverage context.
-// This is provided for backward compatibility.
-func (b *Builder) BuildMutatePromptSimple(s *seed.Seed) (string, error) {
-	return b.BuildMutatePrompt(s, nil)
-}
-
 // BuildAnalyzePrompt constructs a prompt to analyze execution feedback.
 func (b *Builder) BuildAnalyzePrompt(s *seed.Seed, feedback string) (string, error) {
 	if s == nil || feedback == "" {

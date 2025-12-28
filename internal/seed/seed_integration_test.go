@@ -19,7 +19,7 @@ func TestSeed_Integration_SaveAndLoad(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	originalSeed := &Seed{
-		ID: "test_seed_001",
+		Meta: Metadata{ID: 1},
 		Content: `
 #include <stdio.h>
 int main() {
@@ -33,19 +33,23 @@ int main() {
 		},
 	}
 
-	// Save the seed
-	err = SaveSeed(tempDir, originalSeed)
+	// Save the seed using new format
+	namer := NewDefaultNamingStrategy()
+	filename, err := SaveSeedWithMetadata(tempDir, originalSeed, namer)
 	require.NoError(t, err)
 
-	// Verify file was created
-	expectedPath := filepath.Join(tempDir, "test_seed_001.seed")
-	assert.FileExists(t, expectedPath)
+	// Verify directory was created
+	expectedDir := filepath.Join(tempDir, filename)
+	assert.DirExists(t, expectedDir)
+
+	// Verify source.c was created
+	sourceFile := filepath.Join(expectedDir, "source.c")
+	assert.FileExists(t, sourceFile)
 
 	// Read back and verify
-	content, err := os.ReadFile(expectedPath)
+	content, err := os.ReadFile(sourceFile)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "Hello, World!")
-	assert.Contains(t, string(content), "JSON_TESTCASES_START")
 }
 
 // TestSeed_Integration_SaveAndLoadWithMetadata tests metadata persistence.

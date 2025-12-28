@@ -27,12 +27,12 @@ func (r *MarkdownReporter) Save(bug *oracle.Bug) error {
 		return fmt.Errorf("failed to create report directory: %w", err)
 	}
 
-	reportName := fmt.Sprintf("bug_%s_%d.md", bug.Seed.ID, time.Now().UnixNano())
+	reportName := fmt.Sprintf("bug_%d_%d.md", bug.Seed.Meta.ID, time.Now().UnixNano())
 	reportPath := filepath.Join(r.outputDir, reportName)
 
 	var content string
 	content += fmt.Sprintf("# Bug Report: %s\n\n", bug.Description)
-	content += fmt.Sprintf("## Seed ID: %s\n\n", bug.Seed.ID)
+	content += fmt.Sprintf("## Seed ID: %d\n\n", bug.Seed.Meta.ID)
 	content += "## Execution Results\n\n"
 
 	// Report all test case results

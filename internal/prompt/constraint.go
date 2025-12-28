@@ -485,7 +485,7 @@ func GenerateAnnotatedFunctionCode(sourceFile string, startLine, endLine int, co
 func BuildTargetContextFromCFG(
 	target *coverage.TargetInfo,
 	baseSeed *seed.Seed,
-	analyzer *coverage.CFGGuidedAnalyzer,
+	analyzer *coverage.Analyzer,
 ) (*TargetContext, error) {
 	if target == nil {
 		return nil, fmt.Errorf("target info is required")

@@ -139,7 +139,7 @@ func TestDeepSeekClient_Analyze(t *testing.T) {
 		{RunningCommand: "./test", ExpectedResult: "success"},
 	}
 	testSeed := &seed.Seed{
-		ID:        "test-seed",
+		Meta:      seed.Metadata{ID: 1},
 		Content:   "int main() { return 0; }",
 		TestCases: testCases,
 	}
@@ -175,7 +175,6 @@ func TestDeepSeekClient_Mutate(t *testing.T) {
 		{RunningCommand: "./test", ExpectedResult: "output"},
 	}
 	originalSeed := &seed.Seed{
-		ID:        "original-seed",
 		Meta:      seed.Metadata{ID: 123, ParentID: 0, Depth: 1},
 		Content:   "original content",
 		TestCases: originalTestCases,

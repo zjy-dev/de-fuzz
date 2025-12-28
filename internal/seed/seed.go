@@ -9,7 +9,6 @@ type TestCase struct {
 // Seed represents a single test case for the fuzzer.
 // It contains the source code and a set of test cases.
 type Seed struct {
-	ID        string     // Unique identifier for the seed (legacy, for backward compatibility)
 	Meta      Metadata   // Metadata for lineage tracking and resume
 	Content   string     // C source code (source.c)
 	TestCases []TestCase // Test cases with running commands and expected results

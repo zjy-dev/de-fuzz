@@ -59,7 +59,7 @@ func BenchmarkDeepSeekClient_Analyze(b *testing.B) {
 		{RunningCommand: "./test", ExpectedResult: "success"},
 	}
 	testSeed := &seed.Seed{
-		ID:        "bench-seed",
+		Meta:      seed.Metadata{ID: 1},
 		Content:   "int main() { return 0; }",
 		TestCases: testCases,
 	}
@@ -86,7 +86,7 @@ func BenchmarkDeepSeekClient_Mutate(b *testing.B) {
 		{RunningCommand: "./prog", ExpectedResult: "output"},
 	}
 	testSeed := &seed.Seed{
-		ID:        "bench-seed",
+		Meta:      seed.Metadata{ID: 1},
 		Content:   "int main() { return 0; }",
 		TestCases: mutateTestCases,
 	}

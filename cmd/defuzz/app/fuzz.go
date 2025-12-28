@@ -26,11 +26,10 @@ import (
 // NewFuzzCommand creates the "fuzz" subcommand.
 func NewFuzzCommand() *cobra.Command {
 	var (
-		output   string
-		limit    int
-		timeout  int
-		useQEMU  bool
-		enableUI bool
+		output  string
+		limit   int
+		timeout int
+		useQEMU bool
 	)
 
 	cmd := &cobra.Command{
@@ -101,7 +100,7 @@ Examples:
 			// Build the actual output directory: {output}/{isa}/{strategy}
 			outputDir := filepath.Join(output, cfg.ISA, cfg.Strategy)
 
-			return runFuzz(cfg, outputDir, limit, timeout, useQEMU, enableUI)
+			return runFuzz(cfg, outputDir, limit, timeout, useQEMU)
 		},
 	}
 
@@ -110,12 +109,11 @@ Examples:
 	cmd.Flags().IntVar(&limit, "limit", 0, "Max number of target BBs for constraint solving (0 = unlimited)")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "Execution timeout in seconds")
 	cmd.Flags().BoolVar(&useQEMU, "use-qemu", false, "Use QEMU for cross-architecture execution")
-	cmd.Flags().BoolVar(&enableUI, "ui", true, "Enable real-time terminal UI")
 
 	return cmd
 }
 
-func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU, enableUI bool) error {
+func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU bool) error {
 	// Initialize logger with configured level
 	logLevel := cfg.LogLevel
 	if logLevel == "" {
@@ -279,8 +277,8 @@ func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU, 
 		logger.Warn("Failed to load existing metrics: %v", err)
 	}
 
-	// 11. Create CFG-guided analyzer if configured
-	var cfgAnalyzer *coverage.CFGGuidedAnalyzer
+	// 11. Create analyzer if configured
+	var analyzer *coverage.Analyzer
 	if cfg.Compiler.Fuzz.CFGFilePath != "" && len(cfg.Compiler.Targets) > 0 {
 		// Collect all target function names
 		var targetFunctions []string
@@ -294,65 +292,42 @@ func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU, 
 			mappingPath = filepath.Join(stateDir, "coverage_mapping.json")
 		}
 
-		logger.Info("Creating CFG-guided analyzer with %d target functions", len(targetFunctions))
+		logger.Info("Creating analyzer with %d target functions", len(targetFunctions))
 		logger.Debug("CFG file: %s", cfg.Compiler.Fuzz.CFGFilePath)
 		logger.Debug("Target functions: %v", targetFunctions)
 
-		cfgAnalyzer, err = coverage.NewCFGGuidedAnalyzer(
+		analyzer, err = coverage.NewAnalyzer(
 			cfg.Compiler.Fuzz.CFGFilePath,
 			targetFunctions,
 			cfg.Compiler.SourceParentPath,
 			mappingPath,
 		)
 		if err != nil {
-			logger.Warn("Failed to create CFG analyzer: %v (continuing without target function tracking)", err)
-			cfgAnalyzer = nil
+			logger.Warn("Failed to create analyzer: %v (continuing without target function tracking)", err)
+			analyzer = nil
 		} else {
-			logger.Info("CFG analyzer initialized, total target lines: %d", cfgAnalyzer.GetTotalTargetLines())
+			logger.Info("Analyzer initialized, total target lines: %d", analyzer.GetTotalTargetLines())
 		}
 	}
 
 	// 12. Create and run fuzzing engine
-	// Use CFGGuidedEngine if CFGAnalyzer is available (HLPFuzz-style constraint solving)
-	// Otherwise use regular Engine (coverage-guided fuzzing)
+	// Use CFGGuidedEngine for HLPFuzz-style progressive constraint solving
 	fmt.Println("[Fuzz] Starting fuzzing engine...")
+	logger.Info("Using CFG-guided engine (HLPFuzz-style)")
 
-	if cfgAnalyzer != nil {
-		// CFG-guided mode: progressive constraint solving targeting uncovered BBs
-		logger.Info("Using CFG-guided engine (HLPFuzz-style)")
-		cfgEngine := fuzz.NewCFGGuidedEngine(fuzz.CFGGuidedConfig{
-			Corpus:        corpusManager,
-			Compiler:      gccCompiler,
-			Executor:      seedExecutor,
-			Coverage:      coverageTracker,
-			Oracle:        oracleInstance,
-			LLM:           llmClient,
-			CFGAnalyzer:   cfgAnalyzer,
-			PromptBuilder: promptBuilder,
-			Understanding: understanding,
-			MaxIterations: limit,
-			MaxRetries:    cfg.Compiler.Fuzz.MaxConstraintRetries,
-			MappingPath:   filepath.Join(stateDir, "coverage_mapping.json"),
-		})
-		return cfgEngine.Run()
-	}
-
-	// Regular coverage-guided mode
-	logger.Info("Using regular coverage-guided engine")
-	engine := fuzz.NewEngine(fuzz.EngineConfig{
+	cfgEngine := fuzz.NewCFGGuidedEngine(fuzz.CFGGuidedConfig{
 		Corpus:        corpusManager,
 		Compiler:      gccCompiler,
 		Executor:      seedExecutor,
 		Coverage:      coverageTracker,
 		Oracle:        oracleInstance,
 		LLM:           llmClient,
-		Metrics:       metricsManager,
-		CFGAnalyzer:   cfgAnalyzer,
+		Analyzer:      analyzer,
 		PromptBuilder: promptBuilder,
 		Understanding: understanding,
 		MaxIterations: limit,
-		PrintInterval: 1, // Update UI every iteration
-		EnableUI:      enableUI,
+		MaxRetries:    cfg.Compiler.Fuzz.MaxConstraintRetries,
+		MappingPath:   filepath.Join(stateDir, "coverage_mapping.json"),
 	})
-	return engine.Run()
+	return cfgEngine.Run()
 }
