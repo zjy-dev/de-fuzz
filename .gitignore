@@ -27,10 +27,9 @@ fuzz.log
 experiments/
 
 # Target compilers and toolchains
-target-compilers/
-_target-compilers/
 gcc-*/
 arm-gnu-*/
+llvm-*/
 
 # Environment configuration
 .env
@@ -44,3 +43,16 @@ Thumbs.db
 # Planning and draft documents
 *plan*.md
 GEMINI.md
+
+# AI assistant and vibe-coding artifacts
+claude/
+claude.md
+.cursor/
+copilot/
+ollama/
+
+# Temporary and cache files
+*.tmp
+*.temp
+.cache/
+tmp/
