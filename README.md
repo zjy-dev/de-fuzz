@@ -53,19 +53,19 @@ type SeedMetadata struct {
                                   |
                                   v
 +------------------------------------------------------------------+
-|  3. Select Target: Uncovered BB with most successors (CFG-guided)|
+|  3. Select Target: Uncovered BB with most successors             |
 +------------------------------------------------------------------+
                                   |
                                   v
 +------------------------------------------------------------------+
-|  4. Build Prompt:                                                |
+|  4. Build Prompt:                                               |
 |     - Target function code (annotated: covered/uncovered/target) |
 |     - Shot: Seed covering target's predecessor                   |
 +------------------------------------------------------------------+
                                   |
                                   v
 +------------------------------------------------------------------+
-|  5. LLM Mutation: Mutate shot to cover target BB (LLM Plugin)   |
+|  5. LLM Mutation: Mutate shot to cover target BB                 |
 +------------------------------------------------------------------+
                                   |
                                   v
@@ -77,24 +77,31 @@ type SeedMetadata struct {
                     |                           |
                     v                           v
            +----------------+          +----------------+
-           | Covered Target?|          | Failed?        |
+           | Covered Target?|          | Not Covered    |
            +----------------+          +----------------+
                     |                           |
            +--------+--------+                |
            |                 |                v
            v                 v        +----------------+
     +------------+   +------------+    | Divergence     |
-    | Update     |   | Oracle     |    | Analysis       |
-    | Mapping    |   | (Plugin)   |    | (uftrace)      |
+    | Update     |   | Feed to    |    | Analysis       |
+    | Mapping    |   | Oracle     |    | (uftrace)      |
     +------------+   +------------+    +----------------+
            |                 |                |
            +--------+--------+                |
+                    |                         |
+                    v                         v
+           +------------------+    +----------------------+
+           | No Coverage Gain?|    | Send to LLM for     |
+           | -> Skip Persist  |    | Refined Mutation    |
+           | Else -> Persist  |    +----------------------+
+           +------------------+              |
                     |                         |
                     +-----------+-------------+
                                 |
                                 v
                     +-----------------------+
-                    | Return to Step 3      |
+                    | Return to Step 6      |
                     +-----------------------+
 ```
 
@@ -118,11 +125,13 @@ For each defense strategy and ISA:
    IF mutated seed covers target BB:
       - Update mapping
       - Feed to Oracle
-      - GOTO step 3a
+      - If no new coverage -> skip persist
+      - If has new coverage -> persist
+      - Return to step 3a
    ELSE:
       - Run divergence analysis (uftrace) to find call trace difference
       - Send divergence info to LLM for refined mutation
-      - GOTO step 3d
+      - Return to step 3d
 ```
 
 ### Test Oracle (Plugin-Based)
