@@ -37,35 +37,35 @@ type SeedMetadata struct {
 
 ```
       ┌──────────────────────────────────────────────────────────────────┐
-      │  1. Maintain mapping: Line -> FirstSeedID that covered it          │
+      │  1. Maintain mapping: Line -> FirstSeedID that covered it        │
       └──────────────────────────────────────────────────────────────────┘
                                        ↓
       ┌──────────────────────────────────────────────────────────────────┐
-      │  2. Run initial seeds, establish mapping, persist to disk         │
+      │  2. Run initial seeds, establish mapping, persist to disk        │
       └──────────────────────────────────────────────────────────────────┘
                                        ↓
                                ┌───────────────┐
-                               │ Constraint     │
-                               │   Solving      │
-                               │   Loop         │
+                               │ Constraint    │
+                               │   Solving     │
+                               │   Loop        │
                                └───────────────┘
                                        ↓
       ┌──────────────────────────────────────────────────────────────────┐
-      │  3. Select Target: Uncovered BB with most successors               │
+      │  3. Select Target: Uncovered BB with most successors             │
       └──────────────────────────────────────────────────────────────────┘
                                        ↓
       ┌──────────────────────────────────────────────────────────────────┐
-      │  4. Build Prompt:                                                 │
-      │     - Target function code (annotated: covered/uncovered/target)  │
-      │     - Shot: Seed covering target's predecessor                     │
+      │  4. Build Prompt:                                                │
+      │     - Target function code (annotated: covered/uncovered/target) │
+      │     - Shot: Seed covering target's predecessor                   │
       └──────────────────────────────────────────────────────────────────┘
                                        ↓
       ┌──────────────────────────────────────────────────────────────────┐
-      │  5. LLM Mutation: Mutate shot to cover target BB                  │
+      │  5. LLM Mutation: Mutate shot to cover target BB                 │
       └──────────────────────────────────────────────────────────────────┘
                                        ↓
       ┌──────────────────────────────────────────────────────────────────┐
-      │  6. Compile and Test Seed                                         │
+      │  6. Compile and Test Seed                                        │
       └──────────────────────────────────────────────────────────────────┘
                                        ↓
                        ┌───────────────┴───────────────┐
