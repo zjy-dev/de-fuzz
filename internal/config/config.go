@@ -326,7 +326,7 @@ func LoadConfig() (*Config, error) {
 		cfg.Compiler.Fuzz.QEMUPath = "qemu-aarch64"
 	}
 	if cfg.Compiler.Fuzz.MaxConstraintRetries == 0 {
-		cfg.Compiler.Fuzz.MaxConstraintRetries = 3
+		cfg.Compiler.Fuzz.MaxConstraintRetries = 32
 	}
 
 	// Set defaults for oracle config if not specified
