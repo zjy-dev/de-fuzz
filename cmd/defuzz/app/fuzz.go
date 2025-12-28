@@ -331,7 +331,7 @@ func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU, 
 			PromptBuilder: promptBuilder,
 			Understanding: understanding,
 			MaxIterations: limit,
-			MaxRetries:    3, // Max retries with divergence analysis per target BB
+			MaxRetries:    cfg.Compiler.Fuzz.MaxConstraintRetries,
 			MappingPath:   filepath.Join(stateDir, "coverage_mapping.json"),
 		})
 		return cfgEngine.Run()

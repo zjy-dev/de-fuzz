@@ -59,6 +59,10 @@ type FuzzConfig struct {
 	// MappingPath is the path to store/load coverage mapping (optional)
 	// If empty, defaults to {output_dir}/state/coverage_mapping.json
 	MappingPath string `mapstructure:"mapping_path"`
+
+	// MaxConstraintRetries is the maximum number of divergence analysis retries
+	// per target basic block when constraint solving fails (default: 3)
+	MaxConstraintRetries int `mapstructure:"max_constraint_retries"`
 }
 
 // InternalLLMConfig is used for unmarshaling the config.yaml which only contains the provider string
@@ -320,6 +324,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.Compiler.Fuzz.QEMUPath == "" {
 		cfg.Compiler.Fuzz.QEMUPath = "qemu-aarch64"
+	}
+	if cfg.Compiler.Fuzz.MaxConstraintRetries == 0 {
+		cfg.Compiler.Fuzz.MaxConstraintRetries = 3
 	}
 
 	// Set defaults for oracle config if not specified

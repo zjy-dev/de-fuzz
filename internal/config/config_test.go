@@ -284,6 +284,7 @@ config:
     output_root_dir: "my_fuzz_out"
     max_iterations: 100
     max_new_seeds: 5
+    max_constraint_retries: 5
     timeout: 60
     use_qemu: true
     qemu_path: "qemu-x86_64"
@@ -310,6 +311,7 @@ config:
 	assert.Equal(t, "my_fuzz_out", fuzzCfg.OutputRootDir)
 	assert.Equal(t, 100, fuzzCfg.MaxIterations)
 	assert.Equal(t, 5, fuzzCfg.MaxNewSeeds)
+	assert.Equal(t, 5, fuzzCfg.MaxConstraintRetries)
 	assert.Equal(t, 60, fuzzCfg.Timeout)
 	assert.True(t, fuzzCfg.UseQEMU)
 	assert.Equal(t, "qemu-x86_64", fuzzCfg.QEMUPath)
@@ -350,6 +352,7 @@ config:
 	assert.Equal(t, "", fuzzCfg.OutputRootDir)
 	assert.Equal(t, 0, fuzzCfg.MaxIterations)
 	assert.Equal(t, 0, fuzzCfg.MaxNewSeeds)
+	assert.Equal(t, 0, fuzzCfg.MaxConstraintRetries)
 	assert.Equal(t, 0, fuzzCfg.Timeout)
 	assert.False(t, fuzzCfg.UseQEMU)
 	assert.Equal(t, "", fuzzCfg.QEMUPath)
@@ -370,6 +373,7 @@ config:
     version: "12.2.0"
   fuzz:
     max_iterations: 50
+    max_constraint_retries: 10
     timeout: 45
 `
 	configFile := filepath.Join(actualConfigPath, "config.yaml")
@@ -391,6 +395,7 @@ config:
 
 	// Verify specified fields
 	assert.Equal(t, 50, fuzzCfg.MaxIterations)
+	assert.Equal(t, 10, fuzzCfg.MaxConstraintRetries)
 	assert.Equal(t, 45, fuzzCfg.Timeout)
 	// Unspecified fields should be zero values
 	assert.Equal(t, "", fuzzCfg.OutputRootDir)
