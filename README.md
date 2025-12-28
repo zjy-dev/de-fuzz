@@ -71,20 +71,20 @@ type SeedMetadata struct {
                        ┌───────────────┴───────────────┐
                        ↓                               ↓
              ┌───────────────────┐           ┌───────────────────┐
-             │  Covered Target?   │           │  Not Covered       │
+             │  Covered Target?  │           │   Not Covered     │
              └───────────────────┘           └───────────────────┘
                        ↓                               ↓
-             ┌───────────────────┐           ┌───────────────────┐
-             │  Update Mapping   │           │ Divergence (uftrace│
-             │  Feed to Oracle   │           │ Locate call trace  │
-             │  Return to Step 3 │           │ Divergent function │
-             └───────────────────┘           └───────────────────┘
+             ┌───────────────────┐           ┌─────────────────────┐
+             │  Update Mapping   │           │ Divergence (uftrace)│
+             │  Feed to Oracle   │           │ Locate call trace   │
+             │  Return to Step 3 │           │ Divergent function  │
+             └───────────────────┘           └─────────────────────┘
                                                        ↓
-                                           ┌───────────────────────┐
+                                           ┌────────────────────────┐
                                            │ Send divergence to LLM │
                                            │ Refine mutation        │
                                            │ (Return to Step 6)     │
-                                           └───────────────────────┘
+                                           └────────────────────────┘
 ```
 
 ### Algorithm Overview
