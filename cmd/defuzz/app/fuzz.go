@@ -311,11 +311,11 @@ func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU b
 	}
 
 	// 12. Create and run fuzzing engine
-	// Use CFGGuidedEngine for HLPFuzz-style progressive constraint solving
+	// Use Engine for constraint solving based fuzzing
 	fmt.Println("[Fuzz] Starting fuzzing engine...")
-	logger.Info("Using CFG-guided engine (HLPFuzz-style)")
+	logger.Info("Using fuzzing engine")
 
-	cfgEngine := fuzz.NewCFGGuidedEngine(fuzz.CFGGuidedConfig{
+	cfgEngine := fuzz.NewEngine(fuzz.Config{
 		Corpus:        corpusManager,
 		Compiler:      gccCompiler,
 		Executor:      seedExecutor,

@@ -17,8 +17,8 @@ import (
 	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 )
 
-// CFGGuidedConfig holds configuration for the fuzzing engine.
-type CFGGuidedConfig struct {
+// Config holds configuration for the fuzzing engine.
+type Config struct {
 	// Core components
 	Corpus   corpus.Manager
 	Compiler compiler.Compiler
@@ -51,9 +51,9 @@ type CFGGuidedConfig struct {
 	MappingPath     string        // Path to save/load coverage mapping
 }
 
-// CFGGuidedEngine implements HLPFuzz-style progressive constraint solving.
-type CFGGuidedEngine struct {
-	cfg            CFGGuidedConfig
+// Engine implements constraint solving based fuzzing.
+type Engine struct {
+	cfg            Config
 	iterationCount int
 	targetHits     int // Number of times we successfully hit a target
 	bugsFound      []*oracle.Bug
@@ -64,28 +64,28 @@ type CFGGuidedEngine struct {
 	currentMutatedSeedPath string
 }
 
-// NewCFGGuidedEngine creates a new CFG-guided fuzzing engine.
-func NewCFGGuidedEngine(cfg CFGGuidedConfig) *CFGGuidedEngine {
+// NewEngine creates a new fuzzing engine.
+func NewEngine(cfg Config) *Engine {
 	if cfg.MaxRetries <= 0 {
 		cfg.MaxRetries = 3
 	}
-	return &CFGGuidedEngine{
+	return &Engine{
 		cfg:       cfg,
 		bugsFound: make([]*oracle.Bug, 0),
 	}
 }
 
-// Run starts the CFG-guided fuzzing loop.
-func (e *CFGGuidedEngine) Run() error {
+// Run starts the fuzzing loop.
+func (e *Engine) Run() error {
 	e.startTime = time.Now()
-	logger.Info("Starting CFG-guided fuzzing loop...")
+	logger.Info("Starting fuzzing loop...")
 
 	// Process initial seeds to build coverage mapping
 	if err := e.processInitialSeeds(); err != nil {
 		return fmt.Errorf("failed to process initial seeds: %w", err)
 	}
 
-	// Main CFG-guided loop
+	// Main fuzzing loop
 	for {
 		// Check iteration limit
 		if e.cfg.MaxIterations > 0 && e.iterationCount >= e.cfg.MaxIterations {
@@ -105,7 +105,7 @@ func (e *CFGGuidedEngine) Run() error {
 		logger.Info("Iteration %d: Targeting %s:BB%d (succs=%d, lines=%v)",
 			e.iterationCount, target.Function, target.BBID, target.SuccessorCount, target.Lines)
 
-		// Step 2: Try to cover the target with progressive constraint solving
+		// Step 2: Try to cover the target with constraint solving
 		hit, err := e.solveConstraint(target)
 		if err != nil {
 			logger.Error("Error solving constraint for %s:BB%d: %v", target.Function, target.BBID, err)
@@ -132,7 +132,7 @@ func (e *CFGGuidedEngine) Run() error {
 }
 
 // processInitialSeeds runs all initial seeds to build the coverage mapping.
-func (e *CFGGuidedEngine) processInitialSeeds() error {
+func (e *Engine) processInitialSeeds() error {
 	logger.Info("Processing initial seeds to build coverage mapping...")
 
 	for {
@@ -172,7 +172,7 @@ func (e *CFGGuidedEngine) processInitialSeeds() error {
 }
 
 // solveConstraint tries to generate a seed that covers the target BB.
-func (e *CFGGuidedEngine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
+func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
 	// Find base seed (closest covered seed)
 	var baseSeed *seed.Seed
 	if target.BaseSeed != "" {
@@ -283,7 +283,7 @@ func (e *CFGGuidedEngine) solveConstraint(target *coverage.TargetInfo) (bool, er
 }
 
 // generateMutatedSeed generates a new seed using LLM with constraint solving prompt.
-func (e *CFGGuidedEngine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, error) {
+func (e *Engine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, error) {
 	// Build constraint solving prompt
 	constraintPrompt, err := e.cfg.PromptBuilder.BuildConstraintSolvingPrompt(ctx)
 	if err != nil {
@@ -311,7 +311,7 @@ func (e *CFGGuidedEngine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.
 
 // tryMutatedSeed compiles and runs a mutated seed, checking if it covers the target.
 // Returns (hitTarget, coveredAnything, error)
-func (e *CFGGuidedEngine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool, bool, error) {
+func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool, bool, error) {
 	// Save seed path for divergence analysis
 	// Use the MappingPath directory as the state directory
 	stateDir := ""
@@ -392,7 +392,7 @@ func (e *CFGGuidedEngine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetIn
 }
 
 // measureSeed compiles and measures coverage for a seed.
-func (e *CFGGuidedEngine) measureSeed(s *seed.Seed) (coverage.Report, error) {
+func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, error) {
 	// Compile
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
@@ -428,7 +428,7 @@ func (e *CFGGuidedEngine) measureSeed(s *seed.Seed) (coverage.Report, error) {
 
 // extractCoveredLines extracts covered line identifiers from a coverage report.
 // Returns a list of "file:line" strings.
-func (e *CFGGuidedEngine) extractCoveredLines(report coverage.Report) []string {
+func (e *Engine) extractCoveredLines(report coverage.Report) []string {
 	if report == nil {
 		return make([]string, 0)
 	}
@@ -443,7 +443,7 @@ func (e *CFGGuidedEngine) extractCoveredLines(report coverage.Report) []string {
 }
 
 // runOracle runs bug detection oracle on a seed.
-func (e *CFGGuidedEngine) runOracle(s *seed.Seed) {
+func (e *Engine) runOracle(s *seed.Seed) {
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil || !compileResult.Success {
 		return
@@ -478,7 +478,7 @@ func (e *CFGGuidedEngine) runOracle(s *seed.Seed) {
 }
 
 // saveState saves the current state.
-func (e *CFGGuidedEngine) saveState() {
+func (e *Engine) saveState() {
 	// Save coverage mapping
 	if e.cfg.MappingPath != "" {
 		if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
@@ -493,14 +493,14 @@ func (e *CFGGuidedEngine) saveState() {
 }
 
 // printSummary prints a summary of the fuzzing session.
-func (e *CFGGuidedEngine) printSummary() {
+func (e *Engine) printSummary() {
 	elapsed := time.Since(e.startTime)
 
 	// Get final coverage stats
 	funcCov := e.cfg.Analyzer.GetFunctionCoverage()
 
 	logger.Info("=========================================")
-	logger.Info("      CFG-GUIDED FUZZING SUMMARY")
+	logger.Info("      FUZZING SUMMARY")
 	logger.Info("=========================================")
 	logger.Info("Duration:       %v", elapsed)
 	logger.Info("Iterations:     %d", e.iterationCount)
@@ -526,16 +526,16 @@ func (e *CFGGuidedEngine) printSummary() {
 }
 
 // GetBugs returns all bugs found during fuzzing.
-func (e *CFGGuidedEngine) GetBugs() []*oracle.Bug {
+func (e *Engine) GetBugs() []*oracle.Bug {
 	return e.bugsFound
 }
 
 // GetIterationCount returns the number of iterations completed.
-func (e *CFGGuidedEngine) GetIterationCount() int {
+func (e *Engine) GetIterationCount() int {
 	return e.iterationCount
 }
 
 // GetTargetHits returns the number of times we successfully hit a target.
-func (e *CFGGuidedEngine) GetTargetHits() int {
+func (e *Engine) GetTargetHits() int {
 	return e.targetHits
 }

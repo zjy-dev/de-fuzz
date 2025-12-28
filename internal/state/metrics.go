@@ -42,7 +42,7 @@ type FuzzMetrics struct {
 	TotalCoveredLines int     `json:"total_covered_lines"` // Total covered lines
 	TotalLines        int     `json:"total_lines"`         // Total lines in source
 
-	// Target function coverage (if using CFG-guided fuzzing)
+	// Target function coverage (if using target function tracking)
 	TargetTotalLines   int `json:"target_total_lines,omitempty"`   // Total lines in target functions
 	TargetCoveredLines int `json:"target_covered_lines,omitempty"` // Covered lines in target functions
 
@@ -251,7 +251,7 @@ func (m *FileMetricsManager) UpdateCoverageStats(percentage float64, covered, to
 }
 
 // SetTargetFunctionLines sets the total number of lines in target functions.
-// This should be called once during initialization when using CFG-guided fuzzing.
+// This should be called once during initialization when using target function tracking.
 func (m *FileMetricsManager) SetTargetFunctionLines(total int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -24,7 +24,7 @@ import (
 // testSourceFile is the full path as it appears in CFG files
 const testSourceFile = "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
 
-func TestCFGGuidedEngine_Integration_BasicFlow(t *testing.T) {
+func TestEngine_Integration_BasicFlow(t *testing.T) {
 	// Check if CFG file exists
 	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
@@ -73,15 +73,15 @@ func TestCFGGuidedEngine_Integration_BasicFlow(t *testing.T) {
 	// Create prompt builder
 	promptBuilder := prompt.NewBuilder(0, "")
 
-	// Create CFG-guided engine
-	cfg := CFGGuidedConfig{
+	// Create engine
+	cfg := Config{
 		Corpus:          corp,
 		Compiler:        mockCompiler,
 		Executor:        mockExecutor,
 		Coverage:        nil, // Not needed for this test
 		Oracle:          nil,
 		LLM:             mockLLM,
-		CFGAnalyzer:     cfgAnalyzer,
+		Analyzer:        cfgAnalyzer,
 		PromptBuilder:   promptBuilder,
 		Understanding:   "Test compiler fuzzing",
 		MaxIterations:   5,
@@ -91,7 +91,7 @@ func TestCFGGuidedEngine_Integration_BasicFlow(t *testing.T) {
 		MappingPath:     mappingPath,
 	}
 
-	engine := NewCFGGuidedEngine(cfg)
+	engine := NewEngine(cfg)
 	require.NotNil(t, engine)
 
 	// Test 1: Process initial seeds
@@ -179,7 +179,7 @@ func (m *mockLLM) Mutate(understanding, prompt string, s *seed.Seed) (*seed.Seed
 	return &seed.Seed{Content: m.response}, nil
 }
 
-func TestCFGGuidedEngine_Integration_TargetSelection(t *testing.T) {
+func TestEngine_Integration_TargetSelection(t *testing.T) {
 	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 		t.Skipf("CFG file not found")
@@ -245,7 +245,7 @@ func TestCFGGuidedEngine_Integration_TargetSelection(t *testing.T) {
 	})
 }
 
-func TestCFGGuidedEngine_Integration_MappingPersistence(t *testing.T) {
+func TestEngine_Integration_MappingPersistence(t *testing.T) {
 	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 		t.Skipf("CFG file not found")
@@ -310,7 +310,7 @@ func TestCFGGuidedEngine_Integration_MappingPersistence(t *testing.T) {
 	})
 }
 
-func TestCFGGuidedEngine_Integration_CoverageProgression(t *testing.T) {
+func TestEngine_Integration_CoverageProgression(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping coverage progression test in short mode")
 	}

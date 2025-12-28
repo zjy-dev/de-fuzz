@@ -8,17 +8,17 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/coverage"
 )
 
-func TestCFGGuidedEngine_NewEngine(t *testing.T) {
+func TestEngine_NewEngine(t *testing.T) {
 	// Create a minimal config
-	cfg := CFGGuidedConfig{
+	cfg := Config{
 		MaxIterations: 10,
 		MaxRetries:    3,
 	}
 
-	engine := NewCFGGuidedEngine(cfg)
+	engine := NewEngine(cfg)
 
 	if engine == nil {
-		t.Fatal("NewCFGGuidedEngine returned nil")
+		t.Fatal("NewEngine returned nil")
 	}
 
 	if engine.cfg.MaxRetries != 3 {
@@ -26,20 +26,20 @@ func TestCFGGuidedEngine_NewEngine(t *testing.T) {
 	}
 }
 
-func TestCFGGuidedEngine_DefaultMaxRetries(t *testing.T) {
-	cfg := CFGGuidedConfig{
+func TestEngine_DefaultMaxRetries(t *testing.T) {
+	cfg := Config{
 		MaxRetries: 0, // Should default to 3
 	}
 
-	engine := NewCFGGuidedEngine(cfg)
+	engine := NewEngine(cfg)
 
 	if engine.cfg.MaxRetries != 3 {
 		t.Errorf("Expected default MaxRetries=3, got %d", engine.cfg.MaxRetries)
 	}
 }
 
-func TestCFGGuidedEngine_GetBugs(t *testing.T) {
-	engine := NewCFGGuidedEngine(CFGGuidedConfig{})
+func TestEngine_GetBugs(t *testing.T) {
+	engine := NewEngine(Config{})
 
 	bugs := engine.GetBugs()
 	if bugs == nil {
@@ -50,24 +50,24 @@ func TestCFGGuidedEngine_GetBugs(t *testing.T) {
 	}
 }
 
-func TestCFGGuidedEngine_GetIterationCount(t *testing.T) {
-	engine := NewCFGGuidedEngine(CFGGuidedConfig{})
+func TestEngine_GetIterationCount(t *testing.T) {
+	engine := NewEngine(Config{})
 
 	if engine.GetIterationCount() != 0 {
 		t.Error("Initial iteration count should be 0")
 	}
 }
 
-func TestCFGGuidedEngine_GetTargetHits(t *testing.T) {
-	engine := NewCFGGuidedEngine(CFGGuidedConfig{})
+func TestEngine_GetTargetHits(t *testing.T) {
+	engine := NewEngine(Config{})
 
 	if engine.GetTargetHits() != 0 {
 		t.Error("Initial target hits should be 0")
 	}
 }
 
-func TestCFGGuidedEngine_ExtractCoveredLines(t *testing.T) {
-	engine := NewCFGGuidedEngine(CFGGuidedConfig{})
+func TestEngine_ExtractCoveredLines(t *testing.T) {
+	engine := NewEngine(Config{})
 
 	// Currently returns empty - this is a placeholder test
 	lines := engine.extractCoveredLines(nil)
@@ -77,7 +77,7 @@ func TestCFGGuidedEngine_ExtractCoveredLines(t *testing.T) {
 }
 
 // Integration test - requires real CFG file
-func TestCFGGuidedEngine_WithAnalyzer(t *testing.T) {
+func TestEngine_WithAnalyzer(t *testing.T) {
 	// Create temp directory
 	tmpDir := t.TempDir()
 
@@ -112,13 +112,13 @@ int test_func (int a, int b)
 	}
 
 	// Create engine with analyzer
-	cfg := CFGGuidedConfig{
-		Analyzer:   analyzer,
+	cfg := Config{
+		Analyzer:      analyzer,
 		MaxIterations: 1,
 		MappingPath:   mappingPath,
 	}
 
-	engine := NewCFGGuidedEngine(cfg)
+	engine := NewEngine(cfg)
 
 	// Verify analyzer is set
 	if engine.cfg.Analyzer == nil {
