@@ -16,21 +16,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          clean: true # 强制清理工作目录
-          fetch-depth: 0 # 获取完整历史确保最新
-          persist-credentials: false # 避免凭据持久化
+          clean: true # Force clean workspace
+          fetch-depth: 0 # Get full history to ensure latest
+          persist-credentials: false # Avoid credential persistence
 
-      - name: 完整工作区清理
+      - name: Complete workspace cleanup
         run: |
           echo "🧹 Performing complete workspace cleanup..."
-          # 清理所有可能的缓存文件
+          # Clean all possible cache files
           rm -rf ~/.cache/go-build || true
           rm -rf ~/go/pkg/mod || true
           rm -rf ./bin/ || true
           rm -rf ./logs/ || true
           rm -rf ./.env* || true
           rm -rf ./coverage.* || true
-          # 强制重新获取所有配置文件
+          # Force reset all config files
           git reset --hard HEAD
           git clean -fdx
           echo "✅ Workspace completely cleaned"
@@ -40,22 +40,22 @@ jobs:
         with:
           go-version: "1.24.2"
 
-      # 禁用缓存，强制重新下载所有依赖
-      - name: 强制清理 Go 模块
+      # Disable cache, force re-download all dependencies
+      - name: Force clean Go modules
         run: |
           echo "🔄 Force cleaning Go modules and build cache..."
           go clean -modcache || true
           go clean -cache || true
           echo "✅ Go caches cleared"
 
-      - name: 下载依赖（强制全新）
+      - name: Download dependencies (force fresh)
         run: |
           echo "📦 Force downloading fresh dependencies..."
           go mod download -x
           go mod verify
           echo "✅ Fresh dependencies downloaded and verified"
 
-      # 运行单元测试并生成日志
+      # Run unit tests and generate logs
       - name: Run unit tests
         run: |
           mkdir -p artifacts
@@ -63,7 +63,7 @@ jobs:
           make test-unit 2>&1 | tee artifacts/unit-test.log
         continue-on-error: true
 
-      # 上传测试日志（即使失败也上传）
+      # Upload test logs (even on failure)
       - name: Upload unit test logs
         if: always()
         uses: actions/upload-artifact@v4
