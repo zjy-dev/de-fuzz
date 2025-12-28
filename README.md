@@ -33,106 +33,83 @@ type SeedMetadata struct {
 }
 ```
 
-### Algorithm
+### Algorithm Flowchart
 
 ```
-+------------------------------------------------------------------+
-|  1. Maintain mapping: Line -> FirstSeedID that covered it        |
-+------------------------------------------------------------------+
-                                  |
-                                  v
-+------------------------------------------------------------------+
-|  2. Run initial seeds, establish mapping, persist to disk       |
-+------------------------------------------------------------------+
-                                  |
-                                  v
-                        +-------------------+
-                        | Constraint Solving|
-                        |      Loop         |
-                        +-------------------+
-                                  |
-                                  v
-+------------------------------------------------------------------+
-|  3. Select Target: Uncovered BB with most successors             |
-+------------------------------------------------------------------+
-                                  |
-                                  v
-+------------------------------------------------------------------+
-|  4. Build Prompt:                                               |
-|     - Target function code (annotated: covered/uncovered/target) |
-|     - Shot: Seed covering target's predecessor                   |
-+------------------------------------------------------------------+
-                                  |
-                                  v
-+------------------------------------------------------------------+
-|  5. LLM Mutation: Mutate shot to cover target BB                 |
-+------------------------------------------------------------------+
-                                  |
-                                  v
-+------------------------------------------------------------------+
-|  6. Compile and Test Seed                                        |
-+------------------------------------------------------------------+
-                                  |
-                    +-------------+-------------+
-                    |                           |
-                    v                           v
-           +----------------+          +----------------+
-           | Covered Target?|          | Not Covered    |
-           +----------------+          +----------------+
-                    |                           |
-           +--------+--------+                |
-           |                 |                v
-           v                 v        +----------------+
-    +------------+   +------------+    | Divergence     |
-    | Update     |   | Feed to    |    | Analysis       |
-    | Mapping    |   | Oracle     |    | (uftrace)      |
-    +------------+   +------------+    +----------------+
-           |                 |                |
-           +--------+--------+                |
-                    |                         |
-                    v                         v
-           +------------------+    +----------------------+
-           | No Coverage Gain?|    | Send to LLM for     |
-           | -> Skip Persist  |    | Refined Mutation    |
-           | Else -> Persist  |    +----------------------+
-           +------------------+              |
-                    |                         |
-                    +-----------+-------------+
-                                |
-                                v
-                    +-----------------------+
-                    | Return to Step 6      |
-                    +-----------------------+
+      ┌──────────────────────────────────────────────────────────────────┐
+      │  1. Maintain mapping: Line -> FirstSeedID that covered it          │
+      └──────────────────────────────────────────────────────────────────┘
+                                       ↓
+      ┌──────────────────────────────────────────────────────────────────┐
+      │  2. Run initial seeds, establish mapping, persist to disk         │
+      └──────────────────────────────────────────────────────────────────┘
+                                       ↓
+                               ┌───────────────┐
+                               │ Constraint     │
+                               │   Solving      │
+                               │   Loop         │
+                               └───────────────┘
+                                       ↓
+      ┌──────────────────────────────────────────────────────────────────┐
+      │  3. Select Target: Uncovered BB with most successors               │
+      └──────────────────────────────────────────────────────────────────┘
+                                       ↓
+      ┌──────────────────────────────────────────────────────────────────┐
+      │  4. Build Prompt:                                                 │
+      │     - Target function code (annotated: covered/uncovered/target)  │
+      │     - Shot: Seed covering target's predecessor                     │
+      └──────────────────────────────────────────────────────────────────┘
+                                       ↓
+      ┌──────────────────────────────────────────────────────────────────┐
+      │  5. LLM Mutation: Mutate shot to cover target BB                  │
+      └──────────────────────────────────────────────────────────────────┘
+                                       ↓
+      ┌──────────────────────────────────────────────────────────────────┐
+      │  6. Compile and Test Seed                                         │
+      └──────────────────────────────────────────────────────────────────┘
+                                       ↓
+                       ┌───────────────┴───────────────┐
+                       ↓                               ↓
+             ┌───────────────────┐           ┌───────────────────┐
+             │  Covered Target?   │           │  Not Covered       │
+             └───────────────────┘           └───────────────────┘
+                       ↓                               ↓
+             ┌───────────────────┐           ┌───────────────────┐
+             │  Update Mapping   │           │ Divergence (uftrace│
+             │  Feed to Oracle   │           │ Locate call trace  │
+             │  Return to Step 3 │           │ Divergent function │
+             └───────────────────┘           └───────────────────┘
+                                                       ↓
+                                           ┌───────────────────────┐
+                                           │ Send divergence to LLM │
+                                           │ Refine mutation        │
+                                           │ (Return to Step 6)     │
+                                           └───────────────────────┘
 ```
 
-### Fuzzing Algorithm (Constraint Solving Loop)
+### Algorithm Overview
 
-For each defense strategy and ISA:
+DeFuzz implements the following constraint solving process:
 
-```
-1. Maintain a mapping: Line -> FirstSeedID that covered it
+1. **Maintain Mapping**: Track which seed first covered each line of code.
 
-2. Run initial seeds, establish mapping, persist seeds to disk
+2. **Initialize**: Run initial seeds to establish the mapping, then persist seeds to disk.
 
-3. CONSTRAINT SOLVING LOOP:
-   a. Select target: Uncovered basic block with most successors (CFG-guided)
-   b. Build prompt:
-      - Target function code with annotations (covered/uncovered/target lines)
-      - Shot: Seed that covered the target's predecessor
-   c. Send to LLM: Mutate shot to cover target BB
-   d. Compile and test mutated seed
+3. **Target Selection**: In each loop, select the uncovered basic block with the most successors (CFG-guided targeting).
 
-   IF mutated seed covers target BB:
-      - Update mapping
-      - Feed to Oracle
-      - If no new coverage -> skip persist
-      - If has new coverage -> persist
-      - Return to step 3a
-   ELSE:
-      - Run divergence analysis (uftrace) to find call trace difference
-      - Send divergence info to LLM for refined mutation
-      - Return to step 3d
-```
+4. **Prompt Construction**:
+   - Provide the target function code with annotations (covered/uncovered/target lines)
+   - Include the seed that covered the target's predecessor as a shot (example)
+
+5. **LLM Mutation**: Send the prompt to LLM, asking it to mutate the shot to cover the target BB.
+
+6. **Compile and Test**: Compile the mutated seed and test if it covers the target.
+
+7. **Coverage Check**:
+   - If covered: Update mapping, feed to Oracle, persist only if new coverage gained
+   - If not covered: Run divergence analysis (uftrace), send results to LLM for refined mutation
+
+8. **Divergence Analysis**: Compare call traces of base and mutated seeds to find where they diverge, then send this information back to LLM for another mutation attempt.
 
 ### Test Oracle (Plugin-Based)
 
@@ -149,8 +126,8 @@ Run with buffer size N (fill with 'A' = 0x41)
   - Exit 139 (SIGSEGV): Return address modified before check (BUG!)
 
 Binary search in [0, MaxBufferSize] to find minimum crash size:
-  - If min crash exits with 139 -> Canary bypass detected
-  - If min crash exits with 134 -> Canary working correctly
+  - Min crash exits with 139 -> Canary bypass detected
+  - Min crash exits with 134 -> Canary working correctly
 ```
 
 #### LLM Oracle (Fallback)
