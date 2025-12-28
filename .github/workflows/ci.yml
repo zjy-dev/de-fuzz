@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0 # 获取完整历史确保最新
           persist-credentials: false # 避免凭据持久化
 
-      - name: Complete workspace cleanup
+      - name: 完整工作区清理
         run: |
           echo "🧹 Performing complete workspace cleanup..."
           # 清理所有可能的缓存文件
@@ -41,32 +41,32 @@ jobs:
           go-version: "1.24.2"
 
       # 禁用缓存，强制重新下载所有依赖
-      - name: Force clean Go modules
+      - name: 强制清理 Go 模块
         run: |
           echo "🔄 Force cleaning Go modules and build cache..."
           go clean -modcache || true
           go clean -cache || true
           echo "✅ Go caches cleared"
 
-      - name: Download dependencies (force fresh)
+      - name: 下载依赖（强制全新）
         run: |
           echo "📦 Force downloading fresh dependencies..."
           go mod download -x
           go mod verify
           echo "✅ Fresh dependencies downloaded and verified"
 
-      # 运行测试并生成日志和覆盖率报告
-      - name: Run coverage tests
+      # 运行单元测试并生成日志
+      - name: Run unit tests
         run: |
           mkdir -p artifacts
-          echo "=== Running coverage module tests ==="
-          make test-unit | tee artifacts/uint-test.log
+          echo "=== Running unit tests ==="
+          make test-unit 2>&1 | tee artifacts/unit-test.log
         continue-on-error: true
 
       # 上传测试日志（即使失败也上传）
-      - name: Upload coverage test logs
+      - name: Upload unit test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-test-logs-${{ github.run_number }}
-          path: artifacts/coverage_test.log
+          name: unit-test-logs-${{ github.run_number }}
+          path: artifacts/unit-test.log
