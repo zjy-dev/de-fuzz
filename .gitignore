@@ -1,53 +1,46 @@
-# IDE
+# IDE and Editor
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Documentation drafts
-GEMINI.md
-CODE_PLAN.md
-
-# Build artifacts
+# Go
+vendor/
 /defuzz
+
+# Binary outputs
 *.exe
 *.dll
 *.so
 *.dylib
 
-# Test and coverage outputs
+# Test and coverage
 *.out
 *.test
 coverage.html
 coverage.txt
 
-# Fuzzing outputs
+# Fuzzing artifacts
 fuzz_out/
 workspace/
 fuzz.log
 experiments/
 
-# Target compilers (large binary dependencies)
+# Target compilers and toolchains
 target-compilers/
 _target-compilers/
+gcc-*/
+arm-gnu-*/
 
-# GCC build directories (very large, do not commit)
-gcc-v12.2.0-*/
-
-# Environment files
+# Environment configuration
 .env
 .env.local
 .env.*.local
 
-# OS generated files
+# OS generated
 .DS_Store
 Thumbs.db
 
-# Go
-vendor/
-
-# Planning documents (drafts)
-*plan*
-
-
-
+# Planning and draft documents
+*plan*.md
+GEMINI.md
