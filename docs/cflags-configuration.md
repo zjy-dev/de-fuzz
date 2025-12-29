@@ -4,6 +4,20 @@
 
 Compiler flags (CFlags) are now configurable in the compiler configuration files instead of being hardcoded. This provides better flexibility for different ISA architectures and compilation scenarios.
 
+## GCC Build Optimization
+
+The instrumented GCC compilers in `gcc-v12.2.0-x64/` and `gcc-v12.2.0-aarch64-cross-compile/` are built with **-O0** optimization level to:
+
+1. **Ensure accurate coverage measurement** - Optimizations can merge or eliminate code paths, leading to inaccurate coverage data
+2. **Enable easier debugging** - No inlining or code reordering
+3. **Preserve CFG structure** - The control flow graph matches the source code more closely
+
+The build scripts (`build-gcc-instrumented.sh`) explicitly set:
+```bash
+export CFLAGS="-g -O0"
+export CXXFLAGS="-g -O0"
+```
+
 ## Configuration Structure
 
 In your compiler configuration file (e.g., `gcc-v12.2.0-x64-canary.yaml`), add the `cflags` section under `compiler`:

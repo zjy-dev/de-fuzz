@@ -12,10 +12,11 @@ import (
 
 const (
 	// DefaultMiniMaxEndpoint is the default API endpoint for MiniMax M2.1
-	DefaultMiniMaxEndpoint = "https://api.minimax.chat/v1/text/chatcompletion_v2"
+	// Using standard MiniMax API format (OpenAI-compatible)
+	DefaultMiniMaxEndpoint = "https://api.minimaxi.com/v1/text/chatcompletion_v2"
 )
 
-// MiniMaxClient implements the LLM interface for MiniMax M2.1 (Anthropic-compatible API).
+// MiniMaxClient implements the LLM interface for MiniMax M2.1
 type MiniMaxClient struct {
 	apiKey      string
 	model       string
@@ -47,7 +48,7 @@ func (c *MiniMaxClient) GetCompletion(prompt string) (string, error) {
 }
 
 // GetCompletionWithSystem sends a prompt with system context to the MiniMax API.
-// MiniMax uses Anthropic-compatible API format with messages array.
+// Uses standard MiniMax API format (OpenAI-compatible).
 func (c *MiniMaxClient) GetCompletionWithSystem(systemPrompt, userPrompt string) (string, error) {
 	messages := []map[string]string{}
 
@@ -65,7 +66,7 @@ func (c *MiniMaxClient) GetCompletionWithSystem(systemPrompt, userPrompt string)
 		"content": userPrompt,
 	})
 
-	// Build request body (Anthropic-compatible format)
+	// Build request body (OpenAI-compatible format)
 	reqBody := map[string]interface{}{
 		"model":       c.model,
 		"messages":    messages,
@@ -82,11 +83,9 @@ func (c *MiniMaxClient) GetCompletionWithSystem(systemPrompt, userPrompt string)
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set headers (Anthropic-compatible)
+	// Set headers
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
-	// MiniMax may require additional headers
-	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -95,7 +94,6 @@ func (c *MiniMaxClient) GetCompletionWithSystem(systemPrompt, userPrompt string)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// Read error response for debugging
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(resp.Body)
 		return "", fmt.Errorf("api request failed with status %d: %s", resp.StatusCode, buf.String())
@@ -106,7 +104,7 @@ func (c *MiniMaxClient) GetCompletionWithSystem(systemPrompt, userPrompt string)
 		return "", fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	// Parse response (Anthropic-compatible format)
+	// Parse response (OpenAI format)
 	if choices, ok := result["choices"].([]interface{}); ok && len(choices) > 0 {
 		if choice, ok := choices[0].(map[string]interface{}); ok {
 			if message, ok := choice["message"].(map[string]interface{}); ok {

@@ -16,6 +16,7 @@ type Config struct {
 	ISA      string         `mapstructure:"isa"`
 	Strategy string         `mapstructure:"strategy"`
 	LogLevel string         `mapstructure:"log_level"`
+	LogDir   string         `mapstructure:"log_dir"`
 	Compiler CompilerConfig `mapstructure:"compiler"`
 }
 
@@ -226,6 +227,47 @@ func LoadEnvFromDotEnv(dir string) error {
 	return nil
 }
 
+// LoadEnvFromDotEnvRecursive searches for .env file in the specified directory and its parents.
+// It returns without error if no .env file is found (file is optional).
+func LoadEnvFromDotEnvRecursive(startDir string) error {
+	// First try startDir and its parents
+	dir := startDir
+	for i := 0; i < 5; i++ {
+		envPath := filepath.Join(dir, ".env")
+		if _, err := os.Stat(envPath); err == nil {
+			// Found .env file, load it
+			return LoadEnvFromDotEnv(dir)
+		}
+		
+		// Move to parent directory
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root
+			break
+		}
+		dir = parent
+	}
+	
+	// If not found, try absolute paths from common project root locations
+	// This handles tests running in subdirectories
+	wd, _ := os.Getwd()
+	
+	// Build list of possible roots - go up from wd until we find .env or reach root
+	for i := 0; i < 10; i++ {
+		envPath := filepath.Join(wd, ".env")
+		if _, err := os.Stat(envPath); err == nil {
+			return LoadEnvFromDotEnv(wd)
+		}
+		parent := filepath.Dir(wd)
+		if parent == wd {
+			break
+		}
+		wd = parent
+	}
+	
+	return nil
+}
+
 // applyEnvResolution recursively applies environment variable resolution to a struct.
 // Only string fields with mapstructure tags are processed.
 func applyEnvResolution(v *viper.Viper) {
@@ -343,8 +385,8 @@ func LoadConfig() (*Config, error) {
 	var cfg Config
 
 	// Load environment variables from .env file if present
-	// This allows sensitive config like API keys to be loaded from environment
-	if err := LoadEnvFromDotEnv("."); err != nil {
+	// Search in current directory and parent directories (for tests in subdirectories)
+	if err := LoadEnvFromDotEnvRecursive("."); err != nil {
 		return nil, fmt.Errorf("failed to load .env file: %w", err)
 	}
 
@@ -370,6 +412,7 @@ func LoadConfig() (*Config, error) {
 	cfg.ISA = v.GetString("config.isa")
 	cfg.Strategy = v.GetString("config.strategy")
 	cfg.LogLevel = v.GetString("config.log_level")
+	cfg.LogDir = v.GetString("config.log_dir")
 
 	// Parse compiler name and version from config.yaml
 	var compilerInfo CompilerInfo
@@ -396,14 +439,39 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to load llm config: %w", err)
 	}
 
-	// Apply environment variable resolution to LLM config values
-	applyEnvResolution(llmViper)
-
 	// llm.yaml has an array structure: llms: [...]
-	// Find the config for the specified provider
+	// Get all settings and resolve env vars in the llms array
+	allSettings := llmViper.AllSettings()
+	llmSettings := allSettings["llms"].([]interface{})
+	
+	// Parse each LLM config and resolve env vars
 	var llms []LLMConfig
-	if err := llmViper.UnmarshalKey("llms", &llms); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal llm configs: %w", err)
+	for _, llmItem := range llmSettings {
+		llmMap, ok := llmItem.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		
+		llmCfg := LLMConfig{}
+
+		// Resolve env vars for each field
+		if provider, ok := llmMap["provider"].(string); ok {
+			llmCfg.Provider = resolveEnvVars(provider)
+		}
+		if model, ok := llmMap["model"].(string); ok {
+			llmCfg.Model = resolveEnvVars(model)
+		}
+		if apiKey, ok := llmMap["api_key"].(string); ok {
+			llmCfg.APIKey = resolveEnvVars(apiKey)
+		}
+		if endpoint, ok := llmMap["endpoint"].(string); ok {
+			llmCfg.Endpoint = resolveEnvVars(endpoint)
+		}
+		if temp, ok := llmMap["temperature"].(float64); ok {
+			llmCfg.Temperature = temp
+		}
+		
+		llms = append(llms, llmCfg)
 	}
 
 	// Find the matching provider

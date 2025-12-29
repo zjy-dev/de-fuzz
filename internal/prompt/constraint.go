@@ -34,15 +34,16 @@ type TargetContext struct {
 }
 
 // DivergenceInfo holds divergence analysis results.
+// Note: This project only does function-level divergence analysis using uftrace,
+// so we don't track divergent line numbers.
 type DivergenceInfo struct {
-	// Divergence point
-	DivergentFunction string // Name of the function where divergence occurred
-	DivergentFile     string // Source file path
-	DivergentLine     int    // Line number where divergence starts
+	// Divergence point (function-level only)
+	DivergentFunction     string // Name of the function where divergence occurred
+	DivergentFunctionCode string // Source code of the divergent function (REQUIRED for effective mutation)
 
 	// Context
-	DivergentFunctionCode string // Source code of the divergent function
-	MutatedSeedCode       string // Code of the seed that failed
+	MutatedSeedCode string // Code of the seed that failed
+	BaseSeedCode    string // Code of the covered predecessor seed (for comparison)
 }
 
 // BuildConstraintSolvingPrompt creates a prompt to guide LLM to cover a specific basic block.
@@ -216,63 +217,87 @@ func (b *Builder) BuildRefinedPrompt(ctx *TargetContext, div *DivergenceInfo) (s
 		return "", fmt.Errorf("target context and divergence info must be provided")
 	}
 
-	// Build divergence analysis section
-	divergenceSection := fmt.Sprintf(`## Divergence Analysis
+	// Section 1: Target Function with highlighted target lines
+	targetFunctionSection := ""
+	if ctx.FunctionCode != "" {
+		targetFunctionSection = fmt.Sprintf(`## 1. Target: Function %s (BB%d)
 
-The previous mutation attempt **FAILED** to reach the target. Here's why:
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
 
-**Divergence Point:**
-- The execution diverged in function: %s
-- File: %s
-- At approximately line: %d
+%s
+%s
+%s
 
-This means the mutated seed took a different path than expected starting at this function.
+**Target Lines:** %v (marked with [→] above)
+**Branching Factor:** %d possible paths from this basic block
 
-`, div.DivergentFunction, filepath.Base(div.DivergentFile), div.DivergentLine)
+`, ctx.TargetFunction, ctx.TargetBBID, "```cpp", ctx.FunctionCode, "```", ctx.TargetLines, ctx.SuccessorCount)
+	} else {
+		targetFunctionSection = fmt.Sprintf(`## 1. Target
 
-	// Add divergent function code if available
-	if div.DivergentFunctionCode != "" {
-		divergenceSection += fmt.Sprintf(`**Divergent Function Code:**
+**Function:** %s
+**Basic Block:** BB%d
+**Target Lines:** %v
+**Branching Factor:** %d possible paths
+
+`, ctx.TargetFunction, ctx.TargetBBID, ctx.TargetLines, ctx.SuccessorCount)
+	}
+
+	// Section 2: Divergence Analysis with function source code
+	divergenceSection := ""
+	if div.DivergentFunction != "" {
+		divergenceSection = fmt.Sprintf(`## 2. Why Previous Attempt Failed
+
+The compiler took a different code path at function: **%s**
+
+`, div.DivergentFunction)
+
+		if div.DivergentFunctionCode != "" {
+			divergenceSection += fmt.Sprintf(`**Divergent Function Source Code** (study this to understand the branching condition):
+
 %s
 %s
 %s
 
 `, "```cpp", div.DivergentFunctionCode, "```")
+		}
+
+		divergenceSection += `**Analysis:** Your seed caused the compiler to branch differently than expected in this function.
+Study the conditions in the divergent function to understand what code patterns trigger each branch.
+
+`
 	}
 
-	// Add the failed mutation
+	// Section 3: Failed mutation (what didn't work)
 	failedSection := ""
 	if div.MutatedSeedCode != "" {
-		failedSection = fmt.Sprintf(`## Failed Mutation
+		failedSection = fmt.Sprintf(`## 3. Failed Mutation (DO NOT repeat this)
 
-The following seed was tried but did NOT reach the target:
+This seed was tried but took the WRONG compiler path:
 
 %s
 %s
 %s
-
-**Why it failed:** The code took a different branch at the divergence point shown above.
 
 `, "```c", div.MutatedSeedCode, "```")
 	}
 
-	// Build target reminder
-	targetReminder := fmt.Sprintf(`## Target Reminder
-
-- **Function:** %s
-- **Target Lines:** %v
-- **Current obstacle:** The execution diverges at %s before reaching the target.
-
-`, ctx.TargetFunction, ctx.TargetLines, div.DivergentFunction)
-
-	// Build base seed section
+	// Section 4: Base seed (what works as starting point)
 	baseSeedSection := ""
-	if ctx.BaseSeedCode != "" {
-		baseSeedSection = fmt.Sprintf(`## Base Seed (MUST MODIFY)
+	if div.BaseSeedCode != "" {
+		baseSeedSection = fmt.Sprintf(`## 4. Working Base Seed (USE THIS AS STARTING POINT)
 
-This seed successfully reaches line %d (near the target).
-**You MUST modify this seed to reach the target. Do NOT create a new program from scratch.**
-**Keep the same program structure and main() function. Only modify what's necessary.**
+This seed successfully reaches nearby code (line %d). Start from this and make targeted modifications:
+
+%s
+%s
+%s
+
+`, ctx.BaseSeedLine, "```c", div.BaseSeedCode, "```")
+	} else if ctx.BaseSeedCode != "" {
+		baseSeedSection = fmt.Sprintf(`## 4. Working Base Seed (USE THIS AS STARTING POINT)
+
+This seed successfully reaches nearby code (line %d). Start from this and make targeted modifications:
 
 %s
 %s
@@ -281,111 +306,53 @@ This seed successfully reaches line %d (near the target).
 `, ctx.BaseSeedLine, "```c", ctx.BaseSeedCode, "```")
 	}
 
+	// Section 5: Task and strategy
+	taskSection := fmt.Sprintf(`## 5. Your Task
+
+Create a NEW seed that:
+1. Uses the **base seed** as starting point (Section 4)
+2. Avoids the divergence at **%s** (Section 2)
+3. Reaches the **target lines %v** in function **%s** (Section 1)
+
+**Strategy:**
+- Study the divergent function's conditions to understand what triggers each branch
+- Make small, targeted changes to the base seed
+- Consider: What C code patterns cause the compiler to take the target branch?
+
+`, div.DivergentFunction, ctx.TargetLines, ctx.TargetFunction)
+
+	// Output format and rules
 	outputFormat := b.getOutputFormat()
 
 	// Build CRITICAL RULES section based on mode
 	criticalRules := ""
 	if b.FunctionTemplate != "" {
-		criticalRules = `**CRITICAL RULES (Function Template Mode):**
-- **You are generating ONLY the seed() function body.**
-- **DO NOT generate main() function.** The template already provides main().
-- **DO NOT generate #include statements.** The template already has them.
-- **DO NOT generate a complete program.** Only the seed() function.
-- Focus on modifying the seed() function to trigger different compiler paths.`
+		criticalRules = `**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features)`
 	} else {
-		criticalRules = `**CRITICAL RULES:**
-- **DO NOT create a new program from scratch.** You must modify the provided base seed.
-- **DO NOT add a new main() function.** The base seed already has one.
-- **Keep the same overall structure.** Only change what's necessary to reach the target.`
+		criticalRules = `**RULES:**
+- Modify the base seed, do NOT create a new program
+- Keep the same main() structure
+- Use only C99/C11 standard C code (no C++ features)`
 	}
 
-	// Add language constraints to critical rules
-	languageConstraints := `
-
-**LANGUAGE CONSTRAINTS (VERY IMPORTANT):**
-- Use ONLY C99/C11 standard C code.
-- DO NOT use C++ features (references, auto, lambda, classes, templates, new/delete, etc.).
-- Use standard C types and functions: int, char, void, malloc, free, memset, memcpy, etc.
-- Example of WRONG code: int& ref = x; or auto func = [](int x) { return x; };
-- Example of CORRECT code: int* ref = &x; or void* func(int x) { return (void*)(intptr_t)x; }`
-	criticalRules += languageConstraints
-
-	// Build output example based on mode
-	outputExample := ""
-	if b.FunctionTemplate != "" {
-		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
-
-**DO NOT include ANY explanations, analysis, or natural language text in your response.**
-**Output ONLY the seed() function inside a markdown code block.**
-**NO text before or after the code block.**
-**NO main() function. NO #include statements.**
-
-Example of CORRECT output:
-%s
-void seed(int fill_size) {
-    char buffer[64];
-    // Your modifications here
-    memset(buffer, 'A', fill_size);
-}
-%s
-
-Example of WRONG output (DO NOT DO THIS):
-%s
-#include <stdio.h>  // WRONG - no includes
-void seed(...) { }
-int main() { }  // WRONG - no main function
-%s
-`, "```c", "```", "```c", "```")
-	} else {
-		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
-
-**DO NOT include ANY explanations, analysis, or natural language text in your response.**
-**Output ONLY the code inside a markdown code block.**
-**NO text before or after the code block.**
-
-Example of CORRECT output format:
-%s
-// your modified C code here
-int main() { ... }
-%s
-
-Example of WRONG output (DO NOT DO THIS):
-Here is my analysis... [WRONG - no explanations allowed]
-The code works by... [WRONG - no descriptions allowed]
-`, "```c", "```")
-	}
-
-	prompt := fmt.Sprintf(`You are an expert at debugging and refining compiler test cases. A previous attempt to reach a specific code path failed. Your task is to analyze why and MODIFY the base seed to create a better solution.
-
-%s
-%s
-%s
-%s
-## Your Task
-
-1. Understand why the previous mutation diverged at %s.
-2. Study the divergence point code to see what conditions caused the wrong branch.
-3. **MODIFY the base seed** to avoid the divergence and reach the target.
-
-%s
-
-**Strategy:**
-- Focus on the condition at the divergence point.
-- The base seed works - make smaller, more targeted changes.
-- Consider what input/code patterns would satisfy the condition to take the correct branch.
-
+	prompt := fmt.Sprintf(`%s%s%s%s%s
 %s
 
 %s
+
+**OUTPUT: Only the code in a markdown code block. No explanations.**
 `,
+		targetFunctionSection,
 		divergenceSection,
 		failedSection,
-		targetReminder,
 		baseSeedSection,
-		div.DivergentFunction,
+		taskSection,
 		criticalRules,
 		outputFormat,
-		outputExample,
 	)
 
 	return prompt, nil

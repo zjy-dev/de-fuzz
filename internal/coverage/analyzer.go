@@ -29,12 +29,12 @@ func (l LineID) String() string {
 
 // BasicBlock represents a basic block in the control flow graph.
 type BasicBlock struct {
-	ID           int      // Basic block number (e.g., 2, 3, 4...)
-	Function     string   // Function name this BB belongs to
-	File         string   // Source file path
-	Lines        []int    // Source line numbers covered by this BB
-	Successors   []int    // Successor basic block IDs
-	Predecessors []int    // Predecessor basic block IDs (computed from successors)
+	ID           int    // Basic block number (e.g., 2, 3, 4...)
+	Function     string // Function name this BB belongs to
+	File         string // Source file path
+	Lines        []int  // Source line numbers covered by this BB
+	Successors   []int  // Successor basic block IDs
+	Predecessors []int  // Predecessor basic block IDs (computed from successors)
 }
 
 // CFGFunction represents a function in the CFG with its basic blocks.
@@ -101,7 +101,8 @@ func NewAnalyzer(cfgPath string, targetFunctions []string, sourceDir string, map
 
 // Regular expressions for parsing CFG
 var (
-	reFunctionHeader = regexp.MustCompile(`^;; Function (\w+) \(([^,]+),`)
+	// Match function headers including C++ anonymous namespace names like {anonymous}::pass_expand::execute
+	reFunctionHeader = regexp.MustCompile(`^;; Function ([^\s(]+) \(([^,]+),`)
 	reSuccSummary    = regexp.MustCompile(`^;; (\d+) succs \{ ([^}]*) \}`)
 	reBBStart        = regexp.MustCompile(`^\s*<bb (\d+)>\s*:?`)
 	reLineInfo       = regexp.MustCompile(`\[([^:\]]+):(\d+):\d+(?:\s+discrim\s+\d+)?\]`)
@@ -289,13 +290,13 @@ func (c *Analyzer) GetSuccessorCount(funcName string, bbID int) int {
 
 // TargetInfo represents a target basic block with context for fuzzing.
 type TargetInfo struct {
-	Function       string
-	BBID           int
-	SuccessorCount int
-	Lines          []int
-	File           string
-	BaseSeed       string
-	BaseSeedLine   int
+	Function         string
+	BBID             int
+	SuccessorCount   int
+	Lines            []int
+	File             string
+	BaseSeed         string
+	BaseSeedLine     int
 	DistanceFromBase int
 }
 
@@ -313,7 +314,6 @@ type BBCandidate struct {
 // SelectTarget selects the best uncovered basic block to target.
 func (c *Analyzer) SelectTarget() *TargetInfo {
 	coveredLines := c.mapping.GetCoveredLines()
-	logger.Debug("[Analyzer] Selecting target with %d covered lines", len(coveredLines))
 
 	candidate := c.selectTargetBB(c.targetFunctions, coveredLines)
 	if candidate == nil {
@@ -338,17 +338,31 @@ func (c *Analyzer) SelectTarget() *TargetInfo {
 		info.BaseSeedLine = baseLine.Line
 		info.DistanceFromBase = 1
 		logger.Debug("[Analyzer] Found predecessor-based base seed: %d (line %d)", baseSeedID, baseLine.Line)
-	} else {
-		targetLine := candidate.Lines[0]
-		baseLine, baseSeedID, found := c.mapping.FindClosestCoveredLine(candidate.File, targetLine)
-		if found {
-			info.BaseSeed = fmt.Sprintf("%d", baseSeedID)
-			info.BaseSeedLine = baseLine.Line
-			info.DistanceFromBase = abs(targetLine - baseLine.Line)
-			logger.Debug("[Analyzer] Using fallback closest-line base seed: %d (line %d, distance=%d)",
-				baseSeedID, baseLine.Line, info.DistanceFromBase)
+	} else if len(candidate.Predecessors) == 0 {
+		// Function entry BB (no predecessors) - use any covered seed from this function
+		// Try to find any covered line in this function to use as base
+		fn, ok := c.functions[candidate.Function]
+		if ok {
+			for _, bb := range fn.Blocks {
+				for _, lineNum := range bb.Lines {
+					lid := LineID{File: bb.File, Line: lineNum}
+					if coveredLines[lid] {
+						seedID, seedFound := c.mapping.GetSeedForLine(lid)
+						if seedFound {
+							info.BaseSeed = fmt.Sprintf("%d", seedID)
+							info.BaseSeedLine = lineNum
+							info.DistanceFromBase = abs(candidate.Lines[0] - lineNum)
+							logger.Debug("[Analyzer] Using function entry base seed: %d (line %d)", seedID, lineNum)
+							return info
+						}
+					}
+				}
+			}
 		}
+		// No covered seed found in this function - can still target since it's an entry BB
+		logger.Debug("[Analyzer] Function entry BB with no covered predecessor, using first available seed")
 	}
+	// Note: BBs with predecessors but no covered predecessor are filtered out in selectTargetBB
 
 	return info
 }
@@ -376,7 +390,30 @@ func (c *Analyzer) selectTargetBB(targetFunctions []string, coveredLines map[Lin
 				}
 			}
 
-			if hasUncoveredLine && len(bb.Lines) > 0 {
+			// Check reachability: BB must have no predecessors (function entry) OR
+			// at least one predecessor that has been covered
+			isReachable := len(bb.Predecessors) == 0 // No predecessors = entry point (like BB2)
+			if !isReachable {
+				for _, predID := range bb.Predecessors {
+					predBB, ok := fn.Blocks[predID]
+					if !ok {
+						continue
+					}
+					// Check if any line in predecessor is covered
+					for _, lineNum := range predBB.Lines {
+						lid := LineID{File: predBB.File, Line: lineNum}
+						if coveredLines[lid] {
+							isReachable = true
+							break
+						}
+					}
+					if isReachable {
+						break
+					}
+				}
+			}
+
+			if hasUncoveredLine && len(bb.Lines) > 0 && isReachable {
 				key := fmt.Sprintf("%s:%d", funcName, bbID)
 				weight := float64(len(bb.Successors))
 				if wi, ok := c.bbWeights[key]; ok {
@@ -758,7 +795,7 @@ func abs(x int) int {
 
 // CoverageMapping maintains the mapping between source lines and the first seed that covered them.
 type CoverageMapping struct {
-	mu sync.RWMutex
+	mu         sync.RWMutex
 	LineToSeed map[string]int64 `json:"line_to_seed"`
 	path       string
 }

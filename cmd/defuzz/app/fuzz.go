@@ -27,6 +27,7 @@ import (
 func NewFuzzCommand() *cobra.Command {
 	var (
 		output  string
+		logDir  string
 		limit   int
 		timeout int
 		useQEMU bool
@@ -87,6 +88,9 @@ Examples:
 			if !cmd.Flags().Changed("output") {
 				output = cfg.Compiler.Fuzz.OutputRootDir
 			}
+			if !cmd.Flags().Changed("log-dir") {
+				logDir = cfg.LogDir
+			}
 			if !cmd.Flags().Changed("limit") {
 				limit = cfg.Compiler.Fuzz.MaxIterations
 			}
@@ -100,12 +104,13 @@ Examples:
 			// Build the actual output directory: {output}/{isa}/{strategy}
 			outputDir := filepath.Join(output, cfg.ISA, cfg.Strategy)
 
-			return runFuzz(cfg, outputDir, limit, timeout, useQEMU)
+			return runFuzz(cfg, outputDir, logDir, limit, timeout, useQEMU)
 		},
 	}
 
 	// Core flags only - detailed config should be in config files
 	cmd.Flags().StringVar(&output, "output", "fuzz_out", "Output directory (actual output at {output}/{isa}/{strategy})")
+	cmd.Flags().StringVar(&logDir, "log-dir", "", "Log file directory (timestamped log files, empty = console only)")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Max number of target BBs for constraint solving (0 = unlimited)")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "Execution timeout in seconds")
 	cmd.Flags().BoolVar(&useQEMU, "use-qemu", false, "Use QEMU for cross-architecture execution")
@@ -113,13 +118,22 @@ Examples:
 	return cmd
 }
 
-func runFuzz(cfg *config.Config, outputDir string, limit, timeout int, useQEMU bool) error {
+func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout int, useQEMU bool) error {
 	// Initialize logger with configured level
 	logLevel := cfg.LogLevel
 	if logLevel == "" {
 		logLevel = "info"
 	}
-	logger.Init(logLevel)
+
+	// Initialize logger: with file output if logDir is specified, console only otherwise
+	if logDir != "" {
+		if err := logger.InitWithFile(logLevel, logDir); err != nil {
+			return fmt.Errorf("failed to initialize logger with file: %w", err)
+		}
+		defer logger.Close()
+	} else {
+		logger.Init(logLevel)
+	}
 
 	logger.Info("Target: %s / %s", cfg.ISA, cfg.Strategy)
 	logger.Info("Output directory: %s", outputDir)

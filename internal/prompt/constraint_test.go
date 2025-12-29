@@ -87,10 +87,10 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 	}
 
 	div := &DivergenceInfo{
-		DivergentFunction: "stack_protect_classify_type",
-		DivergentFile:     "/path/to/cfgexpand.cc",
-		DivergentLine:     1825,
-		MutatedSeedCode:   "int main() { int x = 1; return x; }",
+		DivergentFunction:     "stack_protect_classify_type",
+		DivergentFunctionCode: "void stack_protect_classify_type() { /* code */ }",
+		MutatedSeedCode:       "int main() { int x = 1; return x; }",
+		BaseSeedCode:          "int main() { return 0; }",
 	}
 
 	prompt, err := builder.BuildRefinedPrompt(ctx, div)
@@ -100,12 +100,10 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 
 	// Check essential components
 	checks := []string{
-		"Divergence Analysis",
-		"FAILED",
+		"Why Previous Attempt Failed",
 		"stack_protect_classify_type", // Divergent function
-		"1825",                        // Divergent line
 		"Failed Mutation",
-		"Base Seed (MUST MODIFY)",
+		"Working Base Seed",
 	}
 
 	for _, check := range checks {

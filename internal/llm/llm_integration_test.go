@@ -77,6 +77,8 @@ fuzzer:
 // TestDeepSeekRealAPIIntegration tests actual integration with DeepSeek API
 // This test requires a valid API key in configs/llm.yaml and internet connection
 func TestDeepSeekRealAPIIntegration(t *testing.T) {
+	t.Skip("Skipping LLM real API integration tests")
+
 	// Skip if running in CI or short mode
 	if testing.Short() {
 		t.Skip("Skipping real API integration test in short mode")
@@ -182,6 +184,8 @@ func TestDeepSeekRealAPIIntegration(t *testing.T) {
 // This test requires a valid API key in configs/llm.yaml and internet connection
 // Set provider to "minimax" in llm.yaml to run this test
 func TestMiniMaxRealAPIIntegration(t *testing.T) {
+	t.Skip("Skipping LLM real API integration tests")
+
 	// Skip if running in CI or short mode
 	if testing.Short() {
 		t.Skip("Skipping real API integration test in short mode")

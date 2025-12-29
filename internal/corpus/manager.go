@@ -44,6 +44,10 @@ type Manager interface {
 	// Use this to pre-assign an ID to a seed before compilation.
 	AllocateID() uint64
 
+	// Get retrieves a seed by ID from the processed seeds.
+	// Returns nil if the seed is not found.
+	Get(id uint64) (*seed.Seed, error)
+
 	// Next retrieves the next seed to process from the queue.
 	Next() (*seed.Seed, bool)
 
@@ -196,6 +200,18 @@ func (m *FileManager) Next() (*seed.Seed, bool) {
 	m.processed[s.Meta.ID] = s
 
 	return s, true
+}
+
+// Get retrieves a seed by ID from the processed seeds.
+// Returns nil if the seed is not found.
+func (m *FileManager) Get(id uint64) (*seed.Seed, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if s, ok := m.processed[id]; ok {
+		return s, nil
+	}
+	return nil, fmt.Errorf("seed %d not found in corpus", id)
 }
 
 // ReportResult updates a seed's metadata after fuzzing.

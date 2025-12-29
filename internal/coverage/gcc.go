@@ -110,6 +110,11 @@ func (g *GCCCoverage) Clean() error {
 // Measure compiles the seed and generates a coverage report using gcovr.
 // Returns a GcovrReport containing the path to the generated report file.
 func (g *GCCCoverage) Measure(s *seed.Seed) (Report, error) {
+	// Validate seed ID - must be assigned before measuring to avoid seed_0 files
+	if s.Meta.ID == 0 {
+		return nil, fmt.Errorf("seed ID must be assigned before measuring coverage (got ID=0)")
+	}
+
 	// Step 1: Clean previous coverage data (.gcda files)
 	if err := g.Clean(); err != nil {
 		return nil, fmt.Errorf("failed to clean coverage files: %w", err)
@@ -380,6 +385,8 @@ func countCoveredFunctions(functions []gcovr.FunctionCoverage) int {
 
 // ExtractCoveredLines extracts covered lines from a gcovr JSON report.
 // Returns a list of "file:line" strings for all lines with count > 0.
+// NOTE: This function does NOT apply filtering - it returns ALL covered lines.
+// Use GCCCoverage.ExtractCoveredLinesFiltered for filtered results.
 func ExtractCoveredLines(report Report) ([]string, error) {
 	gcovrRep, ok := report.(*GcovrReport)
 	if !ok {
@@ -390,6 +397,39 @@ func ExtractCoveredLines(report Report) ([]string, error) {
 	parsed, err := gcovr.ParseReport(gcovrRep.path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse report: %w", err)
+	}
+
+	var coveredLines []string
+	for _, file := range parsed.Files {
+		for _, line := range file.Lines {
+			if line.Count > 0 {
+				lineStr := fmt.Sprintf("%s:%d", file.FilePath, line.LineNumber)
+				coveredLines = append(coveredLines, lineStr)
+			}
+		}
+	}
+
+	return coveredLines, nil
+}
+
+// ExtractCoveredLinesFiltered extracts covered lines from a gcovr JSON report,
+// applying the filter configuration to only include lines from target functions.
+// This should be used when you only want coverage data for specific functions.
+func (g *GCCCoverage) ExtractCoveredLinesFiltered(report Report) ([]string, error) {
+	gcovrRep, ok := report.(*GcovrReport)
+	if !ok {
+		return nil, fmt.Errorf("expected GcovrReport, got %T", report)
+	}
+
+	// Parse the report
+	parsed, err := gcovr.ParseReport(gcovrRep.path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse report: %w", err)
+	}
+
+	// Apply filtering if filter config is available
+	if g.filterConfig != nil {
+		parsed = gcovr.ApplyFilter(parsed, g.filterConfig)
 	}
 
 	var coveredLines []string

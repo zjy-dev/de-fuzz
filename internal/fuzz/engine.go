@@ -58,7 +58,7 @@ type Engine struct {
 	targetHits     int // Number of times we successfully hit a target
 	bugsFound      []*oracle.Bug
 	startTime      time.Time
-	
+
 	// Paths for divergence analysis
 	currentBaseSeedPath    string
 	currentMutatedSeedPath string
@@ -106,7 +106,7 @@ func (e *Engine) Run() error {
 			e.iterationCount, target.Function, target.BBID, target.SuccessorCount, target.Lines)
 
 		// Step 2: Try to cover the target with constraint solving
-		hit, err := e.solveConstraint(target)
+		hit, actualRetries, err := e.solveConstraint(target)
 		if err != nil {
 			logger.Error("Error solving constraint for %s:BB%d: %v", target.Function, target.BBID, err)
 		}
@@ -116,7 +116,7 @@ func (e *Engine) Run() error {
 			logger.Info("Successfully covered target %s:BB%d!", target.Function, target.BBID)
 		} else {
 			logger.Warn("Failed to cover target %s:BB%d after %d retries",
-				target.Function, target.BBID, e.cfg.MaxRetries)
+				target.Function, target.BBID, actualRetries)
 		}
 
 		// Save state periodically
@@ -168,40 +168,59 @@ func (e *Engine) processInitialSeeds() error {
 		logger.Info("Initial coverage for %s: %d/%d BBs", name, stats.Covered, stats.Total)
 	}
 
+	// Save state immediately after processing initial seeds
+	// This ensures the mapping is persisted even if the fuzzer crashes before the first checkpoint
+	e.saveState()
+	logger.Info("Initial coverage mapping saved to disk")
+
 	return nil
 }
 
 // solveConstraint tries to generate a seed that covers the target BB.
-func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
-	// Find base seed (closest covered seed)
+// Returns (hit bool, actualRetries int, err error)
+func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error) {
+	// Load base seed from corpus if available
 	var baseSeed *seed.Seed
+	var baseSeedCode string
 	if target.BaseSeed != "" {
-		// Load base seed from corpus
-		// For now, we'll generate without a base seed if not found
-		logger.Debug("Using base seed %s for target", target.BaseSeed)
+		baseSeedID := 0
+		fmt.Sscanf(target.BaseSeed, "%d", &baseSeedID)
+		if baseSeedID > 0 {
+			if loadedSeed, err := e.cfg.Corpus.Get(uint64(baseSeedID)); err == nil && loadedSeed != nil {
+				baseSeed = loadedSeed
+				baseSeedCode = loadedSeed.Content
+				logger.Debug("Loaded base seed %d for target", baseSeedID)
+			} else {
+				logger.Warn("Failed to load base seed %d: %v", baseSeedID, err)
+			}
+		}
 	}
 
 	// Build target context for prompt
 	ctx, err := prompt.BuildTargetContextFromCFG(target, baseSeed, e.cfg.Analyzer)
 	if err != nil {
-		return false, fmt.Errorf("failed to build target context: %w", err)
+		return false, 0, fmt.Errorf("failed to build target context: %w", err)
+	}
+	// Ensure base seed code is set in context
+	if baseSeedCode != "" && ctx.BaseSeedCode == "" {
+		ctx.BaseSeedCode = baseSeedCode
 	}
 
 	// First attempt: direct constraint solving
 	mutatedSeed, err := e.generateMutatedSeed(ctx)
 	if err != nil {
 		logger.Warn("Failed to generate mutated seed: %v", err)
-		return false, nil
+		return false, 0, nil
 	}
 
 	// Try the mutated seed
 	hit, coveredTarget, err := e.tryMutatedSeed(mutatedSeed, target)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 
 	if hit {
-		return true, nil
+		return true, 0, nil // Hit on first try, 0 retries needed
 	}
 
 	// If first attempt failed, try with divergence analysis
@@ -210,7 +229,8 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
 
 		// Use divergence analysis if available
 		var divInfo *prompt.DivergenceInfo
-		
+		divergentFunc := target.Function // Default to target function
+
 		if e.cfg.DivergenceAnalyzer != nil && e.cfg.CompilerPath != "" {
 			// Run uftrace divergence analysis
 			divPoint, err := e.cfg.DivergenceAnalyzer.Analyze(
@@ -220,22 +240,41 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
 			} else if divPoint != nil {
 				logger.Info("Divergence found at index %d: %s vs %s",
 					divPoint.Index, divPoint.Function1, divPoint.Function2)
-				
-				divInfo = &prompt.DivergenceInfo{
-					DivergentFunction: divPoint.Function2,
-					DivergentFile:     target.File,
-					DivergentLine:     target.Lines[0],
-					MutatedSeedCode:   mutatedSeed.Content,
+				divergentFunc = divPoint.Function2
+			}
+		}
+
+		// Get divergent function source code from analyzer
+		divergentFuncCode := ""
+		if fn, ok := e.cfg.Analyzer.GetFunction(divergentFunc); ok && fn != nil {
+			// Try to read the source code for this function
+			if target.File != "" {
+				// Find the line range for this function from its BBs
+				minLine, maxLine := 0, 0
+				for _, bb := range fn.Blocks {
+					for _, lineNum := range bb.Lines {
+						if minLine == 0 || lineNum < minLine {
+							minLine = lineNum
+						}
+						if lineNum > maxLine {
+							maxLine = lineNum
+						}
+					}
+				}
+				if minLine > 0 && maxLine > 0 {
+					code, err := coverage.ReadSourceLines(target.File, minLine, maxLine)
+					if err == nil {
+						divergentFuncCode = code
+					}
 				}
 			}
-		} else {
-			// Fallback: just retry with basic info
-			divInfo = &prompt.DivergenceInfo{
-				DivergentFunction: target.Function,
-				DivergentFile:     target.File,
-				DivergentLine:     target.Lines[0],
-				MutatedSeedCode:   mutatedSeed.Content,
-			}
+		}
+
+		divInfo = &prompt.DivergenceInfo{
+			DivergentFunction:     divergentFunc,
+			DivergentFunctionCode: divergentFuncCode,
+			MutatedSeedCode:       mutatedSeed.Content,
+			BaseSeedCode:          baseSeedCode,
 		}
 
 		// Generate refined prompt
@@ -244,6 +283,12 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
 			logger.Warn("Failed to build refined prompt: %v", err)
 			continue
 		}
+
+		// Debug: Log the refined prompt for divergence analysis
+		logger.Debug("=== Divergence Refinement Prompt (Retry %d/%d) ===", retry+1, e.cfg.MaxRetries)
+		logger.Debug("Divergent Function: %s", divInfo.DivergentFunction)
+		logger.Debug("Refined Prompt:\n%s", refinedPrompt)
+		logger.Debug("=== End of Divergence Refinement Prompt ===")
 
 		// Call LLM with refined prompt
 		completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, refinedPrompt)
@@ -259,14 +304,21 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
 			continue
 		}
 
+		// Allocate ID for the new seed before trying it
+		newSeed.Meta.ID = e.cfg.Corpus.AllocateID()
+		newSeed.Meta.CreatedAt = time.Now()
+		if ctx.BaseSeedID > 0 {
+			newSeed.Meta.ParentID = uint64(ctx.BaseSeedID)
+		}
+
 		// Try the new seed
 		hit, coveredTarget, err = e.tryMutatedSeed(newSeed, target)
 		if err != nil {
-			return false, err
+			return false, retry + 1, err
 		}
 
 		if hit {
-			return true, nil
+			return true, retry + 1, nil
 		}
 
 		// Update mutated seed for next iteration
@@ -275,11 +327,11 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, error) {
 		// If we covered something new (even if not the target), that's progress
 		if coveredTarget {
 			logger.Info("Covered new lines, continuing to next target")
-			return false, nil
+			return false, retry + 1, nil
 		}
 	}
 
-	return false, nil
+	return false, e.cfg.MaxRetries, nil
 }
 
 // generateMutatedSeed generates a new seed using LLM with constraint solving prompt.
@@ -305,6 +357,13 @@ func (e *Engine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, err
 	// Pre-allocate ID for the new seed before compilation
 	// This ensures the seed has a valid ID when being compiled
 	newSeed.Meta.ID = e.cfg.Corpus.AllocateID()
+	newSeed.Meta.CreatedAt = time.Now()
+
+	// Set lineage information from context
+	if ctx.BaseSeedID > 0 {
+		newSeed.Meta.ParentID = uint64(ctx.BaseSeedID)
+		// Depth will be properly set in tryMutatedSeed when we have parent info
+	}
 
 	return newSeed, nil
 }
@@ -318,14 +377,14 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool
 	if e.cfg.MappingPath != "" {
 		stateDir = filepath.Dir(e.cfg.MappingPath)
 	}
-	
+
 	if s.Meta.ContentPath != "" {
 		e.currentMutatedSeedPath = s.Meta.ContentPath
 	} else if stateDir != "" {
 		// Fallback: construct path from state directory
 		e.currentMutatedSeedPath = filepath.Join(stateDir, fmt.Sprintf("seed_%d.c", s.Meta.ID))
 	}
-	
+
 	// If base seed was used, save its path too
 	if target.BaseSeed != "" && e.currentBaseSeedPath == "" && stateDir != "" {
 		e.currentBaseSeedPath = filepath.Join(stateDir, fmt.Sprintf("seed_%s.c", target.BaseSeed))
@@ -358,11 +417,17 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool
 		}
 	}
 
-	// Record new coverage
+	// Record new coverage and track metrics
 	oldCount := len(e.cfg.Analyzer.GetCoveredLines())
 	e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
-	newCount := len(e.cfg.Analyzer.GetCoveredLines()) - oldCount
+	newTotalCount := len(e.cfg.Analyzer.GetCoveredLines())
+	newCount := newTotalCount - oldCount
 	coveredNew := newCount > 0
+
+	// Update seed metadata with coverage information
+	s.Meta.OldCoverage = uint64(oldCount)
+	s.Meta.NewCoverage = uint64(newTotalCount)
+	s.Meta.CovIncrease = uint64(newCount)
 
 	// If covered new lines or hit target, add to corpus
 	if coveredNew || hitTarget {
@@ -406,7 +471,10 @@ func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, error) {
 
 	// Execute (needed to generate coverage data)
 	if e.cfg.Executor != nil {
+		execStart := time.Now()
 		_, err = e.cfg.Executor.Execute(s, compileResult.BinaryPath)
+		execDuration := time.Since(execStart)
+		s.Meta.ExecTimeUs = execDuration.Microseconds()
 		if err != nil {
 			logger.Debug("Execution failed: %v", err)
 			// Continue anyway - we might still get partial coverage
@@ -428,11 +496,24 @@ func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, error) {
 
 // extractCoveredLines extracts covered line identifiers from a coverage report.
 // Returns a list of "file:line" strings.
+// This method uses the filtered extraction when GCCCoverage is available,
+// ensuring only lines from target functions are counted.
 func (e *Engine) extractCoveredLines(report coverage.Report) []string {
 	if report == nil {
 		return make([]string, 0)
 	}
 
+	// Try to use filtered extraction if GCCCoverage is available
+	if gccCov, ok := e.cfg.Coverage.(*coverage.GCCCoverage); ok {
+		lines, err := gccCov.ExtractCoveredLinesFiltered(report)
+		if err != nil {
+			logger.Debug("Failed to extract filtered covered lines: %v", err)
+			return make([]string, 0)
+		}
+		return lines
+	}
+
+	// Fallback to unfiltered extraction for other coverage implementations
 	lines, err := coverage.ExtractCoveredLines(report)
 	if err != nil {
 		logger.Debug("Failed to extract covered lines: %v", err)
