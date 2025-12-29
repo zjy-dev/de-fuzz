@@ -24,7 +24,7 @@ func TestMarkdownReporter_Integration_Save(t *testing.T) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			ID: "test_bug_001",
+			Meta: seed.Metadata{ID: 1},
 			Content: `
 #include <stdio.h>
 #include <string.h>
@@ -61,7 +61,7 @@ int main() {
 	require.Equal(t, 1, len(files))
 
 	reportPath := filepath.Join(tempDir, files[0].Name())
-	assert.True(t, strings.HasPrefix(files[0].Name(), "bug_test_bug_001_"))
+	assert.True(t, strings.HasPrefix(files[0].Name(), "bug_1_"))
 	assert.True(t, strings.HasSuffix(files[0].Name(), ".md"))
 
 	// Verify report content
@@ -71,7 +71,7 @@ int main() {
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "# Bug Report:")
 	assert.Contains(t, contentStr, "Stack Buffer Overflow")
-	assert.Contains(t, contentStr, "Seed ID: test_bug_001")
+	assert.Contains(t, contentStr, "Seed ID: 1")
 	assert.Contains(t, contentStr, "vulnerable()")
 	assert.Contains(t, contentStr, "gets(buffer)")
 	assert.Contains(t, contentStr, "Exit Code:** 134")
@@ -90,8 +90,8 @@ func TestMarkdownReporter_Integration_SaveMultipleBugs(t *testing.T) {
 	bugs := []*oracle.Bug{
 		{
 			Seed: &seed.Seed{
-				ID:      "bug_001",
-				Content: `int main() { int *p = 0; *p = 1; return 0; }`,
+				Meta:      seed.Metadata{ID: 1},
+				Content:   `int main() { int *p = 0; *p = 1; return 0; }`,
 				TestCases: []seed.TestCase{
 					{RunningCommand: "./a.out", ExpectedResult: "Crash"},
 				},
@@ -103,8 +103,8 @@ func TestMarkdownReporter_Integration_SaveMultipleBugs(t *testing.T) {
 		},
 		{
 			Seed: &seed.Seed{
-				ID:      "bug_002",
-				Content: `int main() { char b[8]; strcpy(b, "AAAAAAAAAAAAAAAA"); return 0; }`,
+				Meta:      seed.Metadata{ID: 2},
+				Content:   `int main() { char b[8]; strcpy(b, "AAAAAAAAAAAAAAAA"); return 0; }`,
 				TestCases: []seed.TestCase{
 					{RunningCommand: "./a.out", ExpectedResult: "Crash"},
 				},
@@ -116,8 +116,8 @@ func TestMarkdownReporter_Integration_SaveMultipleBugs(t *testing.T) {
 		},
 		{
 			Seed: &seed.Seed{
-				ID:      "bug_003",
-				Content: `int main() { int x = 0; return 10/x; }`,
+				Meta:      seed.Metadata{ID: 3},
+				Content:   `int main() { int x = 0; return 10/x; }`,
 				TestCases: []seed.TestCase{
 					{RunningCommand: "./a.out", ExpectedResult: "Crash"},
 				},
@@ -155,7 +155,7 @@ func TestMarkdownReporter_Integration_CreateDirectory(t *testing.T) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			ID:        "nested_bug",
+			Meta:      seed.Metadata{ID: 1},
 			Content:   `int main() { return 0; }`,
 			TestCases: []seed.TestCase{},
 		},
@@ -181,7 +181,7 @@ func TestMarkdownReporter_Integration_EmptyResults(t *testing.T) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			ID:        "empty_results",
+			Meta:      seed.Metadata{ID: 1},
 			Content:   `int main() { return 0; }`,
 			TestCases: []seed.TestCase{},
 		},
@@ -198,7 +198,8 @@ func TestMarkdownReporter_Integration_EmptyResults(t *testing.T) {
 
 	content, err := os.ReadFile(filepath.Join(tempDir, files[0].Name()))
 	require.NoError(t, err)
-	assert.Contains(t, string(content), "empty_results")
+	// Check that report was generated and contains description
+	assert.Contains(t, string(content), "Bug with no execution results")
 }
 
 // TestMarkdownReporter_Integration_LargeReport tests with large content.
@@ -253,7 +254,7 @@ void func_%d(int x) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			ID:        "large_bug",
+			Meta:      seed.Metadata{ID: 1},
 			Content:   largeCode,
 			TestCases: testCases,
 		},
@@ -284,7 +285,7 @@ func TestMarkdownReporter_Integration_SpecialCharacters(t *testing.T) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			ID: "special_chars",
+			Meta: seed.Metadata{ID: 1},
 			Content: `
 #include <stdio.h>
 int main() {
@@ -328,8 +329,8 @@ func TestMarkdownReporter_Integration_ReportFormat(t *testing.T) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			ID:      "format_test",
-			Content: `int main() { return 42; }`,
+			Meta:      seed.Metadata{ID: 1},
+			Content:   `int main() { return 42; }`,
 			TestCases: []seed.TestCase{
 				{RunningCommand: "./a.out", ExpectedResult: "0"},
 			},
@@ -386,7 +387,7 @@ func TestMarkdownReporter_Integration_Concurrency(t *testing.T) {
 		go func(idx int) {
 			bug := &oracle.Bug{
 				Seed: &seed.Seed{
-					ID:        "concurrent_bug",
+					Meta:      seed.Metadata{ID: uint64(idx + 1)},
 					Content:   `int main() { return 0; }`,
 					TestCases: []seed.TestCase{},
 				},
@@ -419,7 +420,7 @@ func TestReporterInterface_Integration(t *testing.T) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			ID:        "interface_test",
+			Meta:      seed.Metadata{ID: 1},
 			Content:   `int main() { return 0; }`,
 			TestCases: []seed.TestCase{},
 		},

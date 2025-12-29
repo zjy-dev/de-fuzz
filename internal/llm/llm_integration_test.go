@@ -136,7 +136,9 @@ func TestDeepSeekRealAPIIntegration(t *testing.T) {
 			{RunningCommand: "./test", ExpectedResult: "success"},
 		}
 		testSeed := &seed.Seed{
-			ID:        "test-seed",
+			Meta: seed.Metadata{
+				ID: 1,
+			},
 			Content:   "int main() { int x = 2000000000; return x + x; }",
 			TestCases: analyzeTestCases,
 		}
@@ -156,7 +158,9 @@ func TestDeepSeekRealAPIIntegration(t *testing.T) {
 			{RunningCommand: "./prog", ExpectedResult: "42"},
 		}
 		originalSeed := &seed.Seed{
-			ID:        "original",
+			Meta: seed.Metadata{
+				ID: 2,
+			},
 			Content:   "int main() { return 42; }",
 			TestCases: mutateTestCases,
 		}
