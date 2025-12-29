@@ -106,7 +106,7 @@ int test_func (int a, int b)
 	mappingPath := filepath.Join(tmpDir, "mapping.json")
 
 	// Create CFG analyzer
-	analyzer, err := coverage.NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	analyzer, err := coverage.NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath, 0.8)
 	if err != nil {
 		t.Fatalf("Failed to create analyzer: %v", err)
 	}

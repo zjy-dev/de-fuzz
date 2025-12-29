@@ -315,6 +315,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 			targetFunctions,
 			cfg.Compiler.SourceParentPath,
 			mappingPath,
+			cfg.Compiler.Fuzz.WeightDecayFactor,
 		)
 		if err != nil {
 			logger.Warn("Failed to create analyzer: %v (continuing without target function tracking)", err)

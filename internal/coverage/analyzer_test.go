@@ -42,7 +42,7 @@ test_func (test_func, funcdef_no=0, decl_uid=2) {
 
 	mappingPath := filepath.Join(tmpDir, "mapping.json")
 
-	analyzer, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	analyzer, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath, 0.8)
 	require.NoError(t, err)
 	assert.NotNil(t, analyzer)
 
@@ -83,7 +83,7 @@ test_func (test_func, funcdef_no=0, decl_uid=2) {
 	require.NoError(t, err)
 
 	mappingPath := filepath.Join(tmpDir, "mapping.json")
-	analyzer, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	analyzer, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath, 0.8)
 	require.NoError(t, err)
 
 	// Initially no coverage
@@ -124,7 +124,7 @@ test_func (test_func, funcdef_no=0, decl_uid=2) {
 	require.NoError(t, err)
 
 	mappingPath := filepath.Join(tmpDir, "mapping.json")
-	analyzer, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	analyzer, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath, 0.8)
 	require.NoError(t, err)
 
 	// Record coverage
@@ -159,13 +159,13 @@ test_func (test_func, funcdef_no=0, decl_uid=2) {
 	mappingPath := filepath.Join(tmpDir, "mapping.json")
 
 	// Create first analyzer and record coverage
-	analyzer1, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	analyzer1, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath, 0.8)
 	require.NoError(t, err)
 	analyzer1.RecordCoverage(1, []string{"test.c:5"})
 	analyzer1.SaveMapping(mappingPath)
 
 	// Create second analyzer and load
-	analyzer2, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath)
+	analyzer2, err := NewAnalyzer(cfgPath, []string{"test_func"}, "", mappingPath, 0.8)
 	require.NoError(t, err)
 
 	// Should have loaded the coverage

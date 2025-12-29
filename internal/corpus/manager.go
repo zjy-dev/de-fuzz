@@ -23,8 +23,8 @@ const (
 // FuzzResult contains the outcome of a fuzzing iteration.
 type FuzzResult struct {
 	State       seed.SeedState
-	ExecTimeUs  int64
-	NewCoverage uint64
+	OldCoverage uint64 // BB coverage before (basis points)
+	NewCoverage uint64 // BB coverage after (basis points)
 }
 
 // Manager manages the lifecycle of seeds on disk and in memory.
@@ -59,6 +59,12 @@ type Manager interface {
 
 	// Save persists the current state to disk.
 	Save() error
+
+	// Finalize updates the global state when fuzzing completes.
+	Finalize() error
+
+	// UpdateTotalCoverage updates the total coverage in global state.
+	UpdateTotalCoverage(coverageBasisPoints uint64)
 }
 
 // FileManager is a file-backed implementation of the corpus Manager.
@@ -159,10 +165,24 @@ func (m *FileManager) Add(s *seed.Seed) error {
 	// Ensure state is pending
 	s.Meta.State = seed.SeedStatePending
 
+	// Set depth from parent if not already set
+	if s.Meta.Depth == 0 && s.Meta.ParentID > 0 {
+		if parent, ok := m.processed[s.Meta.ParentID]; ok {
+			s.Meta.Depth = parent.Meta.Depth + 1
+		} else {
+			s.Meta.Depth = 1 // Default to 1 if parent not found
+		}
+	}
+
 	// Save to disk
 	_, err := seed.SaveSeedWithMetadata(m.corpusDir, s, m.namer)
 	if err != nil {
 		return fmt.Errorf("failed to save seed: %w", err)
+	}
+
+	// Save metadata JSON
+	if err := seed.SaveMetadataJSON(m.metadataDir, &s.Meta); err != nil {
+		// Log warning but don't fail
 	}
 
 	// Add to queue
@@ -230,14 +250,16 @@ func (m *FileManager) ReportResult(id uint64, result FuzzResult) error {
 		m.processed[id] = s
 	}
 
-	// Update metadata
+	// Update metadata with BB coverage in basis points
 	s.Meta.State = result.State
-	s.Meta.ExecTimeUs = result.ExecTimeUs
+	s.Meta.OldCoverage = result.OldCoverage
 	s.Meta.NewCoverage = result.NewCoverage
 
 	// Calculate coverage increase
-	if result.NewCoverage > s.Meta.OldCoverage {
-		s.Meta.CovIncrease = result.NewCoverage - s.Meta.OldCoverage
+	if result.NewCoverage > result.OldCoverage {
+		s.Meta.CovIncrease = result.NewCoverage - result.OldCoverage
+	} else {
+		s.Meta.CovIncrease = 0
 	}
 
 	// Save metadata as JSON file (not .seed file)
@@ -266,6 +288,22 @@ func (m *FileManager) Len() int {
 // Save persists the current state to disk.
 func (m *FileManager) Save() error {
 	return m.stateManager.Save()
+}
+
+// Finalize updates the global state when fuzzing completes.
+// It sets pool_size to 0 and current_fuzzing_id to 0.
+func (m *FileManager) Finalize() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.stateManager.UpdatePoolSize(0)
+	m.stateManager.UpdateCurrentID(0)
+	return m.stateManager.Save()
+}
+
+// UpdateTotalCoverage updates the total coverage in global state.
+func (m *FileManager) UpdateTotalCoverage(coverageBasisPoints uint64) {
+	m.stateManager.UpdateCoverage(coverageBasisPoints)
 }
 
 // GetStateManager returns the underlying state manager.

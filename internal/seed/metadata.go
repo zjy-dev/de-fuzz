@@ -33,11 +33,11 @@ type Metadata struct {
 	// State
 	State SeedState `json:"state"` // Current processing state
 
-	// Metrics (coverage in basis points, e.g., 12.34% = 1234)
-	OldCoverage uint64 `json:"old_cov"`  // Coverage before this seed was compiled
-	NewCoverage uint64 `json:"new_cov"`  // Coverage after this seed was compiled
-	CovIncrease uint64 `json:"cov_incr"` // Coverage increase (new - old)
-	ExecTimeUs  int64  `json:"exec_us"`  // Execution time in microseconds
+	// Metrics - Coverage in basis points (万分比)
+	// E.g., 1234 means 12.34% = covered_BBs / total_BBs * 10000
+	OldCoverage uint64 `json:"old_cov"`  // BB coverage before this seed (basis points)
+	NewCoverage uint64 `json:"new_cov"`  // BB coverage after this seed (basis points)
+	CovIncrease uint64 `json:"cov_incr"` // Coverage increase (new - old, basis points)
 
 	// ContentHash is an optional short hash (e.g., CRC32 or SHA1 prefix) for deduplication.
 	ContentHash string `json:"content_hash,omitempty"`

@@ -61,21 +61,29 @@ type Analyzer struct {
 	bbWeights     map[string]*BBWeightInfo // Map of "FuncName:BBID" -> weight info
 
 	// CFG-guided specific
-	mapping         *CoverageMapping // Line-to-seed mapping
-	targetFunctions []string         // Functions to focus on
-	sourceDir       string           // Directory containing source files
+	mapping           *CoverageMapping // Line-to-seed mapping
+	targetFunctions   []string         // Functions to focus on
+	sourceDir         string           // Directory containing source files
+	weightDecayFactor float64          // Decay factor for BB weights after failed iterations
 }
 
 // NewAnalyzer creates a new analyzer for the given CFG file.
-func NewAnalyzer(cfgPath string, targetFunctions []string, sourceDir string, mappingPath string) (*Analyzer, error) {
+// weightDecayFactor should be in range (0, 1], default 0.8 if invalid.
+func NewAnalyzer(cfgPath string, targetFunctions []string, sourceDir string, mappingPath string, weightDecayFactor float64) (*Analyzer, error) {
+	// Validate and set default for weightDecayFactor
+	if weightDecayFactor <= 0 || weightDecayFactor > 1 {
+		weightDecayFactor = 0.8
+	}
+
 	cfgAnalyzer := &Analyzer{
-		cfgPath:         cfgPath,
-		functions:       make(map[string]*CFGFunction),
-		lineToBB:        make(map[LineID][]int),
-		bbToSuccCount:   make(map[string]int),
-		bbWeights:       make(map[string]*BBWeightInfo),
-		targetFunctions: targetFunctions,
-		sourceDir:       sourceDir,
+		cfgPath:           cfgPath,
+		functions:         make(map[string]*CFGFunction),
+		lineToBB:          make(map[LineID][]int),
+		bbToSuccCount:     make(map[string]int),
+		bbWeights:         make(map[string]*BBWeightInfo),
+		targetFunctions:   targetFunctions,
+		sourceDir:         sourceDir,
+		weightDecayFactor: weightDecayFactor,
 	}
 
 	if err := cfgAnalyzer.Parse(); err != nil {
@@ -545,6 +553,32 @@ func (c *Analyzer) GetFunctionCoverage() map[string]struct{ Covered, Total int }
 	return result
 }
 
+// GetTotalBBCoverage returns the total BB coverage across all target functions.
+// Returns (coveredBBs, totalBBs).
+func (c *Analyzer) GetTotalBBCoverage() (int, int) {
+	coveredLines := c.GetCoveredLines()
+	totalCovered := 0
+	totalBBs := 0
+
+	for _, funcName := range c.targetFunctions {
+		covered, total := c.getFunctionCoverage(funcName, coveredLines)
+		totalCovered += covered
+		totalBBs += total
+	}
+
+	return totalCovered, totalBBs
+}
+
+// GetBBCoverageBasisPoints returns BB coverage as basis points (万分比).
+// E.g., 1234 means 12.34% coverage.
+func (c *Analyzer) GetBBCoverageBasisPoints() uint64 {
+	covered, total := c.GetTotalBBCoverage()
+	if total == 0 {
+		return 0
+	}
+	return uint64(covered * 10000 / total)
+}
+
 func (c *Analyzer) getFunctionCoverage(funcName string, coveredLines map[LineID]bool) (covered, total int) {
 	fn, ok := c.functions[funcName]
 	if !ok {
@@ -668,10 +702,10 @@ func (c *Analyzer) GetMapping() *CoverageMapping {
 }
 
 // Weight management
-const WeightDecayThreshold = 64
-const WeightDecayFactor = 0.9
 
-func (c *Analyzer) RecordAttempt(funcName string, bbID int) {
+// DecayBBWeight reduces the weight of a BB after a failed iteration.
+// The weight is multiplied by the configured decay factor.
+func (c *Analyzer) DecayBBWeight(funcName string, bbID int) {
 	key := fmt.Sprintf("%s:%d", funcName, bbID)
 	wi, ok := c.bbWeights[key]
 	if !ok {
@@ -681,12 +715,14 @@ func (c *Analyzer) RecordAttempt(funcName string, bbID int) {
 	}
 
 	wi.Attempts++
-	if wi.Attempts%WeightDecayThreshold == 0 {
-		wi.Weight *= WeightDecayFactor
-		logger.Debug("Weight decay for %s: attempts=%d, new weight=%.2f", key, wi.Attempts, wi.Weight)
-	}
+	oldWeight := wi.Weight
+	wi.Weight *= c.weightDecayFactor
+	logger.Debug("BB %s weight decayed: %.2f -> %.2f (attempts=%d, factor=%.2f)",
+		key, oldWeight, wi.Weight, wi.Attempts, c.weightDecayFactor)
 }
 
+// RecordSuccess is called when a BB is successfully covered.
+// It resets the attempt counter (weight is NOT restored to allow continued decay if retargeted).
 func (c *Analyzer) RecordSuccess(funcName string, bbID int) {
 	key := fmt.Sprintf("%s:%d", funcName, bbID)
 	if wi, ok := c.bbWeights[key]; ok {

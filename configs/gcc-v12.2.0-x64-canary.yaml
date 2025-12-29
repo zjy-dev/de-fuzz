@@ -46,7 +46,9 @@ compiler:
     # CFG dump file path for target function analysis
     cfg_file_path: "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
     # Maximum number of divergence analysis retries per target BB
-    max_constraint_retries: 1
+    max_constraint_retries: 3
+    # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8
+    weight_decay_factor: 0.8
 
   # Oracle configuration
   oracle:

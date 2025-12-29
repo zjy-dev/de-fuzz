@@ -124,7 +124,7 @@ func TestFileManager(t *testing.T) {
 		// Report result
 		err := manager.ReportResult(retrieved.Meta.ID, FuzzResult{
 			State:       seed.SeedStateProcessed,
-			ExecTimeUs:  1000,
+			OldCoverage: 1000,
 			NewCoverage: 2500,
 		})
 		if err != nil {

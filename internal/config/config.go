@@ -66,6 +66,10 @@ type FuzzConfig struct {
 	// MaxConstraintRetries is the maximum number of divergence analysis retries
 	// per target basic block when constraint solving fails (default: 3)
 	MaxConstraintRetries int `mapstructure:"max_constraint_retries"`
+
+	// WeightDecayFactor is the multiplier applied to BB weight after failed iteration
+	// Valid range: (0, 1], default: 0.8
+	WeightDecayFactor float64 `mapstructure:"weight_decay_factor"`
 }
 
 // InternalLLMConfig is used for unmarshaling the config.yaml which only contains the provider string
@@ -539,6 +543,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.Compiler.Fuzz.MaxConstraintRetries == 0 {
 		cfg.Compiler.Fuzz.MaxConstraintRetries = 32
+	}
+	if cfg.Compiler.Fuzz.WeightDecayFactor <= 0 || cfg.Compiler.Fuzz.WeightDecayFactor > 1 {
+		cfg.Compiler.Fuzz.WeightDecayFactor = 0.8
 	}
 
 	// Set defaults for oracle config if not specified

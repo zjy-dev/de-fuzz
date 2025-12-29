@@ -125,8 +125,8 @@ func (e *Engine) Run() error {
 		}
 	}
 
-	// Final save
-	e.saveState()
+	// Final save with correct global state
+	e.finalizeState()
 	e.printSummary()
 	return nil
 }
@@ -143,6 +143,9 @@ func (e *Engine) processInitialSeeds() error {
 
 		logger.Debug("Processing initial seed %d...", s.Meta.ID)
 
+		// Get coverage before processing this seed
+		oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+
 		// Compile and measure coverage
 		report, err := e.measureSeed(s)
 		if err != nil {
@@ -156,9 +159,14 @@ func (e *Engine) processInitialSeeds() error {
 			e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
 		}
 
-		// Mark as processed
+		// Get coverage after processing
+		newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+
+		// Mark as processed with coverage info
 		e.cfg.Corpus.ReportResult(s.Meta.ID, corpus.FuzzResult{
-			State: seed.SeedStateProcessed,
+			State:       seed.SeedStateProcessed,
+			OldCoverage: oldBasisPoints,
+			NewCoverage: newBasisPoints,
 		})
 	}
 
@@ -331,6 +339,9 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 		}
 	}
 
+	// Failed to cover target after all retries - decay its weight
+	e.cfg.Analyzer.DecayBBWeight(target.Function, target.BBID)
+
 	return false, e.cfg.MaxRetries, nil
 }
 
@@ -417,17 +428,20 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool
 		}
 	}
 
-	// Record new coverage and track metrics
-	oldCount := len(e.cfg.Analyzer.GetCoveredLines())
+	// Record new coverage and track metrics using BB coverage basis points
+	oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 	e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
-	newTotalCount := len(e.cfg.Analyzer.GetCoveredLines())
-	newCount := newTotalCount - oldCount
-	coveredNew := newCount > 0
+	newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+	coveredNew := newBasisPoints > oldBasisPoints
 
-	// Update seed metadata with coverage information
-	s.Meta.OldCoverage = uint64(oldCount)
-	s.Meta.NewCoverage = uint64(newTotalCount)
-	s.Meta.CovIncrease = uint64(newCount)
+	// Update seed metadata with BB coverage in basis points (万分比)
+	s.Meta.OldCoverage = oldBasisPoints
+	s.Meta.NewCoverage = newBasisPoints
+	if newBasisPoints > oldBasisPoints {
+		s.Meta.CovIncrease = newBasisPoints - oldBasisPoints
+	} else {
+		s.Meta.CovIncrease = 0
+	}
 
 	// If covered new lines or hit target, add to corpus
 	if coveredNew || hitTarget {
@@ -437,7 +451,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool
 		if err := e.cfg.Corpus.Add(s); err != nil {
 			logger.Warn("Failed to add seed to corpus: %v", err)
 		} else {
-			logger.Info("Added seed %d to corpus (new lines: %d)", s.Meta.ID, newCount)
+			logger.Info("Added seed %d to corpus (cov: %d -> %d bp)", s.Meta.ID, oldBasisPoints, newBasisPoints)
 		}
 
 		// Also merge into total coverage
@@ -471,10 +485,7 @@ func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, error) {
 
 	// Execute (needed to generate coverage data)
 	if e.cfg.Executor != nil {
-		execStart := time.Now()
 		_, err = e.cfg.Executor.Execute(s, compileResult.BinaryPath)
-		execDuration := time.Since(execStart)
-		s.Meta.ExecTimeUs = execDuration.Microseconds()
 		if err != nil {
 			logger.Debug("Execution failed: %v", err)
 			// Continue anyway - we might still get partial coverage
@@ -560,6 +571,10 @@ func (e *Engine) runOracle(s *seed.Seed) {
 
 // saveState saves the current state.
 func (e *Engine) saveState() {
+	// Update total coverage in global state
+	coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+	e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
+
 	// Save coverage mapping
 	if e.cfg.MappingPath != "" {
 		if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
@@ -570,6 +585,25 @@ func (e *Engine) saveState() {
 	// Save corpus
 	if err := e.cfg.Corpus.Save(); err != nil {
 		logger.Warn("Failed to save corpus: %v", err)
+	}
+}
+
+// finalizeState saves state and finalizes global state when fuzzing completes.
+func (e *Engine) finalizeState() {
+	// Update total coverage
+	coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+	e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
+
+	// Save coverage mapping
+	if e.cfg.MappingPath != "" {
+		if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
+			logger.Warn("Failed to save mapping: %v", err)
+		}
+	}
+
+	// Finalize corpus state (sets pool_size=0, current_fuzzing_id=0)
+	if err := e.cfg.Corpus.Finalize(); err != nil {
+		logger.Warn("Failed to finalize corpus: %v", err)
 	}
 }
 

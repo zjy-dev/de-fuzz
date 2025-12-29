@@ -62,6 +62,7 @@ func TestEngine_Integration_BasicFlow(t *testing.T) {
 		targetFunctions,
 		"",
 		mappingPath,
+		0.8,
 	)
 	require.NoError(t, err)
 
@@ -197,6 +198,7 @@ func TestEngine_Integration_TargetSelection(t *testing.T) {
 		[]string{"stack_protect_classify_type", "stack_protect_decl_phase"},
 		"",
 		mappingPath,
+		0.8,
 	)
 	require.NoError(t, err)
 
@@ -264,6 +266,7 @@ func TestEngine_Integration_MappingPersistence(t *testing.T) {
 			[]string{"stack_protect_classify_type"},
 			"",
 			mappingPath,
+			0.8,
 		)
 		require.NoError(t, err)
 
@@ -293,6 +296,7 @@ func TestEngine_Integration_MappingPersistence(t *testing.T) {
 			[]string{"stack_protect_classify_type"},
 			"",
 			mappingPath,
+			0.8,
 		)
 		require.NoError(t, err)
 
@@ -336,6 +340,7 @@ func TestEngine_Integration_CoverageProgression(t *testing.T) {
 		},
 		"",
 		mappingPath,
+		0.8,
 	)
 	require.NoError(t, err)
 
