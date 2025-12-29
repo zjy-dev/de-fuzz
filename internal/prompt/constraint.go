@@ -116,6 +116,17 @@ This is your starting point. This seed covers line %d, which is close to your ta
 - Focus on modifying variables, conditions, or adding small code snippets.`
 	}
 
+	// Add language constraints to critical rules
+	languageConstraints := `
+
+**LANGUAGE CONSTRAINTS (VERY IMPORTANT):**
+- Use ONLY C99/C11 standard C code.
+- DO NOT use C++ features (references, auto, lambda, classes, templates, new/delete, etc.).
+- Use standard C types and functions: int, char, void, malloc, free, memset, memcpy, etc.
+- Example of WRONG code: int& ref = x; or auto func = [](int x) { return x; };
+- Example of CORRECT code: int* ref = &x; or void* func(int x) { return (void*)(intptr_t)x; }`
+	criticalRules += languageConstraints
+
 	// Build output example based on mode
 	outputExample := ""
 	if b.FunctionTemplate != "" {
@@ -287,6 +298,17 @@ This seed successfully reaches line %d (near the target).
 - **DO NOT add a new main() function.** The base seed already has one.
 - **Keep the same overall structure.** Only change what's necessary to reach the target.`
 	}
+
+	// Add language constraints to critical rules
+	languageConstraints := `
+
+**LANGUAGE CONSTRAINTS (VERY IMPORTANT):**
+- Use ONLY C99/C11 standard C code.
+- DO NOT use C++ features (references, auto, lambda, classes, templates, new/delete, etc.).
+- Use standard C types and functions: int, char, void, malloc, free, memset, memcpy, etc.
+- Example of WRONG code: int& ref = x; or auto func = [](int x) { return x; };
+- Example of CORRECT code: int* ref = &x; or void* func(int x) { return (void*)(intptr_t)x; }`
+	criticalRules += languageConstraints
 
 	// Build output example based on mode
 	outputExample := ""
