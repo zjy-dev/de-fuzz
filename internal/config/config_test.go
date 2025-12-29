@@ -359,6 +359,163 @@ config:
 	assert.Equal(t, "", fuzzCfg.QEMUSysroot)
 }
 
+func TestResolveEnvVars(t *testing.T) {
+	// Set up test environment variables
+	os.Setenv("TEST_API_KEY", "secret123")
+	os.Setenv("TEST_ENDPOINT", "https://api.test.com")
+	defer os.Unsetenv("TEST_API_KEY")
+	defer os.Unsetenv("TEST_ENDPOINT")
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Braced format with existing env var",
+			input:    "${TEST_API_KEY}",
+			expected: "secret123",
+		},
+		{
+			name:     "Simple format with existing env var",
+			input:    "$TEST_API_KEY",
+			expected: "secret123",
+		},
+		{
+			name:     "Mixed text with env var",
+			input:    "Bearer ${TEST_API_KEY}",
+			expected: "Bearer secret123",
+		},
+		{
+			name:     "Multiple env vars",
+			input:    "${TEST_API_KEY} at ${TEST_ENDPOINT}",
+			expected: "secret123 at https://api.test.com",
+		},
+		{
+			name:     "Non-existent env var stays as-is",
+			input:    "${NONEXISTENT_VAR}",
+			expected: "${NONEXISTENT_VAR}",
+		},
+		{
+			name:     "Simple format non-existent",
+			input:    "$NONEXISTENT_VAR",
+			expected: "$NONEXISTENT_VAR",
+		},
+		{
+			name:     "No env vars",
+			input:    "plain text",
+			expected: "plain text",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolveEnvVars(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestLoadEnvFromDotEnv(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "env_test_")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create .env file
+	envContent := `# This is a comment
+TEST_API_KEY=secret_key_123
+TEST_ENDPOINT=https://api.test.com/v1
+EMPTY_VAR=
+QUOTED_VAR="value with spaces"
+SINGLE_QUOTED_VAR='single quoted'
+`
+	envFile := filepath.Join(tempDir, ".env")
+	err = os.WriteFile(envFile, []byte(envContent), 0644)
+	assert.NoError(t, err)
+
+	// Load .env file
+	err = LoadEnvFromDotEnv(tempDir)
+	assert.NoError(t, err)
+
+	// Verify environment variables are set
+	assert.Equal(t, "secret_key_123", os.Getenv("TEST_API_KEY"))
+	assert.Equal(t, "https://api.test.com/v1", os.Getenv("TEST_ENDPOINT"))
+	assert.Equal(t, "", os.Getenv("EMPTY_VAR"))
+	assert.Equal(t, "value with spaces", os.Getenv("QUOTED_VAR"))
+	assert.Equal(t, "single quoted", os.Getenv("SINGLE_QUOTED_VAR"))
+
+	// Clean up
+	os.Unsetenv("TEST_API_KEY")
+	os.Unsetenv("TEST_ENDPOINT")
+	os.Unsetenv("EMPTY_VAR")
+	os.Unsetenv("QUOTED_VAR")
+	os.Unsetenv("SINGLE_QUOTED_VAR")
+}
+
+func TestLoadEnvFromDotEnv_NotExists(t *testing.T) {
+	// Create a temporary directory without .env file
+	tempDir, err := os.MkdirTemp("", "env_test_")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Should not error when .env doesn't exist
+	err = LoadEnvFromDotEnv(tempDir)
+	assert.NoError(t, err)
+}
+
+func TestLoadEnvFromDotEnv_OverrideProtection(t *testing.T) {
+	// Create a temporary directory
+	tempDir, err := os.MkdirTemp("", "env_test_")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Set environment variable before loading .env
+	os.Setenv("PREEXISTING_VAR", "original_value")
+	defer os.Unsetenv("PREEXISTING_VAR")
+
+	// Create .env file with same variable
+	envContent := "PREEXISTING_VAR=new_value\n"
+	envFile := filepath.Join(tempDir, ".env")
+	err = os.WriteFile(envFile, []byte(envContent), 0644)
+	assert.NoError(t, err)
+
+	// Load .env file - should NOT override existing variable
+	err = LoadEnvFromDotEnv(tempDir)
+	assert.NoError(t, err)
+
+	// Original value should be preserved
+	assert.Equal(t, "original_value", os.Getenv("PREEXISTING_VAR"))
+}
+
+func TestResolveEnvVarsInMap(t *testing.T) {
+	// Set up test environment variables
+	os.Setenv("TEST_KEY", "resolved_value")
+	defer os.Unsetenv("TEST_KEY")
+
+	testMap := map[string]interface{}{
+		"api_key":   "${TEST_KEY}",
+		"endpoint":  "https://api.example.com",
+		"nested": map[string]interface{}{
+			"inner_key": "$TEST_KEY",
+		},
+		"array": []interface{}{
+			"$TEST_KEY",
+			"static_value",
+		},
+	}
+
+	resolveInMap(testMap)
+
+	assert.Equal(t, "resolved_value", testMap["api_key"])
+	assert.Equal(t, "https://api.example.com", testMap["endpoint"])
+	nested := testMap["nested"].(map[string]interface{})
+	assert.Equal(t, "resolved_value", nested["inner_key"])
+	array := testMap["array"].([]interface{})
+	assert.Equal(t, "resolved_value", array[0])
+	assert.Equal(t, "static_value", array[1])
+}
+
 func TestLoad_FuzzConfig_PartialConfig(t *testing.T) {
 	actualConfigPath, cleanup := setupTestConfigs(t)
 	defer cleanup()

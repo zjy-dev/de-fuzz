@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -142,6 +144,133 @@ type CompilerConfig struct {
 	Targets []TargetFunction `mapstructure:"targets"`
 }
 
+// envVarPattern matches environment variable placeholders: ${VAR_NAME} or $VAR_NAME
+var envVarPattern = regexp.MustCompile(`\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
+
+// resolveEnvVars replaces environment variable placeholders in a string with their values.
+// Supports two formats:
+//   - ${VAR_NAME}: Braced format
+//   - $VAR_NAME: Simple format (must start with letter or underscore)
+//
+// If an environment variable is not set, it is left as-is in the string.
+func resolveEnvVars(s string) string {
+	return envVarPattern.ReplaceAllStringFunc(s, func(match string) string {
+		// Extract variable name (remove ${} or $)
+		varName := match
+		if strings.HasPrefix(match, "${") && strings.HasSuffix(match, "}") {
+			varName = match[2 : len(match)-1]
+		} else if strings.HasPrefix(match, "$") {
+			varName = match[1:]
+		}
+
+		// Get environment variable value
+		if value, ok := os.LookupEnv(varName); ok {
+			return value
+		}
+
+		// Variable not found, return original placeholder
+		return match
+	})
+}
+
+// LoadEnvFromDotEnv loads environment variables from a .env file in the specified directory.
+// The .env file should contain KEY=value pairs, one per line.
+// Lines starting with # are treated as comments and ignored.
+// This function is useful for local development and testing without requiring a full environment setup.
+func LoadEnvFromDotEnv(dir string) error {
+	envPath := filepath.Join(dir, ".env")
+
+	// Check if .env file exists
+	if _, err := os.Stat(envPath); os.IsNotExist(err) {
+		// .env file is optional, just return without error
+		return nil
+	}
+
+	// Read .env file
+	data, err := os.ReadFile(envPath)
+	if err != nil {
+		return fmt.Errorf("failed to read .env file: %w", err)
+	}
+
+	// Parse and set environment variables
+	lines := strings.Split(string(data), "\n")
+	for lineNum, line := range lines {
+		// Skip empty lines and comments
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Parse KEY=value
+		idx := strings.Index(line, "=")
+		if idx < 0 {
+			return fmt.Errorf("invalid line in .env file at line %d: missing '='", lineNum+1)
+		}
+
+		key := strings.TrimSpace(line[:idx])
+		value := strings.TrimSpace(line[idx+1:])
+
+		// Remove quotes if present
+		if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+			value = value[1 : len(value)-1]
+		} else if strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'") {
+			value = value[1 : len(value)-1]
+		}
+
+		// Only set if not already present
+		if _, exists := os.LookupEnv(key); !exists {
+			os.Setenv(key, value)
+		}
+	}
+
+	return nil
+}
+
+// applyEnvResolution recursively applies environment variable resolution to a struct.
+// Only string fields with mapstructure tags are processed.
+func applyEnvResolution(v *viper.Viper) {
+	// Get all settings as a flat map
+	settings := v.AllSettings()
+
+	// Traverse and resolve env vars in string values
+	resolveInMap(settings)
+
+	// Reconfigure viper with resolved values
+	v = viper.New()
+	for key, value := range settings {
+		v.Set(key, value)
+	}
+}
+
+// resolveInMap recursively resolves environment variables in map values.
+func resolveInMap(m map[string]interface{}) {
+	for k, v := range m {
+		switch val := v.(type) {
+		case string:
+			resolved := resolveEnvVars(val)
+			if resolved != val {
+				m[k] = resolved
+			}
+		case map[string]interface{}:
+			resolveInMap(val)
+		case []interface{}:
+			resolveInSlice(val)
+		}
+	}
+}
+
+// resolveInSlice resolves environment variables in slice elements.
+func resolveInSlice(s []interface{}) {
+	for i, v := range s {
+		switch val := v.(type) {
+		case string:
+			s[i] = resolveEnvVars(val)
+		case map[string]interface{}:
+			resolveInMap(val)
+		}
+	}
+}
+
 // Load reads a configuration file from the "configs" directory into a struct.
 // The configFileName parameter should be the base name of the file without the extension (e.g., "llm").
 // The result parameter should be a pointer to a struct that the configuration will be unmarshaled into.
@@ -213,6 +342,12 @@ func Load(configFileName string, result interface{}) error {
 func LoadConfig() (*Config, error) {
 	var cfg Config
 
+	// Load environment variables from .env file if present
+	// This allows sensitive config like API keys to be loaded from environment
+	if err := LoadEnvFromDotEnv("."); err != nil {
+		return nil, fmt.Errorf("failed to load .env file: %w", err)
+	}
+
 	// Load main config file - read from 'config' top-level object
 	v := viper.New()
 	v.SetConfigName("config")
@@ -224,6 +359,9 @@ func LoadConfig() (*Config, error) {
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to load main config: %w", err)
 	}
+
+	// Apply environment variable resolution to main config values
+	applyEnvResolution(v)
 
 	// Parse the main config fields (ISA, Strategy, Compiler info)
 	// Note: We can't unmarshal the whole 'config' object directly because 'llm' is a string in config.yaml
@@ -257,6 +395,9 @@ func LoadConfig() (*Config, error) {
 	if err := llmViper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to load llm config: %w", err)
 	}
+
+	// Apply environment variable resolution to LLM config values
+	applyEnvResolution(llmViper)
 
 	// llm.yaml has an array structure: llms: [...]
 	// Find the config for the specified provider
@@ -292,6 +433,9 @@ func LoadConfig() (*Config, error) {
 	if err := compilerViper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to load compiler config %s: %w", compilerConfigName, err)
 	}
+
+	// Apply environment variable resolution to compiler config values
+	applyEnvResolution(compilerViper)
 
 	// Only unmarshal the 'compiler' top-level object
 	// Other top-level objects (like 'targets') are ignored as they're for external tools

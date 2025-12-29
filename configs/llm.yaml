@@ -1,12 +1,38 @@
 # LLM Configuration for DeFuzz
+# Sensitive values can use environment variables:
+#   - ${VAR_NAME}: Braced format (recommended)
+#   - $VAR_NAME: Simple format
+#
+# Create a .env file in the project root with your API keys:
+#   DEEPSEEK_API_KEY=your_key_here
+#   MINIMAX_API_KEY=your_key_here
+#   ANTHROPIC_API_KEY=your_key_here
+
 llms:
+  # DeepSeek (default)
   - provider: "deepseek"
     model: "deepseek-chat"
-    api_key: "sk-b52b1156cfe647138ebd5108a5786ee6"  # Replace with your actual API key
-    endpoint: ""  # Leave empty to use default endpoint
+    api_key: "${DEEPSEEK_API_KEY}"
+    endpoint: "${DEEPSEEK_ENDPOINT}"
     temperature: 0.7
+
+  # MiniMax M2.1 (Anthropic-compatible API)
+  - provider: "minimax"
+    model: "minimax-m2.1"
+    api_key: "${MINIMAX_API_KEY}"
+    endpoint: "${MINIMAX_ENDPOINT}"
+    temperature: 0.7
+
+  # OpenAI (GPT-4)
   - provider: "openai"
     model: "gpt-4"
-    api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"  # Replace with your actual API key
-    endpoint: ""  # Leave empty to use default endpoint
+    api_key: "${OPENAI_API_KEY}"
+    endpoint: "${OPENAI_ENDPOINT}"
+    temperature: 0.7
 
+  # Anthropic (Claude)
+  - provider: "anthropic"
+    model: "claude-sonnet-4-20250514"
+    api_key: "${ANTHROPIC_API_KEY}"
+    endpoint: "${ANTHROPIC_ENDPOINT}"
+    temperature: 0.7
