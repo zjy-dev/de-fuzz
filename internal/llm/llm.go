@@ -33,6 +33,8 @@ func New(cfg *config.Config) (LLM, error) {
 	switch cfg.LLM.Provider {
 	case "deepseek":
 		return NewDeepSeekClient(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.Endpoint, cfg.LLM.Temperature), nil
+	case "minimax":
+		return NewMiniMaxClient(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.Endpoint, cfg.LLM.Temperature), nil
 	// case "openai":
 	// return NewOpenAIClient(cfg.LLM.APIKey, cfg.LLM.Model), nil
 	default:
