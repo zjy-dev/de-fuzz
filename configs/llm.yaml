@@ -18,7 +18,7 @@ llms:
 
   # MiniMax M2.1 (Anthropic-compatible API)
   - provider: "minimax"
-    model: "minimax-m2.1"
+    model: "MiniMax-M2.1"
     api_key: "${MINIMAX_API_KEY}"
     endpoint: "${MINIMAX_ENDPOINT}"
     temperature: 0.7
