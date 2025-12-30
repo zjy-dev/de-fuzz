@@ -1,124 +1,151 @@
-# Color definitions
-COLOR_RESET := \033[0m
-COLOR_BOLD := \033[1m
-COLOR_RED := \033[31m
-COLOR_GREEN := \033[32m
-COLOR_YELLOW := \033[33m
-COLOR_BLUE := \033[34m
-COLOR_MAGENTA := \033[35m
-COLOR_CYAN := \033[36m
+# DeFuzz Makefile
+# Go project best practices
 
-# Test report directory
+# ==============================================================================
+# Variables
+# ==============================================================================
+
+# Binary name and paths
+BINARY_NAME := defuzz
+CMD_PATH := ./cmd/defuzz
+BUILD_DIR := .
+
+# Go commands
+GO := go
+GOTEST := $(GO) test
+GOBUILD := $(GO) build
+GOMOD := $(GO) mod
+GOFMT := gofmt
+GOLINT := golangci-lint
+
+# Build info (injected via ldflags if needed)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+LDFLAGS := -ldflags "-s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILD_TIME)"
+
+# Test
 TEST_REPORT_DIR := ./test-report
+TEST_TIMEOUT := 10m
 
-# System information
-COMMIT_ID := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
-COMMIT_SHORT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-TEST_TIME := $(shell date '+%Y-%m-%d %H:%M:%S %Z')
-CPU_INFO := $(shell lscpu | grep "Model name" | sed 's/Model name:[[:space:]]*//' || echo "unknown")
-CPU_CORES := $(shell nproc 2>/dev/null || echo "unknown")
-MEM_TOTAL := $(shell free -h | awk '/^Mem:/ {print $$2}' || echo "unknown")
-
+# Default target
 .DEFAULT_GOAL := help
 
-.PHONY: help
-help: ## 显示帮助信息
-	@echo "$(COLOR_BOLD)$(COLOR_CYAN)De-Fuzz Makefile 帮助$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)═══════════════════════════════════════════════════$(COLOR_RESET)"
-	@echo ""
-	@echo "$(COLOR_BOLD)测试相关命令:$(COLOR_RESET)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(COLOR_GREEN)%-25s$(COLOR_RESET) %s\n", $$1, $$2}'
-	@echo ""
-	@echo "$(COLOR_BOLD)示例:$(COLOR_RESET)"
-	@echo "  make test-unit          - 运行单元测试"
-	@echo "  make test-bench         - 运行性能测试并生成报告"
-	@echo "  make test-integrate     - 运行集成测试并生成报告"
-	@echo "  make test-all           - 运行所有测试"
-	@echo "  make test-report-show   - 查看生成的测试报告"
-	@echo ""
+# ==============================================================================
+# Build
+# ==============================================================================
 
-.PHONY: test-unit
-test-unit: ## 运行单元测试
-	@echo "$(COLOR_BOLD)🧪 运行单元测试...$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)===============================================$(COLOR_RESET)"
-	@go test -v -short ./internal/...
-	@echo ""
-	@echo "$(COLOR_GREEN)✅ 单元测试完成！$(COLOR_RESET)"
+.PHONY: build
+build: ## Build the binary
+	@echo "🔨 Building $(BINARY_NAME)..."
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_PATH)
+	@echo "✅ Built: $(BUILD_DIR)/$(BINARY_NAME)"
 
-.PHONY: test-bench
-test-bench: ## 运行性能测试并生成报告
-	@echo "$(COLOR_BOLD)⚡ 运行性能测试...$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)===============================================$(COLOR_RESET)"
+.PHONY: build-debug
+build-debug: ## Build with debug info (no stripping)
+	@echo "🔨 Building $(BINARY_NAME) (debug)..."
+	$(GOBUILD) -gcflags="all=-N -l" -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_PATH)
+	@echo "✅ Built: $(BUILD_DIR)/$(BINARY_NAME) (debug)"
+
+.PHONY: install
+install: ## Install binary to $GOPATH/bin
+	@echo "📦 Installing $(BINARY_NAME)..."
+	$(GO) install $(LDFLAGS) $(CMD_PATH)
+	@echo "✅ Installed to $(shell go env GOPATH)/bin/$(BINARY_NAME)"
+
+# ==============================================================================
+# Development
+# ==============================================================================
+
+.PHONY: run
+run: build ## Build and run
+	./$(BINARY_NAME)
+
+.PHONY: fmt
+fmt: ## Format code
+	@echo "🎨 Formatting code..."
+	$(GOFMT) -s -w ./cmd ./internal
+	@echo "✅ Done"
+
+.PHONY: lint
+lint: ## Run linter (requires golangci-lint)
+	@echo "🔍 Running linter..."
+	$(GOLINT) run ./cmd/... ./internal/...
+
+.PHONY: vet
+vet: ## Run go vet
+	@echo "🔍 Running go vet..."
+	$(GO) vet ./cmd/... ./internal/...
+
+.PHONY: tidy
+tidy: ## Tidy and verify dependencies
+	@echo "📦 Tidying modules..."
+	$(GOMOD) tidy -e
+	$(GOMOD) verify
+	@echo "✅ Done"
+
+# ==============================================================================
+# Testing
+# ==============================================================================
+
+.PHONY: test
+test: ## Run all unit tests
+	@echo "🧪 Running unit tests..."
+	$(GOTEST) -short -race ./internal/...
+
+.PHONY: test-v
+test-v: ## Run unit tests with verbose output
+	@echo "🧪 Running unit tests (verbose)..."
+	$(GOTEST) -v -short -race ./internal/...
+
+.PHONY: test-cover
+test-cover: ## Run tests with coverage report
+	@echo "🧪 Running tests with coverage..."
 	@mkdir -p $(TEST_REPORT_DIR)
-	@echo "生成性能测试报告..."
-	@{ \
-		echo "# Benchmark Test Report"; \
-		echo ""; \
-		echo "## Test Environment"; \
-		echo "- **Commit ID**: $(COMMIT_ID)"; \
-		echo "- **Commit Short**: $(COMMIT_SHORT)"; \
-		echo "- **Test Time**: $(TEST_TIME)"; \
-		echo "- **CPU**: $(CPU_INFO)"; \
-		echo "- **CPU Cores**: $(CPU_CORES)"; \
-		echo "- **Memory**: $(MEM_TOTAL)"; \
-		echo ""; \
-		echo "## Benchmark Results"; \
-		echo ""; \
-		echo '```'; \
-	} > $(TEST_REPORT_DIR)/benchmark.md
-	@go test ./internal/coverage/... -bench=. -benchmem -benchtime=3s -run=^$$ 2>&1 | tee -a $(TEST_REPORT_DIR)/benchmark.md
-	@echo '```' >> $(TEST_REPORT_DIR)/benchmark.md
-	@echo ""
-	@echo "$(COLOR_GREEN)✅ 性能测试完成！报告保存至: $(TEST_REPORT_DIR)/benchmark.md$(COLOR_RESET)"
-
-.PHONY: test-integrate
-test-integrate: ## 运行集成测试并生成报告
-	@echo "$(COLOR_BOLD)🔗 运行集成测试...$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)===============================================$(COLOR_RESET)"
-	@mkdir -p $(TEST_REPORT_DIR)
-	@echo "生成集成测试报告..."
-	@{ \
-		echo "# Integration Test Report"; \
-		echo ""; \
-		echo "## Test Environment"; \
-		echo "- **Commit ID**: $(COMMIT_ID)"; \
-		echo "- **Commit Short**: $(COMMIT_SHORT)"; \
-		echo "- **Test Time**: $(TEST_TIME)"; \
-		echo "- **CPU**: $(CPU_INFO)"; \
-		echo "- **CPU Cores**: $(CPU_CORES)"; \
-		echo "- **Memory**: $(MEM_TOTAL)"; \
-		echo ""; \
-		echo "## Integration Test Results"; \
-		echo ""; \
-		echo '```'; \
-	} > $(TEST_REPORT_DIR)/integration.md
-	@go test -v -tags=integration -run "Integration" -timeout 10m ./internal/... 2>&1 | tee -a $(TEST_REPORT_DIR)/integration.md
-	@echo '```' >> $(TEST_REPORT_DIR)/integration.md
-	@echo ""
-	@echo "$(COLOR_GREEN)✅ 集成测试完成！报告保存至: $(TEST_REPORT_DIR)/integration.md$(COLOR_RESET)"
+	$(GOTEST) -short -race -coverprofile=$(TEST_REPORT_DIR)/coverage.out ./internal/...
+	$(GO) tool cover -html=$(TEST_REPORT_DIR)/coverage.out -o $(TEST_REPORT_DIR)/coverage.html
+	@echo "✅ Coverage report: $(TEST_REPORT_DIR)/coverage.html"
 
 .PHONY: test-integration
-test-integration: test-integrate ## 运行集成测试的别名
+test-integration: ## Run integration tests (requires external deps)
+	@echo "🔗 Running integration tests..."
+	$(GOTEST) -v -tags=integration -run "Integration" -timeout $(TEST_TIMEOUT) ./internal/...
+
+.PHONY: test-bench
+test-bench: ## Run benchmark tests
+	@echo "⚡ Running benchmarks..."
+	$(GOTEST) ./internal/coverage/... -bench=. -benchmem -benchtime=3s -run=^$$
 
 .PHONY: test-all
-test-all: test-unit test-bench test-integrate ## 运行所有测试（单元测试、性能测试、集成测试）
+test-all: test test-integration test-bench ## Run all tests
+	@echo "🎉 All tests completed!"
+
+# ==============================================================================
+# Cleanup
+# ==============================================================================
+
+.PHONY: clean
+clean: ## Remove build artifacts
+	@echo "🧹 Cleaning..."
+	rm -f $(BUILD_DIR)/$(BINARY_NAME)
+	rm -rf $(TEST_REPORT_DIR)
+	@echo "✅ Clean"
+
+.PHONY: clean-all
+clean-all: clean ## Deep clean (including Go cache)
+	$(GO) clean -cache -testcache
+
+# ==============================================================================
+# Help
+# ==============================================================================
+
+.PHONY: help
+help: ## Show this help
 	@echo ""
-	@echo "$(COLOR_BOLD)$(COLOR_GREEN)🎉 所有测试完成！$(COLOR_RESET)"
-	@echo "$(COLOR_CYAN)测试报告位置: $(TEST_REPORT_DIR)/$(COLOR_RESET)"
-	@ls -lh $(TEST_REPORT_DIR)/
-
-.PHONY: test-report-clean
-test-report-clean: ## 清理测试报告目录
-	@echo "$(COLOR_YELLOW)🧹 清理测试报告...$(COLOR_RESET)"
-	@rm -rf $(TEST_REPORT_DIR)
-	@echo "$(COLOR_GREEN)✅ 测试报告已清理$(COLOR_RESET)"
-
-.PHONY: test-report-show
-test-report-show: ## 显示测试报告列表
-	@echo "$(COLOR_CYAN)📊 测试报告:$(COLOR_RESET)"
-	@if [ -d "$(TEST_REPORT_DIR)" ]; then \
-		ls -lh $(TEST_REPORT_DIR)/ 2>/dev/null || echo "报告目录为空"; \
-	else \
-		echo "报告目录不存在，请先运行测试"; \
-	fi
+	@echo "DeFuzz - LLM-driven constraint solving fuzzer"
+	@echo ""
+	@echo "Usage: make [target]"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+	@echo ""
