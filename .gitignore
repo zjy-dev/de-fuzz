@@ -23,7 +23,7 @@ coverage.txt
 # Fuzzing artifacts
 fuzz_out/
 workspace/
-fuzz.log
+logs/
 experiments/
 
 # Target compilers and toolchains
