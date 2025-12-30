@@ -3,9 +3,9 @@ package llm
 import (
 	"testing"
 
-	"github.com/zjy-dev/de-fuzz/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/zjy-dev/de-fuzz/internal/config"
 )
 
 func TestMiniMaxClient_Creation(t *testing.T) {

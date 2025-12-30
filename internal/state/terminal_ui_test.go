@@ -66,8 +66,8 @@ func TestTerminalUI_buildDisplay(t *testing.T) {
 		LLMCalls:           50,
 		LLMErrors:          2,
 		SeedsGenerated:     48,
-		CurrentCoverage:    45.60,  // Matches TotalCoveredLines/TotalLines
-		TotalCoveredLines:  456,    // 456/1000 = 45.60%
+		CurrentCoverage:    45.60, // Matches TotalCoveredLines/TotalLines
+		TotalCoveredLines:  456,   // 456/1000 = 45.60%
 		TotalLines:         1000,
 		SeedsPerSecond:     0.042,
 		AvgSeedTimeMs:      24000,

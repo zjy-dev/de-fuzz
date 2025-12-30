@@ -1,0 +1,2221 @@
+2025/12/30 05:07:25 [INFO] Log file: logs/2025-12-30_05-07-25_CST.log
+2025/12/30 05:07:25 [INFO] Target: x64 / canary
+2025/12/30 05:07:25 [INFO] Output directory: fuzz_out/x64/canary
+2025/12/30 05:07:25 [DEBUG] Log level: debug
+2025/12/30 05:07:25 [INFO] Corpus is empty, loading initial seeds from initial_seeds/x64/canary...
+2025/12/30 05:07:25 [INFO] Loaded 2 initial seeds
+2025/12/30 05:07:25 [INFO] Creating analyzer with 8 target functions
+2025/12/30 05:07:25 [DEBUG] CFG file: /root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg
+2025/12/30 05:07:25 [DEBUG] Target functions: [stack_protect_classify_type stack_protect_decl_phase stack_protect_decl_phase_1 stack_protect_decl_phase_2 add_stack_protection_conflicts create_stack_guard stack_protect_prologue stack_protect_return_slot_p]
+2025/12/30 05:07:25 [INFO] Analyzer initialized, total target lines: 84
+2025/12/30 05:07:25 [INFO] Using fuzzing engine
+2025/12/30 05:07:25 [INFO] Starting fuzzing loop...
+2025/12/30 05:07:25 [INFO] Processing initial seeds to build coverage mapping...
+2025/12/30 05:07:25 [DEBUG] Processing initial seed 1...
+2025/12/30 05:07:26 [DEBUG] Processing initial seed 2...
+2025/12/30 05:07:26 [INFO] Initial coverage for stack_protect_decl_phase_2: 2/2 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage for add_stack_protection_conflicts: 15/15 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage for create_stack_guard: 1/1 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage for stack_protect_prologue: 10/20 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage for stack_protect_return_slot_p: 13/15 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage for stack_protect_classify_type: 14/23 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage for stack_protect_decl_phase: 17/21 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage for stack_protect_decl_phase_1: 2/2 BBs
+2025/12/30 05:07:26 [INFO] Initial coverage mapping saved to disk
+2025/12/30 05:07:26 [DEBUG] [Analyzer] Selected candidate: stack_protect_classify_type:BB2 (weight=3.00, succs=3, preds=[])
+2025/12/30 05:07:26 [DEBUG] [Analyzer] Using function entry base seed: 1 (line 1858)
+2025/12/30 05:07:26 [INFO] Iteration 1: Targeting stack_protect_classify_type:BB2 (succs=3, lines=[1819 1822 1854 1824 1847])
+2025/12/30 05:07:26 [DEBUG] Loaded base seed 1 for target
+2025/12/30 05:07:41 [INFO] Added seed 3 to corpus (new lines: 8)
+2025/12/30 05:07:41 [DEBUG] Retry 1/3 with divergence analysis...
+2025/12/30 05:07:41 [DEBUG] === Divergence Refinement Prompt (Retry 1/3) ===
+2025/12/30 05:07:41 [DEBUG] Divergent Function: stack_protect_classify_type
+2025/12/30 05:07:41 [DEBUG] Refined Prompt:
+## 1. Target: Function stack_protect_classify_type (BB2)
+
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
+
+```cpp
+[✗] 1799: 
+[✗] 1800:   for (t = BLOCK_VARS(block); t; t = DECL_CHAIN(t))
+[✗] 1801:     /* if (!TREE_STATIC (t) && !DECL_EXTERNAL (t)) */
+[✗] 1802:     if ((!VAR_P(t) && TREE_CODE(t) != RESULT_DECL) || !DECL_NONSHAREABLE(t))
+[✗] 1803:       TREE_USED(t) = 0;
+[✗] 1804: 
+[✗] 1805:   for (t = BLOCK_SUBBLOCKS(block); t; t = BLOCK_CHAIN(t))
+[✗] 1806:     clear_tree_used(t);
+[✗] 1807: }
+[✗] 1808: 
+[✗] 1809: /* Examine TYPE and determine a bit mask of the following features.  */
+[✗] 1810: 
+[✗] 1811: #define SPCT_HAS_LARGE_CHAR_ARRAY 1
+[✗] 1812: #define SPCT_HAS_SMALL_CHAR_ARRAY 2
+[✗] 1813: #define SPCT_HAS_ARRAY 4
+[✗] 1814: #define SPCT_HAS_AGGREGATE 8
+[✗] 1815: 
+[✗] 1816: static unsigned int
+[✓] 1817: stack_protect_classify_type(tree type)
+[✗] 1818: {
+[→] 1819:   unsigned int ret = 0;
+[✗] 1820:   tree t;
+[✗] 1821: 
+[→] 1822:   switch (TREE_CODE(type))
+[✗] 1823:   {
+[→] 1824:   case ARRAY_TYPE:
+[✓] 1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+[✓] 1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+[✗] 1827:     {
+[✓] 1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+[✗] 1829:       unsigned HOST_WIDE_INT len;
+[✗] 1830: 
+[✓] 1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+[✗] 1832:         len = max;
+[✗] 1833:       else
+[✓] 1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+[✗] 1835: 
+[✓] 1836:       if (len < max)
+[✗] 1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✗] 1838:       else
+[✓] 1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✓] 1840:     }
+[✗] 1841:     else
+[✗] 1842:       ret = SPCT_HAS_ARRAY;
+[✓] 1843:     break;
+[✗] 1844: 
+[✗] 1845:   case UNION_TYPE:
+[✗] 1846:   case QUAL_UNION_TYPE:
+[→] 1847:   case RECORD_TYPE:
+[✗] 1848:     ret = SPCT_HAS_AGGREGATE;
+[✗] 1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+[✗] 1850:       if (TREE_CODE(t) == FIELD_DECL)
+[✗] 1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+[✗] 1852:     break;
+[✗] 1853: 
+[→] 1854:   default:
+[✓] 1855:     break;
+[✗] 1856:   }
+[✗] 1857: 
+[✓] 1858:   return ret;
+[✗] 1859: }
+[✗] 1860: 
+[✗] 1861: /* Return nonzero if DECL should be segregated into the "vulnerable" upper
+[✗] 1862:    part of the local stack frame.  Remember if we ever return nonzero for
+[✗] 1863:    any variable in this function.  The return value is the phase number in
+[✗] 1864:    which the variable should be allocated.  */
+[✗] 1865: 
+[✗] 1866: static int
+[✓] 1867: stack_protect_decl_phase(tree decl)
+
+```
+
+**Target Lines:** [1819 1822 1854 1824 1847] (marked with [→] above)
+**Branching Factor:** 3 possible paths from this basic block
+
+## 2. Why Previous Attempt Failed
+
+The compiler took a different code path at function: **stack_protect_classify_type**
+
+**Divergent Function Source Code** (study this to understand the branching condition):
+
+```cpp
+1819:   unsigned int ret = 0;
+1820:   tree t;
+1821: 
+1822:   switch (TREE_CODE(type))
+1823:   {
+1824:   case ARRAY_TYPE:
+1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+1827:     {
+1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+1829:       unsigned HOST_WIDE_INT len;
+1830: 
+1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+1832:         len = max;
+1833:       else
+1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+1835: 
+1836:       if (len < max)
+1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1838:       else
+1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1840:     }
+1841:     else
+1842:       ret = SPCT_HAS_ARRAY;
+1843:     break;
+1844: 
+1845:   case UNION_TYPE:
+1846:   case QUAL_UNION_TYPE:
+1847:   case RECORD_TYPE:
+1848:     ret = SPCT_HAS_AGGREGATE;
+1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+1850:       if (TREE_CODE(t) == FIELD_DECL)
+1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+1852:     break;
+1853: 
+1854:   default:
+1855:     break;
+1856:   }
+1857: 
+1858:   return ret;
+```
+
+**Analysis:** Your seed caused the compiler to branch differently than expected in this function.
+Study the conditions in the divergent function to understand what code patterns trigger each branch.
+
+## 3. Failed Mutation (DO NOT repeat this)
+
+This seed was tried but took the WRONG compiler path:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    // Create a struct with nested arrays to trigger RECORD_TYPE and ARRAY_TYPE paths
+    struct nested {
+        char small_array[8];  // Small char array - SPCT_HAS_SMALL_CHAR_ARRAY
+        int medium_array[16]; // Non-char array - SPCT_HAS_ARRAY
+        struct inner {
+            char large_array[256]; // Large char array - SPCT_HAS_LARGE_CHAR_ARRAY
+            union {
+                int x;
+                float y;
+            } u; // UNION_TYPE - SPCT_HAS_AGGREGATE
+        } inner_struct;
+    } buffer;
+    
+    // Fill based on size parameter
+    if (fill_size > 0) {
+        // Access all fields to ensure they're not optimized away
+        for (int i = 0; i < sizeof(buffer.small_array) && i < fill_size; i++) {
+            buffer.small_array[i] = 'A';
+        }
+        
+        for (int i = 0; i < sizeof(buffer.medium_array)/sizeof(int) && i < fill_size; i++) {
+            buffer.medium_array[i] = i;
+        }
+        
+        for (int i = 0; i < sizeof(buffer.inner_struct.large_array) && i < fill_size; i++) {
+            buffer.inner_struct.large_array[i] = 'B';
+        }
+        
+        buffer.inner_struct.u.x = fill_size;
+    }
+    
+    // Create a union to trigger QUAL_UNION_TYPE path (though GCC uses UNION_TYPE for both)
+    union mixed {
+        char chars[32];
+        int ints[8];
+        long long big[4];
+    } u_data;
+    
+    if (fill_size > 50) {
+        // Fill union to ensure it's used
+        for (int i = 0; i < sizeof(u_data.chars) && i < fill_size; i++) {
+            u_data.chars[i] = 'C';
+        }
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 4. Working Base Seed (USE THIS AS STARTING POINT)
+
+This seed successfully reaches nearby code (line 1858). Start from this and make targeted modifications:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    char buffer[64];
+    char *ptr = buffer;
+    
+    // Fill buffer without bounds checking
+    for (int i = 0; i < fill_size; i++) {
+        *ptr++ = 'A';
+    }
+    
+    // Additional vulnerable operation that could leak canary
+    if (fill_size > 72 && fill_size < 128) {
+        // This might create a partial overwrite scenario
+        *(ptr - 8) = '\0'; // Null byte that could affect string operations
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 5. Your Task
+
+Create a NEW seed that:
+1. Uses the **base seed** as starting point (Section 4)
+2. Avoids the divergence at **stack_protect_classify_type** (Section 2)
+3. Reaches the **target lines [1819 1822 1854 1824 1847]** in function **stack_protect_classify_type** (Section 1)
+
+**Strategy:**
+- Study the divergent function's conditions to understand what triggers each branch
+- Make small, targeted changes to the base seed
+- Consider: What C code patterns cause the compiler to take the target branch?
+
+
+**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features)
+
+## Output Format
+
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
+Example of CORRECT output:
+```c
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+```
+
+Example of WRONG output (DO NOT DO THIS):
+```c
+#include <stdio.h>
+void seed(int fill_size) { ... }
+int main() { ... }  // WRONG! Do not include main()
+```
+
+**OUTPUT: Only the code in a markdown code block. No explanations.**
+
+2025/12/30 05:07:41 [DEBUG] === End of Divergence Refinement Prompt ===
+2025/12/30 05:07:53 [DEBUG] Retry 2/3 with divergence analysis...
+2025/12/30 05:07:53 [DEBUG] === Divergence Refinement Prompt (Retry 2/3) ===
+2025/12/30 05:07:53 [DEBUG] Divergent Function: stack_protect_classify_type
+2025/12/30 05:07:53 [DEBUG] Refined Prompt:
+## 1. Target: Function stack_protect_classify_type (BB2)
+
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
+
+```cpp
+[✗] 1799: 
+[✗] 1800:   for (t = BLOCK_VARS(block); t; t = DECL_CHAIN(t))
+[✗] 1801:     /* if (!TREE_STATIC (t) && !DECL_EXTERNAL (t)) */
+[✗] 1802:     if ((!VAR_P(t) && TREE_CODE(t) != RESULT_DECL) || !DECL_NONSHAREABLE(t))
+[✗] 1803:       TREE_USED(t) = 0;
+[✗] 1804: 
+[✗] 1805:   for (t = BLOCK_SUBBLOCKS(block); t; t = BLOCK_CHAIN(t))
+[✗] 1806:     clear_tree_used(t);
+[✗] 1807: }
+[✗] 1808: 
+[✗] 1809: /* Examine TYPE and determine a bit mask of the following features.  */
+[✗] 1810: 
+[✗] 1811: #define SPCT_HAS_LARGE_CHAR_ARRAY 1
+[✗] 1812: #define SPCT_HAS_SMALL_CHAR_ARRAY 2
+[✗] 1813: #define SPCT_HAS_ARRAY 4
+[✗] 1814: #define SPCT_HAS_AGGREGATE 8
+[✗] 1815: 
+[✗] 1816: static unsigned int
+[✓] 1817: stack_protect_classify_type(tree type)
+[✗] 1818: {
+[→] 1819:   unsigned int ret = 0;
+[✗] 1820:   tree t;
+[✗] 1821: 
+[→] 1822:   switch (TREE_CODE(type))
+[✗] 1823:   {
+[→] 1824:   case ARRAY_TYPE:
+[✓] 1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+[✓] 1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+[✗] 1827:     {
+[✓] 1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+[✗] 1829:       unsigned HOST_WIDE_INT len;
+[✗] 1830: 
+[✓] 1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+[✗] 1832:         len = max;
+[✗] 1833:       else
+[✓] 1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+[✗] 1835: 
+[✓] 1836:       if (len < max)
+[✗] 1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✗] 1838:       else
+[✓] 1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✓] 1840:     }
+[✗] 1841:     else
+[✗] 1842:       ret = SPCT_HAS_ARRAY;
+[✓] 1843:     break;
+[✗] 1844: 
+[✗] 1845:   case UNION_TYPE:
+[✗] 1846:   case QUAL_UNION_TYPE:
+[→] 1847:   case RECORD_TYPE:
+[✗] 1848:     ret = SPCT_HAS_AGGREGATE;
+[✗] 1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+[✗] 1850:       if (TREE_CODE(t) == FIELD_DECL)
+[✗] 1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+[✗] 1852:     break;
+[✗] 1853: 
+[→] 1854:   default:
+[✓] 1855:     break;
+[✗] 1856:   }
+[✗] 1857: 
+[✓] 1858:   return ret;
+[✗] 1859: }
+[✗] 1860: 
+[✗] 1861: /* Return nonzero if DECL should be segregated into the "vulnerable" upper
+[✗] 1862:    part of the local stack frame.  Remember if we ever return nonzero for
+[✗] 1863:    any variable in this function.  The return value is the phase number in
+[✗] 1864:    which the variable should be allocated.  */
+[✗] 1865: 
+[✗] 1866: static int
+[✓] 1867: stack_protect_decl_phase(tree decl)
+
+```
+
+**Target Lines:** [1819 1822 1854 1824 1847] (marked with [→] above)
+**Branching Factor:** 3 possible paths from this basic block
+
+## 2. Why Previous Attempt Failed
+
+The compiler took a different code path at function: **stack_protect_classify_type**
+
+**Divergent Function Source Code** (study this to understand the branching condition):
+
+```cpp
+1819:   unsigned int ret = 0;
+1820:   tree t;
+1821: 
+1822:   switch (TREE_CODE(type))
+1823:   {
+1824:   case ARRAY_TYPE:
+1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+1827:     {
+1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+1829:       unsigned HOST_WIDE_INT len;
+1830: 
+1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+1832:         len = max;
+1833:       else
+1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+1835: 
+1836:       if (len < max)
+1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1838:       else
+1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1840:     }
+1841:     else
+1842:       ret = SPCT_HAS_ARRAY;
+1843:     break;
+1844: 
+1845:   case UNION_TYPE:
+1846:   case QUAL_UNION_TYPE:
+1847:   case RECORD_TYPE:
+1848:     ret = SPCT_HAS_AGGREGATE;
+1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+1850:       if (TREE_CODE(t) == FIELD_DECL)
+1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+1852:     break;
+1853: 
+1854:   default:
+1855:     break;
+1856:   }
+1857: 
+1858:   return ret;
+```
+
+**Analysis:** Your seed caused the compiler to branch differently than expected in this function.
+Study the conditions in the divergent function to understand what code patterns trigger each branch.
+
+## 3. Failed Mutation (DO NOT repeat this)
+
+This seed was tried but took the WRONG compiler path:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    // Create a union to trigger UNION_TYPE path (line 1845)
+    union {
+        char data[32];
+        int numbers[8];
+    } u;
+    
+    // Create a struct to trigger RECORD_TYPE path (line 1847)
+    struct {
+        char small[16];
+        union u2 {
+            float f;
+            double d;
+        } nested_union;
+    } s;
+    
+    // Create a char array to trigger ARRAY_TYPE path (line 1824)
+    char array[128];
+    
+    // Fill based on size parameter
+    if (fill_size > 0) {
+        // Fill union (triggers UNION_TYPE classification)
+        for (int i = 0; i < sizeof(u.data) && i < fill_size; i++) {
+            u.data[i] = 'A';
+        }
+        
+        // Fill struct (triggers RECORD_TYPE classification)
+        for (int i = 0; i < sizeof(s.small) && i < fill_size; i++) {
+            s.small[i] = 'B';
+        }
+        
+        // Fill array (triggers ARRAY_TYPE classification)
+        for (int i = 0; i < sizeof(array) && i < fill_size; i++) {
+            array[i] = 'C';
+        }
+        
+        // Access nested union to ensure it's not optimized away
+        s.nested_union.f = 3.14f;
+    }
+    
+    // Create a variable-length array to test edge cases
+    if (fill_size > 50) {
+        int vla_size = fill_size % 100;
+        char vla[vla_size];
+        for (int i = 0; i < vla_size && i < fill_size; i++) {
+            vla[i] = 'D';
+        }
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 4. Working Base Seed (USE THIS AS STARTING POINT)
+
+This seed successfully reaches nearby code (line 1858). Start from this and make targeted modifications:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    char buffer[64];
+    char *ptr = buffer;
+    
+    // Fill buffer without bounds checking
+    for (int i = 0; i < fill_size; i++) {
+        *ptr++ = 'A';
+    }
+    
+    // Additional vulnerable operation that could leak canary
+    if (fill_size > 72 && fill_size < 128) {
+        // This might create a partial overwrite scenario
+        *(ptr - 8) = '\0'; // Null byte that could affect string operations
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 5. Your Task
+
+Create a NEW seed that:
+1. Uses the **base seed** as starting point (Section 4)
+2. Avoids the divergence at **stack_protect_classify_type** (Section 2)
+3. Reaches the **target lines [1819 1822 1854 1824 1847]** in function **stack_protect_classify_type** (Section 1)
+
+**Strategy:**
+- Study the divergent function's conditions to understand what triggers each branch
+- Make small, targeted changes to the base seed
+- Consider: What C code patterns cause the compiler to take the target branch?
+
+
+**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features)
+
+## Output Format
+
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
+Example of CORRECT output:
+```c
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+```
+
+Example of WRONG output (DO NOT DO THIS):
+```c
+#include <stdio.h>
+void seed(int fill_size) { ... }
+int main() { ... }  // WRONG! Do not include main()
+```
+
+**OUTPUT: Only the code in a markdown code block. No explanations.**
+
+2025/12/30 05:07:53 [DEBUG] === End of Divergence Refinement Prompt ===
+2025/12/30 05:08:09 [DEBUG] Retry 3/3 with divergence analysis...
+2025/12/30 05:08:09 [DEBUG] === Divergence Refinement Prompt (Retry 3/3) ===
+2025/12/30 05:08:09 [DEBUG] Divergent Function: stack_protect_classify_type
+2025/12/30 05:08:09 [DEBUG] Refined Prompt:
+## 1. Target: Function stack_protect_classify_type (BB2)
+
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
+
+```cpp
+[✗] 1799: 
+[✗] 1800:   for (t = BLOCK_VARS(block); t; t = DECL_CHAIN(t))
+[✗] 1801:     /* if (!TREE_STATIC (t) && !DECL_EXTERNAL (t)) */
+[✗] 1802:     if ((!VAR_P(t) && TREE_CODE(t) != RESULT_DECL) || !DECL_NONSHAREABLE(t))
+[✗] 1803:       TREE_USED(t) = 0;
+[✗] 1804: 
+[✗] 1805:   for (t = BLOCK_SUBBLOCKS(block); t; t = BLOCK_CHAIN(t))
+[✗] 1806:     clear_tree_used(t);
+[✗] 1807: }
+[✗] 1808: 
+[✗] 1809: /* Examine TYPE and determine a bit mask of the following features.  */
+[✗] 1810: 
+[✗] 1811: #define SPCT_HAS_LARGE_CHAR_ARRAY 1
+[✗] 1812: #define SPCT_HAS_SMALL_CHAR_ARRAY 2
+[✗] 1813: #define SPCT_HAS_ARRAY 4
+[✗] 1814: #define SPCT_HAS_AGGREGATE 8
+[✗] 1815: 
+[✗] 1816: static unsigned int
+[✓] 1817: stack_protect_classify_type(tree type)
+[✗] 1818: {
+[→] 1819:   unsigned int ret = 0;
+[✗] 1820:   tree t;
+[✗] 1821: 
+[→] 1822:   switch (TREE_CODE(type))
+[✗] 1823:   {
+[→] 1824:   case ARRAY_TYPE:
+[✓] 1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+[✓] 1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+[✗] 1827:     {
+[✓] 1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+[✗] 1829:       unsigned HOST_WIDE_INT len;
+[✗] 1830: 
+[✓] 1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+[✗] 1832:         len = max;
+[✗] 1833:       else
+[✓] 1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+[✗] 1835: 
+[✓] 1836:       if (len < max)
+[✗] 1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✗] 1838:       else
+[✓] 1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✓] 1840:     }
+[✗] 1841:     else
+[✗] 1842:       ret = SPCT_HAS_ARRAY;
+[✓] 1843:     break;
+[✗] 1844: 
+[✗] 1845:   case UNION_TYPE:
+[✗] 1846:   case QUAL_UNION_TYPE:
+[→] 1847:   case RECORD_TYPE:
+[✗] 1848:     ret = SPCT_HAS_AGGREGATE;
+[✗] 1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+[✗] 1850:       if (TREE_CODE(t) == FIELD_DECL)
+[✗] 1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+[✗] 1852:     break;
+[✗] 1853: 
+[→] 1854:   default:
+[✓] 1855:     break;
+[✗] 1856:   }
+[✗] 1857: 
+[✓] 1858:   return ret;
+[✗] 1859: }
+[✗] 1860: 
+[✗] 1861: /* Return nonzero if DECL should be segregated into the "vulnerable" upper
+[✗] 1862:    part of the local stack frame.  Remember if we ever return nonzero for
+[✗] 1863:    any variable in this function.  The return value is the phase number in
+[✗] 1864:    which the variable should be allocated.  */
+[✗] 1865: 
+[✗] 1866: static int
+[✓] 1867: stack_protect_decl_phase(tree decl)
+
+```
+
+**Target Lines:** [1819 1822 1854 1824 1847] (marked with [→] above)
+**Branching Factor:** 3 possible paths from this basic block
+
+## 2. Why Previous Attempt Failed
+
+The compiler took a different code path at function: **stack_protect_classify_type**
+
+**Divergent Function Source Code** (study this to understand the branching condition):
+
+```cpp
+1819:   unsigned int ret = 0;
+1820:   tree t;
+1821: 
+1822:   switch (TREE_CODE(type))
+1823:   {
+1824:   case ARRAY_TYPE:
+1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+1827:     {
+1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+1829:       unsigned HOST_WIDE_INT len;
+1830: 
+1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+1832:         len = max;
+1833:       else
+1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+1835: 
+1836:       if (len < max)
+1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1838:       else
+1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1840:     }
+1841:     else
+1842:       ret = SPCT_HAS_ARRAY;
+1843:     break;
+1844: 
+1845:   case UNION_TYPE:
+1846:   case QUAL_UNION_TYPE:
+1847:   case RECORD_TYPE:
+1848:     ret = SPCT_HAS_AGGREGATE;
+1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+1850:       if (TREE_CODE(t) == FIELD_DECL)
+1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+1852:     break;
+1853: 
+1854:   default:
+1855:     break;
+1856:   }
+1857: 
+1858:   return ret;
+```
+
+**Analysis:** Your seed caused the compiler to branch differently than expected in this function.
+Study the conditions in the divergent function to understand what code patterns trigger each branch.
+
+## 3. Failed Mutation (DO NOT repeat this)
+
+This seed was tried but took the WRONG compiler path:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    // Create a struct to trigger RECORD_TYPE path (line 1847)
+    struct {
+        char small_array[16];  // This will be classified as ARRAY_TYPE inside struct
+        int number;
+    } my_struct;
+
+    // Create a union to trigger UNION_TYPE path (line 1845)
+    union {
+        char data[32];
+        long value;
+    } my_union;
+
+    // Create a plain char array to trigger ARRAY_TYPE path (line 1824)
+    char char_array[128];
+
+    // Create a non-char array to trigger ARRAY_TYPE else branch (line 1841)
+    int int_array[32];
+
+    // Fill structures based on size parameter
+    if (fill_size > 0) {
+        // Fill struct fields
+        for (int i = 0; i < sizeof(my_struct.small_array) && i < fill_size; i++) {
+            my_struct.small_array[i] = 'A';
+        }
+        my_struct.number = fill_size;
+
+        // Fill union
+        for (int i = 0; i < sizeof(my_union.data) && i < fill_size; i++) {
+            my_union.data[i] = 'B';
+        }
+
+        // Fill char array (triggers char array classification)
+        for (int i = 0; i < sizeof(char_array) && i < fill_size; i++) {
+            char_array[i] = 'C';
+        }
+
+        // Fill int array (triggers non-char array classification)
+        for (int i = 0; i < sizeof(int_array)/sizeof(int) && i < fill_size; i++) {
+            int_array[i] = i;
+        }
+    }
+
+    // Create a nested struct to test recursive classification
+    if (fill_size > 50) {
+        struct nested {
+            char buffer[8];
+            struct inner {
+                short data[4];
+            } inner_struct;
+        } nested_var;
+
+        // Fill nested struct
+        for (int i = 0; i < sizeof(nested_var.buffer) && i < fill_size; i++) {
+            nested_var.buffer[i] = 'D';
+        }
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 4. Working Base Seed (USE THIS AS STARTING POINT)
+
+This seed successfully reaches nearby code (line 1858). Start from this and make targeted modifications:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    char buffer[64];
+    char *ptr = buffer;
+    
+    // Fill buffer without bounds checking
+    for (int i = 0; i < fill_size; i++) {
+        *ptr++ = 'A';
+    }
+    
+    // Additional vulnerable operation that could leak canary
+    if (fill_size > 72 && fill_size < 128) {
+        // This might create a partial overwrite scenario
+        *(ptr - 8) = '\0'; // Null byte that could affect string operations
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 5. Your Task
+
+Create a NEW seed that:
+1. Uses the **base seed** as starting point (Section 4)
+2. Avoids the divergence at **stack_protect_classify_type** (Section 2)
+3. Reaches the **target lines [1819 1822 1854 1824 1847]** in function **stack_protect_classify_type** (Section 1)
+
+**Strategy:**
+- Study the divergent function's conditions to understand what triggers each branch
+- Make small, targeted changes to the base seed
+- Consider: What C code patterns cause the compiler to take the target branch?
+
+
+**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features)
+
+## Output Format
+
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
+Example of CORRECT output:
+```c
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+```
+
+Example of WRONG output (DO NOT DO THIS):
+```c
+#include <stdio.h>
+void seed(int fill_size) { ... }
+int main() { ... }  // WRONG! Do not include main()
+```
+
+**OUTPUT: Only the code in a markdown code block. No explanations.**
+
+2025/12/30 05:08:09 [DEBUG] === End of Divergence Refinement Prompt ===
+2025/12/30 05:08:25 [WARN] Failed to cover target stack_protect_classify_type:BB2 after 3 retries
+2025/12/30 05:08:25 [DEBUG] [Analyzer] Selected candidate: stack_protect_classify_type:BB2 (weight=3.00, succs=3, preds=[])
+2025/12/30 05:08:25 [DEBUG] [Analyzer] Using function entry base seed: 1 (line 1834)
+2025/12/30 05:08:25 [INFO] Iteration 2: Targeting stack_protect_classify_type:BB2 (succs=3, lines=[1819 1822 1854 1824 1847])
+2025/12/30 05:08:25 [DEBUG] Loaded base seed 1 for target
+2025/12/30 05:08:39 [INFO] Added seed 7 to corpus (new lines: 2)
+2025/12/30 05:08:39 [DEBUG] Retry 1/3 with divergence analysis...
+2025/12/30 05:08:39 [DEBUG] === Divergence Refinement Prompt (Retry 1/3) ===
+2025/12/30 05:08:39 [DEBUG] Divergent Function: stack_protect_classify_type
+2025/12/30 05:08:39 [DEBUG] Refined Prompt:
+## 1. Target: Function stack_protect_classify_type (BB2)
+
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
+
+```cpp
+[✗] 1799: 
+[✗] 1800:   for (t = BLOCK_VARS(block); t; t = DECL_CHAIN(t))
+[✗] 1801:     /* if (!TREE_STATIC (t) && !DECL_EXTERNAL (t)) */
+[✗] 1802:     if ((!VAR_P(t) && TREE_CODE(t) != RESULT_DECL) || !DECL_NONSHAREABLE(t))
+[✗] 1803:       TREE_USED(t) = 0;
+[✗] 1804: 
+[✗] 1805:   for (t = BLOCK_SUBBLOCKS(block); t; t = BLOCK_CHAIN(t))
+[✗] 1806:     clear_tree_used(t);
+[✗] 1807: }
+[✗] 1808: 
+[✗] 1809: /* Examine TYPE and determine a bit mask of the following features.  */
+[✗] 1810: 
+[✗] 1811: #define SPCT_HAS_LARGE_CHAR_ARRAY 1
+[✗] 1812: #define SPCT_HAS_SMALL_CHAR_ARRAY 2
+[✗] 1813: #define SPCT_HAS_ARRAY 4
+[✗] 1814: #define SPCT_HAS_AGGREGATE 8
+[✗] 1815: 
+[✗] 1816: static unsigned int
+[✓] 1817: stack_protect_classify_type(tree type)
+[✗] 1818: {
+[→] 1819:   unsigned int ret = 0;
+[✗] 1820:   tree t;
+[✗] 1821: 
+[→] 1822:   switch (TREE_CODE(type))
+[✗] 1823:   {
+[→] 1824:   case ARRAY_TYPE:
+[✓] 1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+[✓] 1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+[✗] 1827:     {
+[✓] 1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+[✗] 1829:       unsigned HOST_WIDE_INT len;
+[✗] 1830: 
+[✓] 1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+[✗] 1832:         len = max;
+[✗] 1833:       else
+[✓] 1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+[✗] 1835: 
+[✓] 1836:       if (len < max)
+[✗] 1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✗] 1838:       else
+[✓] 1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✓] 1840:     }
+[✗] 1841:     else
+[✓] 1842:       ret = SPCT_HAS_ARRAY;
+[✓] 1843:     break;
+[✗] 1844: 
+[✓] 1845:   case UNION_TYPE:
+[✗] 1846:   case QUAL_UNION_TYPE:
+[→] 1847:   case RECORD_TYPE:
+[✓] 1848:     ret = SPCT_HAS_AGGREGATE;
+[✓] 1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+[✓] 1850:       if (TREE_CODE(t) == FIELD_DECL)
+[✓] 1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+[✓] 1852:     break;
+[✗] 1853: 
+[→] 1854:   default:
+[✓] 1855:     break;
+[✗] 1856:   }
+[✗] 1857: 
+[✓] 1858:   return ret;
+[✗] 1859: }
+[✗] 1860: 
+[✗] 1861: /* Return nonzero if DECL should be segregated into the "vulnerable" upper
+[✗] 1862:    part of the local stack frame.  Remember if we ever return nonzero for
+[✗] 1863:    any variable in this function.  The return value is the phase number in
+[✗] 1864:    which the variable should be allocated.  */
+[✗] 1865: 
+[✗] 1866: static int
+[✓] 1867: stack_protect_decl_phase(tree decl)
+
+```
+
+**Target Lines:** [1819 1822 1854 1824 1847] (marked with [→] above)
+**Branching Factor:** 3 possible paths from this basic block
+
+## 2. Why Previous Attempt Failed
+
+The compiler took a different code path at function: **stack_protect_classify_type**
+
+**Divergent Function Source Code** (study this to understand the branching condition):
+
+```cpp
+1819:   unsigned int ret = 0;
+1820:   tree t;
+1821: 
+1822:   switch (TREE_CODE(type))
+1823:   {
+1824:   case ARRAY_TYPE:
+1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+1827:     {
+1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+1829:       unsigned HOST_WIDE_INT len;
+1830: 
+1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+1832:         len = max;
+1833:       else
+1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+1835: 
+1836:       if (len < max)
+1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1838:       else
+1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1840:     }
+1841:     else
+1842:       ret = SPCT_HAS_ARRAY;
+1843:     break;
+1844: 
+1845:   case UNION_TYPE:
+1846:   case QUAL_UNION_TYPE:
+1847:   case RECORD_TYPE:
+1848:     ret = SPCT_HAS_AGGREGATE;
+1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+1850:       if (TREE_CODE(t) == FIELD_DECL)
+1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+1852:     break;
+1853: 
+1854:   default:
+1855:     break;
+1856:   }
+1857: 
+1858:   return ret;
+```
+
+**Analysis:** Your seed caused the compiler to branch differently than expected in this function.
+Study the conditions in the divergent function to understand what code patterns trigger each branch.
+
+## 3. Failed Mutation (DO NOT repeat this)
+
+This seed was tried but took the WRONG compiler path:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    // Create a struct with nested arrays to trigger RECORD_TYPE and ARRAY_TYPE paths
+    struct nested {
+        char small_array[8];      // SPCT_HAS_SMALL_CHAR_ARRAY
+        int medium_array[16];     // SPCT_HAS_ARRAY (non-char)
+        struct inner {
+            char tiny_array[4];   // Another char array inside nested struct
+            double data;
+        } inner_struct;           // SPCT_HAS_AGGREGATE inside RECORD_TYPE
+    } buffer;
+    
+    // Create a union to trigger UNION_TYPE path
+    union mixed {
+        char chars[32];
+        int ints[8];
+        struct {
+            long a;
+            char b;
+        } s;
+    } u_buffer;
+    
+    // Force compiler to analyze these types by using them
+    memset(&buffer, 'A', fill_size);
+    memset(&u_buffer, 'B', fill_size % 64);
+    
+    // Create a variable-length array to trigger different code paths
+    int vla_size = fill_size % 128;
+    char vla_buffer[vla_size];
+    memset(vla_buffer, 'C', vla_size);
+    
+    // Create a pointer to char array type (not used but affects type analysis)
+    typedef char char_array_t[64];
+    char_array_t *ptr_array = (char_array_t*)&buffer;
+    
+    // Create a record with bitfield to ensure RECORD_TYPE analysis
+    struct with_bitfield {
+        unsigned int flag : 1;
+        char padding[63];
+    } bitfield_struct;
+    
+    // Use all variables to prevent optimization
+    volatile char* sink = (char*)&buffer;
+    sink = (char*)&u_buffer;
+    sink = vla_buffer;
+    sink = (char*)&bitfield_struct;
+    sink = (char*)ptr_array;
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 4. Working Base Seed (USE THIS AS STARTING POINT)
+
+This seed successfully reaches nearby code (line 1834). Start from this and make targeted modifications:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    char buffer[64];
+    char *ptr = buffer;
+    
+    // Fill buffer without bounds checking
+    for (int i = 0; i < fill_size; i++) {
+        *ptr++ = 'A';
+    }
+    
+    // Additional vulnerable operation that could leak canary
+    if (fill_size > 72 && fill_size < 128) {
+        // This might create a partial overwrite scenario
+        *(ptr - 8) = '\0'; // Null byte that could affect string operations
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 5. Your Task
+
+Create a NEW seed that:
+1. Uses the **base seed** as starting point (Section 4)
+2. Avoids the divergence at **stack_protect_classify_type** (Section 2)
+3. Reaches the **target lines [1819 1822 1854 1824 1847]** in function **stack_protect_classify_type** (Section 1)
+
+**Strategy:**
+- Study the divergent function's conditions to understand what triggers each branch
+- Make small, targeted changes to the base seed
+- Consider: What C code patterns cause the compiler to take the target branch?
+
+
+**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features)
+
+## Output Format
+
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
+Example of CORRECT output:
+```c
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+```
+
+Example of WRONG output (DO NOT DO THIS):
+```c
+#include <stdio.h>
+void seed(int fill_size) { ... }
+int main() { ... }  // WRONG! Do not include main()
+```
+
+**OUTPUT: Only the code in a markdown code block. No explanations.**
+
+2025/12/30 05:08:39 [DEBUG] === End of Divergence Refinement Prompt ===
+2025/12/30 05:08:58 [DEBUG] Retry 2/3 with divergence analysis...
+2025/12/30 05:08:58 [DEBUG] === Divergence Refinement Prompt (Retry 2/3) ===
+2025/12/30 05:08:58 [DEBUG] Divergent Function: stack_protect_classify_type
+2025/12/30 05:08:58 [DEBUG] Refined Prompt:
+## 1. Target: Function stack_protect_classify_type (BB2)
+
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
+
+```cpp
+[✗] 1799: 
+[✗] 1800:   for (t = BLOCK_VARS(block); t; t = DECL_CHAIN(t))
+[✗] 1801:     /* if (!TREE_STATIC (t) && !DECL_EXTERNAL (t)) */
+[✗] 1802:     if ((!VAR_P(t) && TREE_CODE(t) != RESULT_DECL) || !DECL_NONSHAREABLE(t))
+[✗] 1803:       TREE_USED(t) = 0;
+[✗] 1804: 
+[✗] 1805:   for (t = BLOCK_SUBBLOCKS(block); t; t = BLOCK_CHAIN(t))
+[✗] 1806:     clear_tree_used(t);
+[✗] 1807: }
+[✗] 1808: 
+[✗] 1809: /* Examine TYPE and determine a bit mask of the following features.  */
+[✗] 1810: 
+[✗] 1811: #define SPCT_HAS_LARGE_CHAR_ARRAY 1
+[✗] 1812: #define SPCT_HAS_SMALL_CHAR_ARRAY 2
+[✗] 1813: #define SPCT_HAS_ARRAY 4
+[✗] 1814: #define SPCT_HAS_AGGREGATE 8
+[✗] 1815: 
+[✗] 1816: static unsigned int
+[✓] 1817: stack_protect_classify_type(tree type)
+[✗] 1818: {
+[→] 1819:   unsigned int ret = 0;
+[✗] 1820:   tree t;
+[✗] 1821: 
+[→] 1822:   switch (TREE_CODE(type))
+[✗] 1823:   {
+[→] 1824:   case ARRAY_TYPE:
+[✓] 1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+[✓] 1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+[✗] 1827:     {
+[✓] 1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+[✗] 1829:       unsigned HOST_WIDE_INT len;
+[✗] 1830: 
+[✓] 1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+[✗] 1832:         len = max;
+[✗] 1833:       else
+[✓] 1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+[✗] 1835: 
+[✓] 1836:       if (len < max)
+[✗] 1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✗] 1838:       else
+[✓] 1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✓] 1840:     }
+[✗] 1841:     else
+[✓] 1842:       ret = SPCT_HAS_ARRAY;
+[✓] 1843:     break;
+[✗] 1844: 
+[✓] 1845:   case UNION_TYPE:
+[✗] 1846:   case QUAL_UNION_TYPE:
+[→] 1847:   case RECORD_TYPE:
+[✓] 1848:     ret = SPCT_HAS_AGGREGATE;
+[✓] 1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+[✓] 1850:       if (TREE_CODE(t) == FIELD_DECL)
+[✓] 1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+[✓] 1852:     break;
+[✗] 1853: 
+[→] 1854:   default:
+[✓] 1855:     break;
+[✗] 1856:   }
+[✗] 1857: 
+[✓] 1858:   return ret;
+[✗] 1859: }
+[✗] 1860: 
+[✗] 1861: /* Return nonzero if DECL should be segregated into the "vulnerable" upper
+[✗] 1862:    part of the local stack frame.  Remember if we ever return nonzero for
+[✗] 1863:    any variable in this function.  The return value is the phase number in
+[✗] 1864:    which the variable should be allocated.  */
+[✗] 1865: 
+[✗] 1866: static int
+[✓] 1867: stack_protect_decl_phase(tree decl)
+
+```
+
+**Target Lines:** [1819 1822 1854 1824 1847] (marked with [→] above)
+**Branching Factor:** 3 possible paths from this basic block
+
+## 2. Why Previous Attempt Failed
+
+The compiler took a different code path at function: **stack_protect_classify_type**
+
+**Divergent Function Source Code** (study this to understand the branching condition):
+
+```cpp
+1819:   unsigned int ret = 0;
+1820:   tree t;
+1821: 
+1822:   switch (TREE_CODE(type))
+1823:   {
+1824:   case ARRAY_TYPE:
+1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+1827:     {
+1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+1829:       unsigned HOST_WIDE_INT len;
+1830: 
+1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+1832:         len = max;
+1833:       else
+1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+1835: 
+1836:       if (len < max)
+1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1838:       else
+1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1840:     }
+1841:     else
+1842:       ret = SPCT_HAS_ARRAY;
+1843:     break;
+1844: 
+1845:   case UNION_TYPE:
+1846:   case QUAL_UNION_TYPE:
+1847:   case RECORD_TYPE:
+1848:     ret = SPCT_HAS_AGGREGATE;
+1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+1850:       if (TREE_CODE(t) == FIELD_DECL)
+1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+1852:     break;
+1853: 
+1854:   default:
+1855:     break;
+1856:   }
+1857: 
+1858:   return ret;
+```
+
+**Analysis:** Your seed caused the compiler to branch differently than expected in this function.
+Study the conditions in the divergent function to understand what code patterns trigger each branch.
+
+## 3. Failed Mutation (DO NOT repeat this)
+
+This seed was tried but took the WRONG compiler path:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    // Create a struct (RECORD_TYPE) containing arrays to trigger multiple paths
+    struct container {
+        char small_char_array[8];           // Will be SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY
+        int non_char_array[10];             // Will be SPCT_HAS_ARRAY only
+        struct inner {
+            char another_char[16];          // Nested struct char array
+            long value;
+        } nested;                           // SPCT_HAS_AGGREGATE inside RECORD_TYPE
+    } buffer;
+    
+    // Create a union (UNION_TYPE) to trigger that path
+    union data {
+        char char_member[32];
+        int int_member[8];
+        struct {
+            short a;
+            char b;
+        } struct_member;
+    } u_buffer;
+    
+    // Create a plain char array (ARRAY_TYPE) that's large
+    char large_char_array[256];
+    
+    // Create a VLA to potentially affect analysis
+    int vla_size = fill_size % 100 + 1;
+    char vla_buffer[vla_size];
+    
+    // Force compiler to analyze all these types by using them
+    // This should trigger stack_protect_classify_type for:
+    // 1. ARRAY_TYPE (line 1824) for large_char_array
+    // 2. RECORD_TYPE (line 1847) for struct container
+    // 3. UNION_TYPE (line 1845) for union data
+    // 4. Default case (line 1854) for basic types
+    
+    // Fill buffers based on fill_size
+    if (fill_size > 0) {
+        // Fill struct buffer
+        char *ptr = (char*)&buffer;
+        for (int i = 0; i < fill_size && i < sizeof(buffer); i++) {
+            ptr[i] = 'A';
+        }
+        
+        // Fill union buffer
+        ptr = (char*)&u_buffer;
+        for (int i = 0; i < fill_size % 32 && i < sizeof(u_buffer); i++) {
+            ptr[i] = 'B';
+        }
+        
+        // Fill large char array
+        for (int i = 0; i < fill_size && i < sizeof(large_char_array); i++) {
+            large_char_array[i] = 'C';
+        }
+        
+        // Fill VLA
+        for (int i = 0; i < vla_size && i < fill_size; i++) {
+            vla_buffer[i] = 'D';
+        }
+    }
+    
+    // Force use of all variables to prevent optimization
+    volatile char* sink = (char*)&buffer;
+    sink = (char*)&u_buffer;
+    sink = large_char_array;
+    sink = vla_buffer;
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 4. Working Base Seed (USE THIS AS STARTING POINT)
+
+This seed successfully reaches nearby code (line 1834). Start from this and make targeted modifications:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    char buffer[64];
+    char *ptr = buffer;
+    
+    // Fill buffer without bounds checking
+    for (int i = 0; i < fill_size; i++) {
+        *ptr++ = 'A';
+    }
+    
+    // Additional vulnerable operation that could leak canary
+    if (fill_size > 72 && fill_size < 128) {
+        // This might create a partial overwrite scenario
+        *(ptr - 8) = '\0'; // Null byte that could affect string operations
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 5. Your Task
+
+Create a NEW seed that:
+1. Uses the **base seed** as starting point (Section 4)
+2. Avoids the divergence at **stack_protect_classify_type** (Section 2)
+3. Reaches the **target lines [1819 1822 1854 1824 1847]** in function **stack_protect_classify_type** (Section 1)
+
+**Strategy:**
+- Study the divergent function's conditions to understand what triggers each branch
+- Make small, targeted changes to the base seed
+- Consider: What C code patterns cause the compiler to take the target branch?
+
+
+**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features)
+
+## Output Format
+
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
+Example of CORRECT output:
+```c
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+```
+
+Example of WRONG output (DO NOT DO THIS):
+```c
+#include <stdio.h>
+void seed(int fill_size) { ... }
+int main() { ... }  // WRONG! Do not include main()
+```
+
+**OUTPUT: Only the code in a markdown code block. No explanations.**
+
+2025/12/30 05:08:58 [DEBUG] === End of Divergence Refinement Prompt ===
+2025/12/30 05:09:16 [DEBUG] Retry 3/3 with divergence analysis...
+2025/12/30 05:09:16 [DEBUG] === Divergence Refinement Prompt (Retry 3/3) ===
+2025/12/30 05:09:16 [DEBUG] Divergent Function: stack_protect_classify_type
+2025/12/30 05:09:16 [DEBUG] Refined Prompt:
+## 1. Target: Function stack_protect_classify_type (BB2)
+
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
+
+```cpp
+[✗] 1799: 
+[✗] 1800:   for (t = BLOCK_VARS(block); t; t = DECL_CHAIN(t))
+[✗] 1801:     /* if (!TREE_STATIC (t) && !DECL_EXTERNAL (t)) */
+[✗] 1802:     if ((!VAR_P(t) && TREE_CODE(t) != RESULT_DECL) || !DECL_NONSHAREABLE(t))
+[✗] 1803:       TREE_USED(t) = 0;
+[✗] 1804: 
+[✗] 1805:   for (t = BLOCK_SUBBLOCKS(block); t; t = BLOCK_CHAIN(t))
+[✗] 1806:     clear_tree_used(t);
+[✗] 1807: }
+[✗] 1808: 
+[✗] 1809: /* Examine TYPE and determine a bit mask of the following features.  */
+[✗] 1810: 
+[✗] 1811: #define SPCT_HAS_LARGE_CHAR_ARRAY 1
+[✗] 1812: #define SPCT_HAS_SMALL_CHAR_ARRAY 2
+[✗] 1813: #define SPCT_HAS_ARRAY 4
+[✗] 1814: #define SPCT_HAS_AGGREGATE 8
+[✗] 1815: 
+[✗] 1816: static unsigned int
+[✓] 1817: stack_protect_classify_type(tree type)
+[✗] 1818: {
+[→] 1819:   unsigned int ret = 0;
+[✗] 1820:   tree t;
+[✗] 1821: 
+[→] 1822:   switch (TREE_CODE(type))
+[✗] 1823:   {
+[→] 1824:   case ARRAY_TYPE:
+[✓] 1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+[✓] 1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+[✗] 1827:     {
+[✓] 1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+[✗] 1829:       unsigned HOST_WIDE_INT len;
+[✗] 1830: 
+[✓] 1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+[✗] 1832:         len = max;
+[✗] 1833:       else
+[✓] 1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+[✗] 1835: 
+[✓] 1836:       if (len < max)
+[✗] 1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✗] 1838:       else
+[✓] 1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+[✓] 1840:     }
+[✗] 1841:     else
+[✓] 1842:       ret = SPCT_HAS_ARRAY;
+[✓] 1843:     break;
+[✗] 1844: 
+[✓] 1845:   case UNION_TYPE:
+[✗] 1846:   case QUAL_UNION_TYPE:
+[→] 1847:   case RECORD_TYPE:
+[✓] 1848:     ret = SPCT_HAS_AGGREGATE;
+[✓] 1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+[✓] 1850:       if (TREE_CODE(t) == FIELD_DECL)
+[✓] 1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+[✓] 1852:     break;
+[✗] 1853: 
+[→] 1854:   default:
+[✓] 1855:     break;
+[✗] 1856:   }
+[✗] 1857: 
+[✓] 1858:   return ret;
+[✗] 1859: }
+[✗] 1860: 
+[✗] 1861: /* Return nonzero if DECL should be segregated into the "vulnerable" upper
+[✗] 1862:    part of the local stack frame.  Remember if we ever return nonzero for
+[✗] 1863:    any variable in this function.  The return value is the phase number in
+[✗] 1864:    which the variable should be allocated.  */
+[✗] 1865: 
+[✗] 1866: static int
+[✓] 1867: stack_protect_decl_phase(tree decl)
+
+```
+
+**Target Lines:** [1819 1822 1854 1824 1847] (marked with [→] above)
+**Branching Factor:** 3 possible paths from this basic block
+
+## 2. Why Previous Attempt Failed
+
+The compiler took a different code path at function: **stack_protect_classify_type**
+
+**Divergent Function Source Code** (study this to understand the branching condition):
+
+```cpp
+1819:   unsigned int ret = 0;
+1820:   tree t;
+1821: 
+1822:   switch (TREE_CODE(type))
+1823:   {
+1824:   case ARRAY_TYPE:
+1825:     t = TYPE_MAIN_VARIANT(TREE_TYPE(type));
+1826:     if (t == char_type_node || t == signed_char_type_node || t == unsigned_char_type_node)
+1827:     {
+1828:       unsigned HOST_WIDE_INT max = param_ssp_buffer_size;
+1829:       unsigned HOST_WIDE_INT len;
+1830: 
+1831:       if (!TYPE_SIZE_UNIT(type) || !tree_fits_uhwi_p(TYPE_SIZE_UNIT(type)))
+1832:         len = max;
+1833:       else
+1834:         len = tree_to_uhwi(TYPE_SIZE_UNIT(type));
+1835: 
+1836:       if (len < max)
+1837:         ret = SPCT_HAS_SMALL_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1838:       else
+1839:         ret = SPCT_HAS_LARGE_CHAR_ARRAY | SPCT_HAS_ARRAY;
+1840:     }
+1841:     else
+1842:       ret = SPCT_HAS_ARRAY;
+1843:     break;
+1844: 
+1845:   case UNION_TYPE:
+1846:   case QUAL_UNION_TYPE:
+1847:   case RECORD_TYPE:
+1848:     ret = SPCT_HAS_AGGREGATE;
+1849:     for (t = TYPE_FIELDS(type); t; t = TREE_CHAIN(t))
+1850:       if (TREE_CODE(t) == FIELD_DECL)
+1851:         ret |= stack_protect_classify_type(TREE_TYPE(t));
+1852:     break;
+1853: 
+1854:   default:
+1855:     break;
+1856:   }
+1857: 
+1858:   return ret;
+```
+
+**Analysis:** Your seed caused the compiler to branch differently than expected in this function.
+Study the conditions in the divergent function to understand what code patterns trigger each branch.
+
+## 3. Failed Mutation (DO NOT repeat this)
+
+This seed was tried but took the WRONG compiler path:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    // Create a struct (RECORD_TYPE) to trigger line 1847
+    struct record_type {
+        char field1;
+        int field2;
+    } rec;
+    
+    // Create a union (UNION_TYPE) to trigger line 1845
+    union union_type {
+        char c;
+        int i;
+    } uni;
+    
+    // Create a plain array (ARRAY_TYPE) to trigger line 1824
+    char array_type[10];
+    
+    // Create a char array that's smaller than param_ssp_buffer_size
+    // This should trigger SPCT_HAS_SMALL_CHAR_ARRAY path
+    char small_char_array[8];
+    
+    // Create a char array that's larger than param_ssp_buffer_size  
+    // This should trigger SPCT_HAS_LARGE_CHAR_ARRAY path
+    char large_char_array[256];
+    
+    // Create a non-char array to trigger the else branch at line 1841
+    int non_char_array[20];
+    
+    // Force compiler to analyze all these types by using them
+    // This should trigger stack_protect_classify_type for all cases
+    
+    // Fill buffers based on fill_size
+    if (fill_size > 0) {
+        // Fill struct
+        char *ptr = (char*)&rec;
+        for (int i = 0; i < fill_size && i < sizeof(rec); i++) {
+            ptr[i] = 'A';
+        }
+        
+        // Fill union
+        ptr = (char*)&uni;
+        for (int i = 0; i < fill_size && i < sizeof(uni); i++) {
+            ptr[i] = 'B';
+        }
+        
+        // Fill arrays
+        for (int i = 0; i < fill_size && i < sizeof(small_char_array); i++) {
+            small_char_array[i] = 'C';
+        }
+        
+        for (int i = 0; i < fill_size && i < sizeof(large_char_array); i++) {
+            large_char_array[i] = 'D';
+        }
+        
+        for (int i = 0; i < fill_size && i < sizeof(non_char_array); i++) {
+            ((char*)non_char_array)[i] = 'E';
+        }
+        
+        for (int i = 0; i < fill_size && i < sizeof(array_type); i++) {
+            array_type[i] = 'F';
+        }
+    }
+    
+    // Force use of all variables to prevent optimization
+    volatile char* sink = (char*)&rec;
+    sink = (char*)&uni;
+    sink = small_char_array;
+    sink = large_char_array;
+    sink = non_char_array;
+    sink = array_type;
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 4. Working Base Seed (USE THIS AS STARTING POINT)
+
+This seed successfully reaches nearby code (line 1834). Start from this and make targeted modifications:
+
+```c
+/**
+ * Canary Oracle Function Template
+ *
+ * This template is used for testing stack canary protection mechanisms.
+ * The LLM generates only the seed() function body.
+ *
+ * Usage: ./prog <buffer_size>
+ *   - buffer_size: Number of 'A' characters to write into the buffer
+ *   - Example: ./prog 100 writes 100 'A's into the buffer
+ *
+ * Expected behavior:
+ *   - Small sizes: Program exits normally (return 0)
+ *   - Medium sizes (canary overwritten): SIGABRT (exit code 134)
+ *   - Large sizes (ret addr overwritten without canary): SIGSEGV (exit code
+ * 139)
+ *
+ * The canary oracle uses binary search on buffer_size to detect
+ * vulnerabilities.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void seed(int fill_size) {
+    char buffer[64];
+    char *ptr = buffer;
+    
+    // Fill buffer without bounds checking
+    for (int i = 0; i < fill_size; i++) {
+        *ptr++ = 'A';
+    }
+    
+    // Additional vulnerable operation that could leak canary
+    if (fill_size > 72 && fill_size < 128) {
+        // This might create a partial overwrite scenario
+        *(ptr - 8) = '\0'; // Null byte that could affect string operations
+    }
+}
+
+// Disable stack protector for main to maximize attack surface
+// This ensures canary check only happens in seed() if at all
+#define NO_CANARY __attribute__((no_stack_protector))
+
+NO_CANARY int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <buffer_size>\n", argv[0]);
+    return 1;
+  }
+
+  int fill_size = atoi(argv[1]);
+  if (fill_size < 0) {
+    fprintf(stderr, "Error: buffer_size must be non-negative\n");
+    return 1;
+  }
+
+  // Call the seed function with the specified fill size
+  seed(fill_size);
+
+  return 0;
+}
+
+```
+
+## 5. Your Task
+
+Create a NEW seed that:
+1. Uses the **base seed** as starting point (Section 4)
+2. Avoids the divergence at **stack_protect_classify_type** (Section 2)
+3. Reaches the **target lines [1819 1822 1854 1824 1847]** in function **stack_protect_classify_type** (Section 1)
+
+**Strategy:**
+- Study the divergent function's conditions to understand what triggers each branch
+- Make small, targeted changes to the base seed
+- Consider: What C code patterns cause the compiler to take the target branch?
+
+
+**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features)
+
+## Output Format
+
+**CRITICAL: Function Template Mode**
+- You are in FUNCTION TEMPLATE mode.
+- The main() function is ALREADY PROVIDED in the template.
+- **DO NOT generate main() function.**
+- **DO NOT generate a complete program.**
+- **ONLY generate the seed() function body.**
+
+Example of CORRECT output:
+```c
+void seed(int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+```
+
+Example of WRONG output (DO NOT DO THIS):
+```c
+#include <stdio.h>
+void seed(int fill_size) { ... }
+int main() { ... }  // WRONG! Do not include main()
+```
+
+**OUTPUT: Only the code in a markdown code block. No explanations.**
+
+2025/12/30 05:09:16 [DEBUG] === End of Divergence Refinement Prompt ===
+2025/12/30 05:09:34 [WARN] Failed to cover target stack_protect_classify_type:BB2 after 3 retries
+2025/12/30 05:09:34 [INFO] Reached max iterations (2), stopping
+2025/12/30 05:09:34 [INFO] =========================================
+2025/12/30 05:09:34 [INFO]       FUZZING SUMMARY
+2025/12/30 05:09:34 [INFO] =========================================
+2025/12/30 05:09:34 [INFO] Duration:       2m8.59218936s
+2025/12/30 05:09:34 [INFO] Iterations:     2
+2025/12/30 05:09:34 [INFO] Targets hit:    0
+2025/12/30 05:09:34 [INFO] Bugs found:     0
+2025/12/30 05:09:34 [INFO] -----------------------------------------
+2025/12/30 05:09:34 [INFO] Final BB Coverage:
+2025/12/30 05:09:34 [INFO]   stack_protect_classify_type: 22/23 BBs (95.7%)
+2025/12/30 05:09:34 [INFO]   stack_protect_decl_phase: 19/21 BBs (90.5%)
+2025/12/30 05:09:34 [INFO]   stack_protect_decl_phase_1: 2/2 BBs (100.0%)
+2025/12/30 05:09:34 [INFO]   stack_protect_decl_phase_2: 2/2 BBs (100.0%)
+2025/12/30 05:09:34 [INFO]   add_stack_protection_conflicts: 15/15 BBs (100.0%)
+2025/12/30 05:09:34 [INFO]   create_stack_guard: 1/1 BBs (100.0%)
+2025/12/30 05:09:34 [INFO]   stack_protect_prologue: 10/20 BBs (50.0%)
+2025/12/30 05:09:34 [INFO]   stack_protect_return_slot_p: 13/15 BBs (86.7%)
+2025/12/30 05:09:34 [INFO] =========================================

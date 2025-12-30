@@ -494,8 +494,8 @@ func TestResolveEnvVarsInMap(t *testing.T) {
 	defer os.Unsetenv("TEST_KEY")
 
 	testMap := map[string]interface{}{
-		"api_key":   "${TEST_KEY}",
-		"endpoint":  "https://api.example.com",
+		"api_key":  "${TEST_KEY}",
+		"endpoint": "https://api.example.com",
 		"nested": map[string]interface{}{
 			"inner_key": "$TEST_KEY",
 		},

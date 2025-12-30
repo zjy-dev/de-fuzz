@@ -90,8 +90,8 @@ func TestMarkdownReporter_Integration_SaveMultipleBugs(t *testing.T) {
 	bugs := []*oracle.Bug{
 		{
 			Seed: &seed.Seed{
-				Meta:      seed.Metadata{ID: 1},
-				Content:   `int main() { int *p = 0; *p = 1; return 0; }`,
+				Meta:    seed.Metadata{ID: 1},
+				Content: `int main() { int *p = 0; *p = 1; return 0; }`,
 				TestCases: []seed.TestCase{
 					{RunningCommand: "./a.out", ExpectedResult: "Crash"},
 				},
@@ -103,8 +103,8 @@ func TestMarkdownReporter_Integration_SaveMultipleBugs(t *testing.T) {
 		},
 		{
 			Seed: &seed.Seed{
-				Meta:      seed.Metadata{ID: 2},
-				Content:   `int main() { char b[8]; strcpy(b, "AAAAAAAAAAAAAAAA"); return 0; }`,
+				Meta:    seed.Metadata{ID: 2},
+				Content: `int main() { char b[8]; strcpy(b, "AAAAAAAAAAAAAAAA"); return 0; }`,
 				TestCases: []seed.TestCase{
 					{RunningCommand: "./a.out", ExpectedResult: "Crash"},
 				},
@@ -116,8 +116,8 @@ func TestMarkdownReporter_Integration_SaveMultipleBugs(t *testing.T) {
 		},
 		{
 			Seed: &seed.Seed{
-				Meta:      seed.Metadata{ID: 3},
-				Content:   `int main() { int x = 0; return 10/x; }`,
+				Meta:    seed.Metadata{ID: 3},
+				Content: `int main() { int x = 0; return 10/x; }`,
 				TestCases: []seed.TestCase{
 					{RunningCommand: "./a.out", ExpectedResult: "Crash"},
 				},
@@ -329,8 +329,8 @@ func TestMarkdownReporter_Integration_ReportFormat(t *testing.T) {
 
 	bug := &oracle.Bug{
 		Seed: &seed.Seed{
-			Meta:      seed.Metadata{ID: 1},
-			Content:   `int main() { return 42; }`,
+			Meta:    seed.Metadata{ID: 1},
+			Content: `int main() { return 42; }`,
 			TestCases: []seed.TestCase{
 				{RunningCommand: "./a.out", ExpectedResult: "0"},
 			},

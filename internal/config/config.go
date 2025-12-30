@@ -242,7 +242,7 @@ func LoadEnvFromDotEnvRecursive(startDir string) error {
 			// Found .env file, load it
 			return LoadEnvFromDotEnv(dir)
 		}
-		
+
 		// Move to parent directory
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -251,11 +251,11 @@ func LoadEnvFromDotEnvRecursive(startDir string) error {
 		}
 		dir = parent
 	}
-	
+
 	// If not found, try absolute paths from common project root locations
 	// This handles tests running in subdirectories
 	wd, _ := os.Getwd()
-	
+
 	// Build list of possible roots - go up from wd until we find .env or reach root
 	for i := 0; i < 10; i++ {
 		envPath := filepath.Join(wd, ".env")
@@ -268,7 +268,7 @@ func LoadEnvFromDotEnvRecursive(startDir string) error {
 		}
 		wd = parent
 	}
-	
+
 	return nil
 }
 
@@ -447,7 +447,7 @@ func LoadConfig() (*Config, error) {
 	// Get all settings and resolve env vars in the llms array
 	allSettings := llmViper.AllSettings()
 	llmSettings := allSettings["llms"].([]interface{})
-	
+
 	// Parse each LLM config and resolve env vars
 	var llms []LLMConfig
 	for _, llmItem := range llmSettings {
@@ -455,7 +455,7 @@ func LoadConfig() (*Config, error) {
 		if !ok {
 			continue
 		}
-		
+
 		llmCfg := LLMConfig{}
 
 		// Resolve env vars for each field
@@ -474,7 +474,7 @@ func LoadConfig() (*Config, error) {
 		if temp, ok := llmMap["temperature"].(float64); ok {
 			llmCfg.Temperature = temp
 		}
-		
+
 		llms = append(llms, llmCfg)
 	}
 
