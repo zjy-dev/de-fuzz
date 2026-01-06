@@ -91,11 +91,55 @@ func (q *QEMUVM) run(binaryPath string, timeoutSec int, args ...string) (*Execut
 		return nil, fmt.Errorf("failed to run QEMU: %w", err)
 	}
 
+	// Parse exit code, handling QEMU's special signal reporting
+	exitCode := parseQEMUExitCode(result.ExitCode, result.Stderr)
+
 	return &ExecutionResult{
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
-		ExitCode: result.ExitCode,
+		ExitCode: exitCode,
 	}, nil
+}
+
+// parseQEMUExitCode handles QEMU's special exit code behavior.
+// When the target program receives a signal, QEMU returns -1 but reports
+// the signal in stderr. This function parses stderr to extract the correct
+// exit code following Unix convention (128 + signal number).
+func parseQEMUExitCode(exitCode int, stderr string) int {
+	// If exit code is already valid (not -1), use it directly
+	if exitCode != -1 {
+		return exitCode
+	}
+
+	// QEMU reports signals in stderr with format:
+	// "qemu: uncaught target signal X (SignalName) - core dumped"
+
+	// Signal 11 (SIGSEGV) - Segmentation fault
+	if strings.Contains(stderr, "signal 11") || strings.Contains(stderr, "Segmentation fault") {
+		return 128 + 11 // 139
+	}
+
+	// Signal 6 (SIGABRT) - Also check for "stack smashing detected" which triggers SIGABRT
+	if strings.Contains(stderr, "signal 6") || strings.Contains(stderr, "Aborted") {
+		return 128 + 6 // 134
+	}
+
+	// Signal 8 (SIGFPE) - Floating point exception
+	if strings.Contains(stderr, "signal 8") || strings.Contains(stderr, "Floating point") {
+		return 128 + 8 // 136
+	}
+
+	// Signal 4 (SIGILL) - Illegal instruction
+	if strings.Contains(stderr, "signal 4") || strings.Contains(stderr, "Illegal instruction") {
+		return 128 + 4 // 132
+	}
+
+	// Signal 7 (SIGBUS) - Bus error
+	if strings.Contains(stderr, "signal 7") || strings.Contains(stderr, "Bus error") {
+		return 128 + 7 // 135
+	}
+
+	return exitCode
 }
 
 // LocalVM implements VM interface for running native binaries directly.
