@@ -26,9 +26,14 @@ func (m *MockExecutor) ExecuteWithInput(binaryPath string, stdin string) (exitCo
 }
 
 func (m *MockExecutor) ExecuteWithArgs(binaryPath string, args ...string) (exitCode int, stdout string, stderr string, err error) {
-	// Parse the first argument as buffer size
+	// Parse fill_size (second argument) as the value to test
+	// buf_size (first argument) is ignored in mock since it's fixed
 	inputLen := 0
-	if len(args) > 0 {
+	if len(args) >= 2 {
+		// Use fill_size (second arg)
+		inputLen, _ = strconv.Atoi(args[1])
+	} else if len(args) == 1 {
+		// Backward compatibility: single arg test
 		inputLen, _ = strconv.Atoi(args[0])
 	}
 	return m.checkCrash(inputLen)
@@ -50,7 +55,10 @@ func (m *MockExecutor) checkCrash(inputLen int) (exitCode int, stdout string, st
 
 func TestCanaryOracle_NoCrash(t *testing.T) {
 	// Scenario: Program never crashes - canary protection working or no buffer overflow
-	orc := &CanaryOracle{MaxBufferSize: 100}
+	orc := &CanaryOracle{
+		MaxBufferSize:  100,
+		DefaultBufSize: 64,
+	}
 
 	ctx := &AnalyzeContext{
 		BinaryPath: "/fake/binary",
@@ -72,7 +80,10 @@ func TestCanaryOracle_NoCrash(t *testing.T) {
 
 func TestCanaryOracle_SafeWithSIGABRT(t *testing.T) {
 	// Scenario: Program crashes with SIGABRT (canary check) - this is SAFE
-	orc := &CanaryOracle{MaxBufferSize: 200}
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
 
 	ctx := &AnalyzeContext{
 		BinaryPath: "/fake/binary",
@@ -95,7 +106,10 @@ func TestCanaryOracle_SafeWithSIGABRT(t *testing.T) {
 
 func TestCanaryOracle_BugWithSIGSEGV(t *testing.T) {
 	// Scenario: Program crashes with SIGSEGV (ret modified) - this is a BUG!
-	orc := &CanaryOracle{MaxBufferSize: 200}
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
 
 	ctx := &AnalyzeContext{
 		BinaryPath: "/fake/binary",
@@ -124,7 +138,10 @@ func TestCanaryOracle_CVE2023_4039_Pattern(t *testing.T) {
 	// Scenario: canary -> ret -> buf layout (CVE-2023-4039)
 	// As buffer grows: normal -> SIGSEGV (ret modified) -> SIGABRT (canary check)
 	// The oracle should detect SIGSEGV at the smaller threshold
-	orc := &CanaryOracle{MaxBufferSize: 200}
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
 
 	ctx := &AnalyzeContext{
 		BinaryPath: "/fake/binary",
@@ -150,7 +167,10 @@ func TestCanaryOracle_CVE2023_4039_Pattern(t *testing.T) {
 
 func TestCanaryOracle_BinarySearchAccuracy(t *testing.T) {
 	// Test that binary search finds the exact crash threshold
-	orc := &CanaryOracle{MaxBufferSize: 1000}
+	orc := &CanaryOracle{
+		MaxBufferSize:  1000,
+		DefaultBufSize: 64,
+	}
 
 	exactThreshold := 337 // Arbitrary threshold
 
@@ -173,7 +193,10 @@ func TestCanaryOracle_BinarySearchAccuracy(t *testing.T) {
 }
 
 func TestCanaryOracle_MissingContext(t *testing.T) {
-	orc := &CanaryOracle{MaxBufferSize: 100}
+	orc := &CanaryOracle{
+		MaxBufferSize:  100,
+		DefaultBufSize: 64,
+	}
 	s := &seed.Seed{}
 
 	// Test with nil context

@@ -11,56 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuilder_BuildUnderstandPrompt(t *testing.T) {
-	builder := NewBuilder(3, "")
 
-	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "prompt_test_")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	t.Run("should build a valid prompt with given isa and strategy", func(t *testing.T) {
-		isa := "x86_64"
-		strategy := "stackguard"
-		prompt, err := builder.BuildUnderstandPrompt(isa, strategy, tempDir)
-
-		require.NoError(t, err)
-		assert.Contains(t, prompt, "Target ISA: x86_64")
-		assert.Contains(t, prompt, "Defense Strategy: stackguard")
-		assert.Contains(t, prompt, "[ISA Stack Layout of the target compiler]")
-		assert.Contains(t, prompt, "Not available for now") // Default content when files don't exist
-	})
-
-	t.Run("should include file contents when auxiliary files exist", func(t *testing.T) {
-		isa := "arm64"
-		strategy := "aslr"
-
-		// Create auxiliary files
-		stackLayoutContent := "ARM64 stack layout information"
-
-		stackLayoutPath := filepath.Join(tempDir, "stack_layout.md")
-
-		err := os.WriteFile(stackLayoutPath, []byte(stackLayoutContent), 0644)
-		require.NoError(t, err)
-
-		prompt, err := builder.BuildUnderstandPrompt(isa, strategy, tempDir)
-
-		require.NoError(t, err)
-		assert.Contains(t, prompt, "Target ISA: arm64")
-		assert.Contains(t, prompt, "Defense Strategy: aslr")
-		assert.Contains(t, prompt, stackLayoutContent)
-	})
-
-	t.Run("should return error if isa is empty", func(t *testing.T) {
-		_, err := builder.BuildUnderstandPrompt("", "stackguard", tempDir)
-		assert.Error(t, err)
-	})
-
-	t.Run("should return error if strategy is empty", func(t *testing.T) {
-		_, err := builder.BuildUnderstandPrompt("x86_64", "", tempDir)
-		assert.Error(t, err)
-	})
-}
+// TestGetSystemPrompt removed - GetSystemPrompt function has been replaced by PromptService\n
 
 func TestReadFileOrDefault(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "prompt_test_")
@@ -92,10 +44,9 @@ func TestBuilder_BuildGeneratePrompt(t *testing.T) {
 	t.Run("should build a valid generate prompt", func(t *testing.T) {
 		prompt, err := builder.BuildGeneratePrompt("nothing")
 		require.NoError(t, err)
-		assert.Contains(t, prompt, "Generate a new, complete, and valid seed for fuzzing.")
-		assert.Contains(t, prompt, "source code")
-		assert.Contains(t, prompt, "// ||||| JSON_TESTCASES_START |||||")
-		assert.Contains(t, prompt, "source.c")
+		assert.Contains(t, prompt, "Generate C code")
+		assert.Contains(t, prompt, "compiler fuzzing")
+		assert.Contains(t, prompt, "JSON_TESTCASES_START")
 	})
 }
 
@@ -112,12 +63,11 @@ func TestBuilder_BuildMutatePrompt(t *testing.T) {
 	t.Run("should build a valid mutate prompt without context", func(t *testing.T) {
 		prompt, err := builder.BuildMutatePrompt(s, nil)
 		require.NoError(t, err)
-		assert.Contains(t, prompt, "[EXISTING SEED]")
+		assert.Contains(t, prompt, "Existing Seed to Mutate")
 		assert.Contains(t, prompt, s.Content)
-		assert.Contains(t, prompt, "running command")
-		assert.Contains(t, prompt, "expected result")
-		assert.Contains(t, prompt, "system context")
-		assert.NotContains(t, prompt, "[COVERAGE CONTEXT]")
+		assert.Contains(t, prompt, "./prog")
+		assert.Contains(t, prompt, "Mutate this seed")
+		assert.NotContains(t, prompt, "Coverage Context")
 	})
 
 	t.Run("should build a valid mutate prompt with coverage context", func(t *testing.T) {
@@ -130,11 +80,11 @@ func TestBuilder_BuildMutatePrompt(t *testing.T) {
 		}
 		prompt, err := builder.BuildMutatePrompt(s, mutationCtx)
 		require.NoError(t, err)
-		assert.Contains(t, prompt, "[EXISTING SEED]")
+		assert.Contains(t, prompt, "Existing Seed to Mutate")
 		assert.Contains(t, prompt, s.Content)
-		assert.Contains(t, prompt, "[COVERAGE CONTEXT]")
+		assert.Contains(t, prompt, "Coverage Context")
 		assert.Contains(t, prompt, "45.5%")
-		assert.Contains(t, prompt, "100/220 lines covered")
+		assert.Contains(t, prompt, "100/220")
 		assert.Contains(t, prompt, "Covered 10 new lines in function foo")
 	})
 

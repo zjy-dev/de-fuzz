@@ -234,15 +234,33 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		return fmt.Errorf("failed to create LLM client: %w", err)
 	}
 
-	// 7. Load understanding and initial seeds path
+	// 8. Create prompt service
 	basePath := filepath.Join("initial_seeds", cfg.ISA, cfg.Strategy)
-	understanding, err := seed.LoadUnderstanding(basePath)
+	understandingPath := filepath.Join(basePath, "understanding.md")
+
+	// Load understanding to check it exists
+	_, err = seed.LoadUnderstanding(basePath)
 	if err != nil {
 		return fmt.Errorf("understanding not found at %s, please run 'defuzz generate' first: %w", basePath, err)
 	}
 
-	// 8. Create prompt builder and oracle
+	// Create prompt builder first
 	promptBuilder := prompt.NewBuilder(cfg.Compiler.Fuzz.MaxTestCases, cfg.Compiler.Fuzz.FunctionTemplate)
+
+	// Create prompt service with configuration
+	basePromptDir := cfg.Compiler.Fuzz.BasePromptDir
+	if basePromptDir == "" {
+		basePromptDir = "prompts/base"
+	}
+	customPromptPath := cfg.Compiler.Fuzz.CustomPrompt
+
+	promptService, err := prompt.NewPromptService(basePromptDir, customPromptPath, understandingPath, promptBuilder)
+	if err != nil {
+		return fmt.Errorf("failed to create prompt service: %w", err)
+	}
+
+	// For oracle creation, we still need understanding content directly
+	understanding, _ := seed.LoadUnderstanding(basePath)
 
 	// Create oracle using the registry
 	oracleInstance, err := oracle.New(
@@ -338,8 +356,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		Oracle:        oracleInstance,
 		LLM:           llmClient,
 		Analyzer:      analyzer,
-		PromptBuilder: promptBuilder,
-		Understanding: understanding,
+		PromptService: promptService,
 		MaxIterations: limit,
 		MaxRetries:    cfg.Compiler.Fuzz.MaxConstraintRetries,
 		MappingPath:   filepath.Join(stateDir, "coverage_mapping.json"),

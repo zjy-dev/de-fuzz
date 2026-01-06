@@ -26,14 +26,16 @@ func init() {
 // It uses a binary search approach to find if there's a buffer size that
 // causes SIGSEGV (ret modified) before SIGABRT (canary check).
 type CanaryOracle struct {
-	MaxBufferSize int
+	MaxBufferSize  int
+	DefaultBufSize int // Default buffer size for buf_size parameter
 }
 
 // NewCanaryOracle creates a new canary-detection oracle.
 func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt.Builder, context string) (Oracle, error) {
 	maxSize := DefaultMaxBufferSize
+	bufSize := 64 // Default buffer size for buf_size parameter
 
-	// Parse max_buffer_size from options
+	// Parse options
 	if options != nil {
 		if v, ok := options["max_buffer_size"]; ok {
 			switch val := v.(type) {
@@ -43,10 +45,19 @@ func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt
 				maxSize = int(val)
 			}
 		}
+		if v, ok := options["default_buf_size"]; ok {
+			switch val := v.(type) {
+			case int:
+				bufSize = val
+			case float64:
+				bufSize = int(val)
+			}
+		}
 	}
 
 	return &CanaryOracle{
-		MaxBufferSize: maxSize,
+		MaxBufferSize:  maxSize,
+		DefaultBufSize: bufSize,
 	}, nil
 }
 
@@ -102,10 +113,11 @@ func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int) {
 
 	for L <= R {
 		mid := (L + R) / 2
-		// Pass the buffer size as a command line argument
-		sizeArg := fmt.Sprintf("%d", mid)
+		// Pass both buf_size (fixed) and fill_size (binary search variable)
+		bufSizeArg := fmt.Sprintf("%d", o.DefaultBufSize)
+		fillSizeArg := fmt.Sprintf("%d", mid)
 
-		exitCode, _, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, sizeArg)
+		exitCode, _, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
 		if err != nil {
 			// Execution error, try larger size
 			L = mid + 1
@@ -126,8 +138,9 @@ func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int) {
 	// If we found a crash, verify and get the actual exit code
 	// (in case the binary search landed on a boundary)
 	if ans != -1 {
-		sizeArg := fmt.Sprintf("%d", ans)
-		exitCode, _, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, sizeArg)
+		bufSizeArg := fmt.Sprintf("%d", o.DefaultBufSize)
+		fillSizeArg := fmt.Sprintf("%d", ans)
+		exitCode, _, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
 		if err == nil && exitCode != 0 {
 			ansExitCode = exitCode
 		}

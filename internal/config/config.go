@@ -42,6 +42,16 @@ type FuzzConfig struct {
 	// This is useful for strategies like canary where we need specific program structure
 	FunctionTemplate string `mapstructure:"function_template"`
 
+	// CustomPrompt is the path to a custom prompt file (optional)
+	// This prompt will be appended to the base system prompt
+	// Example: "initial_seeds/aarch64/canary/custom_prompt.md"
+	CustomPrompt string `mapstructure:"custom_prompt"`
+
+	// BasePromptDir is the directory containing base prompt files (optional)
+	// Defaults to "prompts/base" if not specified
+	// Base prompts are named by phase: generate.md, constraint.md, compile_error.md, mutate.md
+	BasePromptDir string `mapstructure:"base_prompt_dir"`
+
 	// Timeout is the execution timeout in seconds
 	Timeout int `mapstructure:"timeout"`
 

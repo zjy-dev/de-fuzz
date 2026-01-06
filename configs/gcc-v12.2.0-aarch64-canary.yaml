@@ -4,13 +4,14 @@ compiler:
   
   # gcovr execution path - should be the source root directory
   # gcovr will be executed from here with --object-directory pointing to build
-  gcovr_exec_path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1"
+  gcovr_exec_path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
 
   source_parent_path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile"
 
   # gcovr command template (without --json output path)
   # Note: For cross-compile builds, we need --object-directory to find .gcda/.gcno files
-  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" --object-directory /root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc'
+  # -r specifies the source root directory relative to gcovr_exec_path
+  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
 
   # Compiler flags (CFlags) for cross-compilation
   # These flags are passed to GCC during compilation
@@ -28,13 +29,21 @@ compiler:
     # Actual output will be at {output_root_dir}/{isa}/{strategy}
     output_root_dir: "fuzz_out"
     # Maximum number of fuzzing iterations (0 = unlimited)
-    max_iterations: 10
+    max_iterations: 4
     # Maximum new seeds to generate per interesting seed
     max_new_seeds: 1
     # Maximum number of test cases to generate per seed (0 = no test cases)
     max_test_cases: 0
-    # Function template for code generation
+    # Function template path (for template-based fuzzing)
     function_template: "initial_seeds/aarch64/canary/function_template.c"
+
+    # Custom prompt for LLM (ISA/strategy-specific hints)
+    # This will be appended to the base system prompt
+    custom_prompt: "initial_seeds/aarch64/canary/custom_prompt.md"
+
+    # Base prompt directory (defaults to "prompts/base" if not specified)
+    base_prompt_dir: "prompts/base"
+
     # Execution timeout in seconds
     timeout: 30
     # Use QEMU for execution (required for cross-architecture)
@@ -47,7 +56,7 @@ compiler:
     # CFG dump file path for target function analysis
     cfg_file_path: "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
     # Maximum number of divergence analysis retries per target BB (default: 32)
-    max_constraint_retries: 32
+    max_constraint_retries: 4
     # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8
     weight_decay_factor: 0.8
 
@@ -59,6 +68,8 @@ compiler:
     options:
       # Maximum buffer size to test during binary search
       max_buffer_size: 1024
+      # Default buffer size for buf_size parameter (passed to seed function)
+      default_buf_size: 64
 
 # Configuration pattern: Map each file to its target functions
 # Stack Canary (Stack Protector) related core functions for AArch64
@@ -71,7 +82,8 @@ compiler:
 
 targets:
   # cfgexpand.cc - 栈保护核心逻辑（变量分类、冲突分析、prologue生成）
-  - file: "arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/gcc/cfgexpand.cc"
+  # NOTE: Path must match gcovr output format with -r .. (relative to gcovr_exec_path parent)
+  - file: "arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/cfgexpand.cc"
     functions:
       # 分类变量类型，决定是否需要保护（检测字符数组、聚合类型等）
       - "stack_protect_classify_type"

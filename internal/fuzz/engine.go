@@ -37,11 +37,8 @@ type Config struct {
 	// Compiler path for divergence analysis
 	CompilerPath string
 
-	// Prompt builder
-	PromptBuilder *prompt.Builder
-
-	// Understanding context
-	Understanding string
+	// Prompt service for unified prompt management
+	PromptService *prompt.PromptService
 
 	// Fuzzing parameters
 	MaxIterations   int           // Maximum iterations (0 = unlimited)
@@ -49,6 +46,10 @@ type Config struct {
 	SaveInterval    time.Duration // State save interval
 	CoverageTimeout int           // Coverage measurement timeout in seconds
 	MappingPath     string        // Path to save/load coverage mapping
+
+	// Random Mutation Phase (activated when coverage is saturated)
+	EnableRandomPhase   bool // Enable random mutation phase after coverage saturation
+	MaxRandomIterations int  // Maximum iterations in random phase (0 = unlimited)
 }
 
 // Engine implements constraint solving based fuzzing.
@@ -62,6 +63,21 @@ type Engine struct {
 	// Paths for divergence analysis
 	currentBaseSeedPath    string
 	currentMutatedSeedPath string
+}
+
+// seedTryResult holds the result of trying a mutated seed.
+// It captures compile errors to enable feedback-based retry.
+type seedTryResult struct {
+	HitTarget     bool   // Whether the target BB was covered
+	CoveredNew    bool   // Whether any new coverage was achieved
+	CompileFailed bool   // Whether compilation failed
+	CompileError  string // Compiler error output (if compile failed)
+	SeedCode      string // The seed code that was tried
+
+	// Oracle results
+	OracleVerdict  seed.OracleVerdict // Verdict from oracle analysis
+	BugType        string             // Type of bug if detected
+	BugDescription string             // Description of bug
 }
 
 // NewEngine creates a new fuzzing engine.
@@ -99,6 +115,15 @@ func (e *Engine) Run() error {
 		target := e.cfg.Analyzer.SelectTarget()
 		if target == nil {
 			logger.Info("All target basic blocks covered! Fuzzing complete.")
+
+			// Enter random mutation phase if enabled
+			if e.cfg.EnableRandomPhase {
+				logger.Info("Entering random mutation phase...")
+				randomPhase := NewRandomMutationPhase(e, e.cfg.MaxRandomIterations)
+				if err := randomPhase.Run(); err != nil {
+					logger.Error("Random phase error: %v", err)
+				}
+			}
 			break
 		}
 
@@ -162,11 +187,24 @@ func (e *Engine) processInitialSeeds() error {
 		// Get coverage after processing
 		newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 
-		// Mark as processed with coverage info
+		// Run oracle on initial seed if configured
+		oracleVerdict := seed.OracleVerdictSkipped
+		if e.cfg.Oracle != nil {
+			bug := e.runOracle(s)
+			if bug != nil {
+				oracleVerdict = seed.OracleVerdictBug
+				logger.Info("Initial seed %d triggered oracle bug: %s", s.Meta.ID, bug.Description)
+			} else {
+				oracleVerdict = seed.OracleVerdictNormal
+			}
+		}
+
+		// Mark as processed with coverage and oracle info
 		e.cfg.Corpus.ReportResult(s.Meta.ID, corpus.FuzzResult{
-			State:       seed.SeedStateProcessed,
-			OldCoverage: oldBasisPoints,
-			NewCoverage: newBasisPoints,
+			State:         seed.SeedStateProcessed,
+			OldCoverage:   oldBasisPoints,
+			NewCoverage:   newBasisPoints,
+			OracleVerdict: oracleVerdict,
 		})
 	}
 
@@ -222,91 +260,125 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 	}
 
 	// Try the mutated seed
-	hit, coveredTarget, err := e.tryMutatedSeed(mutatedSeed, target)
+	result, err := e.tryMutatedSeed(mutatedSeed, target)
 	if err != nil {
 		return false, 0, err
 	}
 
-	if hit {
+	if result.HitTarget {
 		return true, 0, nil // Hit on first try, 0 retries needed
 	}
 
 	// If first attempt failed, try with divergence analysis
+	// Track last seed result for compile error feedback
+	var lastResult *seedTryResult
+
+	// Try multiple retries with divergence analysis
+	var refinedPrompt string
+	var systemPrompt string // Declare systemPrompt at broader scope
 	for retry := 0; retry < e.cfg.MaxRetries; retry++ {
 		logger.Debug("Retry %d/%d with divergence analysis...", retry+1, e.cfg.MaxRetries)
 
-		// Use divergence analysis if available
-		var divInfo *prompt.DivergenceInfo
-		divergentFunc := target.Function // Default to target function
-
-		if e.cfg.DivergenceAnalyzer != nil && e.cfg.CompilerPath != "" {
-			// Run uftrace divergence analysis
-			divPoint, err := e.cfg.DivergenceAnalyzer.Analyze(
-				e.currentBaseSeedPath, e.currentMutatedSeedPath, e.cfg.CompilerPath)
+		// Check if previous attempt had compile error
+		if lastResult != nil && lastResult.CompileFailed {
+			// Use compile error prompt for feedback
+			compileErrInfo := &prompt.CompileErrorInfo{
+				FailedSeedCode: lastResult.SeedCode,
+				CompilerOutput: lastResult.CompileError,
+				ExitCode:       1, // Generic failure
+				RetryAttempt:   retry + 1,
+				MaxRetries:     e.cfg.MaxRetries,
+			}
+			var userPrompt string
+			systemPrompt, userPrompt, err = e.cfg.PromptService.GetCompileErrorPrompt(ctx, compileErrInfo)
 			if err != nil {
-				logger.Warn("Divergence analysis failed: %v", err)
-			} else if divPoint != nil {
-				logger.Info("Divergence found at index %d: %s vs %s",
-					divPoint.Index, divPoint.Function1, divPoint.Function2)
-				divergentFunc = divPoint.Function2
+				logger.Warn("Failed to build compile error prompt: %v", err)
+				continue
 			}
-		}
+			refinedPrompt = userPrompt
+			logger.Debug("Using compile error feedback prompt for retry %d", retry+1)
+			logger.Debug("[System Prompt]:\n%s", systemPrompt)
+		} else {
+			// Use divergence analysis if available
+			var divInfo *prompt.DivergenceInfo
+			divergentFunc := target.Function // Default to target function
 
-		// Get divergent function source code from analyzer
-		divergentFuncCode := ""
-		if fn, ok := e.cfg.Analyzer.GetFunction(divergentFunc); ok && fn != nil {
-			// Try to read the source code for this function
-			if target.File != "" {
-				// Find the line range for this function from its BBs
-				minLine, maxLine := 0, 0
-				for _, bb := range fn.Blocks {
-					for _, lineNum := range bb.Lines {
-						if minLine == 0 || lineNum < minLine {
-							minLine = lineNum
+			if e.cfg.DivergenceAnalyzer != nil && e.cfg.CompilerPath != "" {
+				// Run uftrace divergence analysis
+				divPoint, err := e.cfg.DivergenceAnalyzer.Analyze(
+					e.currentBaseSeedPath, e.currentMutatedSeedPath, e.cfg.CompilerPath)
+				if err != nil {
+					logger.Warn("Divergence analysis failed: %v", err)
+				} else if divPoint != nil {
+					logger.Info("Divergence found at index %d: %s vs %s",
+						divPoint.Index, divPoint.Function1, divPoint.Function2)
+					divergentFunc = divPoint.Function2
+				}
+			}
+
+			// Get divergent function source code from analyzer
+			divergentFuncCode := ""
+			if fn, ok := e.cfg.Analyzer.GetFunction(divergentFunc); ok && fn != nil {
+				// Try to read the source code for this function
+				if target.File != "" {
+					// Find the line range for this function from its BBs
+					minLine, maxLine := 0, 0
+					for _, bb := range fn.Blocks {
+						for _, lineNum := range bb.Lines {
+							if minLine == 0 || lineNum < minLine {
+								minLine = lineNum
+							}
+							if lineNum > maxLine {
+								maxLine = lineNum
+							}
 						}
-						if lineNum > maxLine {
-							maxLine = lineNum
+					}
+					if minLine > 0 && maxLine > 0 {
+						code, err := coverage.ReadSourceLines(target.File, minLine, maxLine)
+						if err == nil {
+							divergentFuncCode = code
 						}
 					}
 				}
-				if minLine > 0 && maxLine > 0 {
-					code, err := coverage.ReadSourceLines(target.File, minLine, maxLine)
-					if err == nil {
-						divergentFuncCode = code
-					}
-				}
 			}
+
+			divInfo = &prompt.DivergenceInfo{
+				DivergentFunction:     divergentFunc,
+				DivergentFunctionCode: divergentFuncCode,
+				MutatedSeedCode:       mutatedSeed.Content,
+				BaseSeedCode:          baseSeedCode,
+			}
+
+			// Generate refined prompt
+			var userPrompt string
+			systemPrompt, userPrompt, err = e.cfg.PromptService.GetRefinedPrompt(ctx, divInfo)
+			refinedPrompt = userPrompt
+			if err != nil {
+				logger.Warn("Failed to build refined prompt: %v", err)
+				continue
+			}
+
+			// Debug: Log the refined prompt for divergence analysis
+			logger.Debug("=== Divergence Refinement Prompt (Retry %d/%d) ===", retry+1, e.cfg.MaxRetries)
+			logger.Debug("Divergent Function: %s", divInfo.DivergentFunction)
+			logger.Debug("Refined Prompt:\n%s", refinedPrompt)
+			logger.Debug("=== End of Divergence Refinement Prompt ===")
 		}
 
-		divInfo = &prompt.DivergenceInfo{
-			DivergentFunction:     divergentFunc,
-			DivergentFunctionCode: divergentFuncCode,
-			MutatedSeedCode:       mutatedSeed.Content,
-			BaseSeedCode:          baseSeedCode,
-		}
-
-		// Generate refined prompt
-		refinedPrompt, err := e.cfg.PromptBuilder.BuildRefinedPrompt(ctx, divInfo)
-		if err != nil {
-			logger.Warn("Failed to build refined prompt: %v", err)
-			continue
-		}
-
-		// Debug: Log the refined prompt for divergence analysis
-		logger.Debug("=== Divergence Refinement Prompt (Retry %d/%d) ===", retry+1, e.cfg.MaxRetries)
-		logger.Debug("Divergent Function: %s", divInfo.DivergentFunction)
-		logger.Debug("Refined Prompt:\n%s", refinedPrompt)
-		logger.Debug("=== End of Divergence Refinement Prompt ===")
+		// Debug: Log prompts for retry
+		logger.Debug("=== LLM Call: solveConstraint Retry %d/%d ===", retry+1, e.cfg.MaxRetries)
+		logger.Debug("[System Prompt]:\n%s", systemPrompt)
+		logger.Debug("[Refined Prompt]:\n%s", refinedPrompt)
 
 		// Call LLM with refined prompt
-		completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, refinedPrompt)
+		completion, err := e.cfg.LLM.GetCompletionWithSystem(systemPrompt, refinedPrompt)
 		if err != nil {
 			logger.Warn("LLM call failed: %v", err)
 			continue
 		}
 
 		// Parse response
-		newSeed, err := e.cfg.PromptBuilder.ParseLLMResponse(completion)
+		newSeed, err := e.cfg.PromptService.ParseLLMResponse(completion)
 		if err != nil {
 			logger.Warn("Failed to parse LLM response: %v", err)
 			continue
@@ -319,13 +391,13 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 			newSeed.Meta.ParentID = uint64(ctx.BaseSeedID)
 		}
 
-		// Try the new seed
-		hit, coveredTarget, err = e.tryMutatedSeed(newSeed, target)
+		// Try the new seed with V2 to capture compile errors
+		lastResult, err = e.tryMutatedSeed(newSeed, target)
 		if err != nil {
 			return false, retry + 1, err
 		}
 
-		if hit {
+		if lastResult.HitTarget {
 			return true, retry + 1, nil
 		}
 
@@ -333,7 +405,7 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 		mutatedSeed = newSeed
 
 		// If we covered something new (even if not the target), that's progress
-		if coveredTarget {
+		if lastResult.CoveredNew {
 			logger.Info("Covered new lines, continuing to next target")
 			return false, retry + 1, nil
 		}
@@ -348,19 +420,25 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 // generateMutatedSeed generates a new seed using LLM with constraint solving prompt.
 func (e *Engine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, error) {
 	// Build constraint solving prompt
-	constraintPrompt, err := e.cfg.PromptBuilder.BuildConstraintSolvingPrompt(ctx)
+	systemPrompt, userPrompt, err := e.cfg.PromptService.GetConstraintPrompt(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build prompt: %w", err)
+		return nil, fmt.Errorf("failed to build constraint prompt: %w", err)
 	}
 
+	// Debug: Log prompts
+	logger.Debug("=== LLM Call: generateMutatedSeed ===")
+	logger.Debug("[System Prompt]:\n%s", systemPrompt)
+	logger.Debug("[Constraint Prompt]:\n%s", userPrompt)
+	logger.Debug("=== End Prompts ===")
+
 	// Call LLM
-	completion, err := e.cfg.LLM.GetCompletionWithSystem(e.cfg.Understanding, constraintPrompt)
+	completion, err := e.cfg.LLM.GetCompletionWithSystem(systemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call failed: %w", err)
 	}
 
 	// Parse response
-	newSeed, err := e.cfg.PromptBuilder.ParseLLMResponse(completion)
+	newSeed, err := e.cfg.PromptService.ParseLLMResponse(completion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
@@ -380,10 +458,13 @@ func (e *Engine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, err
 }
 
 // tryMutatedSeed compiles and runs a mutated seed, checking if it covers the target.
-// Returns (hitTarget, coveredAnything, error)
-func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool, bool, error) {
+// Returns detailed result including compile errors for LLM feedback.
+func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*seedTryResult, error) {
+	result := &seedTryResult{
+		SeedCode: s.Content,
+	}
+
 	// Save seed path for divergence analysis
-	// Use the MappingPath directory as the state directory
 	stateDir := ""
 	if e.cfg.MappingPath != "" {
 		stateDir = filepath.Dir(e.cfg.MappingPath)
@@ -392,69 +473,113 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool
 	if s.Meta.ContentPath != "" {
 		e.currentMutatedSeedPath = s.Meta.ContentPath
 	} else if stateDir != "" {
-		// Fallback: construct path from state directory
 		e.currentMutatedSeedPath = filepath.Join(stateDir, fmt.Sprintf("seed_%d.c", s.Meta.ID))
 	}
 
-	// If base seed was used, save its path too
 	if target.BaseSeed != "" && e.currentBaseSeedPath == "" && stateDir != "" {
 		e.currentBaseSeedPath = filepath.Join(stateDir, fmt.Sprintf("seed_%s.c", target.BaseSeed))
 	}
 
-	// Measure coverage
-	report, err := e.measureSeed(s)
+	// Compile first to detect compile errors
+	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
-		return false, false, fmt.Errorf("failed to measure seed: %w", err)
+		result.CompileFailed = true
+		result.CompileError = fmt.Sprintf("compilation error: %v", err)
+		return result, nil
+	}
+
+	if !compileResult.Success {
+		result.CompileFailed = true
+		result.CompileError = compileResult.Stderr
+		logger.Debug("Seed failed to compile: %s", compileResult.Stderr)
+		return result, nil
+	}
+
+	// Execute (needed to generate coverage data)
+	if e.cfg.Executor != nil {
+		_, err = e.cfg.Executor.Execute(s, compileResult.BinaryPath)
+		if err != nil {
+			logger.Debug("Execution failed: %v", err)
+		}
+	}
+
+	// Measure coverage
+	if e.cfg.Coverage == nil {
+		return result, nil
+	}
+
+	report, err := e.cfg.Coverage.Measure(s)
+	if err != nil {
+		return result, fmt.Errorf("coverage measurement failed: %w", err)
 	}
 
 	if report == nil {
-		return false, false, nil
+		return result, nil
 	}
 
 	// Extract covered lines
 	coveredLines := e.extractCoveredLines(report)
 
 	// Check if target was hit
-	hitTarget := false
 	for _, line := range coveredLines {
 		for _, targetLine := range target.Lines {
 			if line == fmt.Sprintf("%s:%d", target.File, targetLine) {
-				hitTarget = true
+				result.HitTarget = true
 				break
 			}
 		}
-		if hitTarget {
+		if result.HitTarget {
 			break
 		}
 	}
 
-	// Record new coverage and track metrics using BB coverage basis points
+	// Record new coverage and track metrics
 	oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 	e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
 	newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
-	coveredNew := newBasisPoints > oldBasisPoints
+	result.CoveredNew = newBasisPoints > oldBasisPoints
 
-	// Update seed metadata with BB coverage in basis points (万分比)
+	// Update seed metadata
 	s.Meta.OldCoverage = oldBasisPoints
 	s.Meta.NewCoverage = newBasisPoints
 	if newBasisPoints > oldBasisPoints {
 		s.Meta.CovIncrease = newBasisPoints - oldBasisPoints
-	} else {
-		s.Meta.CovIncrease = 0
 	}
 
-	// If covered new lines or hit target, add to corpus
-	if coveredNew || hitTarget {
-		// Set lineage
-		s.Meta.Depth = 1 // Generated seeds are depth 1
+	// Run oracle for ALL mutated seeds
+	foundBug := false
+	if e.cfg.Oracle != nil {
+		bug := e.runOracle(s)
+		if bug != nil {
+			result.OracleVerdict = seed.OracleVerdictBug
+			result.BugDescription = bug.Description
+			foundBug = true
+			logger.Info("Seed %d triggered bug: %s", s.Meta.ID, bug.Description)
+		} else {
+			result.OracleVerdict = seed.OracleVerdictNormal
+		}
+	} else {
+		result.OracleVerdict = seed.OracleVerdictSkipped
+	}
 
+	// Persist oracle verdict to seed metadata
+	s.Meta.OracleVerdict = result.OracleVerdict
+
+	// Add to corpus if: covered new lines, hit target, OR found bug
+	if result.CoveredNew || result.HitTarget || foundBug {
+		s.Meta.Depth = 1
 		if err := e.cfg.Corpus.Add(s); err != nil {
 			logger.Warn("Failed to add seed to corpus: %v", err)
 		} else {
-			logger.Info("Added seed %d to corpus (cov: %d -> %d bp)", s.Meta.ID, oldBasisPoints, newBasisPoints)
+			reason := "coverage"
+			if foundBug {
+				reason = "bug"
+			} else if result.HitTarget {
+				reason = "target"
+			}
+			logger.Info("Added seed %d to corpus (reason: %s, cov: %d -> %d bp)", s.Meta.ID, reason, oldBasisPoints, newBasisPoints)
 		}
 
-		// Also merge into total coverage
 		if e.cfg.Coverage != nil {
 			if increased, _ := e.cfg.Coverage.HasIncreased(report); increased {
 				e.cfg.Coverage.Merge(report)
@@ -462,12 +587,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (bool
 		}
 	}
 
-	// Run oracle if available
-	if e.cfg.Oracle != nil && hitTarget {
-		e.runOracle(s)
-	}
-
-	return hitTarget, coveredNew, nil
+	return result, nil
 }
 
 // measureSeed compiles and measures coverage for a seed.
@@ -535,15 +655,16 @@ func (e *Engine) extractCoveredLines(report coverage.Report) []string {
 }
 
 // runOracle runs bug detection oracle on a seed.
-func (e *Engine) runOracle(s *seed.Seed) {
+// Returns the detected bug (if any) for persistence.
+func (e *Engine) runOracle(s *seed.Seed) *oracle.Bug {
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil || !compileResult.Success {
-		return
+		return nil
 	}
 
 	execResults, err := e.cfg.Executor.Execute(s, compileResult.BinaryPath)
 	if err != nil {
-		return
+		return nil
 	}
 
 	oracleResults := make([]oracle.Result, len(execResults))
@@ -563,10 +684,15 @@ func (e *Engine) runOracle(s *seed.Seed) {
 	bug, err := e.cfg.Oracle.Analyze(s, ctx, oracleResults)
 	if err != nil {
 		logger.Error("Oracle analysis failed: %v", err)
-	} else if bug != nil {
+		return nil
+	}
+
+	if bug != nil {
 		logger.Error("BUG FOUND in seed %d: %s", s.Meta.ID, bug.Description)
 		e.bugsFound = append(e.bugsFound, bug)
 	}
+
+	return bug
 }
 
 // saveState saves the current state.

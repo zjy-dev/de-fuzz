@@ -89,32 +89,17 @@ Examples:
 			basePath := filepath.Join(output, isa, strategy)
 			fmt.Printf("[Generate] Output directory: %s\n", basePath)
 
-			// 5. Load or generate understanding
-			var understanding string
-			understanding, err = seed.LoadUnderstanding(basePath)
-			if err != nil {
-				// If understanding.md doesn't exist, generate it
-				fmt.Printf("[Generate] Understanding not found, generating LLM understanding...\n")
-
-				understandPrompt, promptErr := promptBuilder.BuildUnderstandPrompt(isa, strategy, basePath)
-				if promptErr != nil {
-					return fmt.Errorf("failed to build understand prompt: %w", promptErr)
-				}
-
-				fmt.Printf("[Generate] Sending understand prompt to LLM...\n")
-
-				understanding, err = llmClient.Understand(understandPrompt)
-				if err != nil {
-					return fmt.Errorf("failed to get understanding from LLM: %w", err)
-				}
-
-				if err := seed.SaveUnderstanding(basePath, understanding); err != nil {
-					return fmt.Errorf("failed to save understanding: %w", err)
-				}
-
-				fmt.Printf("[Generate] Understanding saved to %s\n", seed.GetUnderstandingPath(basePath))
+			// 5. Load understanding if exists (optional)
+			// If user provides understanding.md, it will be used as system prompt.
+			// Otherwise, the default SystemPromptGenerate will be used.
+			understanding, _ := seed.LoadUnderstanding(basePath)
+			// systemPrompt := prompt.GetSystemPrompt("generate", understanding)
+			// TODO: Update to use PromptService when integrating with fuzz command
+			systemPrompt := understanding
+			if understanding != "" {
+				fmt.Printf("[Generate] Using custom understanding from %s\n", seed.GetUnderstandingPath(basePath))
 			} else {
-				fmt.Printf("[Generate] Using existing understanding from %s\n", seed.GetUnderstandingPath(basePath))
+				fmt.Printf("[Generate] Using default system prompt for generation\n")
 			}
 
 			// 6. Create naming strategy for seeds
@@ -141,7 +126,7 @@ Examples:
 					}
 
 					// Get raw LLM response
-					response, llmErr := llmClient.GetCompletionWithSystem(understanding, generatePrompt)
+					response, llmErr := llmClient.GetCompletionWithSystem(systemPrompt, generatePrompt)
 					if llmErr != nil {
 						fmt.Printf("  [%d/%d] LLM request failed: %v\n", i+1, count, llmErr)
 						lastErr = llmErr

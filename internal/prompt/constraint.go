@@ -46,6 +46,16 @@ type DivergenceInfo struct {
 	BaseSeedCode    string // Code of the covered predecessor seed (for comparison)
 }
 
+// CompileErrorInfo holds information about a compilation failure.
+// Used to provide feedback to LLM when generated code fails to compile.
+type CompileErrorInfo struct {
+	FailedSeedCode string // Code that failed to compile
+	CompilerOutput string // Compiler error messages (stdout + stderr)
+	ExitCode       int    // Compiler exit code
+	RetryAttempt   int    // Current retry attempt number (1-based)
+	MaxRetries     int    // Maximum retry attempts
+}
+
 // BuildConstraintSolvingPrompt creates a prompt to guide LLM to cover a specific basic block.
 // It uses the base seed as an example and provides context about the target.
 func (b *Builder) BuildConstraintSolvingPrompt(ctx *TargetContext) (string, error) {
@@ -349,6 +359,127 @@ Create a NEW seed that:
 		targetFunctionSection,
 		divergenceSection,
 		failedSection,
+		baseSeedSection,
+		taskSection,
+		criticalRules,
+		outputFormat,
+	)
+
+	return prompt, nil
+}
+
+// BuildCompileErrorRetryPrompt creates a prompt for retrying after compile error.
+// This preserves the original mutation intent while providing compile error feedback.
+func (b *Builder) BuildCompileErrorRetryPrompt(
+	ctx *TargetContext,
+	errInfo *CompileErrorInfo,
+) (string, error) {
+	if ctx == nil || errInfo == nil {
+		return "", fmt.Errorf("target context and error info must be provided")
+	}
+
+	// Section 1: Original Target (preserved from ctx)
+	targetSection := ""
+	if ctx.FunctionCode != "" {
+		targetSection = fmt.Sprintf(`## 1. Target: Function %s (BB%d)
+
+The compiler function you need to trigger. Lines marked with [→] are your TARGET.
+
+%s
+%s
+%s
+
+**Target Lines:** %v
+**Branching Factor:** %d possible paths
+
+`, ctx.TargetFunction, ctx.TargetBBID, "```cpp", ctx.FunctionCode, "```", ctx.TargetLines, ctx.SuccessorCount)
+	} else {
+		targetSection = fmt.Sprintf(`## 1. Target
+
+**Function:** %s
+**Basic Block:** BB%d
+**Target Lines:** %v
+
+`, ctx.TargetFunction, ctx.TargetBBID, ctx.TargetLines)
+	}
+
+	// Section 2: Compile Error Details
+	compileErrorSection := fmt.Sprintf(`## 2. Compilation Failed (MUST FIX)
+
+Your previous attempt failed to compile. **You MUST fix the compilation error.**
+
+**Attempt:** %d of %d
+**Exit Code:** %d
+
+**Compiler Error Output:**
+%s
+%s
+%s
+
+**Failed Code (DO NOT repeat these errors):**
+%s
+%s
+%s
+
+`, errInfo.RetryAttempt, errInfo.MaxRetries, errInfo.ExitCode,
+		"```", errInfo.CompilerOutput, "```",
+		"```c", errInfo.FailedSeedCode, "```")
+
+	// Section 3: Working Base Seed
+	baseSeedSection := ""
+	if ctx.BaseSeedCode != "" {
+		baseSeedSection = fmt.Sprintf(`## 3. Working Base Seed (START FROM THIS)
+
+This seed compiles and runs successfully. Use it as your starting point:
+
+%s
+%s
+%s
+
+`, "```c", ctx.BaseSeedCode, "```")
+	}
+
+	// Section 4: Task
+	taskSection := fmt.Sprintf(`## 4. Your Task
+
+1. **FIX the compilation error** shown in Section 2
+2. **Still target lines %v** in function %s
+3. Use the working base seed (Section 3) as reference for correct syntax
+
+**Common fixes:**
+- Check for undefined variables or functions
+- Ensure proper C99/C11 syntax (no C++ features)
+- Verify all includes are available in the template
+- Check for missing semicolons or braces
+
+`, ctx.TargetLines, ctx.TargetFunction)
+
+	// Critical rules and output format
+	criticalRules := ""
+	if b.FunctionTemplate != "" {
+		criticalRules = `**RULES:**
+- Output ONLY the seed() function body
+- NO main() function (template provides it)
+- NO #include statements
+- Use only C99/C11 standard C code (no C++ features like __thread in function scope)`
+	} else {
+		criticalRules = `**RULES:**
+- Output complete, compilable C code
+- Use only C99/C11 standard C code
+- Keep the same main() structure as base seed`
+	}
+
+	outputFormat := b.getOutputFormat()
+
+	prompt := fmt.Sprintf(`%s%s%s%s
+%s
+
+%s
+
+**OUTPUT: Only the fixed code in a markdown code block. No explanations.**
+`,
+		targetSection,
+		compileErrorSection,
 		baseSeedSection,
 		taskSection,
 		criticalRules,

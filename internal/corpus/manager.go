@@ -7,6 +7,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/zjy-dev/de-fuzz/internal/logger"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 	"github.com/zjy-dev/de-fuzz/internal/state"
 )
@@ -25,6 +26,11 @@ type FuzzResult struct {
 	State       seed.SeedState
 	OldCoverage uint64 // BB coverage before (basis points)
 	NewCoverage uint64 // BB coverage after (basis points)
+
+	// Oracle Results
+	OracleVerdict  seed.OracleVerdict // Verdict from oracle analysis
+	BugType        string             // Type of bug if detected
+	BugDescription string             // Description of bug
 }
 
 // Manager manages the lifecycle of seeds on disk and in memory.
@@ -262,11 +268,20 @@ func (m *FileManager) ReportResult(id uint64, result FuzzResult) error {
 		s.Meta.CovIncrease = 0
 	}
 
+	// Update oracle results
+	s.Meta.OracleVerdict = result.OracleVerdict
+	s.Meta.BugType = result.BugType
+	s.Meta.BugDescription = result.BugDescription
+
+	// Debug: Log the oracle verdict being saved
+	logger.Debug("ReportResult: seed %d oracle_verdict=%q", id, s.Meta.OracleVerdict)
+
 	// Save metadata as JSON file (not .seed file)
 	// This follows fuzzer-plan.md: metadata/ stores JSON files like id-000001.json
 	if err := seed.SaveMetadataJSON(m.metadataDir, &s.Meta); err != nil {
 		// Log warning but don't fail - metadata is optional
 		// The seed is already saved in corpus directory
+		logger.Warn("Failed to save metadata for seed %d: %v", id, err)
 	}
 
 	// Update global state

@@ -16,6 +16,18 @@ const (
 	SeedStateTimeout SeedState = "TIMEOUT"
 )
 
+// OracleVerdict represents the verdict from oracle analysis.
+type OracleVerdict string
+
+const (
+	// OracleVerdictSkipped indicates oracle was skipped (e.g., compilation failed).
+	OracleVerdictSkipped OracleVerdict = "SKIPPED"
+	// OracleVerdictNormal indicates no bug was detected.
+	OracleVerdictNormal OracleVerdict = "NORMAL"
+	// OracleVerdictBug indicates a bug was detected.
+	OracleVerdictBug OracleVerdict = "BUG"
+)
+
 // Metadata contains all meta-information about a seed.
 // This is used for lineage tracking, resume functionality, and coverage analysis.
 type Metadata struct {
@@ -38,6 +50,11 @@ type Metadata struct {
 	OldCoverage uint64 `json:"old_cov"`  // BB coverage before this seed (basis points)
 	NewCoverage uint64 `json:"new_cov"`  // BB coverage after this seed (basis points)
 	CovIncrease uint64 `json:"cov_incr"` // Coverage increase (new - old, basis points)
+
+	// Oracle Results
+	OracleVerdict  OracleVerdict `json:"oracle_verdict"`     // Verdict from oracle analysis
+	BugType        string        `json:"bug_type,omitempty"` // Type of bug if detected
+	BugDescription string        `json:"bug_desc,omitempty"` // Description of bug
 
 	// ContentHash is an optional short hash (e.g., CRC32 or SHA1 prefix) for deduplication.
 	ContentHash string `json:"content_hash,omitempty"`

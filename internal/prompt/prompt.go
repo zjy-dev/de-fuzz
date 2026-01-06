@@ -64,238 +64,89 @@ func readFileOrDefault(path string) (string, error) {
 	return string(content), nil
 }
 
-// BuildUnderstandPrompt constructs the initial prompt for a given ISA and defense strategy.
-// It now includes additional context from auxiliary files if available.
-func (b *Builder) BuildUnderstandPrompt(isa, strategy, basePath string) (string, error) {
-	if isa == "" || strategy == "" {
-		return "", fmt.Errorf("isa and strategy must be provided")
-	}
-
-	// Read auxiliary context files
-	stackLayoutPath := filepath.Join(basePath, "stack_layout.md")
-
-	stackLayout, err := readFileOrDefault(stackLayoutPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read stack layout file: %w", err)
-	}
-
-	// Build the output format example based on MaxTestCases and FunctionTemplate
-	var outputFormatExample string
-	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
-		// Function template + test cases mode
-		outputFormatExample = "[function implementation here]\n" +
-			"// ||||| JSON_TESTCASES_START |||||\n" +
-			"[\n" +
-			"  {\n" +
-			"    \"running command\": \"[command to execute the compiled binary]\",\n" +
-			"    \"expected result\": \"[expected output or behavior]\"\n" +
-			"  }\n" +
-			"]"
-	} else if b.FunctionTemplate != "" {
-		// Function-only mode (no test cases)
-		outputFormatExample = "[function implementation here]"
-	} else if b.MaxTestCases > 0 {
-		// With test cases
-		outputFormatExample = "[C source code here]\n" +
-			"// ||||| JSON_TESTCASES_START |||||\n" +
-			"[\n" +
-			"  {\n" +
-			"    \"running command\": \"[command to execute the compiled binary]\",\n" +
-			"    \"expected result\": \"[expected output or behavior]\"\n" +
-			"  }\n" +
-			"]"
-	} else {
-		// Without test cases
-		outputFormatExample = "[C source code here]"
-	}
-
-	prompt := fmt.Sprintf(`You are a world-class expert in cybersecurity, specializing in low-level exploitation and compiler security. You have a deep understanding of how compilers work, how security mitigations are implemented, and how they can be bypassed.
-
-Your mission is to craft a high-quality, detailed **System Prompt**. This prompt will be given to another AI assistant whose sole job is to generate and mutate C code to fuzz a compiler's security features. The effectiveness of the entire fuzzing process depends on the quality of your system prompt.
-
-**[CONTEXT]**
-
-Target ISA: %s
-Defense Strategy: %s
-
-[ISA Stack Layout of the target compiler]
-%s
-
-**[YOUR TASK]**
-
-Analyze the provided context and generate a **System Prompt**. This prompt must be a comprehensive guide for the other AI. It should be structured to make the AI an expert on this specific fuzzing task.
-
-The generated System Prompt **MUST** contain the following sections:
-
-1.  **## Goal**: A clear and concise statement of the objective. (e.g., "Your goal is to generate and mutate C code to discover vulnerabilities in the '%s' defense strategy on the '%s' architecture.")
-
-2.  **## Core Concepts**: A detailed explanation of the defense strategy and the ISA's stack layout. You must synthesize the provided context, not just copy it. Explain *how* the defense works and what its theoretical weaknesses are.
-
-3.  **## Attack Vectors & Vulnerability Patterns**: This is the most critical section. Provide a bulleted list of specific, actionable attack ideas and C code patterns to try. Be creative and think like an attacker. Examples:
-    *   Integer overflows to bypass bounds checks.
-    *   Tricky pointer arithmetic to confuse alias analysis.
-    *   Using longjmp or other control-flow manipulation to skip security checks.
-    *   Exploiting format string vulnerabilities in novel ways.
-
-4.  **## Seed Generation & Mutation Rules**: Clear instructions for the AI on how to format its output. The AI must produce:
-    *   Complete C source code that compiles with the target compiler.
-    *   Test cases in JSON format, each containing a "running command" and "expected result".
-    *   Mutations should be small, focused, and intelligent.
-
-**[OUTPUT FORMAT]**
-
-The generated System Prompt must instruct the AI to format its output as follows:
-
-%s
-
-**[OUTPUT INSTRUCTIONS]**
-
--   You must only output the generated **System Prompt**.
--   Do not include any other text, conversation, or explanations.
--   The output should be formatted in Markdown.
-`, isa, strategy, stackLayout, strategy, isa, outputFormatExample)
-
-	return prompt, nil
-}
-
 // BuildGeneratePrompt constructs a prompt to generate a new seed.
 func (b *Builder) BuildGeneratePrompt(basePath string) (string, error) {
-
-	// Read auxiliary context files
+	// Read stack layout if available (optional)
+	stackLayoutSection := ""
 	stackLayoutPath := filepath.Join(basePath, "stack_layout.md")
-	stackLayout, err := readFileOrDefault(stackLayoutPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read stack layout file: %w", err)
+	if stackLayout, err := os.ReadFile(stackLayoutPath); err == nil {
+		stackLayoutSection = fmt.Sprintf("\n**Stack Layout Reference:**\n%s\n", string(stackLayout))
 	}
 
 	// Read template if configured
-	var templateInstruction string
+	var templateSection string
 	if b.FunctionTemplate != "" {
 		templateContent, err := os.ReadFile(b.FunctionTemplate)
 		if err != nil {
 			return "", fmt.Errorf("failed to read function template: %w", err)
 		}
-		templateInstruction = fmt.Sprintf(`
+		templateSection = fmt.Sprintf(`
 **Code Template:**
-You will generate code based on this template. Only implement the function body marked with FUNCTION_PLACEHOLDER.
+Implement ONLY the function marked with FUNCTION_PLACEHOLDER. Do NOT include the template.
 
 %s
-
-**Template Instructions:**
-- The template provides the main() function and program structure.
-- You ONLY need to implement the function body where you see // FUNCTION_PLACEHOLDER: function_name
-- Do NOT modify or include the template code in your output.
-- Output ONLY the function implementation.
 `, string(templateContent))
 	}
 
-	// Build output format based on MaxTestCases and FunctionTemplate
-	var outputFormat string
-	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
-		// Function template + test cases mode
-		outputFormat = fmt.Sprintf(`**Output Format (MUST follow exactly):**
+	// Build output format
+	outputFormat := b.buildOutputFormat()
 
-Your response must be in this exact format - function implementation followed by the separator and JSON test cases:
+	// Build the prompt
+	var prompt strings.Builder
+	prompt.WriteString("Generate C code for compiler fuzzing.\n\n")
 
-void function_name(parameters) {
-    // Your function implementation here
-}
-// ||||| JSON_TESTCASES_START |||||
-[
-  {
-    "running command": "./prog arg1",
-    "expected result": "expected output or behavior"
-  }
-]
-
-**IMPORTANT:** 
-- Output ONLY the function code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
-- Do NOT include the template or any other code besides the function.
-- Do NOT include any markdown code blocks, headers, or other formatting.
-- Include %d to %d test cases with running commands and expected results.`, 1, b.MaxTestCases)
-	} else if b.FunctionTemplate != "" {
-		// Function-only mode (no test cases)
-		outputFormat = `**Output Format (MUST follow exactly):**
-
-Your response must contain only the function implementation:
-
-void vulnerable_function(char *input) {
-    // Your function implementation here
-}
-
-**IMPORTANT:** 
-- Output ONLY the function code.
-- Do NOT include the template or any other code.
-- Do NOT include any markdown code blocks, headers, or other formatting.`
-	} else if b.MaxTestCases > 0 {
-		outputFormat = `**Output Format (MUST follow exactly):**
-
-Your response must be in this exact format - C source code followed by the separator and JSON test cases:
-
-[Your C source code here]
-// ||||| JSON_TESTCASES_START |||||
-[
-  {
-    "running command": "./prog",
-    "expected result": "expected output or behavior"
-  }
-]
-
-**IMPORTANT:** 
-- Output ONLY the C source code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
-- Do NOT include any markdown code blocks, headers, or other formatting.
-- The separator must appear exactly as shown: // ||||| JSON_TESTCASES_START |||||`
+	if b.FunctionTemplate != "" {
+		prompt.WriteString("**Task:** Implement the function body that tests compiler security features.\n\n")
 	} else {
-		outputFormat = `**Output Format (MUST follow exactly):**
-
-Your response must contain only C source code:
-
-[Your C source code here]
-
-**IMPORTANT:** 
-- Output ONLY the C source code.
-- Do NOT include any markdown code blocks, headers, or other formatting.
-- Do NOT include test cases - they are not needed for this configuration.`
+		prompt.WriteString("**Task:** Generate complete C source code that tests compiler security features.\n\n")
 	}
 
-	prompt := fmt.Sprintf(`Generate a new, complete, and valid seed for fuzzing.
-The seed must contain C source code%s.
-Please ensure the code has potential vulnerabilities that can be discovered through fuzzing.
+	prompt.WriteString(`**Requirements:**
+- Complete, compilable C99/C11 code
+- Focus on patterns that may trigger compiler bugs: buffer/integer overflows, format strings, pointer manipulation
+- Output ONLY code, no explanations
+`)
 
-**Requirements:**
-- Provide complete, compilable C source code%s.
-- The code will be saved as 'source.c' and compiled using the target compiler.%s
-- The code should be minimal but demonstrate a potential vulnerability.
-- Focus on the specific ISA and defense strategy from the system context.
+	if b.MaxTestCases > 0 {
+		prompt.WriteString(fmt.Sprintf("- Include 1-%d test cases after the code\n", b.MaxTestCases))
+	}
 
-**ISA Stack Layout:**
-%s
-%s
-%s
-`,
-		func() string {
-			if b.MaxTestCases > 0 {
-				return " and test cases"
-			}
-			return ""
-		}(),
-		func() string {
-			if b.FunctionTemplate != "" {
-				return " (function body only)"
-			}
-			return ""
-		}(),
-		func() string {
-			if b.MaxTestCases > 0 {
-				return fmt.Sprintf("\n- Include at least one test case (up to %d test cases) with a running command and expected result.\n- The running command should execute the compiled binary (e.g., \"./prog\", \"./prog arg1 arg2\").\n- The expected result describes the expected output or behavior.", b.MaxTestCases)
-			}
-			return ""
-		}(),
-		stackLayout,
-		templateInstruction,
-		outputFormat,
-	)
-	return prompt, nil
+	prompt.WriteString(stackLayoutSection)
+	prompt.WriteString(templateSection)
+	prompt.WriteString("\n")
+	prompt.WriteString(outputFormat)
+
+	return prompt.String(), nil
+}
+
+// buildOutputFormat returns the output format instructions based on configuration.
+func (b *Builder) buildOutputFormat() string {
+	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
+		return fmt.Sprintf(`**Output Format:**
+[function_code]
+// ||||| JSON_TESTCASES_START |||||
+[{"running command": "./prog", "expected result": "..."}]
+
+Output ONLY function code, then separator, then %d-%d JSON test cases. No markdown.`, 1, b.MaxTestCases)
+	}
+	if b.FunctionTemplate != "" {
+		return `**Output Format:**
+[function_code]
+
+Output ONLY the function implementation. No markdown, no explanations.`
+	}
+	if b.MaxTestCases > 0 {
+		return `**Output Format:**
+[C source code]
+// ||||| JSON_TESTCASES_START |||||
+[{"running command": "./prog", "expected result": "..."}]
+
+Output code, separator, then JSON test cases. No markdown.`
+	}
+	return `**Output Format:**
+[C source code]
+
+Output ONLY C source code. No markdown, no explanations.`
 }
 
 // BuildMutatePrompt constructs a prompt to mutate an existing seed.
@@ -305,134 +156,47 @@ func (b *Builder) BuildMutatePrompt(s *seed.Seed, mutationCtx *MutationContext) 
 		return "", fmt.Errorf("seed must be provided")
 	}
 
-	// Convert test cases to JSON for display
-	testCasesJSON := "[\n"
-	for i, tc := range s.TestCases {
-		if i > 0 {
-			testCasesJSON += ",\n"
+	var prompt strings.Builder
+
+	// Include the existing seed
+	prompt.WriteString("**Existing Seed to Mutate:**\n```c\n")
+	prompt.WriteString(s.Content)
+	prompt.WriteString("\n```\n\n")
+
+	// Include test cases if any
+	if len(s.TestCases) > 0 {
+		prompt.WriteString("**Test Cases:**\n")
+		for _, tc := range s.TestCases {
+			prompt.WriteString(fmt.Sprintf("- Command: `%s` → Expected: %s\n", tc.RunningCommand, tc.ExpectedResult))
 		}
-		testCasesJSON += fmt.Sprintf(`  {
-    "running command": "%s",
-    "expected result": "%s"
-  }`, tc.RunningCommand, tc.ExpectedResult)
+		prompt.WriteString("\n")
 	}
-	testCasesJSON += "\n]"
 
 	// Build coverage context section if available
-	coverageSection := ""
-	if mutationCtx != nil {
-		coverageSection = fmt.Sprintf(`
-[COVERAGE CONTEXT]
-Current Total Coverage: %.1f%% (%d/%d lines covered)
-
-Coverage Increase from this seed:
+	if mutationCtx != nil && mutationCtx.TotalCoveragePercentage > 0 {
+		prompt.WriteString(fmt.Sprintf(`**Coverage Context:**
+- Current coverage: %.1f%% (%d/%d lines)
 %s
 
-%s
-[/COVERAGE CONTEXT]
+Focus mutations on:
+1. Similar patterns that increased coverage
+2. Edge cases around newly covered code
 
-Based on the coverage increase above, focus your mutation on:
-1. Exploring similar code paths that led to the coverage increase
-2. Varying the inputs that triggered the newly covered code
-3. Trying edge cases around the newly covered functionality
-`,
-			mutationCtx.TotalCoveragePercentage,
-			mutationCtx.TotalCoveredLines,
-			mutationCtx.TotalLines,
-			mutationCtx.CoverageIncreaseSummary,
-			mutationCtx.CoverageIncreaseDetails,
-		)
+`, mutationCtx.TotalCoveragePercentage, mutationCtx.TotalCoveredLines, mutationCtx.TotalLines, mutationCtx.CoverageIncreaseSummary))
 	}
 
-	// Build output format based on MaxTestCases and FunctionTemplate
-	var outputFormat string
-	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
-		// Function template + test cases mode
-		outputFormat = fmt.Sprintf(`**Output Format (MUST follow exactly):**
+	prompt.WriteString(`**Task:** Mutate this seed to explore different compiler code paths.
 
-Your response must be in this exact format - mutated function implementation followed by the separator and JSON test cases:
+**Requirements:**
+- Make focused, meaningful changes
+- Preserve overall structure and main()
+- Target different compiler optimizations or security checks
+- Output ONLY code, no explanations
 
-void function_name(parameters) {
-    // Your mutated function implementation here
-}
-// ||||| JSON_TESTCASES_START |||||
-[
-  {
-    "running command": "./prog arg1",
-    "expected result": "expected output or behavior"
-  }
-]
+`)
+	prompt.WriteString(b.buildOutputFormat())
 
-**IMPORTANT:** 
-- Output ONLY the function code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
-- Do NOT include the template or any other code besides the function.
-- Do NOT include any markdown code blocks, headers, or other formatting.
-- Include %d to %d test cases with running commands and expected results.`, 1, b.MaxTestCases)
-	} else if b.FunctionTemplate != "" {
-		// Function-only mode (no test cases)
-		outputFormat = `**Output Format (MUST follow exactly):**
-
-Your response must contain only the mutated function implementation:
-
-void vulnerable_function(char *input) {
-    // Your mutated function implementation here
-}
-
-**IMPORTANT:** 
-- Output ONLY the function code.
-- Do NOT include the template or any other code.
-- Do NOT include any markdown code blocks, headers, or other formatting.`
-	} else if b.MaxTestCases > 0 {
-		outputFormat = `**Output Format (MUST follow exactly):**
-
-Your response must be in this exact format - C source code followed by the separator and JSON test cases:
-
-[mutated C source code here]
-// ||||| JSON_TESTCASES_START |||||
-[
-  {
-    "running command": "./prog",
-    "expected result": "expected output or behavior"
-  }
-]
-
-**IMPORTANT:** 
-- Output ONLY the C source code, then the separator "// ||||| JSON_TESTCASES_START |||||", then the JSON array.
-- Do NOT include any markdown code blocks, headers, or other formatting.`
-	} else {
-		outputFormat = `**Output Format (MUST follow exactly):**
-
-Your response must contain only mutated C source code:
-
-[mutated C source code here]
-
-**IMPORTANT:** 
-- Output ONLY the mutated C source code.
-- Do NOT include any markdown code blocks, headers, or other formatting.
-- Do NOT include test cases - they are not needed for this configuration.`
-	}
-
-	prompt := fmt.Sprintf(`
-[EXISTING SEED]
-%s
-// ||||| JSON_TESTCASES_START |||||
-%s
-[/EXISTING SEED]
-%s
-Based on the system context, mutate the existing seed to create a new variant that is more likely to find a bug or increase coverage.
-Please make focused changes that could expose different vulnerability patterns.
-
-%s
-`, s.Content, testCasesJSON, coverageSection, outputFormat)
-
-	// DEBUG: Print the generated mutate prompt at debug level
-	logger.Debug("\n%s", strings.Repeat("=", 80))
-	logger.Debug("BuildMutatePrompt - Generated Prompt:")
-	logger.Debug("%s", strings.Repeat("-", 80))
-	logger.Debug("%s", prompt)
-	logger.Debug("%s\n", strings.Repeat("=", 80))
-
-	return prompt, nil
+	return prompt.String(), nil
 }
 
 // BuildAnalyzePrompt constructs a prompt to analyze execution feedback.
