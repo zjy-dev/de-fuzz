@@ -122,11 +122,11 @@ func (p *RandomMutationPhase) mutateAndCheck(baseSeed *seed.Seed) (*oracle.Bug, 
 		return nil, err
 	}
 
-	// Debug: Log prompts
-	logger.Debug("=== LLM Call: RandomMutationPhase ===")
-	logger.Debug("[System Prompt]:\n%s", systemPrompt)
-	logger.Debug("[User Prompt]:\n%s", userPrompt)
-	logger.Debug("=== End Prompts ===")
+	// Debug: Log prompts (disabled for performance profiling)
+	// logger.Debug("=== LLM Call: RandomMutationPhase ===")
+	// logger.Debug("[System Prompt]:\n%s", systemPrompt)
+	// logger.Debug("[User Prompt]:\n%s", userPrompt)
+	// logger.Debug("=== End Prompts ===")
 
 	// Call LLM
 	completion, err := p.engine.cfg.LLM.GetCompletionWithSystem(systemPrompt, userPrompt)

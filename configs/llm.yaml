@@ -10,29 +10,30 @@
 
 llms:
   # DeepSeek (default)
+  # Low temperature (0.1) for deterministic, syntax-correct C code generation
   - provider: "deepseek"
     model: "deepseek-chat"
     api_key: "${DEEPSEEK_API_KEY}"
     endpoint: "${DEEPSEEK_ENDPOINT}"
-    temperature: 0.7
+    temperature: 0.1
 
   # MiniMax M2.1 (Anthropic-compatible API)
   - provider: "minimax"
     model: "MiniMax-M2.1"
     api_key: "${MINIMAX_API_KEY}"
     endpoint: "${MINIMAX_ENDPOINT}"
-    temperature: 0.7
+    temperature: 0.1
 
   # OpenAI (GPT-4)
   - provider: "openai"
     model: "gpt-4"
     api_key: "${OPENAI_API_KEY}"
     endpoint: "${OPENAI_ENDPOINT}"
-    temperature: 0.7
+    temperature: 0.1
 
   # Anthropic (Claude)
   - provider: "anthropic"
     model: "claude-sonnet-4-20250514"
     api_key: "${ANTHROPIC_API_KEY}"
     endpoint: "${ANTHROPIC_ENDPOINT}"
-    temperature: 0.7
+    temperature: 0.1

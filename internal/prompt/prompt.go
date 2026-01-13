@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zjy-dev/de-fuzz/internal/logger"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -332,11 +331,12 @@ Your mutation should preserve those patterns while still introducing variation.
 **IMPORTANT:** Do NOT include markdown code blocks or explanations. Output only the code.
 `, baseSeed.Content, mutatedSeed.Content, divergenceSection, outputFormat)
 
-	logger.Debug("\n%s", strings.Repeat("=", 80))
-	logger.Debug("BuildDivergenceRefinedPrompt - Generated Prompt:")
-	logger.Debug("%s", strings.Repeat("-", 80))
-	logger.Debug("%s", prompt)
-	logger.Debug("%s\n", strings.Repeat("=", 80))
+	// Debug: Log prompts (disabled for performance profiling)
+	// logger.Debug("\n%s", strings.Repeat("=", 80))
+	// logger.Debug("BuildDivergenceRefinedPrompt - Generated Prompt:")
+	// logger.Debug("%s", strings.Repeat("-", 80))
+	// logger.Debug("%s", prompt)
+	// logger.Debug("%s\n", strings.Repeat("=", 80))
 
 	return prompt, nil
 }

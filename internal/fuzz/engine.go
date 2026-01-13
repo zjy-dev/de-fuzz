@@ -170,20 +170,26 @@ func (e *Engine) Run() error {
 // processInitialSeeds runs all initial seeds to build the coverage mapping.
 func (e *Engine) processInitialSeeds() error {
 	logger.Info("Processing initial seeds to build coverage mapping...")
+	seedCount := 0
+	totalStart := time.Now()
 
 	for {
 		s, ok := e.cfg.Corpus.Next()
 		if !ok {
 			break
 		}
+		seedCount++
 
 		logger.Debug("Processing initial seed %d...", s.Meta.ID)
+		seedStart := time.Now()
 
 		// Get coverage before processing this seed
 		oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 
 		// Compile and measure coverage
+		compileStart := time.Now()
 		report, binaryPath, err := e.measureSeed(s)
+		logger.Debug("[TIMING] Seed %d: compile+coverage took %v", s.Meta.ID, time.Since(compileStart))
 		if err != nil {
 			logger.Warn("Failed to measure initial seed %d: %v", s.Meta.ID, err)
 			continue
@@ -191,8 +197,10 @@ func (e *Engine) processInitialSeeds() error {
 
 		// Record coverage in mapping
 		if report != nil {
+			recordStart := time.Now()
 			coveredLines := e.extractCoveredLines(report)
 			e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
+			logger.Debug("[TIMING] Seed %d: record coverage took %v", s.Meta.ID, time.Since(recordStart))
 		}
 
 		// Get coverage after processing
@@ -201,7 +209,9 @@ func (e *Engine) processInitialSeeds() error {
 		// Run oracle on initial seed if configured
 		oracleVerdict := seed.OracleVerdictSkipped
 		if e.cfg.Oracle != nil && binaryPath != "" {
+			oracleStart := time.Now()
 			bug := e.runOracle(s, binaryPath)
+			logger.Debug("[TIMING] Seed %d: oracle took %v", s.Meta.ID, time.Since(oracleStart))
 			if bug != nil {
 				oracleVerdict = seed.OracleVerdictBug
 				logger.Info("Initial seed %d triggered oracle bug: %s", s.Meta.ID, bug.Description)
@@ -217,6 +227,15 @@ func (e *Engine) processInitialSeeds() error {
 			NewCoverage:   newBasisPoints,
 			OracleVerdict: oracleVerdict,
 		})
+
+		logger.Debug("[TIMING] Seed %d: total processing took %v", s.Meta.ID, time.Since(seedStart))
+	}
+
+	// Log total timing for initial seeds
+	totalElapsed := time.Since(totalStart)
+	if seedCount > 0 {
+		avgPerSeed := totalElapsed / time.Duration(seedCount)
+		logger.Info("[TIMING] Processed %d initial seeds in %v (avg: %v/seed)", seedCount, totalElapsed, avgPerSeed)
 	}
 
 	// Print initial coverage stats
@@ -308,7 +327,7 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 			}
 			refinedPrompt = userPrompt
 			logger.Debug("Using compile error feedback prompt for retry %d", retry+1)
-			logger.Debug("[System Prompt]:\n%s", systemPrompt)
+			// logger.Debug("[System Prompt]:\n%s", systemPrompt) // Disabled for performance profiling
 		} else {
 			// Use divergence analysis if available
 			var divInfo *prompt.DivergenceInfo
@@ -370,16 +389,16 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 			}
 
 			// Debug: Log the refined prompt for divergence analysis
-			logger.Debug("=== Divergence Refinement Prompt (Retry %d/%d) ===", retry+1, e.cfg.MaxRetries)
-			logger.Debug("Divergent Function: %s", divInfo.DivergentFunction)
-			logger.Debug("Refined Prompt:\n%s", refinedPrompt)
-			logger.Debug("=== End of Divergence Refinement Prompt ===")
+			// logger.Debug("=== Divergence Refinement Prompt (Retry %d/%d) ===", retry+1, e.cfg.MaxRetries)
+			// logger.Debug("Divergent Function: %s", divInfo.DivergentFunction)
+			// logger.Debug("Refined Prompt:\n%s", refinedPrompt)
+			// logger.Debug("=== End of Divergence Refinement Prompt ===")
 		}
 
 		// Debug: Log prompts for retry
-		logger.Debug("=== LLM Call: solveConstraint Retry %d/%d ===", retry+1, e.cfg.MaxRetries)
-		logger.Debug("[System Prompt]:\n%s", systemPrompt)
-		logger.Debug("[Refined Prompt]:\n%s", refinedPrompt)
+		// logger.Debug("=== LLM Call: solveConstraint Retry %d/%d ===", retry+1, e.cfg.MaxRetries)
+		// logger.Debug("[System Prompt]:\n%s", systemPrompt)
+		// logger.Debug("[Refined Prompt]:\n%s", refinedPrompt)
 
 		// Call LLM with refined prompt
 		completion, err := e.cfg.LLM.GetCompletionWithSystem(systemPrompt, refinedPrompt)
@@ -436,11 +455,11 @@ func (e *Engine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, err
 		return nil, fmt.Errorf("failed to build constraint prompt: %w", err)
 	}
 
-	// Debug: Log prompts
-	logger.Debug("=== LLM Call: generateMutatedSeed ===")
-	logger.Debug("[System Prompt]:\n%s", systemPrompt)
-	logger.Debug("[Constraint Prompt]:\n%s", userPrompt)
-	logger.Debug("=== End Prompts ===")
+	// Debug: Log prompts (disabled for performance profiling)
+	// logger.Debug("=== LLM Call: generateMutatedSeed ===")
+	// logger.Debug("[System Prompt]:\n%s", systemPrompt)
+	// logger.Debug("[Constraint Prompt]:\n%s", userPrompt)
+	// logger.Debug("=== End Prompts ===")
 
 	// Call LLM
 	completion, err := e.cfg.LLM.GetCompletionWithSystem(systemPrompt, userPrompt)

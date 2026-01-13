@@ -155,6 +155,22 @@ func (m *FileManager) Recover() error {
 	// Update pool size in state
 	m.stateManager.UpdatePoolSize(len(m.queue))
 
+	// Log recovery status for checkpoint/resume visibility
+	totalSeeds := len(seeds)
+	pendingCount := len(m.queue)
+	processedCount := len(m.processed)
+
+	if totalSeeds == 0 {
+		logger.Info("[FRESH START] No seeds found in corpus, starting fresh")
+	} else if processedCount == 0 && pendingCount > 0 {
+		logger.Info("[FRESH START] Found %d initial seeds, no previous run detected", pendingCount)
+	} else if pendingCount > 0 {
+		logger.Info("[RESUME] Resuming from checkpoint: %d seeds in corpus (%d processed, %d pending)",
+			totalSeeds, processedCount, pendingCount)
+	} else {
+		logger.Info("[RESUME] All %d seeds already processed, ready for constraint solving", totalSeeds)
+	}
+
 	return nil
 }
 
@@ -265,6 +281,10 @@ func (m *FileManager) ReportResult(id uint64, result FuzzResult) error {
 		m.processed[id] = s
 	}
 
+	// Store old CovIncrease for rename check
+	oldCovIncrease := s.Meta.CovIncrease
+	oldPath := s.Meta.ContentPath
+
 	// Update metadata with BB coverage in basis points
 	s.Meta.State = result.State
 	s.Meta.OldCoverage = result.OldCoverage
@@ -284,6 +304,20 @@ func (m *FileManager) ReportResult(id uint64, result FuzzResult) error {
 
 	// Debug: Log the oracle verdict being saved
 	logger.Debug("ReportResult: seed %d oracle_verdict=%q", id, s.Meta.OracleVerdict)
+
+	// Rename seed file if CovIncrease changed (fixes cov-00000 naming issue)
+	if s.Meta.CovIncrease != oldCovIncrease && oldPath != "" && s.Content != "" {
+		newFilename := m.namer.GenerateFilename(&s.Meta, s.Content)
+		newPath := filepath.Join(m.corpusDir, newFilename)
+		if oldPath != newPath {
+			if err := os.Rename(oldPath, newPath); err != nil {
+				logger.Warn("Failed to rename seed file from %s to %s: %v", oldPath, newPath, err)
+			} else {
+				s.Meta.ContentPath = newPath
+				logger.Debug("Renamed seed %d: %s -> %s", id, filepath.Base(oldPath), newFilename)
+			}
+		}
+	}
 
 	// Save metadata as JSON file (not .seed file)
 	// This follows fuzzer-plan.md: metadata/ stores JSON files like id-000001.json
