@@ -1,0 +1,26 @@
+[
+  {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "iterations": 8,
+    "successful": 8,
+    "failed": 0,
+    "total_seconds": 26.705247478,
+    "avg_seconds": 3.338,
+    "min_seconds": 2.207425729,
+    "max_seconds": 5.342200253,
+    "timestamp": "2026-01-13T12:07:53Z"
+  },
+  {
+    "provider": "minimax",
+    "model": "MiniMax-M2.1",
+    "iterations": 8,
+    "successful": 8,
+    "failed": 0,
+    "total_seconds": 30.219698793,
+    "avg_seconds": 3.777,
+    "min_seconds": 2.140265412,
+    "max_seconds": 5.751600665,
+    "timestamp": "2026-01-13T12:08:34Z"
+  }
+]
