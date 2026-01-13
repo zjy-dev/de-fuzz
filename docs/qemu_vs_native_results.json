@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-01-13T14:30:52Z",
+  "iterations": 100,
+  "compilation": {
+    "aarch64_cross_seconds": .238448741,
+    "x86_64_native_seconds": .188974709
+  },
+  "execution": {
+    "qemu_aarch64": {
+      "total_seconds": .729008093,
+      "avg_seconds": .007290
+    },
+    "native_x86_64": {
+      "total_seconds": .051516038,
+      "avg_seconds": .000515
+    },
+    "speedup_factor": 14.15
+  }
+}

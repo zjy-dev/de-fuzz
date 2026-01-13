@@ -6,6 +6,28 @@ Last updated: 2026-01-13
 
 This document contains performance benchmarks for DeFuzz components, including traditional fuzzing pipeline and LLM providers.
 
+## QEMU vs Native Execution Performance
+
+### Test Results (100 iterations)
+
+| Metric | QEMU aarch64 | Native x86_64 | Difference |
+|--------|--------------|---------------|------------|
+| **Compilation** | 0.238s | 0.189s | 1.26x slower |
+| **Execution (total)** | 0.729s | 0.052s | **14.15x slower** |
+| **Execution (avg)** | 7.29ms | 0.52ms | **14.15x slower** |
+
+### Key Findings
+
+1. **QEMU 是主要性能瓶颈** - QEMU 模拟执行比原生执行慢 **14x**
+2. **编译时间差异小** - 交叉编译仅比原生编译慢 1.26x
+3. **Oracle 耗时根因** - 每个种子需要 ~13 次 QEMU 执行（二分搜索），导致 Oracle 占用 89% 时间
+
+### 运行测试
+
+```bash
+./scripts/qemu_vs_native_test.sh [iterations]
+```
+
 ## Traditional Fuzzing Pipeline
 
 ### Per-Seed Processing Time Breakdown
@@ -26,10 +48,15 @@ The Canary Oracle uses binary search to find the minimum buffer size that trigge
 - Each iteration runs QEMU aarch64 emulation (~1s per execution)
 - Plus verification call = ~13 QEMU executions total
 
+**为什么 QEMU 执行慢？**
+- 单次 QEMU 执行实际只需 7ms，但 defuzz 中每次执行约 1s
+- 可能原因：进程启动开销、文件 I/O、覆盖率收集等
+
 **Optimization Opportunities:**
 1. Reduce `max_buffer_size` (e.g., 256 → 8 iterations)
 2. Skip Oracle for initial seeds (known safe)
 3. Parallel QEMU execution
+4. 使用原生 x86_64 目标进行测试（可提速 14x）
 
 ### Stress Test Results
 
