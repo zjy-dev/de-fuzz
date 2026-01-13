@@ -235,7 +235,68 @@ func TestCoverageMapping_TotalCoveredLines(t *testing.T) {
 	cm.RecordLine(LineID{File: "test.c", Line: 20}, 2)
 	assert.Equal(t, 2, cm.TotalCoveredLines())
 
-	// Duplicate should not increase count
+	// Adding different seed to same line should not increase line count
 	cm.RecordLine(LineID{File: "test.c", Line: 10}, 3)
 	assert.Equal(t, 2, cm.TotalCoveredLines())
+
+	// But the line should now have multiple seeds
+	seeds := cm.GetSeedsForLine(LineID{File: "test.c", Line: 10})
+	assert.Len(t, seeds, 2)
+	assert.Contains(t, seeds, int64(1))
+	assert.Contains(t, seeds, int64(3))
+}
+
+func TestCoverageMapping_MultipleSeeds(t *testing.T) {
+	cm, err := NewCoverageMapping("")
+	require.NoError(t, err)
+
+	line := LineID{File: "test.c", Line: 10}
+
+	// Record multiple seeds for the same line
+	cm.RecordLine(line, 1)
+	cm.RecordLine(line, 2)
+	cm.RecordLine(line, 3)
+
+	// Should have 3 seeds
+	seeds := cm.GetSeedsForLine(line)
+	assert.Len(t, seeds, 3)
+	assert.Contains(t, seeds, int64(1))
+	assert.Contains(t, seeds, int64(2))
+	assert.Contains(t, seeds, int64(3))
+
+	// GetSeedForLine should return one of them (random)
+	seedID, found := cm.GetSeedForLine(line)
+	assert.True(t, found)
+	assert.Contains(t, []int64{1, 2, 3}, seedID)
+
+	// Duplicate seed should not be added
+	added := cm.RecordLine(line, 2)
+	assert.False(t, added)
+	seeds = cm.GetSeedsForLine(line)
+	assert.Len(t, seeds, 3)
+}
+
+func TestCoverageMapping_RecordLinesMultipleSeeds(t *testing.T) {
+	cm, err := NewCoverageMapping("")
+	require.NoError(t, err)
+
+	lines := []LineID{
+		{File: "test.c", Line: 10},
+		{File: "test.c", Line: 20},
+	}
+
+	// First seed covers both lines
+	newCount := cm.RecordLines(lines, 1)
+	assert.Equal(t, 2, newCount) // 2 new lines
+
+	// Second seed also covers both lines
+	newCount = cm.RecordLines(lines, 2)
+	assert.Equal(t, 0, newCount) // 0 new lines (but seeds are added)
+
+	// Both lines should have 2 seeds each
+	seeds1 := cm.GetSeedsForLine(lines[0])
+	assert.Len(t, seeds1, 2)
+
+	seeds2 := cm.GetSeedsForLine(lines[1])
+	assert.Len(t, seeds2, 2)
 }

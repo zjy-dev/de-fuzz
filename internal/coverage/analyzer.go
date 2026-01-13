@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,6 +16,14 @@ import (
 
 	"github.com/zjy-dev/de-fuzz/internal/logger"
 )
+
+// randIntn returns a random int in [0, n). Thread-safe wrapper for rand.Intn.
+func randIntn(n int) int {
+	if n <= 1 {
+		return 0
+	}
+	return rand.Intn(n)
+}
 
 // LineID uniquely identifies a line of code.
 type LineID struct {
@@ -517,7 +526,30 @@ func (c *Analyzer) GetCoveredPredecessors(funcName string, bbID int, coveredLine
 }
 
 // Coverage tracking methods
+
+// RecordCoverage records covered lines for a seed. Should only be called for qualified seeds
+// (initial seeds, seeds with new coverage, or seeds that found bugs).
 func (c *Analyzer) RecordCoverage(seedID int64, coveredLines []string) {
+	lineIDs := c.parseLinesToIDs(coveredLines)
+	c.mapping.RecordLines(lineIDs, seedID)
+}
+
+// CheckNewCoverage checks if the given lines would increase BB coverage without recording.
+// Returns true if any new BB would be covered.
+func (c *Analyzer) CheckNewCoverage(coveredLines []string) bool {
+	lineIDs := c.parseLinesToIDs(coveredLines)
+	currentCovered := c.mapping.GetCoveredLines()
+
+	for _, lid := range lineIDs {
+		if !currentCovered[lid] {
+			return true
+		}
+	}
+	return false
+}
+
+// parseLinesToIDs converts "file:line" strings to LineID structs.
+func (c *Analyzer) parseLinesToIDs(coveredLines []string) []LineID {
 	lineIDs := make([]LineID, 0, len(coveredLines))
 	for _, line := range coveredLines {
 		parts := strings.SplitN(line, ":", 2)
@@ -533,7 +565,7 @@ func (c *Analyzer) RecordCoverage(seedID int64, coveredLines []string) {
 			}
 		}
 	}
-	c.mapping.RecordLines(lineIDs, seedID)
+	return lineIDs
 }
 
 func (c *Analyzer) GetCoveredLines() map[LineID]bool {
@@ -829,18 +861,19 @@ func abs(x int) int {
 	return x
 }
 
-// CoverageMapping maintains the mapping between source lines and the first seed that covered them.
+// CoverageMapping maintains the mapping between source lines and all seeds that covered them.
+// Multiple seeds can be mapped to the same line for fairer base seed selection.
 type CoverageMapping struct {
-	mu         sync.RWMutex
-	LineToSeed map[string]int64 `json:"line_to_seed"`
-	path       string
+	mu          sync.RWMutex
+	LineToSeeds map[string][]int64 `json:"line_to_seeds"`
+	path        string
 }
 
 // NewCoverageMapping creates a new CoverageMapping instance.
 func NewCoverageMapping(path string) (*CoverageMapping, error) {
 	cm := &CoverageMapping{
-		LineToSeed: make(map[string]int64),
-		path:       path,
+		LineToSeeds: make(map[string][]int64),
+		path:        path,
 	}
 
 	if path != "" {
@@ -854,19 +887,28 @@ func NewCoverageMapping(path string) (*CoverageMapping, error) {
 	return cm, nil
 }
 
+// RecordLine adds a seed to the line's seed list (no duplicates).
+// Returns true if this seed is newly added to this line.
 func (cm *CoverageMapping) RecordLine(line LineID, seedID int64) bool {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
 	key := line.String()
-	if _, exists := cm.LineToSeed[key]; exists {
-		return false
+	seeds := cm.LineToSeeds[key]
+
+	// Check if seed already recorded for this line
+	for _, s := range seeds {
+		if s == seedID {
+			return false
+		}
 	}
 
-	cm.LineToSeed[key] = seedID
+	cm.LineToSeeds[key] = append(seeds, seedID)
 	return true
 }
 
+// RecordLines adds a seed to multiple lines' seed lists.
+// Returns the count of lines where this seed was newly added.
 func (cm *CoverageMapping) RecordLines(lines []LineID, seedID int64) int {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
@@ -874,36 +916,77 @@ func (cm *CoverageMapping) RecordLines(lines []LineID, seedID int64) int {
 	newCount := 0
 	for _, line := range lines {
 		key := line.String()
-		if _, exists := cm.LineToSeed[key]; !exists {
-			cm.LineToSeed[key] = seedID
-			newCount++
+		seeds := cm.LineToSeeds[key]
+
+		// Check if seed already recorded for this line
+		found := false
+		for _, s := range seeds {
+			if s == seedID {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			cm.LineToSeeds[key] = append(seeds, seedID)
+			if len(seeds) == 0 {
+				// This is a newly covered line
+				newCount++
+			}
 		}
 	}
 	return newCount
 }
 
+// GetSeedForLine returns a randomly selected seed from the seeds that covered this line.
 func (cm *CoverageMapping) GetSeedForLine(line LineID) (int64, bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	seedID, exists := cm.LineToSeed[line.String()]
-	return seedID, exists
+	seeds, exists := cm.LineToSeeds[line.String()]
+	if !exists || len(seeds) == 0 {
+		return 0, false
+	}
+
+	// Random selection from available seeds
+	idx := randIntn(len(seeds))
+	return seeds[idx], true
+}
+
+// GetSeedsForLine returns all seeds that covered this line.
+func (cm *CoverageMapping) GetSeedsForLine(line LineID) []int64 {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	seeds, exists := cm.LineToSeeds[line.String()]
+	if !exists {
+		return nil
+	}
+
+	// Return a copy to avoid race conditions
+	result := make([]int64, len(seeds))
+	copy(result, seeds)
+	return result
 }
 
 func (cm *CoverageMapping) IsCovered(line LineID) bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	_, exists := cm.LineToSeed[line.String()]
-	return exists
+	seeds, exists := cm.LineToSeeds[line.String()]
+	return exists && len(seeds) > 0
 }
 
 func (cm *CoverageMapping) GetCoveredLines() map[LineID]bool {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	result := make(map[LineID]bool, len(cm.LineToSeed))
-	for key := range cm.LineToSeed {
+	result := make(map[LineID]bool, len(cm.LineToSeeds))
+	for key, seeds := range cm.LineToSeeds {
+		// Only count lines with at least one seed
+		if len(seeds) == 0 {
+			continue
+		}
 		var file string
 		var line int
 		for i := len(key) - 1; i >= 0; i-- {
@@ -924,7 +1007,11 @@ func (cm *CoverageMapping) GetCoveredLinesForFile(file string) []int {
 
 	var lines []int
 	prefix := file + ":"
-	for key := range cm.LineToSeed {
+	for key, seeds := range cm.LineToSeeds {
+		// Only count lines with at least one seed
+		if len(seeds) == 0 {
+			continue
+		}
 		if len(key) > len(prefix) && key[:len(prefix)] == prefix {
 			var line int
 			fmt.Sscanf(key[len(prefix):], "%d", &line)
@@ -938,7 +1025,13 @@ func (cm *CoverageMapping) TotalCoveredLines() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	return len(cm.LineToSeed)
+	count := 0
+	for _, seeds := range cm.LineToSeeds {
+		if len(seeds) > 0 {
+			count++
+		}
+	}
+	return count
 }
 
 func (cm *CoverageMapping) Save(path string) error {
@@ -991,24 +1084,26 @@ func (cm *CoverageMapping) FindClosestCoveredLine(file string, targetLine int) (
 	defer cm.mu.RUnlock()
 
 	closestLine := -1
-	var closestSeedID int64
+	var closestSeeds []int64
 
 	prefix := file + ":"
-	for key, seedID := range cm.LineToSeed {
-		if len(key) > len(prefix) && key[:len(prefix)] == prefix {
+	for key, seeds := range cm.LineToSeeds {
+		if len(key) > len(prefix) && key[:len(prefix)] == prefix && len(seeds) > 0 {
 			var line int
 			fmt.Sscanf(key[len(prefix):], "%d", &line)
 
 			if line <= targetLine && line > closestLine {
 				closestLine = line
-				closestSeedID = seedID
+				closestSeeds = seeds
 			}
 		}
 	}
 
-	if closestLine == -1 {
+	if closestLine == -1 || len(closestSeeds) == 0 {
 		return LineID{}, 0, false
 	}
 
-	return LineID{File: file, Line: closestLine}, closestSeedID, true
+	// Random selection from available seeds
+	idx := randIntn(len(closestSeeds))
+	return LineID{File: file, Line: closestLine}, closestSeeds[idx], true
 }

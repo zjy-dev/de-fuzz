@@ -555,20 +555,13 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 		}
 	}
 
-	// Record new coverage and track metrics
+	// Get coverage before any recording
 	oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
-	e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
-	newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
-	result.CoveredNew = newBasisPoints > oldBasisPoints
 
-	// Update seed metadata
-	s.Meta.OldCoverage = oldBasisPoints
-	s.Meta.NewCoverage = newBasisPoints
-	if newBasisPoints > oldBasisPoints {
-		s.Meta.CovIncrease = newBasisPoints - oldBasisPoints
-	}
+	// Check if this seed would cover any new lines (without recording yet)
+	hasNewCoverage := e.cfg.Analyzer.CheckNewCoverage(coveredLines)
 
-	// Run oracle for ALL mutated seeds
+	// Run oracle for ALL mutated seeds (need to know bug status before deciding to record)
 	foundBug := false
 	if e.cfg.Oracle != nil {
 		bug := e.runOracle(s, compileResult.BinaryPath)
@@ -586,6 +579,26 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 
 	// Persist oracle verdict to seed metadata
 	s.Meta.OracleVerdict = result.OracleVerdict
+
+	// Only record coverage for "qualified" seeds:
+	// - Seeds with new coverage
+	// - Seeds that found bugs
+	// - Seeds that hit the target
+	// This ensures only qualified seeds are in the mapping for fair one-shot selection.
+	result.CoveredNew = hasNewCoverage
+	if hasNewCoverage || result.HitTarget || foundBug {
+		e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
+	}
+
+	// Get updated coverage after potential recording
+	newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+
+	// Update seed metadata
+	s.Meta.OldCoverage = oldBasisPoints
+	s.Meta.NewCoverage = newBasisPoints
+	if newBasisPoints > oldBasisPoints {
+		s.Meta.CovIncrease = newBasisPoints - oldBasisPoints
+	}
 
 	// Add to corpus if: covered new lines, hit target, OR found bug
 	if result.CoveredNew || result.HitTarget || foundBug {
