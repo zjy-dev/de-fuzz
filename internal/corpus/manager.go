@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/zjy-dev/de-fuzz/internal/logger"
@@ -305,16 +306,22 @@ func (m *FileManager) ReportResult(id uint64, result FuzzResult) error {
 	// Debug: Log the oracle verdict being saved
 	logger.Debug("ReportResult: seed %d oracle_verdict=%q", id, s.Meta.OracleVerdict)
 
-	// Rename seed file if CovIncrease changed (fixes cov-00000 naming issue)
+	// Rename seed directory if CovIncrease changed (fixes cov-00000 naming issue)
+	// oldPath is the path to source.c, we need to rename the parent directory
 	if s.Meta.CovIncrease != oldCovIncrease && oldPath != "" && s.Content != "" {
+		oldDir := filepath.Dir(oldPath) // Get the seed directory (parent of source.c)
 		newFilename := m.namer.GenerateFilename(&s.Meta, s.Content)
-		newPath := filepath.Join(m.corpusDir, newFilename)
-		if oldPath != newPath {
-			if err := os.Rename(oldPath, newPath); err != nil {
-				logger.Warn("Failed to rename seed file from %s to %s: %v", oldPath, newPath, err)
+		// Remove .seed extension to get directory name
+		newDirName := strings.TrimSuffix(newFilename, filepath.Ext(newFilename))
+		newDir := filepath.Join(m.corpusDir, newDirName)
+		if oldDir != newDir {
+			if err := os.Rename(oldDir, newDir); err != nil {
+				logger.Warn("Failed to rename seed directory from %s to %s: %v", oldDir, newDir, err)
 			} else {
-				s.Meta.ContentPath = newPath
-				logger.Debug("Renamed seed %d: %s -> %s", id, filepath.Base(oldPath), newFilename)
+				// Update ContentPath to point to source.c in the new directory
+				s.Meta.ContentPath = filepath.Join(newDir, "source.c")
+				s.Meta.FilePath = newDirName
+				logger.Debug("Renamed seed %d directory: %s -> %s", id, filepath.Base(oldDir), newDirName)
 			}
 		}
 	}
