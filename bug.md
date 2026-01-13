@@ -1,8 +1,0 @@
-我仔细审阅了日志 @logs/2025-12-30_03-35-06_CST.log, 发现了好几个bug:
-
-- `[INFO] Initial coverage for stack_protect_prologue: 0/172 BBs` 这个函数的基本块数量统计是错的, 应该只有 10-30 个左右的, 是不是解析 cfg 文件的算法写错了?
-- `[INFO] Analyzer initialized, total target lines: 262` total lines 是从 cfg 中提取的无注释和空行的, 非常好, 这在后续的覆盖率统计中也不能弄混, 本项目永远都是不算注释和空行的. 但是 `[DEBUG] [Analyzer] Selecting target with 72 covered lines` 完全不能理解, 这个 coverd lines 不知道意义是什么, 感觉可以删了
-- retry 只 retry 了两三次就说已经 retry 了 8 次且都失败了
-- `[DEBUG] [Analyzer] Using fallback closest-line base seed: 1 (line 1819, distance=0)` 本项目之前说是修复了这个问题的, @debug-and-modify-plan.md 中的 `### 🐛 问题 6: 目标 BB 选择条件缺失`, 现在不应该有这种 closest-line 的方案了, 请你删除这个兼容性代码. 现在的代码应该主动去寻找那些已被覆盖的BB中后继没被覆盖的BB作为目标来求解, 或者没有前驱的BB也可以, 至于优先求解哪一个? 优先选后继多的
-- 之前的 `### 🐛 问题 7: 种子 metadata 信息缺失` 也完全没被修复, 还是一堆 0
-- `[ERROR] Error solving constraint for stack_protect_classify_type:BB2: failed to measure seed: coverage measurement failed: seed ID must be assigned before measuring coverage (got ID=0)` 是因为之前的 `### 🐛 问题 2: seed_0 不应该存在` 完全没修好, 还是能看到 fuzz_out/build 下有 seed_0.

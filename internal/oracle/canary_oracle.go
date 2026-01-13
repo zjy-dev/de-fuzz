@@ -16,6 +16,7 @@ const (
 	// Exit codes for crash detection
 	ExitCodeSIGSEGV = 128 + 11 // 139 - Segmentation fault (ret modified)
 	ExitCodeSIGABRT = 128 + 6  // 134 - Abort (canary check failed)
+	ExitCodeSIGBUS  = 128 + 7  // 135 - Bus error (unaligned ret address)
 )
 
 func init() {
@@ -93,13 +94,36 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 			),
 		}, nil
 
+	case ExitCodeSIGBUS:
+		// SIGBUS also indicates return address corruption (unaligned jump)
+		// This happens when overflow partially corrupts the return address
+		// causing a misaligned instruction fetch - still a canary bypass!
+		return &Bug{
+			Seed:    s,
+			Results: results,
+			Description: fmt.Sprintf(
+				"Stack canary bypass detected! Buffer overflow at size %d bytes caused SIGBUS (exit code %d) "+
+					"instead of SIGABRT. This indicates the return address was modified to an unaligned address before the canary check.",
+				minCrashSize, crashExitCode,
+			),
+		}, nil
+
 	case ExitCodeSIGABRT:
 		// SIGABRT means canary check caught the overflow - this is SAFE
 		return nil, nil
 
 	default:
-		// Other crash types - might be worth investigating but not a canary bypass
-		return nil, nil
+		// Any other crash type is suspicious - the program crashed before
+		// canary check triggered, indicating potential canary bypass
+		return &Bug{
+			Seed:    s,
+			Results: results,
+			Description: fmt.Sprintf(
+				"Potential stack canary bypass detected! Buffer overflow at size %d bytes caused unexpected exit (exit code %d) "+
+					"instead of SIGABRT. This may indicate the return address was corrupted before the canary check.",
+				minCrashSize, crashExitCode,
+			),
+		}, nil
 	}
 }
 

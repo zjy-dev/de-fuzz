@@ -6,7 +6,7 @@ config:
   strategy: "canary"
 
   # Log level: debug, info, warn, error, fatal
-  log_level: "debug"
+  log_level: "info"
 
   # Log directory: if set, logs are written to timestamped files in this directory
   # Log files are named: YYYY-MM-DD_HH-MM-SS_TZ.log (e.g., 2024-12-30_01-23-45_CST.log)
@@ -15,4 +15,4 @@ config:
 
   compiler: 
     name: "gcc"
-    version: "12.2.0"
+    version: "15.2.0"

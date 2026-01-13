@@ -20,7 +20,6 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 	"github.com/zjy-dev/de-fuzz/internal/state"
-	"github.com/zjy-dev/de-fuzz/internal/vm"
 )
 
 // NewFuzzCommand creates the "fuzz" subcommand.
@@ -111,7 +110,7 @@ Examples:
 	// Core flags only - detailed config should be in config files
 	cmd.Flags().StringVar(&output, "output", "fuzz_out", "Output directory (actual output at {output}/{isa}/{strategy})")
 	cmd.Flags().StringVar(&logDir, "log-dir", "", "Log file directory (timestamped log files, empty = console only)")
-	cmd.Flags().IntVar(&limit, "limit", 0, "Max number of target BBs for constraint solving (0 = unlimited)")
+	cmd.Flags().IntVar(&limit, "limit", -1, "Max number of target BBs for constraint solving (-1 = unlimited, 0 = initial seeds only)")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "Execution timeout in seconds")
 	cmd.Flags().BoolVar(&useQEMU, "use-qemu", false, "Use QEMU for cross-architecture execution")
 
@@ -168,20 +167,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		CFlags:     cflags,
 	})
 
-	// 4. Create executor (local or QEMU)
-	var seedExecutor executor.Executor
-	if useQEMU {
-		seedExecutor = executor.NewQEMUExecutor(vm.QEMUConfig{
-			QEMUPath: cfg.Compiler.Fuzz.QEMUPath,
-			Sysroot:  cfg.Compiler.Fuzz.QEMUSysroot,
-		}, timeout)
-		fmt.Printf("[Fuzz] Using QEMU executor: %s\n", cfg.Compiler.Fuzz.QEMUPath)
-	} else {
-		seedExecutor = executor.NewLocalExecutor(timeout)
-		fmt.Println("[Fuzz] Using local executor")
-	}
-
-	// 5. Create coverage tracker
+	// 4. Create coverage tracker (coverage is generated during compilation by instrumented GCC)
 	cmdExecutor := exec.NewCommandExecutor()
 
 	// Create a compile function wrapper for coverage
@@ -348,18 +334,32 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	fmt.Println("[Fuzz] Starting fuzzing engine...")
 	logger.Info("Using fuzzing engine")
 
+	// Create oracle executor: QEMU for cross-architecture, local for native
+	var oracleExecutor oracle.Executor
+	if useQEMU {
+		oracleExecutor = executor.NewQEMUOracleExecutorAdapter(
+			cfg.Compiler.Fuzz.QEMUPath,
+			cfg.Compiler.Fuzz.QEMUSysroot,
+			timeout,
+		)
+		logger.Info("Oracle using QEMU executor: %s", cfg.Compiler.Fuzz.QEMUPath)
+	} else {
+		oracleExecutor = executor.NewOracleExecutorAdapter(timeout)
+		logger.Info("Oracle using local executor")
+	}
+
 	cfgEngine := fuzz.NewEngine(fuzz.Config{
-		Corpus:        corpusManager,
-		Compiler:      gccCompiler,
-		Executor:      seedExecutor,
-		Coverage:      coverageTracker,
-		Oracle:        oracleInstance,
-		LLM:           llmClient,
-		Analyzer:      analyzer,
-		PromptService: promptService,
-		MaxIterations: limit,
-		MaxRetries:    cfg.Compiler.Fuzz.MaxConstraintRetries,
-		MappingPath:   filepath.Join(stateDir, "coverage_mapping.json"),
+		Corpus:         corpusManager,
+		Compiler:       gccCompiler,
+		Coverage:       coverageTracker,
+		Oracle:         oracleInstance,
+		OracleExecutor: oracleExecutor,
+		LLM:            llmClient,
+		Analyzer:       analyzer,
+		PromptService:  promptService,
+		MaxIterations:  limit,
+		MaxRetries:     cfg.Compiler.Fuzz.MaxConstraintRetries,
+		MappingPath:    filepath.Join(stateDir, "coverage_mapping.json"),
 	})
 	return cfgEngine.Run()
 }

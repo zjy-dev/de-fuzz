@@ -66,13 +66,13 @@ Rules:
 针对特定 ISA 和防御机制的领域知识：
 
 **目前存在的配置：**
-- `aarch64/canary/custom_prompt.md` - CVE-2023-4039 VLA/alloca 提示
+- `aarch64/canary/custom_prompt.md` - VLA/alloca 提示
 
 **示例** (`aarch64/canary/custom_prompt.md`):
 ```markdown
-## AArch64 Stack Canary Bypass Patterns
+## AArch64 Stack Canary Patterns
 
-CVE-2023-4039: VLA and alloca() bypass on AArch64
+VLA and alloca() have different stack layouts on AArch64
 
 Priority patterns to generate:
 1. Variable-Length Arrays (VLA): `char buf[n]`
@@ -107,7 +107,7 @@ This function handles stack variable allocation. Key behaviors:
 栈帧布局的参考文档（可选，不直接参与提示词组装）：
 
 ```
-AArch64 Stack Layout with VLA (vulnerable to CVE-2023-4039):
+AArch64 Stack Layout with VLA:
 
 High Addr → [Canary]          ← Protected but above VLA
             [Saved LR]        ← VULNERABLE!

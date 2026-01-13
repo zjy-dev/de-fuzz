@@ -15,7 +15,7 @@
  *   - Large fill_size (ret addr overwritten): SIGSEGV (exit code 139)
  *
  * IMPORTANT FOR AARCH64:
- *   VLA and alloca() bypass stack canary on AArch64! (CVE-2023-4039)
+ *   VLA and alloca() have different stack layouts than fixed-size arrays.
  *
  * The canary oracle uses binary search on fill_size to detect vulnerabilities.
  */
@@ -42,13 +42,13 @@
  *        memset(buffer, 'A', fill_size);
  *    }
  *
- * 2. Variable-Length Array (VLA - bypasses canary on AArch64):
+ * 2. Variable-Length Array (VLA):
  *    void seed(int buf_size, int fill_size) {
  *        char buffer[buf_size];
  *        memset(buffer, 'A', fill_size);
  *    }
  *
- * 3. alloca() (also bypasses canary on AArch64):
+ * 3. alloca():
  *    void seed(int buf_size, int fill_size) {
  *        char *buffer = alloca(buf_size);
  *        memset(buffer, 'A', fill_size);

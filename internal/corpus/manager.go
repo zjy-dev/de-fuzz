@@ -228,15 +228,24 @@ func (m *FileManager) Next() (*seed.Seed, bool) {
 	return s, true
 }
 
-// Get retrieves a seed by ID from the processed seeds.
+// Get retrieves a seed by ID from the processed seeds or queue.
 // Returns nil if the seed is not found.
 func (m *FileManager) Get(id uint64) (*seed.Seed, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// First check processed map
 	if s, ok := m.processed[id]; ok {
 		return s, nil
 	}
+
+	// Also check queue (for seeds added but not yet processed)
+	for _, s := range m.queue {
+		if s.Meta.ID == id {
+			return s, nil
+		}
+	}
+
 	return nil, fmt.Errorf("seed %d not found in corpus", id)
 }
 

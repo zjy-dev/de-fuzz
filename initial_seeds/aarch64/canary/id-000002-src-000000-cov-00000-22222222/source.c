@@ -1,11 +1,11 @@
 /**
  * Canary Oracle Function Template - Flexible Version
  *
- * Seed 2: Variable-Length Array (VLA) pattern - CVE-2023-4039
- * This pattern uses VLA which bypasses stack canary on AArch64!
+ * Seed 2: Variable-Length Array (VLA) pattern
+ * This pattern uses VLA for dynamic stack allocation.
  * 
- * On AArch64, the stack canary is placed ABOVE dynamically-sized arrays,
- * leaving the return address vulnerable to overflow.
+ * On AArch64, VLA has a different stack layout than fixed-size arrays,
+ * which affects how stack protection mechanisms work.
  */
 
 #include <stdio.h>
@@ -15,16 +15,11 @@
 
 void seed(int buf_size, int fill_size) {
     // Variable-Length Array - uses buf_size for allocation
-    // CVE-2023-4039: On AArch64, canary is placed ABOVE VLA
-    // Stack layout (vulnerable):
-    //   [Canary]     <- Protected but above VLA
-    //   [Saved LR]   <- VULNERABLE!
-    //   [VLA buffer] <- Overflow starts here
+    // Stack layout with VLA differs from fixed arrays
     char vla_buffer[buf_size];
     
     // Fill buffer without bounds checking
-    // When fill_size > buf_size, this overflows into return address
-    // BEFORE corrupting the canary (bypassing stack protection)
+    // When fill_size > buf_size, this causes overflow
     memset(vla_buffer, 'A', fill_size);
     
     // Prevent compiler optimization

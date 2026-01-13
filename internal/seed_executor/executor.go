@@ -264,3 +264,104 @@ func getExitCode(ps *os.ProcessState, runErr error) int {
 
 	return exitCode
 }
+
+// QEMUOracleExecutorAdapter adapts QEMU execution to the oracle.Executor interface.
+// This allows oracles to execute cross-architecture binaries via QEMU user-mode emulation.
+type QEMUOracleExecutorAdapter struct {
+	qemuPath   string
+	sysroot    string
+	timeoutSec int
+}
+
+// NewQEMUOracleExecutorAdapter creates a new QEMUOracleExecutorAdapter.
+func NewQEMUOracleExecutorAdapter(qemuPath, sysroot string, timeoutSec int) *QEMUOracleExecutorAdapter {
+	return &QEMUOracleExecutorAdapter{
+		qemuPath:   qemuPath,
+		sysroot:    sysroot,
+		timeoutSec: timeoutSec,
+	}
+}
+
+// ExecuteWithInput runs the binary via QEMU with the given stdin input.
+func (a *QEMUOracleExecutorAdapter) ExecuteWithInput(binaryPath string, stdin string) (exitCode int, stdout string, stderr string, err error) {
+	ctx := context.Background()
+	if a.timeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(a.timeoutSec)*time.Second)
+		defer cancel()
+	}
+
+	// Build QEMU command: qemu-aarch64 -L <sysroot> <binary>
+	args := []string{}
+	if a.sysroot != "" {
+		args = append(args, "-L", a.sysroot)
+	}
+	args = append(args, binaryPath)
+
+	cmd := exec.CommandContext(ctx, a.qemuPath, args...)
+	cmd.Stdin = strings.NewReader(stdin)
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	runErr := cmd.Run()
+
+	stdout = stdoutBuf.String()
+	stderr = stderrBuf.String()
+
+	exitCode = getExitCode(cmd.ProcessState, runErr)
+
+	if runErr != nil {
+		if _, ok := runErr.(*exec.ExitError); !ok {
+			if ctx.Err() == context.DeadlineExceeded {
+				return 124, stdout, stderr, nil
+			}
+			return exitCode, stdout, stderr, fmt.Errorf("failed to execute via QEMU: %w", runErr)
+		}
+	}
+
+	return exitCode, stdout, stderr, nil
+}
+
+// ExecuteWithArgs runs the binary via QEMU with the given command line arguments.
+func (a *QEMUOracleExecutorAdapter) ExecuteWithArgs(binaryPath string, args ...string) (exitCode int, stdout string, stderr string, err error) {
+	ctx := context.Background()
+	if a.timeoutSec > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(a.timeoutSec)*time.Second)
+		defer cancel()
+	}
+
+	// Build QEMU command: qemu-aarch64 -L <sysroot> <binary> <args...>
+	qemuArgs := []string{}
+	if a.sysroot != "" {
+		qemuArgs = append(qemuArgs, "-L", a.sysroot)
+	}
+	qemuArgs = append(qemuArgs, binaryPath)
+	qemuArgs = append(qemuArgs, args...)
+
+	cmd := exec.CommandContext(ctx, a.qemuPath, qemuArgs...)
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	runErr := cmd.Run()
+
+	stdout = stdoutBuf.String()
+	stderr = stderrBuf.String()
+
+	exitCode = getExitCode(cmd.ProcessState, runErr)
+
+	if runErr != nil {
+		if _, ok := runErr.(*exec.ExitError); !ok {
+			if ctx.Err() == context.DeadlineExceeded {
+				return 124, stdout, stderr, nil
+			}
+			return exitCode, stdout, stderr, fmt.Errorf("failed to execute via QEMU: %w", runErr)
+		}
+	}
+
+	return exitCode, stdout, stderr, nil
+}

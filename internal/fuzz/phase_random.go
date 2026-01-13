@@ -158,7 +158,7 @@ func (p *RandomMutationPhase) mutateAndCheck(baseSeed *seed.Seed) (*oracle.Bug, 
 		return nil, nil
 	}
 
-	bug := p.engine.runOracle(mutatedSeed)
+	bug := p.engine.runOracle(mutatedSeed, compileResult.BinaryPath)
 	if bug != nil {
 		// Persist the seed that found a bug
 		mutatedSeed.Meta.OracleVerdict = seed.OracleVerdictBug
