@@ -22,11 +22,11 @@ import (
 )
 
 // testSourceFile is the full path as it appears in CFG files
-const testSourceFile = "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
+const testSourceFile = "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-x64/gcc-releases-gcc-12.2.0/gcc/cfgexpand.cc"
 
 func TestEngine_Integration_BasicFlow(t *testing.T) {
 	// Check if CFG file exists
-	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
+	cfgPath := "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 		t.Skipf("CFG file not found at %s", cfgPath)
 	}
@@ -181,7 +181,7 @@ func (m *mockLLM) Mutate(understanding, prompt string, s *seed.Seed) (*seed.Seed
 }
 
 func TestEngine_Integration_TargetSelection(t *testing.T) {
-	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
+	cfgPath := "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 		t.Skipf("CFG file not found")
 	}
@@ -248,7 +248,7 @@ func TestEngine_Integration_TargetSelection(t *testing.T) {
 }
 
 func TestEngine_Integration_MappingPersistence(t *testing.T) {
-	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
+	cfgPath := "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 		t.Skipf("CFG file not found")
 	}
@@ -319,7 +319,7 @@ func TestEngine_Integration_CoverageProgression(t *testing.T) {
 		t.Skip("Skipping coverage progression test in short mode")
 	}
 
-	cfgPath := "/root/project/de-fuzz/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
+	cfgPath := "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-x64/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
 		t.Skipf("CFG file not found")
 	}

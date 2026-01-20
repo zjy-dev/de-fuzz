@@ -37,11 +37,11 @@ import (
 
 const (
 	// Cross-compiler paths
-	aarch64Compiler = "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
-	aarch64Sysroot  = "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
-	aarch64LibGCC   = "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/12.2.1"
-	aarch64LibPath  = "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
-	aarch64CC1Path  = "/root/project/de-fuzz/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc"
+	aarch64Compiler = "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
+	aarch64Sysroot  = "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+	aarch64LibGCC   = "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/12.2.1"
+	aarch64LibPath  = "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
+	aarch64CC1Path  = "/root/project/de-fuzz/target_compilers/gcc-v12.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc"
 )
 
 // VLA-based vulnerable seed code (CVE-2023-4039 pattern)

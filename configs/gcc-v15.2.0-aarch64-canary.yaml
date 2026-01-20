@@ -1,12 +1,12 @@
 compiler:
     # Cross-compiler for aarch64 (GCC 15.2)
-    path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
+    path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
 
     # gcovr execution path - should be the source root directory
     # gcovr will be executed from here with --object-directory pointing to build
-    gcovr_exec_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
+    gcovr_exec_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
 
-    source_parent_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile"
+    source_parent_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile"
 
     # gcovr command template (without --json output path)
     # Note: For cross-compile builds, we need --object-directory to find .gcda/.gcno files
@@ -19,9 +19,12 @@ compiler:
         - "-fstack-protector-strong" # Enable stack canary protection
         - "-O0" # No optimization for better debugging
         # Cross-compilation specific flags:
-        - "--sysroot=/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
-        - "-B/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/15.2.1"
-        - "-L/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
+        - "--sysroot=/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        # -B path for cc1 and other compiler components (build directory)
+        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc"
+        # -B path for crtbegin.o, libgcc.a, etc (install directory)
+        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/15.2.1"
+        - "-L/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
 
     # Fuzzing configuration
     fuzz:
@@ -52,9 +55,9 @@ compiler:
         qemu_path: "qemu-aarch64"
         # Sysroot path for QEMU (-L argument)
         # This should point to the cross-compiled sysroot with aarch64 libraries
-        qemu_sysroot: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        qemu_sysroot: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
         # CFG dump file path for target function analysis
-        cfg_file_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        cfg_file_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
         # Maximum number of divergence analysis retries per target BB
         max_constraint_retries: 8
         # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8

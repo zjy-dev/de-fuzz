@@ -27,7 +27,7 @@ logs/
 experiments/
 
 # Target compilers and toolchains
-gcc-*/
+target_compilers/
 arm-gnu-*/
 llvm-*/
 

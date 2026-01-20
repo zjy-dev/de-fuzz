@@ -6,7 +6,7 @@ Compiler flags (CFlags) are now configurable in the compiler configuration files
 
 ## GCC Build Optimization
 
-The instrumented GCC compilers in `gcc-v12.2.0-x64/` and `gcc-v12.2.0-aarch64-cross-compile/` are built with **-O0** optimization level to:
+The instrumented GCC compilers in `target_compilers/gcc-v12.2.0-x64/` and `target_compilers/gcc-v12.2.0-aarch64-cross-compile/` are built with **-O0** optimization level to:
 
 1. **Ensure accurate coverage measurement** - Optimizations can merge or eliminate code paths, leading to inaccurate coverage data
 2. **Enable easier debugging** - No inlining or code reordering

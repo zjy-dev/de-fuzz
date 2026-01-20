@@ -262,8 +262,8 @@ After VLA memset:
 
 ```bash
 # 编译
-GCC=gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc
-SYSROOT=gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc
+GCC=target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc
+SYSROOT=target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc
 
 $GCC -fstack-protector-strong -O0 --sysroot=$SYSROOT -o test source.c
 
