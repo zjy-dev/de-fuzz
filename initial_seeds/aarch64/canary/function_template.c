@@ -83,5 +83,10 @@ NO_CANARY int main(int argc, char *argv[]) {
   // Call the seed function with both parameters
   seed(buf_size, fill_size);
 
+  // Sentinel: seed() returned normally, any crash after this is true canary bypass
+  // Used by canary oracle to distinguish true bypass from indirect crash (false positive)
+  printf("SEED_RETURNED\n");
+  fflush(stdout);
+
   return 0;
 }

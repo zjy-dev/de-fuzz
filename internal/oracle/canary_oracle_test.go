@@ -18,6 +18,9 @@ type MockExecutor struct {
 	SecondCrashThreshold int
 	// SecondCrashExitCode is the exit code for the second crash (e.g., SIGABRT)
 	SecondCrashExitCode int
+	// ReturnSentinel controls whether the sentinel marker is returned in stdout
+	// True = seed() returned normally (true bypass), False = crashed inside seed() (false positive)
+	ReturnSentinel bool
 }
 
 func (m *MockExecutor) ExecuteWithInput(binaryPath string, stdin string) (exitCode int, stdout string, stderr string, err error) {
@@ -42,15 +45,24 @@ func (m *MockExecutor) ExecuteWithArgs(binaryPath string, args ...string) (exitC
 func (m *MockExecutor) checkCrash(inputLen int) (exitCode int, stdout string, stderr string, err error) {
 	// Check second threshold first (if set) - this simulates the canary -> ret -> buf case
 	if m.SecondCrashThreshold > 0 && inputLen >= m.SecondCrashThreshold {
-		return m.SecondCrashExitCode, "", "", nil
+		stdout = ""
+		if m.ReturnSentinel {
+			stdout = SentinelMarker + "\n"
+		}
+		return m.SecondCrashExitCode, stdout, "", nil
 	}
 
 	// Check first threshold
 	if m.CrashThreshold > 0 && inputLen >= m.CrashThreshold {
-		return m.CrashExitCode, "", "", nil
+		stdout = ""
+		if m.ReturnSentinel {
+			stdout = SentinelMarker + "\n"
+		}
+		return m.CrashExitCode, stdout, "", nil
 	}
 
-	return 0, "", "", nil
+	// No crash - always return sentinel (seed completed successfully)
+	return 0, SentinelMarker + "\n", "", nil
 }
 
 func TestCanaryOracle_NoCrash(t *testing.T) {
@@ -105,7 +117,7 @@ func TestCanaryOracle_SafeWithSIGABRT(t *testing.T) {
 }
 
 func TestCanaryOracle_BugWithSIGSEGV(t *testing.T) {
-	// Scenario: Program crashes with SIGSEGV (ret modified) - this is a BUG!
+	// Scenario: Program crashes with SIGSEGV (ret modified) AND sentinel present - this is a BUG!
 	orc := &CanaryOracle{
 		MaxBufferSize:  200,
 		DefaultBufSize: 64,
@@ -116,6 +128,7 @@ func TestCanaryOracle_BugWithSIGSEGV(t *testing.T) {
 		Executor: &MockExecutor{
 			CrashThreshold: 100,
 			CrashExitCode:  ExitCodeSIGSEGV, // 139
+			ReturnSentinel: true,            // seed() returned before crash
 		},
 	}
 
@@ -150,6 +163,7 @@ func TestCanaryOracle_CVE2023_4039_Pattern(t *testing.T) {
 			CrashExitCode:        ExitCodeSIGSEGV, // 139
 			SecondCrashThreshold: 100,             // Second crash at 100 bytes (SIGABRT)
 			SecondCrashExitCode:  ExitCodeSIGABRT, // 134
+			ReturnSentinel:       true,            // seed() returned before crash (true bypass)
 		},
 	}
 
@@ -179,16 +193,20 @@ func TestCanaryOracle_BinarySearchAccuracy(t *testing.T) {
 		Executor: &MockExecutor{
 			CrashThreshold: exactThreshold,
 			CrashExitCode:  ExitCodeSIGSEGV,
+			ReturnSentinel: true,
 		},
 	}
 
-	minCrash, exitCode := orc.binarySearchCrash(ctx)
+	minCrash, exitCode, hasSentinel := orc.binarySearchCrash(ctx)
 
 	if minCrash != exactThreshold {
 		t.Errorf("expected crash at %d, got %d", exactThreshold, minCrash)
 	}
 	if exitCode != ExitCodeSIGSEGV {
 		t.Errorf("expected exit code %d, got %d", ExitCodeSIGSEGV, exitCode)
+	}
+	if !hasSentinel {
+		t.Error("expected hasSentinel to be true")
 	}
 }
 
@@ -248,5 +266,90 @@ func TestCanaryOracle_CustomMaxBufferSize(t *testing.T) {
 
 	if canaryOrc.MaxBufferSize != 8192 {
 		t.Errorf("expected MaxBufferSize 8192, got %d", canaryOrc.MaxBufferSize)
+	}
+}
+
+func TestCanaryOracle_FalsePositive_NoSentinel(t *testing.T) {
+	// Scenario: SIGSEGV without sentinel - crash happened inside seed()
+	// This is a false positive (indirect crash due to corrupted local variables)
+	// The oracle should NOT report this as a bug
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 74, // Small overflow that corrupts local vars
+			CrashExitCode:  ExitCodeSIGSEGV,
+			ReturnSentinel: false, // seed() did NOT return - crashed inside
+		},
+	}
+
+	s := &seed.Seed{}
+	bug, err := orc.Analyze(s, ctx, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Errorf("expected no bug (false positive), got: %s", bug.Description)
+	}
+}
+
+func TestCanaryOracle_TrueBypass_WithSentinel(t *testing.T) {
+	// Scenario: SIGSEGV with sentinel - seed() returned then crashed
+	// This is a true canary bypass - the oracle SHOULD report this as a bug
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 100,
+			CrashExitCode:  ExitCodeSIGSEGV,
+			ReturnSentinel: true, // seed() returned normally before crash
+		},
+	}
+
+	s := &seed.Seed{}
+	bug, err := orc.Analyze(s, ctx, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug == nil {
+		t.Fatal("expected bug (true bypass with sentinel), got nil")
+	}
+	t.Logf("True bypass detected: %s", bug.Description)
+}
+
+func TestCanaryOracle_SIGBUS_NoSentinel_FalsePositive(t *testing.T) {
+	// Scenario: SIGBUS without sentinel should also be treated as false positive
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 80,
+			CrashExitCode:  ExitCodeSIGBUS,
+			ReturnSentinel: false,
+		},
+	}
+
+	s := &seed.Seed{}
+	bug, err := orc.Analyze(s, ctx, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Errorf("expected no bug (SIGBUS without sentinel), got: %s", bug.Description)
 	}
 }

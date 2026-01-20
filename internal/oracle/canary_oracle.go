@@ -2,6 +2,7 @@ package oracle
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/zjy-dev/de-fuzz/internal/llm"
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
@@ -17,6 +18,12 @@ const (
 	ExitCodeSIGSEGV = 128 + 11 // 139 - Segmentation fault (ret modified)
 	ExitCodeSIGABRT = 128 + 6  // 134 - Abort (canary check failed)
 	ExitCodeSIGBUS  = 128 + 7  // 135 - Bus error (unaligned ret address)
+
+	// SentinelMarker is printed by the function template after seed() returns.
+	// If this marker is present in stdout when SIGSEGV occurs, it indicates
+	// a true canary bypass (crash on function return). If absent, the crash
+	// happened inside seed() which may be a false positive (indirect crash).
+	SentinelMarker = "SEED_RETURNED"
 )
 
 func init() {
@@ -71,7 +78,7 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 	}
 
 	// Binary search for the minimum crash size
-	minCrashSize, crashExitCode := o.binarySearchCrash(ctx)
+	minCrashSize, crashExitCode, hasSentinel := o.binarySearchCrash(ctx)
 
 	// If no crash found, the canary protection is working correctly
 	// (or the buffer is too small to reach the return address)
@@ -82,8 +89,16 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 	// Analyze the crash type
 	switch crashExitCode {
 	case ExitCodeSIGSEGV:
-		// SIGSEGV at crash point means return address was modified
-		// before canary was checked - this is a BUG!
+		// SIGSEGV can be either true canary bypass or false positive (indirect crash)
+		// True bypass: seed() returned (sentinel present) then crashed on return
+		// False positive: crashed inside seed() due to corrupted local variables
+		if !hasSentinel {
+			// No sentinel = crash happened inside seed(), likely false positive
+			// This can happen when buffer overflow corrupts local variables
+			// (e.g., fill_size parameter) causing indirect crashes
+			return nil, nil
+		}
+		// Sentinel present = seed() returned, crash on function return = true bypass
 		return &Bug{
 			Seed:    s,
 			Results: results,
@@ -96,8 +111,10 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 
 	case ExitCodeSIGBUS:
 		// SIGBUS also indicates return address corruption (unaligned jump)
-		// This happens when overflow partially corrupts the return address
-		// causing a misaligned instruction fetch - still a canary bypass!
+		// Apply same sentinel check for consistency
+		if !hasSentinel {
+			return nil, nil
+		}
 		return &Bug{
 			Seed:    s,
 			Results: results,
@@ -113,8 +130,10 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 		return nil, nil
 
 	default:
-		// Any other crash type is suspicious - the program crashed before
-		// canary check triggered, indicating potential canary bypass
+		// Any other crash type - apply sentinel check
+		if !hasSentinel {
+			return nil, nil
+		}
 		return &Bug{
 			Seed:    s,
 			Results: results,
@@ -128,12 +147,14 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 }
 
 // binarySearchCrash performs binary search to find the minimum input size that causes a crash.
-// Returns (minCrashSize, exitCode) or (-1, 0) if no crash found.
-func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int) {
+// Returns (minCrashSize, exitCode, hasSentinel) or (-1, 0, false) if no crash found.
+// hasSentinel indicates whether the sentinel marker was present in stdout at crash time.
+func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int, bool) {
 	L := 0
 	R := o.MaxBufferSize
 	ans := -1
 	ansExitCode := 0
+	ansSentinel := false
 
 	for L <= R {
 		mid := (L + R) / 2
@@ -141,7 +162,7 @@ func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int) {
 		bufSizeArg := fmt.Sprintf("%d", o.DefaultBufSize)
 		fillSizeArg := fmt.Sprintf("%d", mid)
 
-		exitCode, _, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
+		exitCode, stdout, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
 		if err != nil {
 			// Execution error, try larger size
 			L = mid + 1
@@ -152,6 +173,7 @@ func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int) {
 			// Found a crash, record it and try smaller size
 			ans = mid
 			ansExitCode = exitCode
+			ansSentinel = strings.Contains(stdout, SentinelMarker)
 			R = mid - 1
 		} else {
 			// No crash, try larger size
@@ -159,16 +181,17 @@ func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int) {
 		}
 	}
 
-	// If we found a crash, verify and get the actual exit code
+	// If we found a crash, verify and get the actual exit code and sentinel status
 	// (in case the binary search landed on a boundary)
 	if ans != -1 {
 		bufSizeArg := fmt.Sprintf("%d", o.DefaultBufSize)
 		fillSizeArg := fmt.Sprintf("%d", ans)
-		exitCode, _, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
+		exitCode, stdout, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
 		if err == nil && exitCode != 0 {
 			ansExitCode = exitCode
+			ansSentinel = strings.Contains(stdout, SentinelMarker)
 		}
 	}
 
-	return ans, ansExitCode
+	return ans, ansExitCode, ansSentinel
 }

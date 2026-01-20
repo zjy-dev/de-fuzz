@@ -211,6 +211,10 @@ NO_CANARY int main(int argc, char *argv[]) {
   // Call the seed function with both parameters
   seed(buf_size, fill_size);
 
+  // Sentinel: seed() returned, any crash after this is true canary bypass
+  printf("SEED_RETURNED\n");
+  fflush(stdout);
+
   return 0;
 }
 ```
@@ -226,3 +230,38 @@ buffer overflow 会覆盖 local vars, 也可能导致 seg fault
 思路是 oracle 现在基于 segfault 定义错误, 这是一个超集, 应该更 specific 一点, 也许可以通过日志来细分
 
 ```
+
+## 假阳性修复：哨兵输出机制
+
+### 问题
+
+SIGSEGV 可能由两种情况触发：
+1. **真正的 canary bypass**：返回地址被覆盖，函数返回时崩溃
+2. **间接崩溃（假阳性）**：局部变量被溢出覆盖，导致函数内部崩溃
+
+例如 `gcc-15.2.0-aarch64-canary-bug-analysis.md` 中的情况：VLA 溢出破坏了 `fill_size` 参数副本，后续 memset 使用错误值导致 SIGSEGV，这是假阳性。
+
+### 解决方案：哨兵输出 (Sentinel Output)
+
+在函数模板的 `seed()` 调用后添加哨兵标记：
+
+```c
+seed(buf_size, fill_size);
+
+// Sentinel: seed() returned, any crash after this is true canary bypass
+printf("SEED_RETURNED\n");
+fflush(stdout);
+```
+
+### 判定逻辑
+
+| stdout 包含 `SEED_RETURNED` | 退出码 | 判定 |
+|---------------------------|--------|------|
+| Yes | SIGSEGV (139) | **真正的 canary bypass** - 报告 Bug |
+| No | SIGSEGV (139) | **间接崩溃** - 不报告 (假阳性) |
+| - | SIGABRT (134) | **Canary 正常工作** - 安全 |
+
+### 原理
+
+- **有哨兵 + SIGSEGV**：`seed()` 正常返回后崩溃，说明返回地址被覆盖但 canary 没检测到
+- **无哨兵 + SIGSEGV**：`seed()` 内部崩溃，可能是局部变量被破坏导致的间接溢出
