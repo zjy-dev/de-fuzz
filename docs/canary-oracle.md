@@ -243,15 +243,22 @@ SIGSEGV 可能由两种情况触发：
 
 ### 解决方案：哨兵输出 (Sentinel Output)
 
-在函数模板的 `seed()` 调用后添加哨兵标记：
+在 `seed()` 函数内部、**return 语句之前**添加哨兵标记：
 
 ```c
-seed(buf_size, fill_size);
-
-// Sentinel: seed() returned, any crash after this is true canary bypass
-printf("SEED_RETURNED\n");
-fflush(stdout);
+void seed(int buf_size, int fill_size) {
+    char buffer[buf_size];
+    memset(buffer, 'A', fill_size);
+    
+    // Sentinel: must be INSIDE seed(), before return
+    printf("SEED_RETURNED\n");
+    fflush(stdout);
+}
 ```
+
+**注意**：哨兵必须放在 `seed()` 函数内部，而不是 `main()` 里。这样才能区分：
+- 函数内部崩溃（哨兵未打印）
+- 函数返回时崩溃（哨兵已打印）
 
 ### 判定逻辑
 
