@@ -1,0 +1,118 @@
+compiler:
+    # Cross-compiler for loongarch64 (GCC 15.2)
+    path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc/xgcc"
+
+    # gcovr execution path - should be the source root directory
+    # gcovr will be executed from here with --object-directory pointing to build
+    gcovr_exec_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu"
+
+    source_parent_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile"
+
+    # gcovr command template (without --json output path)
+    # Note: For cross-compile builds, we need --object-directory to find .gcda/.gcno files
+    # -r specifies the source root directory relative to gcovr_exec_path
+    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+
+    # Compiler flags (CFlags) for cross-compilation
+    # These flags are passed to GCC during compilation
+    cflags:
+        - "-fstack-protector-strong" # Enable stack canary protection
+        - "-O0" # No optimization for better debugging
+        # Cross-compilation specific flags:
+        - "--sysroot=/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/install-loongarch64-unknown-linux-gnu/loongarch64-unknown-linux-gnu/libc"
+        # -B path for cc1 and other compiler components (build directory)
+        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc"
+        # -B path for crtbegin.o, libgcc.a, etc (install directory)
+        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/install-loongarch64-unknown-linux-gnu/lib/gcc/loongarch64-unknown-linux-gnu/15.2.0"
+        - "-L/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/install-loongarch64-unknown-linux-gnu/loongarch64-unknown-linux-gnu/lib64"
+
+    # Fuzzing configuration
+    fuzz:
+        # Root output directory for fuzzing artifacts
+        # Actual output will be at {output_root_dir}/{isa}/{strategy}
+        output_root_dir: "fuzz_out"
+        # Maximum number of fuzzing iterations (0 = unlimited)
+        max_iterations: 256
+        # Maximum new seeds to generate per interesting seed
+        max_new_seeds: 1
+        # Maximum number of test cases to generate per seed (0 = no test cases)
+        max_test_cases: 0
+        # Function template path (for template-based fuzzing)
+        function_template: "initial_seeds/loongarch64/canary/function_template.c"
+
+        # Custom prompt for LLM (ISA/strategy-specific hints)
+        # This will be appended to the base system prompt
+        custom_prompt: "initial_seeds/loongarch64/canary/custom_prompt.md"
+
+        # Base prompt directory (defaults to "prompts/base" if not specified)
+        base_prompt_dir: "prompts/base"
+
+        # Execution timeout in seconds
+        timeout: 30
+        # Use QEMU for execution (required for cross-architecture)
+        use_qemu: true
+        # Path to QEMU user-mode executable for loongarch64
+        qemu_path: "qemu-loongarch64"
+        # Sysroot path for QEMU (-L argument)
+        # This should point to the cross-compiled sysroot with loongarch64 libraries
+        qemu_sysroot: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/install-loongarch64-unknown-linux-gnu/loongarch64-unknown-linux-gnu/libc"
+        # CFG dump file path for target function analysis
+        cfg_file_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        # Maximum number of divergence analysis retries per target BB
+        max_constraint_retries: 8
+        # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8
+        weight_decay_factor: 0.8
+
+    # Oracle configuration
+    oracle:
+        # Type of oracle to use: "llm", "crash", "diff", "canary", etc.
+        type: "canary"
+        # Options specific to the chosen oracle
+        options:
+            # Maximum buffer size to test during binary search
+            max_buffer_size: 1024
+            # Default buffer size for buf_size parameter (passed to seed function)
+            default_buf_size: 64
+
+# Configuration pattern: Map each file to its target functions
+# Stack Canary (Stack Protector) related core functions for LoongArch64
+# These functions are the same as other architectures, but compiled for LoongArch64 target
+#
+# Note: LoongArch64 has its own stack protection mechanism:
+#   - Uses dedicated register for stack canary (architecture-dependent)
+#   - Different prologue/epilogue code generation
+#   - Similar high-level logic in cfgexpand.cc
+
+targets:
+    # cfgexpand.cc - 栈保护核心逻辑（变量分类、冲突分析、prologue生成）
+    # NOTE: Path must match gcovr output format with -r .. (relative to gcovr_exec_path parent)
+    - file: "gcc/gcc/cfgexpand.cc"
+      functions:
+          - "stack_protect_classify_type" # line 2203
+          - "stack_protect_decl_phase" # line 2256
+          - "stack_protect_decl_phase_1" # line 2290
+          - "stack_protect_decl_phase_2" # line 2296
+          - "add_stack_protection_conflicts" # line 2322
+          - "create_stack_guard" # line 2351
+          - "stack_protect_return_slot_p" # line 2435
+          - "defer_stack_allocation" # line 1968
+          - "expand_used_vars" # line 2457
+          - "stack_protect_prologue" # line 6920
+
+    # # function.cc - epilogue 及参数处理
+    # - file: "gcc/gcc/function.cc"
+    #   functions:
+    #       - "stack_protect_epilogue" # line 5042
+    #       - "assign_parm_adjust_stack_rtl" # line 2836
+
+    # # targhooks.cc - 默认 target hook 实现
+    # - file: "gcc/gcc/targhooks.cc"
+    #   functions:
+    #       - "default_stack_protect_guard" # line 919
+    #       - "default_external_stack_protect_fail" # line 952
+    #       - "default_hidden_stack_protect_fail" # line 979
+
+    # # loongarch.cc - LoongArch64 特定实现
+    # - file: "gcc/gcc/config/loongarch/loongarch.cc"
+    #   functions:
+    #       - "loongarch_stack_protect_guard"
