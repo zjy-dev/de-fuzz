@@ -1,75 +1,75 @@
 compiler:
-  # Cross-compiler for aarch64 (GCC 15.2)
-  path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
-  
-  # gcovr execution path - should be the source root directory
-  # gcovr will be executed from here with --object-directory pointing to build
-  gcovr_exec_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
+    # Cross-compiler for aarch64 (GCC 15.2)
+    path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
 
-  source_parent_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile"
+    # gcovr execution path - should be the source root directory
+    # gcovr will be executed from here with --object-directory pointing to build
+    gcovr_exec_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
 
-  # gcovr command template (without --json output path)
-  # Note: For cross-compile builds, we need --object-directory to find .gcda/.gcno files
-  # -r specifies the source root directory relative to gcovr_exec_path
-  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+    source_parent_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile"
 
-  # Compiler flags (CFlags) for cross-compilation
-  # These flags are passed to GCC during compilation
-  cflags:
-    - "-fstack-protector-strong"  # Enable stack canary protection
-    - "-O0"                         # No optimization for better debugging
-    # Cross-compilation specific flags:
-    - "--sysroot=/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
-    - "-B/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/15.2.1"
-    - "-L/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
+    # gcovr command template (without --json output path)
+    # Note: For cross-compile builds, we need --object-directory to find .gcda/.gcno files
+    # -r specifies the source root directory relative to gcovr_exec_path
+    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
 
-  # Fuzzing configuration
-  fuzz:
-    # Root output directory for fuzzing artifacts
-    # Actual output will be at {output_root_dir}/{isa}/{strategy}
-    output_root_dir: "fuzz_out"
-    # Maximum number of fuzzing iterations (0 = unlimited)
-    max_iterations: 256
-    # Maximum new seeds to generate per interesting seed
-    max_new_seeds: 1
-    # Maximum number of test cases to generate per seed (0 = no test cases)
-    max_test_cases: 0
-    # Function template path (for template-based fuzzing)
-    function_template: "initial_seeds/aarch64/canary/function_template.c"
+    # Compiler flags (CFlags) for cross-compilation
+    # These flags are passed to GCC during compilation
+    cflags:
+        - "-fstack-protector-strong" # Enable stack canary protection
+        - "-O0" # No optimization for better debugging
+        # Cross-compilation specific flags:
+        - "--sysroot=/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        - "-B/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/15.2.1"
+        - "-L/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
 
-    # Custom prompt for LLM (ISA/strategy-specific hints)
-    # This will be appended to the base system prompt
-    custom_prompt: "initial_seeds/aarch64/canary/custom_prompt.md"
+    # Fuzzing configuration
+    fuzz:
+        # Root output directory for fuzzing artifacts
+        # Actual output will be at {output_root_dir}/{isa}/{strategy}
+        output_root_dir: "fuzz_out"
+        # Maximum number of fuzzing iterations (0 = unlimited)
+        max_iterations: 256
+        # Maximum new seeds to generate per interesting seed
+        max_new_seeds: 1
+        # Maximum number of test cases to generate per seed (0 = no test cases)
+        max_test_cases: 0
+        # Function template path (for template-based fuzzing)
+        function_template: "initial_seeds/aarch64/canary/function_template.c"
 
-    # Base prompt directory (defaults to "prompts/base" if not specified)
-    base_prompt_dir: "prompts/base"
+        # Custom prompt for LLM (ISA/strategy-specific hints)
+        # This will be appended to the base system prompt
+        custom_prompt: "initial_seeds/aarch64/canary/custom_prompt.md"
 
-    # Execution timeout in seconds
-    timeout: 30
-    # Use QEMU for execution (required for cross-architecture)
-    use_qemu: true
-    # Path to QEMU user-mode executable for aarch64
-    qemu_path: "qemu-aarch64"
-    # Sysroot path for QEMU (-L argument)
-    # This should point to the cross-compiled sysroot with aarch64 libraries
-    qemu_sysroot: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
-    # CFG dump file path for target function analysis
-    cfg_file_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
-    # Maximum number of divergence analysis retries per target BB
-    max_constraint_retries: 8
-    # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8
-    weight_decay_factor: 0.8
+        # Base prompt directory (defaults to "prompts/base" if not specified)
+        base_prompt_dir: "prompts/base"
 
-  # Oracle configuration
-  oracle:
-    # Type of oracle to use: "llm", "crash", "diff", "canary", etc.
-    type: "canary"
-    # Options specific to the chosen oracle
-    options:
-      # Maximum buffer size to test during binary search
-      max_buffer_size: 1024
-      # Default buffer size for buf_size parameter (passed to seed function)
-      default_buf_size: 64
+        # Execution timeout in seconds
+        timeout: 30
+        # Use QEMU for execution (required for cross-architecture)
+        use_qemu: true
+        # Path to QEMU user-mode executable for aarch64
+        qemu_path: "qemu-aarch64"
+        # Sysroot path for QEMU (-L argument)
+        # This should point to the cross-compiled sysroot with aarch64 libraries
+        qemu_sysroot: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        # CFG dump file path for target function analysis
+        cfg_file_path: "/root/project/de-fuzz/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        # Maximum number of divergence analysis retries per target BB
+        max_constraint_retries: 8
+        # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8
+        weight_decay_factor: 0.8
+
+    # Oracle configuration
+    oracle:
+        # Type of oracle to use: "llm", "crash", "diff", "canary", etc.
+        type: "canary"
+        # Options specific to the chosen oracle
+        options:
+            # Maximum buffer size to test during binary search
+            max_buffer_size: 1024
+            # Default buffer size for buf_size parameter (passed to seed function)
+            default_buf_size: 64
 
 # Configuration pattern: Map each file to its target functions
 # Stack Canary (Stack Protector) related core functions for AArch64
@@ -81,21 +81,72 @@ compiler:
 #   - Similar high-level logic in cfgexpand.cc
 
 targets:
-  # cfgexpand.cc - 栈保护核心逻辑（变量分类、冲突分析、prologue生成）
-  # NOTE: Path must match gcovr output format with -r .. (relative to gcovr_exec_path parent)
-  - file: "gcc/gcc/cfgexpand.cc"
-    functions:
-      # 分类变量类型，决定是否需要保护（检测字符数组、聚合类型等）
-      - "stack_protect_classify_type"
-      # 决定变量的保护阶段（phase 1/2）
-      - "stack_protect_decl_phase"
-      - "stack_protect_decl_phase_1"
-      - "stack_protect_decl_phase_2"
-      # 添加栈变量之间的保护冲突约束
-      - "add_stack_protection_conflicts"
-      # 创建栈上的 guard 变量
-      - "create_stack_guard"
-      # 生成函数入口的 stack canary 设置代码
-      - "stack_protect_prologue"
-      # 检查是否有使用返回槽的调用（-fstack-protector-strong 用）
-      - "stack_protect_return_slot_p"
+    # cfgexpand.cc - 栈保护核心逻辑（变量分类、冲突分析、prologue生成）
+    # NOTE: Path must match gcovr output format with -r .. (relative to gcovr_exec_path parent)
+    # - file: "gcc/gcc/cfgexpand.cc"
+    #   functions:
+    #       # 分类变量类型，决定是否需要保护（检测字符数组、聚合类型等）
+    #       - "stack_protect_classify_type"
+    #       # 决定变量的保护阶段（phase 1/2）
+    #       - "stack_protect_decl_phase"
+    #       - "stack_protect_decl_phase_1"
+    #       - "stack_protect_decl_phase_2"
+    #       # 添加栈变量之间的保护冲突约束
+    #       - "add_stack_protection_conflicts"
+    #       # 创建栈上的 guard 变量
+    #       - "create_stack_guard"
+    #       # 生成函数入口的 stack canary 设置代码
+    #       - "stack_protect_prologue"
+    #       # 检查是否有使用返回槽的调用（-fstack-protector-strong 用）
+    #       - "stack_protect_return_slot_p"
+
+    # # cfgexpand.cc - 栈保护核心逻辑
+    - file: "gcc/gcc/cfgexpand.cc"
+      functions:
+          - "stack_protect_classify_type" # line 2203
+          - "stack_protect_decl_phase" # line 2256
+          - "stack_protect_decl_phase_1" # line 2290
+          - "stack_protect_decl_phase_2" # line 2296
+          - "add_stack_protection_conflicts" # line 2322
+          - "create_stack_guard" # line 2351
+          - "stack_protect_return_slot_p" # line 2435
+          - "defer_stack_allocation" # line 1968
+          - "expand_used_vars" # line 2457
+          - "stack_protect_prologue" # line 6920
+
+
+    # # function.cc - epilogue 及参数处理
+    # - file: "gcc/gcc/function.cc"
+    #   functions:
+    #       - "stack_protect_epilogue" # line 5042
+    #       - "assign_parm_adjust_stack_rtl" # line 2836
+
+    # # toplev.cc - 选项验证
+    # # - file: "gcc/gcc/toplev.cc"
+    # #   functions:
+    # #       - "process_options" # line 1276
+
+    # # targhooks.cc - 默认 target hook 实现
+    # - file: "gcc/gcc/targhooks.cc"
+    #   functions:
+    #       - "default_stack_protect_guard" # line 919
+    #       - "default_external_stack_protect_fail" # line 952
+    #       - "default_hidden_stack_protect_fail" # line 979
+
+    # # # i386.cc - x86 特定实现
+    # # - file: "gcc/gcc/config/i386/i386.cc"
+    # #   functions:
+    # #       - "ix86_stack_protect_guard" # line 24568
+    # #       - "ix86_stack_protect_fail" # line 24634
+
+    # # # arm.cc - ARM 特定实现
+    # # - file: "gcc/gcc/config/arm/arm.cc"
+    # #   functions:
+    # #       - "arm_stack_protect_guard" # line 36116
+
+    # # aarch64.cc - AArch64 特定实现
+    # - file: "gcc/gcc/config/aarch64/aarch64.cc"
+    #   functions:
+    #       - "aarch64_stack_protect_guard" # line 29791
+
+    # # mips - 使用 targhooks.cc 的默认实现

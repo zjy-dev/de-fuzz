@@ -56,3 +56,5 @@ ollama/
 *.temp
 .cache/
 tmp/
+
+fuzz_out*/
