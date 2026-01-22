@@ -12,4 +12,5 @@ type Seed struct {
 	Meta      Metadata   // Metadata for lineage tracking and resume
 	Content   string     // C source code (source.c)
 	TestCases []TestCase // Test cases with running commands and expected results
+	CFlags    []string   // Additional compiler flags specified by LLM
 }

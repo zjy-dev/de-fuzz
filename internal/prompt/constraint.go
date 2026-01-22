@@ -491,6 +491,15 @@ This seed compiles and runs successfully. Use it as your starting point:
 
 // getOutputFormat returns the appropriate output format instruction.
 func (b *Builder) getOutputFormat() string {
+	cflagsNote := `
+
+## Optional: Compiler Flags
+
+If you need to change compiler flags to reach the target, add after your code:
+// ||||| CFLAGS_START |||||
+-fstack-protector-all
+// ||||| CFLAGS_END |||||`
+
 	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format
 
@@ -503,7 +512,8 @@ func (b *Builder) getOutputFormat() string {
 
 Output ONLY:
 1. The seed() function implementation
-2. Followed by test cases in JSON format
+2. (Optional) CFLAGS section if needed
+3. Followed by test cases in JSON format
 
 Example of CORRECT output:
 %s
@@ -512,10 +522,13 @@ void seed(int fill_size) {
     memset(buffer, 'A', fill_size);
 }
 %s
+// ||||| CFLAGS_START |||||
+-fstack-protector-all
+// ||||| CFLAGS_END |||||
 // ||||| JSON_TESTCASES_START |||||
 [{"running command": "./prog 100", "expected result": "..."}]
 
-Maximum %d test case(s).`, "```c", "```", b.MaxTestCases)
+Maximum %d test case(s).%s`, "```c", "```", b.MaxTestCases, cflagsNote)
 	} else if b.FunctionTemplate != "" {
 		return `## Output Format
 
@@ -533,30 +546,42 @@ void seed(int fill_size) {
     memset(buffer, 'A', fill_size);
 }
 ` + "```" + `
+// ||||| CFLAGS_START |||||
+-fstack-protector-all
+// ||||| CFLAGS_END |||||
 
 Example of WRONG output (DO NOT DO THIS):
 ` + "```c" + `
 #include <stdio.h>
 void seed(int fill_size) { ... }
 int main() { ... }  // WRONG! Do not include main()
-` + "```"
+` + "```" + cflagsNote
 	} else if b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format
 
 Output ONLY:
 1. Complete C source code
-2. Followed by test cases in JSON format
+2. (Optional) CFLAGS section if needed
+3. Followed by test cases in JSON format
 
 Example:
 [C source code]
+// ||||| CFLAGS_START |||||
+-fstack-protector-all
+// ||||| CFLAGS_END |||||
 // ||||| JSON_TESTCASES_START |||||
 [{"running command": "./prog", "expected result": "..."}]
 
-Maximum %d test case(s).`, b.MaxTestCases)
+Maximum %d test case(s).%s`, b.MaxTestCases, cflagsNote)
 	}
 	return `## Output Format
 
-Output ONLY complete C source code. No test cases needed.`
+Output ONLY complete C source code. No test cases needed.
+
+Optionally, add CFLAGS section after your code if needed:
+// ||||| CFLAGS_START |||||
+-fstack-protector-all
+// ||||| CFLAGS_END |||||`
 }
 
 // GenerateAnnotatedFunctionCode generates function code with coverage annotations.

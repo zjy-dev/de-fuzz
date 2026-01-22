@@ -348,8 +348,15 @@ Your mutation should preserve those patterns while still introducing variation.
 // 3. No test cases mode (MaxTestCases == 0): Extracts code without test cases
 // 4. Standard mode: Extracts code with test cases using ParseSeedFromLLMResponse
 //
-// Returns a Seed with Content and TestCases populated appropriately.
+// In all modes, it also extracts CFlags if present in the response.
+// Returns a Seed with Content, TestCases, and CFlags populated appropriately.
 func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
+	// Extract CFlags first (before removing the section from response)
+	cflags := seed.ParseCFlagsFromResponse(response)
+
+	// Remove CFlags section from response for code parsing
+	cleanResponse := seed.ExtractCodeWithoutCFlags(response)
+
 	// Mode 1: Function template + test cases mode
 	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
 		// Read the template
@@ -359,7 +366,7 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 		}
 
 		// Parse function code and test cases from response
-		functionCode, testCases, err := seed.ParseFunctionWithTestCasesFromLLMResponse(response)
+		functionCode, testCases, err := seed.ParseFunctionWithTestCasesFromLLMResponse(cleanResponse)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse function with test cases from response: %w", err)
 		}
@@ -373,6 +380,7 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 		return &seed.Seed{
 			Content:   mergedCode,
 			TestCases: testCases,
+			CFlags:    cflags,
 		}, nil
 	}
 
@@ -385,7 +393,7 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 		}
 
 		// Parse function code from response
-		functionCode, err := seed.ParseFunctionFromLLMResponse(response)
+		functionCode, err := seed.ParseFunctionFromLLMResponse(cleanResponse)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse function from response: %w", err)
 		}
@@ -398,13 +406,14 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 
 		return &seed.Seed{
 			Content:   mergedCode,
-			TestCases: []seed.TestCase{}, // No test cases in template-only mode
+			TestCases: []seed.TestCase{},
+			CFlags:    cflags,
 		}, nil
 	}
 
-	// Mode 2: No test cases mode
+	// Mode 3: No test cases mode
 	if b.MaxTestCases == 0 {
-		sourceCode, err := seed.ParseCodeOnlyFromLLMResponse(response)
+		sourceCode, err := seed.ParseCodeOnlyFromLLMResponse(cleanResponse)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse code from response: %w", err)
 		}
@@ -412,11 +421,12 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 		return &seed.Seed{
 			Content:   sourceCode,
 			TestCases: []seed.TestCase{},
+			CFlags:    cflags,
 		}, nil
 	}
 
-	// Mode 3: Standard mode with test cases
-	sourceCode, testCases, err := seed.ParseSeedFromLLMResponse(response)
+	// Mode 4: Standard mode with test cases
+	sourceCode, testCases, err := seed.ParseSeedFromLLMResponse(cleanResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse seed from response: %w", err)
 	}
@@ -424,6 +434,7 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 	return &seed.Seed{
 		Content:   sourceCode,
 		TestCases: testCases,
+		CFlags:    cflags,
 	}, nil
 }
 

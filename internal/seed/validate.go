@@ -225,3 +225,68 @@ func ValidateSeed(s *Seed) error {
 
 	return nil
 }
+
+// CFlags parsing constants
+const (
+	CFlagsStartMarker = "// ||||| CFLAGS_START |||||"
+	CFlagsEndMarker   = "// ||||| CFLAGS_END |||||"
+)
+
+// ParseCFlagsFromResponse extracts compiler flags from LLM response.
+// The flags are expected between CFLAGS_START and CFLAGS_END markers.
+// Each flag should be on its own line. Empty lines and comment lines (starting with #) are ignored.
+// If no markers are found, returns empty slice (CFlags are optional).
+func ParseCFlagsFromResponse(response string) []string {
+	startIdx := strings.Index(response, CFlagsStartMarker)
+	if startIdx == -1 {
+		return nil // CFlags section is optional
+	}
+
+	endIdx := strings.Index(response, CFlagsEndMarker)
+	if endIdx == -1 || endIdx <= startIdx {
+		return nil // Malformed, treat as no CFlags
+	}
+
+	// Extract content between markers
+	content := response[startIdx+len(CFlagsStartMarker) : endIdx]
+
+	// Parse flags, one per line
+	var flags []string
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		// Each line should be a flag (e.g., "-fstack-protector-all")
+		if strings.HasPrefix(line, "-") {
+			flags = append(flags, line)
+		}
+	}
+
+	return flags
+}
+
+// ExtractCodeWithoutCFlags removes the CFlags section from the response.
+// This is used to get the code part for further parsing.
+func ExtractCodeWithoutCFlags(response string) string {
+	startIdx := strings.Index(response, CFlagsStartMarker)
+	if startIdx == -1 {
+		return response // No CFlags section
+	}
+
+	endIdx := strings.Index(response, CFlagsEndMarker)
+	if endIdx == -1 {
+		return response // Malformed, return as-is
+	}
+
+	// Remove the CFlags section (including markers and trailing newline)
+	endIdx += len(CFlagsEndMarker)
+	// Also remove trailing newline if present
+	if endIdx < len(response) && response[endIdx] == '\n' {
+		endIdx++
+	}
+
+	return response[:startIdx] + response[endIdx:]
+}

@@ -180,3 +180,53 @@ To maximize coverage and discover potential vulnerabilities, the LLM should:
 - SIGSEGV (exit 139): Return address modified, **potential vulnerability**
 
 **CRITICAL**: If a SIGSEGV occurs at a fill_size smaller than one that causes SIGABRT, it indicates a defect in the canary protection.
+
+## Compiler Flag → Code Path Mapping (IMPORTANT)
+
+Some compiler code paths are controlled by **compiler flags**, not by code patterns.
+To reach certain basic blocks, you may need to specify different flags.
+
+### Stack Protection Flags
+
+| Flag | `flag_stack_protect` | Code Path in `expand_used_vars` |
+|------|---------------------|--------------------------------|
+| `-fno-stack-protector` | 0 | Skip switch entirely (BB96) |
+| `-fstack-protector` | 1 (DEFAULT) | BB85: `calls_alloca OR has_protected_decls` |
+| `-fstack-protector-all` | 2 (ALL) | BB75: always `create_stack_guard()` |
+| `-fstack-protector-strong` | 3 (STRONG) | BB76: `gen_stack_protect_signal OR calls_alloca OR has_protected_decls` |
+| `-fstack-protector-explicit` | 4 (EXPLICIT) | BB93: only with `__attribute__((stack_protect))` |
+
+### How to Use CFlags
+
+To specify compiler flags, add a CFLAGS section after your code:
+
+```c
+void seed(int buf_size, int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+    printf("SEED_RETURNED\n");
+    fflush(stdout);
+}
+// ||||| CFLAGS_START |||||
+-fstack-protector-all
+// ||||| CFLAGS_END |||||
+```
+
+### Example: Reaching Different BBs
+
+1. **To reach BB75 (SPCT_FLAG_ALL branch)**:
+   - Use `-fstack-protector-all`
+   - Any function will have stack guard created
+
+2. **To reach BB93 (SPCT_FLAG_EXPLICIT branch)**:
+   - Use `-fstack-protector-explicit`
+   - Add `__attribute__((stack_protect))` to seed() function
+
+3. **To skip stack protection entirely (BB96)**:
+   - Use `-fno-stack-protector`
+
+### Other Useful Flags
+
+- Optimization: `-O0`, `-O1`, `-O2`, `-O3` (affects inlining, code generation)
+- Position independent: `-fPIC`, `-fPIE` (affects addressing modes)
+- Debug: `-g`, `-g3` (affects debug info generation)

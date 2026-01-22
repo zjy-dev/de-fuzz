@@ -87,8 +87,14 @@ func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 		args = append(args, "-B"+c.prefixPath)
 	}
 
-	// Add user-specified flags
+	// Add user-specified flags from config
 	args = append(args, c.cflags...)
+
+	// Add seed-specific flags (from LLM) - these come after config flags
+	// so they can override conflicting options (GCC uses last occurrence)
+	if len(s.CFlags) > 0 {
+		args = append(args, s.CFlags...)
+	}
 
 	// Add source file and output
 	args = append(args, sourceFile, "-o", binaryPath)
