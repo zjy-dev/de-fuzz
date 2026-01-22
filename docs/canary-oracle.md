@@ -142,8 +142,8 @@ N 需要足够大以覆盖当前栈帧并触及返回地址。
  *   - Medium fill_size (canary overwritten): SIGABRT (exit code 134)
  *   - Large fill_size (ret addr overwritten): SIGSEGV (exit code 139)
  *
- * IMPORTANT FOR AARCH64:
- *   VLA and alloca() bypass stack canary on AArch64! (CVE-2023-4039)
+ * IMPORTANT:
+ *   VLA and alloca() may bypass stack canary on some architectures! (e.g., CVE-2023-4039 on AArch64)
  *
  * The canary oracle uses binary search on fill_size to detect vulnerabilities.
  */
@@ -163,30 +163,45 @@ N 需要足够大以覆盖当前栈帧并触及返回地址。
  * - fill_size: controls how many bytes to write
  * - DO NOT add any stack protection attributes to this function
  *
+ * CRITICAL: SENTINEL REQUIREMENT
+ * - You MUST add the following two lines BEFORE the function returns:
+ *     printf("SEED_RETURNED\n");
+ *     fflush(stdout);
+ * - This sentinel is used by the oracle to distinguish true canary bypass
+ *   (crash on return) from false positives (crash inside function).
+ *
  * Supported patterns:
  * 1. Fixed-size array (ignores buf_size):
  *    void seed(int buf_size, int fill_size) {
  *        char buffer[64];
  *        memset(buffer, 'A', fill_size);
+ *        printf("SEED_RETURNED\n");
+ *        fflush(stdout);
  *    }
  *
- * 2. Variable-Length Array (VLA - bypasses canary on AArch64):
+ * 2. Variable-Length Array (VLA - may bypass canary on some archs):
  *    void seed(int buf_size, int fill_size) {
  *        char buffer[buf_size];
  *        memset(buffer, 'A', fill_size);
+ *        printf("SEED_RETURNED\n");
+ *        fflush(stdout);
  *    }
  *
- * 3. alloca() (also bypasses canary on AArch64):
+ * 3. alloca() (also may bypass canary):
  *    void seed(int buf_size, int fill_size) {
  *        char *buffer = alloca(buf_size);
  *        memset(buffer, 'A', fill_size);
+ *        printf("SEED_RETURNED\n");
+ *        fflush(stdout);
  *    }
  *
  * 4. Mixed patterns:
  *    void seed(int buf_size, int fill_size) {
- *  char fixed[32];
+ *        char fixed[32];
  *        char vla[buf_size];
  *        // test different combinations
+ *        printf("SEED_RETURNED\n");
+ *        fflush(stdout);
  *    }
  */
 
@@ -210,10 +225,6 @@ NO_CANARY int main(int argc, char *argv[]) {
 
   // Call the seed function with both parameters
   seed(buf_size, fill_size);
-
-  // Sentinel: seed() returned, any crash after this is true canary bypass
-  printf("SEED_RETURNED\n");
-  fflush(stdout);
 
   return 0;
 }

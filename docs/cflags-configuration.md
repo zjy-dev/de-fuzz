@@ -138,3 +138,46 @@ readelf -p .comment fuzz_out/x64/canary/build/seed_1
 2. **Maintainability**: No need to modify code for new compilation scenarios
 3. **Clarity**: All compilation settings in one place
 4. **Version Control**: Easy to track changes to compilation flags
+
+## LLM-Controlled CFlags (Dynamic)
+
+In addition to configuration-based CFlags, LLM can specify additional compiler flags per seed to reach different compiler code paths.
+
+### How It Works
+
+1. LLM generates code and optionally adds a CFLAGS section:
+```c
+void seed(int buf_size, int fill_size) {
+    char buffer[64];
+    memset(buffer, 'A', fill_size);
+}
+// ||||| CFLAGS_START |||||
+-fstack-protector-all
+// ||||| CFLAGS_END |||||
+```
+
+2. The parser extracts these flags into `Seed.CFlags`
+3. During compilation, flags are applied in order:
+   - Config CFlags (from yaml) come first
+   - Seed CFlags (from LLM) come last
+   - GCC uses last occurrence for conflicting flags
+
+### Use Case
+
+Some compiler code paths are controlled by **compiler flags**, not code patterns:
+
+| Flag | Code Path |
+|------|-----------|
+| `-fstack-protector` | DEFAULT mode (flag=1) |
+| `-fstack-protector-strong` | STRONG mode (flag=3) |
+| `-fstack-protector-all` | ALL mode (flag=2) |
+| `-fstack-protector-explicit` | EXPLICIT mode (flag=4) |
+
+This allows LLM to dynamically explore different compiler code paths by specifying appropriate flags.
+
+### Security Note
+
+All flags from LLM are accepted without validation. This is safe because:
+- Execution happens in QEMU (sandboxed)
+- Only affects compiler behavior, not host system
+
