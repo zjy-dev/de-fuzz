@@ -22,6 +22,9 @@ void seed(int buf_size, int fill_size) {
     
     // Prevent compiler optimization
     printf("Fixed array: filled %d bytes into 64-byte buffer\n", fill_size);
+
+    printf("SEED_RETURNED\n");
+    fflush(stdout);
 }
 
 // Disable stack protector for main to maximize attack surface

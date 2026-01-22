@@ -21,17 +21,15 @@ const (
 // PromptService manages prompt assembly and provides unified API for getting prompts
 type PromptService struct {
 	baseDir       string // Directory containing base prompts (e.g., "prompts/base")
-	customPath    string // Path to custom prompt file (optional)
 	understanding string // Content of understanding.md (background context)
 	builder       *Builder
 }
 
 // NewPromptService creates a new PromptService
 // baseDir: directory containing base/*.md prompts
-// customPath: path to custom_prompt.md (can be empty)
 // understandingPath: path to understanding.md (can be empty)
 // builder: Builder instance for generating user prompts
-func NewPromptService(baseDir, customPath, understandingPath string, builder *Builder) (*PromptService, error) {
+func NewPromptService(baseDir, understandingPath string, builder *Builder) (*PromptService, error) {
 	if builder == nil {
 		return nil, fmt.Errorf("builder must not be nil")
 	}
@@ -42,22 +40,8 @@ func NewPromptService(baseDir, customPath, understandingPath string, builder *Bu
 	}
 
 	s := &PromptService{
-		baseDir:    baseDir,
-		customPath: customPath,
-		builder:    builder,
-	}
-
-	// Load custom prompt if path provided
-	if customPath != "" {
-		content, err := os.ReadFile(customPath)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return nil, fmt.Errorf("failed to read custom prompt: %w", err)
-			}
-			// File doesn't exist - that's okay, custom is optional
-		} else {
-			s.customPath = string(content)
-		}
+		baseDir: baseDir,
+		builder: builder,
 	}
 
 	// Load understanding if path provided
@@ -77,7 +61,7 @@ func NewPromptService(baseDir, customPath, understandingPath string, builder *Bu
 }
 
 // GetSystemPrompt returns the assembled system prompt for a given phase
-// Assembly order: basePrompt + "\n\n" + customPrompt + "\n\n" + understanding
+// Assembly order: basePrompt + "\n\n" + understanding
 func (s *PromptService) GetSystemPrompt(phase Phase) (string, error) {
 	// Load base prompt for this phase
 	basePath := filepath.Join(s.baseDir, string(phase)+".md")
@@ -86,12 +70,8 @@ func (s *PromptService) GetSystemPrompt(phase Phase) (string, error) {
 		return "", fmt.Errorf("failed to read base prompt %s: %w", basePath, err)
 	}
 
-	// Assemble: base + custom + understanding
+	// Assemble: base + understanding
 	result := string(baseContent)
-
-	if s.customPath != "" {
-		result += "\n\n" + s.customPath
-	}
 
 	if s.understanding != "" {
 		result += "\n\n" + s.understanding

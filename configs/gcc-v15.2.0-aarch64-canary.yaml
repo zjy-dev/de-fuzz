@@ -40,10 +40,6 @@ compiler:
         # Function template path (for template-based fuzzing)
         function_template: "initial_seeds/aarch64/canary/function_template.c"
 
-        # Custom prompt for LLM (ISA/strategy-specific hints)
-        # This will be appended to the base system prompt
-        custom_prompt: "initial_seeds/aarch64/canary/custom_prompt.md"
-
         # Base prompt directory (defaults to "prompts/base" if not specified)
         base_prompt_dir: "prompts/base"
 

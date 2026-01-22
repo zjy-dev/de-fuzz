@@ -238,9 +238,8 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	if basePromptDir == "" {
 		basePromptDir = "prompts/base"
 	}
-	customPromptPath := cfg.Compiler.Fuzz.CustomPrompt
 
-	promptService, err := prompt.NewPromptService(basePromptDir, customPromptPath, understandingPath, promptBuilder)
+	promptService, err := prompt.NewPromptService(basePromptDir, understandingPath, promptBuilder)
 	if err != nil {
 		return fmt.Errorf("failed to create prompt service: %w", err)
 	}

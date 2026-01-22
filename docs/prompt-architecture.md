@@ -7,13 +7,12 @@
 DeFuzz 使用分层的提示词架构，将通用逻辑与特定领域知识分离：
 
 ```
-System Prompt = Base Prompt + Custom Prompt + Understanding
+System Prompt = Base Prompt + Understanding
 ```
 
 这种设计允许：
 - **复用**：基础提示词在所有 ISA 和防御机制间共享
-- **定制**：每个 ISA/策略组合可以有专属的提示词
-- **上下文**：understanding.md 提供编译器内部实现细节
+- **上下文**：understanding.md 提供编译器内部实现细节和领域知识
 
 ## 目录结构
 
@@ -29,8 +28,7 @@ de-fuzz/
 └── initial_seeds/
     └── {isa}/
         └── {strategy}/            # ISA + 防御机制特定
-            ├── understanding.md   # 编译器内部实现上下文
-            ├── custom_prompt.md   # 特定领域提示词
+            ├── understanding.md   # 编译器内部实现上下文 + 领域知识
             ├── stack_layout.md    # 栈布局参考 (可选)
             └── function_template.c # 函数模板
 ```
@@ -61,36 +59,15 @@ Rules:
 - Focus on triggering the target function/block
 ```
 
-### 2. Custom Prompts (`initial_seeds/{isa}/{strategy}/custom_prompt.md`)
+### 2. Understanding (`initial_seeds/{isa}/{strategy}/understanding.md`)
 
-针对特定 ISA 和防御机制的领域知识：
-
-**目前存在的配置：**
-- `aarch64/canary/custom_prompt.md` - VLA/alloca 提示
-
-**示例** (`aarch64/canary/custom_prompt.md`):
-```markdown
-## AArch64 Stack Canary Patterns
-
-VLA and alloca() have different stack layouts on AArch64
-
-Priority patterns to generate:
-1. Variable-Length Arrays (VLA): `char buf[n]`
-2. alloca(): `char *buf = alloca(n)`
-3. Dynamic stack allocation with overflow potential
-
-On AArch64, the stack canary is placed ABOVE dynamically-sized 
-arrays, leaving the return address vulnerable.
-```
-
-### 3. Understanding (`initial_seeds/{isa}/{strategy}/understanding.md`)
-
-编译器内部实现的详细上下文，帮助 LLM 理解要触发的代码路径：
+编译器内部实现的详细上下文和领域知识，帮助 LLM 理解要触发的代码路径：
 
 **内容包括：**
 - 目标函数的作用和实现细节
 - 关键变量和条件分支
 - 如何生成能触发特定分支的测试用例
+- ISA/策略特定的领域知识（如 VLA/alloca 模式）
 
 **示例片段**:
 ```markdown
@@ -100,15 +77,14 @@ This function handles stack variable allocation. Key behaviors:
 - Variables with `DECL_NO_TBAA_P` flag bypass normal alignment
 - Large arrays (> MAX_SUPPORTED_STACK_ALIGNMENT) trigger special handling
 - VLAs are allocated dynamically and affect canary placement
-```
 
-### 4. Stack Layout (`initial_seeds/{isa}/{strategy}/stack_layout.md`)
+## AArch64 Stack Canary Patterns
 
-栈帧布局的参考文档（可选，不直接参与提示词组装）：
+VLA and alloca() have different stack layouts on AArch64.
+On AArch64, the stack canary is placed ABOVE dynamically-sized 
+arrays, leaving the return address vulnerable.
 
-```
-AArch64 Stack Layout with VLA:
-
+Stack Layout with VLA:
 High Addr → [Canary]          ← Protected but above VLA
             [Saved LR]        ← VULNERABLE!
             [Saved FP]
@@ -125,12 +101,7 @@ func (s *PromptService) GetSystemPrompt(phase Phase) (string, error) {
     // 1. 加载 base prompt
     baseContent := readFile("prompts/base/" + phase + ".md")
     
-    // 2. 追加 custom prompt (如果存在)
-    if customPrompt != "" {
-        result += "\n\n" + customPrompt
-    }
-    
-    // 3. 追加 understanding (如果存在)
+    // 2. 追加 understanding (如果存在)
     if understanding != "" {
         result += "\n\n" + understanding
     }
@@ -144,9 +115,7 @@ func (s *PromptService) GetSystemPrompt(phase Phase) (string, error) {
 ┌─────────────────────────┐
 │     Base Prompt         │  ← 通用行为指导
 ├─────────────────────────┤
-│     Custom Prompt       │  ← ISA/策略特定知识
-├─────────────────────────┤
-│     Understanding       │  ← 编译器实现细节
+│     Understanding       │  ← 编译器实现细节 + 领域知识
 └─────────────────────────┘
 ```
 
@@ -159,9 +128,6 @@ compiler:
   fuzz:
     # 基础提示词目录 (默认: prompts/base)
     base_prompt_dir: "prompts/base"
-    
-    # 自定义提示词路径 (ISA/策略特定)
-    custom_prompt: "initial_seeds/aarch64/canary/custom_prompt.md"
     
     # 函数模板路径
     function_template: "initial_seeds/aarch64/canary/function_template.c"
@@ -180,20 +146,15 @@ initial_seeds/{isa}/{strategy}/understanding.md
    ```
 
 2. **创建必需文件**:
-   - `understanding.md` - 目标编译器函数的上下文
+   - `understanding.md` - 目标编译器函数的上下文 + 领域知识
    - `function_template.c` - 种子代码模板
 
-3. **创建可选文件**:
-   - `custom_prompt.md` - 特定领域的 LLM 指导
-   - `stack_layout.md` - 栈布局参考
-
-4. **更新配置文件**:
+3. **更新配置文件**:
    ```yaml
    isa: "new_isa"
    strategy: "new_strategy"
    compiler:
      fuzz:
-       custom_prompt: "initial_seeds/new_isa/new_strategy/custom_prompt.md"
        function_template: "initial_seeds/new_isa/new_strategy/function_template.c"
    ```
 
@@ -216,7 +177,5 @@ initial_seeds/{isa}/{strategy}/understanding.md
 | 文件 | 状态 | 说明 |
 |------|------|------|
 | `prompts/base/*.md` | ✅ 活跃 | 所有阶段的基础提示词 |
-| `understanding.md` | ✅ 活跃 | 编译器上下文，参与提示词组装 |
-| `custom_prompt.md` | ✅ 活跃 | ISA/策略特定提示词 |
-| `stack_layout.md` | 📖 参考 | 仅供人工参考，不参与组装 |
+| `understanding.md` | ✅ 活跃 | 编译器上下文 + 领域知识，参与提示词组装 |
 | `function_template.c` | ✅ 活跃 | LLM 生成代码的模板 |

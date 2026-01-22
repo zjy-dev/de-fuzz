@@ -1,7 +1,7 @@
 config:
   llm: "deepseek"
 
-  isa: "aarch64"
+  isa: "loongarch64"
 
   strategy: "canary"
 
