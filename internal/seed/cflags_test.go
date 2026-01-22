@@ -1,6 +1,8 @@
 package seed
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -134,5 +136,98 @@ func TestExtractCodeWithoutCFlags(t *testing.T) {
 				t.Errorf("ExtractCodeWithoutCFlags() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCFlagsPersistence(t *testing.T) {
+	// Create temp directory
+	tmpDir, err := os.MkdirTemp("", "cflags_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a seed with CFlags
+	seed := &Seed{
+		Meta: Metadata{
+			ID:       1,
+			ParentID: 0,
+		},
+		Content: "void seed() {}",
+		CFlags:  []string{"-fstack-protector-all", "-O2"},
+	}
+
+	// Save the seed
+	namer := NewDefaultNamingStrategy()
+	dirName, err := SaveSeedWithMetadata(tmpDir, seed, namer)
+	if err != nil {
+		t.Fatalf("Failed to save seed: %v", err)
+	}
+
+	// Verify cflags.json was created
+	cflagsFile := filepath.Join(tmpDir, dirName, "cflags.json")
+	if _, err := os.Stat(cflagsFile); os.IsNotExist(err) {
+		t.Errorf("cflags.json was not created")
+	}
+
+	// Load the seed back
+	seedDir := filepath.Join(tmpDir, dirName)
+	loadedSeed, err := LoadSeedWithMetadata(seedDir, namer)
+	if err != nil {
+		t.Fatalf("Failed to load seed: %v", err)
+	}
+
+	// Verify CFlags were loaded correctly
+	if len(loadedSeed.CFlags) != 2 {
+		t.Errorf("Expected 2 CFlags, got %d", len(loadedSeed.CFlags))
+	}
+	if loadedSeed.CFlags[0] != "-fstack-protector-all" {
+		t.Errorf("Expected first cflag to be '-fstack-protector-all', got '%s'", loadedSeed.CFlags[0])
+	}
+	if loadedSeed.CFlags[1] != "-O2" {
+		t.Errorf("Expected second cflag to be '-O2', got '%s'", loadedSeed.CFlags[1])
+	}
+}
+
+func TestCFlagsPersistence_EmptyCFlags(t *testing.T) {
+	// Create temp directory
+	tmpDir, err := os.MkdirTemp("", "cflags_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a seed without CFlags
+	seed := &Seed{
+		Meta: Metadata{
+			ID:       1,
+			ParentID: 0,
+		},
+		Content: "void seed() {}",
+		CFlags:  nil, // No CFlags
+	}
+
+	// Save the seed
+	namer := NewDefaultNamingStrategy()
+	dirName, err := SaveSeedWithMetadata(tmpDir, seed, namer)
+	if err != nil {
+		t.Fatalf("Failed to save seed: %v", err)
+	}
+
+	// Verify cflags.json was NOT created (empty CFlags)
+	cflagsFile := filepath.Join(tmpDir, dirName, "cflags.json")
+	if _, err := os.Stat(cflagsFile); !os.IsNotExist(err) {
+		t.Errorf("cflags.json should not be created for empty CFlags")
+	}
+
+	// Load the seed back - should have nil/empty CFlags
+	seedDir := filepath.Join(tmpDir, dirName)
+	loadedSeed, err := LoadSeedWithMetadata(seedDir, namer)
+	if err != nil {
+		t.Fatalf("Failed to load seed: %v", err)
+	}
+
+	if len(loadedSeed.CFlags) != 0 {
+		t.Errorf("Expected 0 CFlags, got %d", len(loadedSeed.CFlags))
 	}
 }

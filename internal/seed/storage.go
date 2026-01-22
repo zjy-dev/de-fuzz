@@ -75,6 +75,18 @@ func SaveSeedWithMetadata(dir string, s *Seed, namer NamingStrategy) (string, er
 		}
 	}
 
+	// Save CFlags to cflags.json if they exist
+	if len(s.CFlags) > 0 {
+		jsonData, err := json.MarshalIndent(s.CFlags, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal cflags: %w", err)
+		}
+		cflagsFile := filepath.Join(seedDir, "cflags.json")
+		if err := os.WriteFile(cflagsFile, jsonData, 0644); err != nil {
+			return "", fmt.Errorf("failed to write cflags file %s: %w", cflagsFile, err)
+		}
+	}
+
 	// Update metadata - use directory name (without .seed extension)
 	s.Meta.FilePath = seedDirName
 	s.Meta.ContentPath = sourceFile // Store absolute path to source.c
@@ -128,6 +140,15 @@ func loadSeedFromDirectory(seedDir, dirName string, namer NamingStrategy) (*Seed
 		}
 	}
 
+	// Read CFlags if they exist
+	var cflags []string
+	cflagsFile := filepath.Join(seedDir, "cflags.json")
+	if data, err := os.ReadFile(cflagsFile); err == nil {
+		if err := json.Unmarshal(data, &cflags); err != nil {
+			// Log warning but don't fail - cflags are optional
+		}
+	}
+
 	// Update metadata
 	meta.FilePath = dirName
 	meta.ContentPath = sourceFile
@@ -141,6 +162,7 @@ func loadSeedFromDirectory(seedDir, dirName string, namer NamingStrategy) (*Seed
 		Meta:      *meta,
 		Content:   string(sourceBytes),
 		TestCases: testCases,
+		CFlags:    cflags,
 	}, nil
 }
 
@@ -188,6 +210,13 @@ func LoadSeedsWithMetadata(dir string, namer NamingStrategy) ([]*Seed, error) {
 			json.Unmarshal(data, &testCases)
 		}
 
+		// Read CFlags if they exist
+		var cflags []string
+		cflagsFile := filepath.Join(seedDir, "cflags.json")
+		if data, err := os.ReadFile(cflagsFile); err == nil {
+			json.Unmarshal(data, &cflags)
+		}
+
 		// Update metadata
 		meta.FilePath = entry.Name()
 		meta.ContentPath = sourceFile
@@ -201,6 +230,7 @@ func LoadSeedsWithMetadata(dir string, namer NamingStrategy) ([]*Seed, error) {
 			Meta:      *meta,
 			Content:   string(sourceBytes),
 			TestCases: testCases,
+			CFlags:    cflags,
 		})
 	}
 
