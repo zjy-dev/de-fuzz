@@ -155,6 +155,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	// Use CFlags from config (allows customization per ISA/strategy)
 	// Default to basic flags if not specified in config
 	cflags := cfg.Compiler.CFlags
+	logger.Debug("CFlags from config: %v (count=%d)", cflags, len(cflags))
 	if len(cflags) == 0 {
 		logger.Warn("No cflags specified in config, using defaults")
 		cflags = []string{"-fstack-protector-strong", "-O0"}

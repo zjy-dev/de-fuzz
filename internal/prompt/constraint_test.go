@@ -228,7 +228,7 @@ func TestBuilder_GetOutputFormat(t *testing.T) {
 			name:         "template with test cases",
 			maxTestCases: 2,
 			template:     "template.c",
-			wantContains: "seed() function",
+			wantContains: "function body",
 		},
 		{
 			name:         "template no test cases",

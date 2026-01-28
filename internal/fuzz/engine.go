@@ -55,6 +55,9 @@ type Config struct {
 	MaxRandomIterations int  // Maximum iterations in random phase (0 = unlimited)
 }
 
+// Maximum number of debug log calls per prompt type
+const maxPromptDebugLogs = 3
+
 // Engine implements constraint solving based fuzzing.
 type Engine struct {
 	cfg            Config
@@ -66,6 +69,9 @@ type Engine struct {
 	// Paths for divergence analysis
 	currentBaseSeedPath    string
 	currentMutatedSeedPath string
+
+	// Prompt debug log counters (to limit verbose output)
+	promptDebugCount map[string]int
 }
 
 // seedTryResult holds the result of trying a mutated seed.
@@ -89,9 +95,24 @@ func NewEngine(cfg Config) *Engine {
 		cfg.MaxRetries = 3
 	}
 	return &Engine{
-		cfg:       cfg,
-		bugsFound: make([]*oracle.Bug, 0),
+		cfg:              cfg,
+		bugsFound:        make([]*oracle.Bug, 0),
+		promptDebugCount: make(map[string]int),
 	}
+}
+
+// logPromptDebug logs prompt content with a limit per prompt type.
+// Returns true if the log was printed, false if limit exceeded.
+func (e *Engine) logPromptDebug(promptType, systemPrompt, userPrompt string) bool {
+	if e.promptDebugCount[promptType] >= maxPromptDebugLogs {
+		return false
+	}
+	e.promptDebugCount[promptType]++
+	logger.Debug("=== LLM Call: %s (call %d/%d) ===", promptType, e.promptDebugCount[promptType], maxPromptDebugLogs)
+	logger.Debug("[System Prompt]:\n%s", systemPrompt)
+	logger.Debug("[User Prompt]:\n%s", userPrompt)
+	logger.Debug("=== End Prompts ===")
+	return true
 }
 
 // Run starts the fuzzing loop.
@@ -326,8 +347,8 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 				continue
 			}
 			refinedPrompt = userPrompt
-			logger.Debug("Using compile error feedback prompt for retry %d", retry+1)
-			// logger.Debug("[System Prompt]:\n%s", systemPrompt) // Disabled for performance profiling
+			// Debug: Log compile error prompt (limited to first 3 calls)
+			e.logPromptDebug("compileErrorFeedback", systemPrompt, userPrompt)
 		} else {
 			// Use divergence analysis if available
 			var divInfo *prompt.DivergenceInfo
@@ -389,16 +410,8 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 			}
 
 			// Debug: Log the refined prompt for divergence analysis
-			// logger.Debug("=== Divergence Refinement Prompt (Retry %d/%d) ===", retry+1, e.cfg.MaxRetries)
-			// logger.Debug("Divergent Function: %s", divInfo.DivergentFunction)
-			// logger.Debug("Refined Prompt:\n%s", refinedPrompt)
-			// logger.Debug("=== End of Divergence Refinement Prompt ===")
+			e.logPromptDebug("divergenceRefinement", systemPrompt, refinedPrompt)
 		}
-
-		// Debug: Log prompts for retry
-		// logger.Debug("=== LLM Call: solveConstraint Retry %d/%d ===", retry+1, e.cfg.MaxRetries)
-		// logger.Debug("[System Prompt]:\n%s", systemPrompt)
-		// logger.Debug("[Refined Prompt]:\n%s", refinedPrompt)
 
 		// Call LLM with refined prompt
 		completion, err := e.cfg.LLM.GetCompletionWithSystem(systemPrompt, refinedPrompt)
@@ -455,11 +468,8 @@ func (e *Engine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, err
 		return nil, fmt.Errorf("failed to build constraint prompt: %w", err)
 	}
 
-	// Debug: Log prompts (disabled for performance profiling)
-	// logger.Debug("=== LLM Call: generateMutatedSeed ===")
-	// logger.Debug("[System Prompt]:\n%s", systemPrompt)
-	// logger.Debug("[Constraint Prompt]:\n%s", userPrompt)
-	// logger.Debug("=== End Prompts ===")
+	// Debug: Log prompts (limited to first 3 calls)
+	e.logPromptDebug("generateMutatedSeed", systemPrompt, userPrompt)
 
 	// Call LLM
 	completion, err := e.cfg.LLM.GetCompletionWithSystem(systemPrompt, userPrompt)

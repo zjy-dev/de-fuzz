@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/zjy-dev/de-fuzz/internal/exec"
+	"github.com/zjy-dev/de-fuzz/internal/logger"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -94,6 +95,7 @@ func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 	// so they can override conflicting options (GCC uses last occurrence)
 	if len(s.CFlags) > 0 {
 		args = append(args, s.CFlags...)
+		logger.Debug("Seed %d has CFlags from LLM: %v", s.Meta.ID, s.CFlags)
 	}
 
 	// Add source file and output

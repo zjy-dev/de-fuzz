@@ -114,11 +114,12 @@ This is your starting point. This seed covers line %d, which is close to your ta
 	criticalRules := ""
 	if b.FunctionTemplate != "" {
 		criticalRules = `**CRITICAL RULES (Function Template Mode):**
-- **You are generating ONLY the seed() function body.**
+- **You are generating ONLY the function body.**
 - **DO NOT generate main() function.** The template already provides main().
 - **DO NOT generate #include statements.** The template already has them.
-- **DO NOT generate a complete program.** Only the seed() function.
-- Focus on modifying the seed() function to trigger different compiler paths.`
+- **DO NOT generate a complete program.** Only the function implementation.
+- **Match the function signature from the base seed EXACTLY.**
+- Focus on modifying the function body to trigger different compiler paths.`
 	} else {
 		criticalRules = `**CRITICAL RULES:**
 - **DO NOT create a new program from scratch.** You must modify the provided base seed.
@@ -138,49 +139,24 @@ This is your starting point. This seed covers line %d, which is close to your ta
 - Example of CORRECT code: int* ref = &x; or void* func(int x) { return (void*)(intptr_t)x; }`
 	criticalRules += languageConstraints
 
-	// Build output example based on mode
+	// Build output example based on mode - generic, no strategy-specific examples
 	outputExample := ""
 	if b.FunctionTemplate != "" {
-		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
+		outputExample = `## CRITICAL OUTPUT REQUIREMENTS
 
 **DO NOT include ANY explanations, analysis, or natural language text in your response.**
-**Output ONLY the seed() function inside a markdown code block.**
+**Output ONLY the function body inside a markdown code block.**
 **NO text before or after the code block.**
 **NO main() function. NO #include statements.**
-
-Example of CORRECT output:
-%s
-void seed(int fill_size) {
-    char buffer[64];
-    // Your modifications here
-    memset(buffer, 'A', fill_size);
-}
-%s
-
-Example of WRONG output (DO NOT DO THIS):
-%s
-#include <stdio.h>  // WRONG - no includes
-void seed(...) { }
-int main() { }  // WRONG - no main function
-%s
-`, "```c", "```", "```c", "```")
+**Match the function signature from the base seed EXACTLY.**
+`
 	} else {
-		outputExample = fmt.Sprintf(`## CRITICAL OUTPUT REQUIREMENTS
+		outputExample = `## CRITICAL OUTPUT REQUIREMENTS
 
 **DO NOT include ANY explanations, analysis, or natural language text in your response.**
 **Output ONLY the code inside a markdown code block.**
 **NO text before or after the code block.**
-
-Example of CORRECT output format:
-%s
-// your modified C code here
-int main() { ... }
-%s
-
-Example of WRONG output (DO NOT DO THIS):
-Here is my analysis... [WRONG - no explanations allowed]
-The code works by... [WRONG - no descriptions allowed]
-`, "```c", "```")
+`
 	}
 
 	prompt := fmt.Sprintf(`You are an expert at generating test cases for compiler fuzzing. Your task is to MODIFY an existing C program to trigger specific code paths in the compiler.
@@ -338,9 +314,10 @@ Create a NEW seed that:
 	criticalRules := ""
 	if b.FunctionTemplate != "" {
 		criticalRules = `**RULES:**
-- Output ONLY the seed() function body
+- Output ONLY the function body
 - NO main() function (template provides it)
 - NO #include statements
+- Match the function signature from the base seed exactly
 - Use only C99/C11 standard C code (no C++ features)`
 	} else {
 		criticalRules = `**RULES:**
@@ -458,10 +435,11 @@ This seed compiles and runs successfully. Use it as your starting point:
 	criticalRules := ""
 	if b.FunctionTemplate != "" {
 		criticalRules = `**RULES:**
-- Output ONLY the seed() function body
+- Output ONLY the function body
 - NO main() function (template provides it)
 - NO #include statements
-- Use only C99/C11 standard C code (no C++ features like __thread in function scope)`
+- Match the function signature from the base seed exactly
+- Use only C99/C11 standard C code (no C++ features)`
 	} else {
 		criticalRules = `**RULES:**
 - Output complete, compilable C code
@@ -490,6 +468,7 @@ This seed compiles and runs successfully. Use it as your starting point:
 }
 
 // getOutputFormat returns the appropriate output format instruction.
+// This is a generic format that works for all defense strategies.
 func (b *Builder) getOutputFormat() string {
 	cflagsNote := `
 
@@ -497,77 +476,53 @@ func (b *Builder) getOutputFormat() string {
 
 If you need to change compiler flags to reach the target, add after your code:
 // ||||| CFLAGS_START |||||
--fstack-protector-all
-// ||||| CFLAGS_END |||||`
+-flag1
+-flag2
+// ||||| CFLAGS_END |||||
+
+Note: Your flags will be appended AFTER the default config flags,
+so they can override conflicting options (GCC uses last occurrence).`
 
 	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format
 
-**CRITICAL: Function Template Mode**
-- You are in FUNCTION TEMPLATE mode.
-- The main() function is ALREADY PROVIDED in the template.
-- **DO NOT generate main() function.**
-- **DO NOT generate a complete program.**
-- **ONLY generate the seed() function body.**
+**Function Template Mode:**
+- Output ONLY the function body (the template provides main() and includes)
+- DO NOT generate main() function
+- DO NOT generate #include statements
 
-Output ONLY:
-1. The seed() function implementation
-2. (Optional) CFLAGS section if needed
-3. Followed by test cases in JSON format
+Output format:
+1. Function implementation in a markdown code block
+2. (Optional) CFLAGS section
+3. Test cases in JSON format
 
-Example of CORRECT output:
-%s
-void seed(int fill_size) {
-    char buffer[64];
-    memset(buffer, 'A', fill_size);
-}
-%s
 // ||||| CFLAGS_START |||||
--fstack-protector-all
+[optional flags]
 // ||||| CFLAGS_END |||||
 // ||||| JSON_TESTCASES_START |||||
-[{"running command": "./prog 100", "expected result": "..."}]
+[{"running command": "./prog args", "expected result": "..."}]
 
-Maximum %d test case(s).%s`, "```c", "```", b.MaxTestCases, cflagsNote)
+Maximum %d test case(s).%s`, b.MaxTestCases, cflagsNote)
 	} else if b.FunctionTemplate != "" {
 		return `## Output Format
 
-**CRITICAL: Function Template Mode**
-- You are in FUNCTION TEMPLATE mode.
-- The main() function is ALREADY PROVIDED in the template.
-- **DO NOT generate main() function.**
-- **DO NOT generate a complete program.**
-- **ONLY generate the seed() function body.**
-
-Example of CORRECT output:
-` + "```c" + `
-void seed(int fill_size) {
-    char buffer[64];
-    memset(buffer, 'A', fill_size);
-}
-` + "```" + `
-// ||||| CFLAGS_START |||||
--fstack-protector-all
-// ||||| CFLAGS_END |||||
-
-Example of WRONG output (DO NOT DO THIS):
-` + "```c" + `
-#include <stdio.h>
-void seed(int fill_size) { ... }
-int main() { ... }  // WRONG! Do not include main()
-` + "```" + cflagsNote
+**Function Template Mode:**
+- Output ONLY the function body in a markdown code block
+- The template already provides main() and #include statements
+- DO NOT generate main() function
+- DO NOT generate #include statements
+- Match the function signature from the base seed exactly
+` + cflagsNote
 	} else if b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format
 
-Output ONLY:
-1. Complete C source code
-2. (Optional) CFLAGS section if needed
-3. Followed by test cases in JSON format
+Output:
+1. Complete C source code in a markdown code block
+2. (Optional) CFLAGS section
+3. Test cases in JSON format
 
-Example:
-[C source code]
 // ||||| CFLAGS_START |||||
--fstack-protector-all
+[optional flags]
 // ||||| CFLAGS_END |||||
 // ||||| JSON_TESTCASES_START |||||
 [{"running command": "./prog", "expected result": "..."}]
@@ -576,12 +531,8 @@ Maximum %d test case(s).%s`, b.MaxTestCases, cflagsNote)
 	}
 	return `## Output Format
 
-Output ONLY complete C source code. No test cases needed.
-
-Optionally, add CFLAGS section after your code if needed:
-// ||||| CFLAGS_START |||||
--fstack-protector-all
-// ||||| CFLAGS_END |||||`
+Output complete C source code in a markdown code block.
+No test cases needed.` + cflagsNote
 }
 
 // GenerateAnnotatedFunctionCode generates function code with coverage annotations.
