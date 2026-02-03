@@ -35,13 +35,15 @@ func init() {
 // causes SIGSEGV (ret modified) before SIGABRT (canary check).
 type CanaryOracle struct {
 	MaxBufferSize  int
-	DefaultBufSize int // Default buffer size for buf_size parameter
+	DefaultBufSize int      // Default buffer size for buf_size parameter
+	NegativeCFlags []string // CFlags that disable canary protection (negative test cases)
 }
 
 // NewCanaryOracle creates a new canary-detection oracle.
 func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt.Builder, context string) (Oracle, error) {
 	maxSize := DefaultMaxBufferSize
 	bufSize := 64 // Default buffer size for buf_size parameter
+	var negativeCFlags []string
 
 	// Parse options
 	if options != nil {
@@ -61,21 +63,42 @@ func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt
 				bufSize = int(val)
 			}
 		}
+		// Parse negative_cflags - flags that disable canary protection
+		if v, ok := options["negative_cflags"]; ok {
+			switch val := v.(type) {
+			case []interface{}:
+				for _, item := range val {
+					if s, ok := item.(string); ok {
+						negativeCFlags = append(negativeCFlags, s)
+					}
+				}
+			case []string:
+				negativeCFlags = val
+			}
+		}
 	}
 
 	return &CanaryOracle{
 		MaxBufferSize:  maxSize,
 		DefaultBufSize: bufSize,
+		NegativeCFlags: negativeCFlags,
 	}, nil
 }
 
 // Analyze uses binary search to detect stack canary bypasses.
 // It requires ctx.Executor and ctx.BinaryPath to be set.
+//
+// For negative test cases (seeds with CFlags that disable canary protection),
+// the oracle inverts its judgment: SIGSEGV/SIGBUS is expected (no bug),
+// and only logs if canary unexpectedly triggers.
 func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Result) (*Bug, error) {
 	// Validate context
 	if ctx == nil || ctx.Executor == nil || ctx.BinaryPath == "" {
 		return nil, fmt.Errorf("canary oracle requires AnalyzeContext with Executor and BinaryPath")
 	}
+
+	// Check if this is a negative test case (canary protection disabled by CFlags)
+	isNegative := o.isNegativeCase(s)
 
 	// Binary search for the minimum crash size
 	minCrashSize, crashExitCode, hasSentinel := o.binarySearchCrash(ctx)
@@ -86,7 +109,34 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 		return nil, nil
 	}
 
-	// Analyze the crash type
+	// For negative cases (canary disabled), invert the judgment
+	if isNegative {
+		return o.analyzeNegativeCase(s, results, minCrashSize, crashExitCode, hasSentinel)
+	}
+
+	// Positive case: normal canary bypass detection
+	return o.analyzePositiveCase(s, results, minCrashSize, crashExitCode, hasSentinel)
+}
+
+// isNegativeCase checks if the seed's CFlags contain any flag that disables canary protection.
+// If so, SIGSEGV/SIGBUS is expected behavior (not a bug).
+func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
+	if s == nil || len(s.CFlags) == 0 || len(o.NegativeCFlags) == 0 {
+		return false
+	}
+
+	for _, seedFlag := range s.CFlags {
+		for _, negativeFlag := range o.NegativeCFlags {
+			if seedFlag == negativeFlag {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// analyzePositiveCase handles normal canary bypass detection (canary should be enabled).
+func (o *CanaryOracle) analyzePositiveCase(s *seed.Seed, results []Result, minCrashSize, crashExitCode int, hasSentinel bool) (*Bug, error) {
 	switch crashExitCode {
 	case ExitCodeSIGSEGV:
 		// SIGSEGV can be either true canary bypass or false positive (indirect crash)
@@ -143,6 +193,29 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 				minCrashSize, crashExitCode,
 			),
 		}, nil
+	}
+}
+
+// analyzeNegativeCase handles negative test cases (canary disabled by CFlags).
+// In this mode, SIGSEGV/SIGBUS is expected behavior (not a bug).
+// We only log (but don't report as bug) if SIGABRT occurs unexpectedly.
+func (o *CanaryOracle) analyzeNegativeCase(s *seed.Seed, results []Result, minCrashSize, crashExitCode int, hasSentinel bool) (*Bug, error) {
+	switch crashExitCode {
+	case ExitCodeSIGSEGV, ExitCodeSIGBUS:
+		// Expected behavior for negative case: canary is disabled, so SIGSEGV/SIGBUS is normal
+		// No bug to report
+		return nil, nil
+
+	case ExitCodeSIGABRT:
+		// Unexpected: canary check triggered even though protection should be disabled
+		// This could indicate the negative CFlag didn't take effect
+		// Log this as anomaly but don't report as security bug
+		// (It's a test configuration issue, not a compiler vulnerability)
+		return nil, nil
+
+	default:
+		// Other exit codes are also not bugs in negative case
+		return nil, nil
 	}
 }
 

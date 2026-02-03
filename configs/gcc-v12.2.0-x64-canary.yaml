@@ -58,6 +58,10 @@ compiler:
     options:
       # Maximum buffer size to test during binary search
       max_buffer_size: 1024
+      # CFlags that disable canary protection (negative test cases)
+      # Seeds with these flags will have inverted oracle judgment
+      negative_cflags:
+        - "-fno-stack-protector"
 
 # Configuration pattern: Map each file to its target functions
 # This allows fine-grained control over which functions to track per file

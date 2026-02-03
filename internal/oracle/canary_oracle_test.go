@@ -353,3 +353,212 @@ func TestCanaryOracle_SIGBUS_NoSentinel_FalsePositive(t *testing.T) {
 		t.Errorf("expected no bug (SIGBUS without sentinel), got: %s", bug.Description)
 	}
 }
+
+// ============================================================================
+// Negative CFlags Tests (for seeds that disable canary protection)
+// ============================================================================
+
+func TestCanaryOracle_NegativeCase_SIGSEGV_NoBug(t *testing.T) {
+	// Scenario: Seed has -fno-stack-protector, SIGSEGV is expected (not a bug)
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+		NegativeCFlags: []string{"-fno-stack-protector"},
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 100,
+			CrashExitCode:  ExitCodeSIGSEGV,
+			ReturnSentinel: true,
+		},
+	}
+
+	// Seed with -fno-stack-protector (negative case)
+	s := &seed.Seed{
+		CFlags: []string{"-fno-stack-protector"},
+	}
+	bug, err := orc.Analyze(s, ctx, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Errorf("expected no bug for negative case with SIGSEGV, got: %s", bug.Description)
+	}
+}
+
+func TestCanaryOracle_NegativeCase_SIGBUS_NoBug(t *testing.T) {
+	// Scenario: Seed has -fno-stack-protector, SIGBUS is expected (not a bug)
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+		NegativeCFlags: []string{"-fno-stack-protector"},
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 100,
+			CrashExitCode:  ExitCodeSIGBUS,
+			ReturnSentinel: true,
+		},
+	}
+
+	s := &seed.Seed{
+		CFlags: []string{"-fno-stack-protector"},
+	}
+	bug, err := orc.Analyze(s, ctx, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Errorf("expected no bug for negative case with SIGBUS, got: %s", bug.Description)
+	}
+}
+
+func TestCanaryOracle_NegativeCase_SIGABRT_NoBug(t *testing.T) {
+	// Scenario: Seed has -fno-stack-protector but still got SIGABRT
+	// This is unexpected but we don't report it as a security bug
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+		NegativeCFlags: []string{"-fno-stack-protector"},
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 100,
+			CrashExitCode:  ExitCodeSIGABRT,
+			ReturnSentinel: true,
+		},
+	}
+
+	s := &seed.Seed{
+		CFlags: []string{"-fno-stack-protector"},
+	}
+	bug, err := orc.Analyze(s, ctx, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Errorf("expected no bug for negative case with SIGABRT, got: %s", bug.Description)
+	}
+}
+
+func TestCanaryOracle_PositiveCase_StillReportsBug(t *testing.T) {
+	// Scenario: Seed without negative CFlags should still report SIGSEGV as bug
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+		NegativeCFlags: []string{"-fno-stack-protector"},
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 100,
+			CrashExitCode:  ExitCodeSIGSEGV,
+			ReturnSentinel: true,
+		},
+	}
+
+	// Seed without -fno-stack-protector (positive case)
+	s := &seed.Seed{
+		CFlags: []string{"-fstack-protector-strong"},
+	}
+	bug, err := orc.Analyze(s, ctx, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug == nil {
+		t.Fatal("expected bug for positive case with SIGSEGV, got nil")
+	}
+	t.Logf("Bug correctly detected: %s", bug.Description)
+}
+
+func TestCanaryOracle_isNegativeCase(t *testing.T) {
+	orc := &CanaryOracle{
+		NegativeCFlags: []string{"-fno-stack-protector", "-fno-stack-protector-all"},
+	}
+
+	tests := []struct {
+		name     string
+		seed     *seed.Seed
+		expected bool
+	}{
+		{
+			name:     "nil seed",
+			seed:     nil,
+			expected: false,
+		},
+		{
+			name:     "empty CFlags",
+			seed:     &seed.Seed{CFlags: []string{}},
+			expected: false,
+		},
+		{
+			name:     "positive case",
+			seed:     &seed.Seed{CFlags: []string{"-fstack-protector-strong"}},
+			expected: false,
+		},
+		{
+			name:     "negative case exact match",
+			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector"}},
+			expected: true,
+		},
+		{
+			name:     "negative case with other flags",
+			seed:     &seed.Seed{CFlags: []string{"-O2", "-fno-stack-protector", "-Wall"}},
+			expected: true,
+		},
+		{
+			name:     "multiple negative flags",
+			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector-all"}},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := orc.isNegativeCase(tt.seed)
+			if result != tt.expected {
+				t.Errorf("isNegativeCase() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCanaryOracle_NegativeCFlagsFromOptions(t *testing.T) {
+	// Test parsing negative_cflags from options map
+	options := map[string]interface{}{
+		"max_buffer_size": 1024,
+		"negative_cflags": []interface{}{"-fno-stack-protector", "-fno-stack-protector-all"},
+	}
+
+	orc, err := NewCanaryOracle(options, nil, nil, "")
+	if err != nil {
+		t.Fatalf("Failed to create canary oracle: %v", err)
+	}
+
+	canaryOrc, ok := orc.(*CanaryOracle)
+	if !ok {
+		t.Fatal("Expected *CanaryOracle type")
+	}
+
+	if len(canaryOrc.NegativeCFlags) != 2 {
+		t.Errorf("expected 2 negative CFlags, got %d", len(canaryOrc.NegativeCFlags))
+	}
+
+	expectedFlags := []string{"-fno-stack-protector", "-fno-stack-protector-all"}
+	for i, flag := range expectedFlags {
+		if canaryOrc.NegativeCFlags[i] != flag {
+			t.Errorf("expected NegativeCFlags[%d] = %q, got %q", i, flag, canaryOrc.NegativeCFlags[i])
+		}
+	}
+}

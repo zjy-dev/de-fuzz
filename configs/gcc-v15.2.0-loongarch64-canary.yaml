@@ -69,6 +69,10 @@ compiler:
             max_buffer_size: 1024
             # Default buffer size for buf_size parameter (passed to seed function)
             default_buf_size: 64
+            # CFlags that disable canary protection (negative test cases)
+            # Seeds with these flags will have inverted oracle judgment
+            negative_cflags:
+                - "-fno-stack-protector"
 
 # Configuration pattern: Map each file to its target functions
 # Stack Canary (Stack Protector) related core functions for LoongArch64
