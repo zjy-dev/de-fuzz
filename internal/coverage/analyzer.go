@@ -454,14 +454,25 @@ func (c *Analyzer) selectTargetBB(targetFunctions []string, coveredLines map[Lin
 		return nil
 	}
 
+	// Sort by weight descending
 	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].Weight != candidates[j].Weight {
-			return candidates[i].Weight > candidates[j].Weight
-		}
-		return candidates[i].BBID < candidates[j].BBID
+		return candidates[i].Weight > candidates[j].Weight
 	})
 
-	return &candidates[0]
+	// Find all candidates with the maximum weight
+	maxWeight := candidates[0].Weight
+	var topCandidates []BBCandidate
+	for _, c := range candidates {
+		if c.Weight == maxWeight {
+			topCandidates = append(topCandidates, c)
+		} else {
+			break // Since sorted, no more max weight candidates
+		}
+	}
+
+	// Randomly select from top candidates
+	idx := randIntn(len(topCandidates))
+	return &topCandidates[idx]
 }
 
 func (c *Analyzer) findCoveredPredecessorSeed(candidate *BBCandidate, coveredLines map[LineID]bool) (int64, LineID, bool) {
