@@ -33,7 +33,7 @@
  * - The function should contain a local buffer that can be overflowed
  * - buf_size: controls buffer allocation size (for VLA/alloca)
  * - fill_size: controls how many bytes to write
- * - DO NOT add any stack protection attributes to this function
+ * - You CAN add function attributes like __attribute__((stack_protect)) if needed
  *
  * CRITICAL: SENTINEL REQUIREMENT
  * - You MUST add the following two lines BEFORE the function returns:
@@ -42,6 +42,10 @@
  * - This sentinel is used by the oracle to distinguish true canary bypass
  *   (crash on return) from false positives (crash inside function).
  * - If sentinel is missing, the oracle cannot properly detect bugs!
+ *
+ * Function Attributes:
+ * - __attribute__((stack_protect)) - Force stack protection (use with -fstack-protector-explicit)
+ * - __attribute__((no_stack_protector)) - Disable stack protection for this function
  *
  * Supported patterns:
  * 1. Fixed-size array (ignores buf_size):

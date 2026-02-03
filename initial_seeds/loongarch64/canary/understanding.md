@@ -196,6 +196,16 @@ To reach certain basic blocks, you may need to specify different flags.
 | `-fstack-protector-strong` | 3 (STRONG) | BB76: `gen_stack_protect_signal OR calls_alloca OR has_protected_decls` |
 | `-fstack-protector-explicit` | 4 (EXPLICIT) | BB93: only with `__attribute__((stack_protect))` |
 
+**⚠️ CRITICAL WARNING about `-fstack-protector-explicit`:**
+This flag ONLY enables stack protection for functions explicitly marked with `__attribute__((stack_protect))`.
+If you use this flag WITHOUT the attribute, NO canary will be inserted and the function is UNPROTECTED!
+You MUST add the attribute to your function declaration:
+```c
+__attribute__((stack_protect)) void seed(int buf_size, int fill_size) {
+    // function body
+}
+```
+
 ### How to Use CFlags
 
 To specify compiler flags, add a CFLAGS section after your code:

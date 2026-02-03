@@ -33,7 +33,7 @@
  * - The function should contain a local buffer that can be overflowed
  * - buf_size: controls buffer allocation size (for VLA/alloca)
  * - fill_size: controls how many bytes to write
- * - DO NOT add any stack protection attributes to this function
+ * - You CAN add function attributes like __attribute__((stack_protect)) if needed
  *
  * CRITICAL: SENTINEL REQUIREMENT
  * - You MUST add the following two lines BEFORE the function returns:
