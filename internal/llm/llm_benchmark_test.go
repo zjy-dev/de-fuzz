@@ -3,20 +3,48 @@ package llm
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
-// BenchmarkDeepSeekClient_GetCompletion benchmarks the GetCompletion method
-func BenchmarkDeepSeekClient_GetCompletion(b *testing.B) {
+// setupBenchRemixer creates a mock OpenAI server and a temporary remixer config,
+// then returns a RemixerClient and a cleanup function.
+func setupBenchRemixer(b *testing.B) (*RemixerClient, func()) {
+	b.Helper()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices": [{"message": {"content": "benchmark response"}}]}`))
+		w.Write([]byte(`{"choices": [{"message": {"content": "int main() { return 0; }"}}]}`))
 	}))
-	defer server.Close()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
+	tmpDir, err := os.MkdirTemp("", "bench_remixer_*")
+	if err != nil {
+		b.Fatal(err)
+	}
+	configContent := "models:\n  - name: \"mock\"\n    weight: 1\n    providers:\n      - type: \"openai\"\n        endpoint: \"" + server.URL + "\"\n        model: \"mock\"\n        api_key: \"test-key\"\n"
+	configPath := filepath.Join(tmpDir, "remixer.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		b.Fatal(err)
+	}
+
+	client, err := NewRemixerClient(configPath, 0.7)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	cleanup := func() {
+		server.Close()
+		os.RemoveAll(tmpDir)
+	}
+	return client, cleanup
+}
+
+func BenchmarkRemixerClient_GetCompletion(b *testing.B) {
+	client, cleanup := setupBenchRemixer(b)
+	defer cleanup()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -27,15 +55,9 @@ func BenchmarkDeepSeekClient_GetCompletion(b *testing.B) {
 	}
 }
 
-// BenchmarkDeepSeekClient_Generate benchmarks the Generate method
-func BenchmarkDeepSeekClient_Generate(b *testing.B) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices": [{"message": {"content": "int main() { return 0; }"}}]}`))
-	}))
-	defer server.Close()
-
-	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
+func BenchmarkRemixerClient_Generate(b *testing.B) {
+	client, cleanup := setupBenchRemixer(b)
+	defer cleanup()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -46,22 +68,16 @@ func BenchmarkDeepSeekClient_Generate(b *testing.B) {
 	}
 }
 
-// BenchmarkDeepSeekClient_Analyze benchmarks the Analyze method
-func BenchmarkDeepSeekClient_Analyze(b *testing.B) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices": [{"message": {"content": "analysis result"}}]}`))
-	}))
-	defer server.Close()
+func BenchmarkRemixerClient_Analyze(b *testing.B) {
+	client, cleanup := setupBenchRemixer(b)
+	defer cleanup()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
-	testCases := []seed.TestCase{
-		{RunningCommand: "./test", ExpectedResult: "success"},
-	}
 	testSeed := &seed.Seed{
-		Meta:      seed.Metadata{ID: 1},
-		Content:   "int main() { return 0; }",
-		TestCases: testCases,
+		Meta:    seed.Metadata{ID: 1},
+		Content: "int main() { return 0; }",
+		TestCases: []seed.TestCase{
+			{RunningCommand: "./test", ExpectedResult: "success"},
+		},
 	}
 
 	b.ResetTimer()
@@ -73,22 +89,16 @@ func BenchmarkDeepSeekClient_Analyze(b *testing.B) {
 	}
 }
 
-// BenchmarkDeepSeekClient_Mutate benchmarks the Mutate method
-func BenchmarkDeepSeekClient_Mutate(b *testing.B) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices": [{"message": {"content": "mutated code"}}]}`))
-	}))
-	defer server.Close()
+func BenchmarkRemixerClient_Mutate(b *testing.B) {
+	client, cleanup := setupBenchRemixer(b)
+	defer cleanup()
 
-	client := NewDeepSeekClient("test_key", "test_model", server.URL, 0.7)
-	mutateTestCases := []seed.TestCase{
-		{RunningCommand: "./prog", ExpectedResult: "output"},
-	}
 	testSeed := &seed.Seed{
-		Meta:      seed.Metadata{ID: 1},
-		Content:   "int main() { return 0; }",
-		TestCases: mutateTestCases,
+		Meta:    seed.Metadata{ID: 1},
+		Content: "int main() { return 0; }",
+		TestCases: []seed.TestCase{
+			{RunningCommand: "./prog", ExpectedResult: "output"},
+		},
 	}
 
 	b.ResetTimer()

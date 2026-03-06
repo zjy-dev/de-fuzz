@@ -1,5 +1,6 @@
 config:
-  llm: "deepseek"
+  remixer_config: "configs/remixer.yaml"
+  default_temperature: 0.1
 
   isa: "loongarch64"
 

@@ -43,8 +43,8 @@ func TestLoad_Success(t *testing.T) {
 config:
   isa: "x64"
   strategy: "canary"
-  llm:
-    provider: "deepseek"
+  remixer_config: "configs/remixer.yaml"
+  default_temperature: 0.1
   compiler:
     name: "gcc"
     version: "12.2.0"
@@ -59,7 +59,7 @@ config:
 	assert.NoError(t, err)
 	assert.Equal(t, "x64", loadedCfg.ISA)
 	assert.Equal(t, "canary", loadedCfg.Strategy)
-	assert.Equal(t, "deepseek", loadedCfg.LLM.Provider)
+	assert.Equal(t, "configs/remixer.yaml", loadedCfg.RemixerConfigPath)
 }
 
 func TestLoad_FileNotExists(t *testing.T) {
@@ -113,8 +113,7 @@ func TestGetCompilerConfigName(t *testing.T) {
 config:
   isa: "x64"
   strategy: "canary"
-  llm:
-    provider: "deepseek"
+  remixer_config: "configs/remixer.yaml"
   compiler:
     name: "gcc"
     version: "12.2.0"
@@ -142,8 +141,7 @@ func TestGetCompilerConfigPath(t *testing.T) {
 config:
   isa: "x64"
   strategy: "canary"
-  llm:
-    provider: "deepseek"
+  remixer_config: "configs/remixer.yaml"
   compiler:
     name: "gcc"
     version: "12.2.0"
@@ -186,8 +184,7 @@ func TestGetCompilerConfigPath_NotFound(t *testing.T) {
 config:
   isa: "x64"
   strategy: "stackguard"
-  llm:
-    provider: "deepseek"
+  remixer_config: "configs/remixer.yaml"
   compiler:
     name: "clang"
     version: "15.0.0"
@@ -270,8 +267,7 @@ func TestLoad_FuzzConfig(t *testing.T) {
 	defer cleanup()
 
 	// Create a config file with fuzz section
-	// Note: In the actual config.yaml, 'llm' is a string (provider name),
-	// but the Config struct expects LLMConfig. This is handled specially in LoadConfig.
+	// Note: In the actual config.yaml, remixer_config is a path string.
 	// For Load() function, we test with the actual file format.
 	configContent := `
 config:
@@ -514,6 +510,23 @@ func TestResolveEnvVarsInMap(t *testing.T) {
 	array := testMap["array"].([]interface{})
 	assert.Equal(t, "resolved_value", array[0])
 	assert.Equal(t, "static_value", array[1])
+}
+
+func TestApplyEnvResolution(t *testing.T) {
+	t.Setenv("CFG_TEST_VALUE", "resolved")
+
+	v := viper.New()
+	v.Set("config", map[string]interface{}{
+		"path": "${CFG_TEST_VALUE}",
+		"nested": map[string]interface{}{
+			"inner": "$CFG_TEST_VALUE",
+		},
+	})
+
+	applyEnvResolution(v)
+
+	assert.Equal(t, "resolved", v.GetString("config.path"))
+	assert.Equal(t, "resolved", v.GetString("config.nested.inner"))
 }
 
 func TestLoad_FuzzConfig_PartialConfig(t *testing.T) {

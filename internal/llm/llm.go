@@ -1,9 +1,6 @@
 package llm
 
 import (
-	"fmt"
-
-	"github.com/zjy-dev/de-fuzz/internal/config"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -28,16 +25,9 @@ type LLM interface {
 	Mutate(understanding, prompt string, s *seed.Seed) (*seed.Seed, error)
 }
 
-// New creates a new LLM client based on the provided configuration.
-func New(cfg *config.Config) (LLM, error) {
-	switch cfg.LLM.Provider {
-	case "deepseek":
-		return NewDeepSeekClient(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.Endpoint, cfg.LLM.Temperature), nil
-	case "minimax":
-		return NewMiniMaxClient(cfg.LLM.APIKey, cfg.LLM.Model, cfg.LLM.Endpoint, cfg.LLM.Temperature), nil
-	// case "openai":
-	// return NewOpenAIClient(cfg.LLM.APIKey, cfg.LLM.Model), nil
-	default:
-		return nil, fmt.Errorf("unsupported llm provider: %s", cfg.LLM.Provider)
-	}
+// New creates a new LLM client backed by llm-remixer.
+// configPath is the path to the remixer YAML config file.
+// temperature is the default sampling temperature for all requests.
+func New(configPath string, temperature float64) (LLM, error) {
+	return NewRemixerClient(configPath, temperature)
 }

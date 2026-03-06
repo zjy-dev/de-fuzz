@@ -12,12 +12,13 @@ import (
 
 // Config holds the top-level configuration for the application.
 type Config struct {
-	LLM      LLMConfig      `mapstructure:"llm"`
-	ISA      string         `mapstructure:"isa"`
-	Strategy string         `mapstructure:"strategy"`
-	LogLevel string         `mapstructure:"log_level"`
-	LogDir   string         `mapstructure:"log_dir"`
-	Compiler CompilerConfig `mapstructure:"compiler"`
+	RemixerConfigPath  string         `mapstructure:"remixer_config"`
+	DefaultTemperature float64        `mapstructure:"default_temperature"`
+	ISA                string         `mapstructure:"isa"`
+	Strategy           string         `mapstructure:"strategy"`
+	LogLevel           string         `mapstructure:"log_level"`
+	LogDir             string         `mapstructure:"log_dir"`
+	Compiler           CompilerConfig `mapstructure:"compiler"`
 }
 
 // FuzzConfig holds the configuration for the fuzzing process.
@@ -77,11 +78,6 @@ type FuzzConfig struct {
 	WeightDecayFactor float64 `mapstructure:"weight_decay_factor"`
 }
 
-// InternalLLMConfig is used for unmarshaling the config.yaml which only contains the provider string
-type InternalLLMConfig struct {
-	Provider string `mapstructure:"llm"`
-}
-
 // CompilerInfo holds basic compiler identification from the main config.
 type CompilerInfo struct {
 	Name    string `mapstructure:"name"`
@@ -95,15 +91,6 @@ type OracleConfig struct {
 
 	// Options holds arbitrary configuration for the specific oracle implementation
 	Options map[string]interface{} `mapstructure:"options"`
-}
-
-// LLMConfig holds the configuration for the Large Language Model.
-type LLMConfig struct {
-	Provider    string  `mapstructure:"provider"`
-	Model       string  `mapstructure:"model"`
-	APIKey      string  `mapstructure:"api_key"`
-	Endpoint    string  `mapstructure:"endpoint"`
-	Temperature float64 `mapstructure:"temperature"`
 }
 
 // TargetFunction specifies a source file and the functions within it to track for coverage.
@@ -286,8 +273,7 @@ func applyEnvResolution(v *viper.Viper) {
 	// Traverse and resolve env vars in string values
 	resolveInMap(settings)
 
-	// Reconfigure viper with resolved values
-	v = viper.New()
+	// Write resolved values back to the same viper instance.
 	for key, value := range settings {
 		v.Set(key, value)
 	}
@@ -415,86 +401,25 @@ func LoadConfig() (*Config, error) {
 	applyEnvResolution(v)
 
 	// Parse the main config fields (ISA, Strategy, Compiler info)
-	// Note: We can't unmarshal the whole 'config' object directly because 'llm' is a string in config.yaml
-	// but a struct in our Config type. So we parse fields individually.
-
 	cfg.ISA = v.GetString("config.isa")
 	cfg.Strategy = v.GetString("config.strategy")
 	cfg.LogLevel = v.GetString("config.log_level")
 	cfg.LogDir = v.GetString("config.log_dir")
 
+	// Load remixer config path and default temperature
+	cfg.RemixerConfigPath = v.GetString("config.remixer_config")
+	if cfg.RemixerConfigPath == "" {
+		cfg.RemixerConfigPath = "configs/remixer.yaml"
+	}
+	cfg.DefaultTemperature = v.GetFloat64("config.default_temperature")
+	if cfg.DefaultTemperature <= 0 {
+		cfg.DefaultTemperature = 0.1
+	}
+
 	// Parse compiler name and version from config.yaml
 	var compilerInfo CompilerInfo
 	if err := v.UnmarshalKey("config.compiler", &compilerInfo); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal compiler info: %w", err)
-	}
-
-	// Get the LLM provider from config.yaml (it's just a string there)
-	llmProvider := v.GetString("config.llm")
-	if llmProvider == "" {
-		// For backwards compatibility, try common providers
-		llmProvider = "deepseek"
-	}
-
-	// Load LLM config from llm.yaml
-	llmViper := viper.New()
-	llmViper.SetConfigName("llm")
-	llmViper.SetConfigType("yaml")
-	llmViper.AddConfigPath("configs")
-	llmViper.AddConfigPath("../configs")
-	llmViper.AddConfigPath("../../configs")
-
-	if err := llmViper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to load llm config: %w", err)
-	}
-
-	// llm.yaml has an array structure: llms: [...]
-	// Get all settings and resolve env vars in the llms array
-	allSettings := llmViper.AllSettings()
-	llmSettings := allSettings["llms"].([]interface{})
-
-	// Parse each LLM config and resolve env vars
-	var llms []LLMConfig
-	for _, llmItem := range llmSettings {
-		llmMap, ok := llmItem.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		llmCfg := LLMConfig{}
-
-		// Resolve env vars for each field
-		if provider, ok := llmMap["provider"].(string); ok {
-			llmCfg.Provider = resolveEnvVars(provider)
-		}
-		if model, ok := llmMap["model"].(string); ok {
-			llmCfg.Model = resolveEnvVars(model)
-		}
-		if apiKey, ok := llmMap["api_key"].(string); ok {
-			llmCfg.APIKey = resolveEnvVars(apiKey)
-		}
-		if endpoint, ok := llmMap["endpoint"].(string); ok {
-			llmCfg.Endpoint = resolveEnvVars(endpoint)
-		}
-		if temp, ok := llmMap["temperature"].(float64); ok {
-			llmCfg.Temperature = temp
-		}
-
-		llms = append(llms, llmCfg)
-	}
-
-	// Find the matching provider
-	found := false
-	for _, llmCfg := range llms {
-		if llmCfg.Provider == llmProvider {
-			cfg.LLM = llmCfg
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return nil, fmt.Errorf("llm provider %s not found in llm.yaml", llmProvider)
 	}
 
 	// Load compiler-specific config based on the pattern

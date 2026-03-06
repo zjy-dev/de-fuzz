@@ -1,0 +1,54 @@
+compiler:
+    # Cross-compiler for riscv64 (GCC 15.2)
+    path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/xgcc"
+
+    # gcovr execution path - should be the source root directory
+    gcovr_exec_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu"
+
+    source_parent_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile"
+
+    # gcovr command template
+    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+
+    # Compiler flags for RISC-V 64 cross-compilation
+    cflags:
+        - "-fstack-protector-strong"
+        - "-O0"
+        - "--sysroot=/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
+        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc"
+        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/lib/gcc/riscv64-unknown-linux-gnu/15.2.0"
+        - "-L/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/lib"
+
+    fuzz:
+        output_root_dir: "fuzz_out"
+        max_iterations: 256
+        max_new_seeds: 1
+        max_test_cases: 0
+        function_template: "initial_seeds/riscv64/canary/function_template.c"
+        base_prompt_dir: "prompts/base"
+        timeout: 30
+        use_qemu: true
+        qemu_path: "qemu-riscv64"
+        qemu_sysroot: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
+        cfg_file_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        max_constraint_retries: 8
+        weight_decay_factor: 0.8
+
+    oracle:
+        type: "canary"
+        options:
+            max_buffer_size: 1024
+            default_buf_size: 64
+            negative_cflags:
+                - "-fno-stack-protector"
+
+# Stack Canary (Stack Protector) related core functions for RISC-V 64
+# Same functions as other architectures, targeting riscv64-unknown-linux-gnu
+targets:
+    - file: "gcc/gcc/cfgexpand.cc"
+      functions:
+          - "stack_protect_classify_type"
+          - "expand_used_vars"
+    - file: "gcc/gcc/function.cc"
+      functions:
+          - "stack_protect_epilogue"

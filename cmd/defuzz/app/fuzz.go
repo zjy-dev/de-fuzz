@@ -216,7 +216,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	)
 
 	// 6. Create LLM client
-	llmClient, err := llm.New(cfg)
+	llmClient, err := llm.New(cfg.RemixerConfigPath, cfg.DefaultTemperature)
 	if err != nil {
 		return fmt.Errorf("failed to create LLM client: %w", err)
 	}

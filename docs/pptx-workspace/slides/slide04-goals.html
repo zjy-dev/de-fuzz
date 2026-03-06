@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #ffffff; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #ffffff; font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #1B5E20;
+  padding: 12pt 24pt;
+  display: flex;
+  align-items: center;
+}
+.header h1 {
+  color: #ffffff;
+  font-size: 22pt;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  padding: 24pt 30pt;
+  display: flex;
+  flex-direction: column;
+}
+h2 {
+  color: #1B5E20;
+  font-size: 18pt;
+  margin: 0 0 16pt 14pt;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+}
+.title-bar {
+  width: 4pt;
+  height: 18pt;
+  background: #FFC107;
+  margin-right: 10pt;
+}
+.goals {
+  display: flex;
+  gap: 20pt;
+  margin-bottom: 20pt;
+}
+.goal-card {
+  flex: 1;
+  background: #E8F5E9;
+  border-radius: 6pt;
+  padding: 16pt;
+  border-top: 4pt solid #1B5E20;
+}
+.goal-num {
+  color: #FFC107;
+  font-size: 24pt;
+  font-weight: bold;
+  margin: 0 0 8pt 0;
+}
+.goal-title {
+  color: #1B5E20;
+  font-size: 14pt;
+  font-weight: bold;
+  margin: 0 0 8pt 0;
+}
+.goal-desc {
+  color: #333333;
+  font-size: 12pt;
+  margin: 0;
+  line-height: 1.4;
+}
+.example {
+  background: #FFF8E1;
+  padding: 12pt 16pt;
+  margin-top: auto;
+  display: flex;
+}
+.example-bar {
+  width: 4pt;
+  background: #FFC107;
+  margin-right: 12pt;
+}
+.example p {
+  color: #333333;
+  font-size: 12pt;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>2. 研究目标</h1>
+</div>
+<div class="content">
+  <div class="section-title"><div class="title-bar"></div><h2>核心研究目标</h2></div>
+  <div class="goals">
+    <div class="goal-card">
+      <p class="goal-num">01</p>
+      <p class="goal-title">发现已知漏洞</p>
+      <p class="goal-desc">能够复现和发现软件防御机制相关的已知 CVE，如 CVE-2023-4039</p>
+    </div>
+    <div class="goal-card">
+      <p class="goal-num">02</p>
+      <p class="goal-title">发现未知漏洞</p>
+      <p class="goal-desc">在最新版本编译器中发现新的防御机制失效问题</p>
+    </div>
+    <div class="goal-card">
+      <p class="goal-num">03</p>
+      <p class="goal-title">多架构支持</p>
+      <p class="goal-desc">支持 x64、AArch64、LoongArch64 等多种指令集架构</p>
+    </div>
+  </div>
+  <div class="example">
+    <div class="example-bar"></div>
+    <p>验证目标：复现 CVE-2023-4039 (GCC AArch64 Stack Canary 绕过) - https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html</p>
+  </div>
+</div>
+</body>
+</html>

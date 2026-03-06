@@ -39,8 +39,8 @@ func TestLoadConfig_Integration(t *testing.T) {
 	assert.NotEmpty(t, cfg.ISA, "ISA should be loaded")
 	assert.NotEmpty(t, cfg.Strategy, "Strategy should be loaded")
 
-	// Verify LLM config
-	assert.NotEmpty(t, cfg.LLM.Provider, "LLM provider should be loaded")
+	// Verify remixer config
+	assert.NotEmpty(t, cfg.RemixerConfigPath, "Remixer config path should be loaded")
 
 	// Verify compiler config
 	assert.NotEmpty(t, cfg.Compiler.Path, "Compiler path should be loaded")
