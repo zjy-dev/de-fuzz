@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zjy-dev/de-fuzz/internal/compiler"
 	"github.com/zjy-dev/de-fuzz/internal/coverage"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 func TestEngine_NewEngine(t *testing.T) {
@@ -133,5 +135,45 @@ int test_func (int a, int b)
 		}
 	} else {
 		t.Error("test_func should be in coverage map")
+	}
+}
+
+func TestEngine_PersistCompilationRecord(t *testing.T) {
+	seedDir := filepath.Join(t.TempDir(), "id-000001-src-000000-cov-00000-aaaaaaaa")
+	err := os.MkdirAll(seedDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create seed dir: %v", err)
+	}
+
+	s := &seed.Seed{
+		Meta: seed.Metadata{
+			ID:          1,
+			ContentPath: filepath.Join(seedDir, "source.c"),
+		},
+	}
+	result := &compiler.CompileResult{
+		BinaryPath:     "/tmp/build/seed_1",
+		Success:        true,
+		Command:        "gcc source.c -o seed_1",
+		CompilerPath:   "gcc",
+		Args:           []string{"source.c", "-o", "seed_1"},
+		EffectiveFlags: []string{"-Wall"},
+	}
+
+	engine := NewEngine(Config{})
+	engine.persistCompilationRecord(s, result)
+
+	record, err := seed.LoadCompilationRecord(seedDir)
+	if err != nil {
+		t.Fatalf("Failed to load compilation record: %v", err)
+	}
+	if record.SeedID != 1 {
+		t.Fatalf("Expected seed ID 1, got %d", record.SeedID)
+	}
+	if record.Command != result.Command {
+		t.Fatalf("Expected command %q, got %q", result.Command, record.Command)
+	}
+	if record.SourcePath != s.Meta.ContentPath {
+		t.Fatalf("Expected source path %q, got %q", s.Meta.ContentPath, record.SourcePath)
 	}
 }
