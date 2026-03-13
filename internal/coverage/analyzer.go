@@ -63,8 +63,8 @@ type BBWeightInfo struct {
 
 // Analyzer parses and analyzes GCC CFG dump files for fuzzing guidance.
 type Analyzer struct {
-	cfgPath       string                   // Path to the .cfg file
-	functions     map[string]*CFGFunction  // Parsed functions by name
+	cfgPaths      []string                 // Paths to .cfg files (supports multiple)
+	functions     map[string]*CFGFunction  // Parsed functions by name (merged from all CFG files)
 	lineToBB      map[LineID][]int         // Map of File:Line -> list of BB IDs
 	bbToSuccCount map[string]int           // Map of "FuncName:BBID" -> successor count
 	bbWeights     map[string]*BBWeightInfo // Map of "FuncName:BBID" -> weight info
@@ -76,16 +76,21 @@ type Analyzer struct {
 	weightDecayFactor float64          // Decay factor for BB weights after failed iterations
 }
 
-// NewAnalyzer creates a new analyzer for the given CFG file.
+// NewAnalyzer creates a new analyzer for the given CFG file(s).
+// cfgPaths accepts one or more CFG file paths; functions from all files are merged.
 // weightDecayFactor should be in range (0, 1], default 0.8 if invalid.
-func NewAnalyzer(cfgPath string, targetFunctions []string, sourceDir string, mappingPath string, weightDecayFactor float64) (*Analyzer, error) {
+func NewAnalyzer(cfgPaths []string, targetFunctions []string, sourceDir string, mappingPath string, weightDecayFactor float64) (*Analyzer, error) {
+	if len(cfgPaths) == 0 {
+		return nil, fmt.Errorf("at least one CFG file path is required")
+	}
+
 	// Validate and set default for weightDecayFactor
 	if weightDecayFactor <= 0 || weightDecayFactor > 1 {
 		weightDecayFactor = 0.8
 	}
 
 	cfgAnalyzer := &Analyzer{
-		cfgPath:           cfgPath,
+		cfgPaths:          cfgPaths,
 		functions:         make(map[string]*CFGFunction),
 		lineToBB:          make(map[LineID][]int),
 		bbToSuccCount:     make(map[string]int),
@@ -95,14 +100,20 @@ func NewAnalyzer(cfgPath string, targetFunctions []string, sourceDir string, map
 		weightDecayFactor: weightDecayFactor,
 	}
 
-	if err := cfgAnalyzer.Parse(); err != nil {
-		return nil, fmt.Errorf("failed to parse CFG file: %w", err)
+	// Parse all CFG files, merging functions from each
+	for _, path := range cfgPaths {
+		if err := cfgAnalyzer.parseCFGFile(path); err != nil {
+			return nil, fmt.Errorf("failed to parse CFG file %s: %w", filepath.Base(path), err)
+		}
 	}
+
+	// Build predecessor maps across all parsed functions
+	cfgAnalyzer.buildPredecessorMaps()
 
 	// Validate target functions exist
 	for _, fn := range targetFunctions {
 		if _, ok := cfgAnalyzer.functions[fn]; !ok {
-			return nil, fmt.Errorf("target function %s not found in CFG", fn)
+			return nil, fmt.Errorf("target function %s not found in CFG files", fn)
 		}
 	}
 
@@ -125,9 +136,9 @@ var (
 	reLineInfo       = regexp.MustCompile(`\[([^:\]]+):(\d+):\d+(?:\s+discrim\s+\d+)?\]`)
 )
 
-// Parse parses the CFG file and builds internal data structures.
-func (c *Analyzer) Parse() error {
-	file, err := os.Open(c.cfgPath)
+// parseCFGFile parses a single CFG file and merges its functions into the analyzer.
+func (c *Analyzer) parseCFGFile(cfgPath string) error {
+	file, err := os.Open(cfgPath)
 	if err != nil {
 		return fmt.Errorf("failed to open CFG file: %w", err)
 	}
@@ -241,6 +252,16 @@ func (c *Analyzer) Parse() error {
 		return fmt.Errorf("error reading CFG file: %w", err)
 	}
 
+	return nil
+}
+
+// Parse parses all configured CFG files (backward compatibility helper).
+func (c *Analyzer) Parse() error {
+	for _, path := range c.cfgPaths {
+		if err := c.parseCFGFile(path); err != nil {
+			return err
+		}
+	}
 	c.buildPredecessorMaps()
 	return nil
 }

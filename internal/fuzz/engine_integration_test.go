@@ -58,7 +58,7 @@ func TestEngine_Integration_BasicFlow(t *testing.T) {
 	// Create CFG-guided analyzer
 	targetFunctions := []string{"stack_protect_classify_type"}
 	cfgAnalyzer, err := coverage.NewAnalyzer(
-		cfgPath,
+		[]string{cfgPath},
 		targetFunctions,
 		"",
 		mappingPath,
@@ -194,7 +194,7 @@ func TestEngine_Integration_TargetSelection(t *testing.T) {
 
 	// Create analyzer
 	cfgAnalyzer, err := coverage.NewAnalyzer(
-		cfgPath,
+		[]string{cfgPath},
 		[]string{"stack_protect_classify_type", "stack_protect_decl_phase"},
 		"",
 		mappingPath,
@@ -262,7 +262,7 @@ func TestEngine_Integration_MappingPersistence(t *testing.T) {
 	// Create analyzer and record some coverage
 	t.Run("record_coverage", func(t *testing.T) {
 		analyzer, err := coverage.NewAnalyzer(
-			cfgPath,
+			[]string{cfgPath},
 			[]string{"stack_protect_classify_type"},
 			"",
 			mappingPath,
@@ -292,7 +292,7 @@ func TestEngine_Integration_MappingPersistence(t *testing.T) {
 	// Load and verify
 	t.Run("load_and_verify", func(t *testing.T) {
 		analyzer, err := coverage.NewAnalyzer(
-			cfgPath,
+			[]string{cfgPath},
 			[]string{"stack_protect_classify_type"},
 			"",
 			mappingPath,
@@ -331,7 +331,7 @@ func TestEngine_Integration_CoverageProgression(t *testing.T) {
 	mappingPath := filepath.Join(tmpDir, "mapping.json")
 
 	analyzer, err := coverage.NewAnalyzer(
-		cfgPath,
+		[]string{cfgPath},
 		[]string{
 			"stack_protect_classify_type",
 			"stack_protect_decl_phase",

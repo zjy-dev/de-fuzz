@@ -58,3 +58,4 @@ ollama/
 tmp/
 
 fuzz_out*/
+compiler-audit/

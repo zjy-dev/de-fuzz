@@ -98,7 +98,29 @@ targets:
       - "add_stack_protection_conflicts"
       # 创建栈上的 guard 变量
       - "create_stack_guard"
-      # 生成函数入口的 stack canary 设置代码
-      - "stack_protect_prologue"
       # 检查是否有使用返回槽的调用（-fstack-protector-strong 用）
       - "stack_protect_return_slot_p"
+      # 延迟栈分配
+      - "defer_stack_allocation"
+      # 展开使用的变量
+      - "expand_used_vars"
+      # 生成函数入口的 stack canary 设置代码
+      - "stack_protect_prologue"
+
+  # function.cc - epilogue 及参数处理
+  # - file: "arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/function.cc"
+  #   functions:
+  #     - "stack_protect_epilogue"
+  #     - "assign_parm_adjust_stack_rtl"
+
+  # targhooks.cc - 默认 target hook 实现
+  # - file: "arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/targhooks.cc"
+  #   functions:
+  #     - "default_stack_protect_guard"
+  #     - "default_external_stack_protect_fail"
+  #     - "default_hidden_stack_protect_fail"
+
+  # aarch64.cc - AArch64 特定实现
+  # - file: "arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/config/aarch64/aarch64.cc"
+  #   functions:
+  #     - "aarch64_stack_protect_guard"

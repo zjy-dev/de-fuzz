@@ -13,29 +13,29 @@ models:
         model: "deepseek-chat"
         api_key: "${DEEPSEEK_API_KEY}"
 
-  # MiniMax M2.1 (OpenAI-compatible)
-  - name: "minimax"
-    weight: 3
-    providers:
-      - type: "openai"
-        endpoint: "${MINIMAX_ENDPOINT}"
-        model: "MiniMax-M2.1"
-        api_key: "${MINIMAX_API_KEY}"
+  # # MiniMax M2.1 (OpenAI-compatible)
+  # - name: "minimax"
+  #   weight: 3
+  #   providers:
+  #     - type: "openai"
+  #       endpoint: "${MINIMAX_ENDPOINT}"
+  #       model: "MiniMax-M2.1"
+  #       api_key: "${MINIMAX_API_KEY}"
 
-  # OpenAI GPT-4
-  - name: "gpt-4"
-    weight: 2
-    providers:
-      - type: "openai"
-        endpoint: "${OPENAI_ENDPOINT}"
-        model: "gpt-4"
-        api_key: "${OPENAI_API_KEY}"
+  # # OpenAI GPT-4
+  # - name: "gpt-4"
+  #   weight: 2
+  #   providers:
+  #     - type: "openai"
+  #       endpoint: "${OPENAI_ENDPOINT}"
+  #       model: "gpt-4"
+  #       api_key: "${OPENAI_API_KEY}"
 
-  # Anthropic Claude
-  - name: "claude"
-    weight: 2
-    providers:
-      - type: "anthropic"
-        endpoint: "${ANTHROPIC_ENDPOINT}"
-        model: "claude-sonnet-4-20250514"
-        api_key: "${ANTHROPIC_API_KEY}"
+  # # Anthropic Claude
+  # - name: "claude"
+  #   weight: 2
+  #   providers:
+  #     - type: "anthropic"
+  #       endpoint: "${ANTHROPIC_ENDPOINT}"
+  #       model: "claude-sonnet-4-20250514"
+  #       api_key: "${ANTHROPIC_API_KEY}"
