@@ -63,3 +63,15 @@ type Coverage interface {
 	// GetStats returns the current total coverage statistics.
 	GetStats() (*CoverageStats, error)
 }
+
+// PreCompileCoverage is an optional interface for coverage implementations that
+// need to clean or prepare their runtime artifacts before compilation starts.
+type PreCompileCoverage interface {
+	Prepare() error
+}
+
+// PostCompileCoverage is an optional interface for coverage implementations that
+// can generate a report after the caller has already compiled the seed.
+type PostCompileCoverage interface {
+	MeasureCompiled(s *seed.Seed) (Report, error)
+}

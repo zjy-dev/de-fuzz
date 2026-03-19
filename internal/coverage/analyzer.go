@@ -76,6 +76,40 @@ type Analyzer struct {
 	weightDecayFactor float64          // Decay factor for BB weights after failed iterations
 }
 
+func (c *Analyzer) normalizeFilePath(filePath string) string {
+	filePath = filepath.ToSlash(filepath.Clean(strings.TrimSpace(filePath)))
+	if filePath == "." {
+		filePath = ""
+	}
+
+	sourceDir := filepath.ToSlash(filepath.Clean(strings.TrimSpace(c.sourceDir)))
+	if sourceDir == "." {
+		sourceDir = ""
+	}
+
+	if sourceDir != "" && filePath != "" {
+		if filepath.IsAbs(filePath) && !filepath.IsAbs(sourceDir) {
+			prefix := "/" + sourceDir + "/"
+			if idx := strings.Index(filePath, prefix); idx != -1 {
+				filePath = filePath[idx+1:]
+			} else if strings.HasSuffix(filePath, "/"+sourceDir) {
+				filePath = sourceDir
+			}
+		}
+
+		if !filepath.IsAbs(filePath) &&
+			filePath != sourceDir &&
+			!strings.HasPrefix(filePath, sourceDir+"/") {
+			filePath = filepath.ToSlash(filepath.Clean(filepath.Join(sourceDir, filePath)))
+		}
+	}
+	return filePath
+}
+
+func (c *Analyzer) makeLineID(filePath string, line int) LineID {
+	return LineID{File: c.normalizeFilePath(filePath), Line: line}
+}
+
 // NewAnalyzer creates a new analyzer for the given CFG file.
 // weightDecayFactor should be in range (0, 1], default 0.8 if invalid.
 func NewAnalyzer(cfgPath string, targetFunctions []string, sourceDir string, mappingPath string, weightDecayFactor float64) (*Analyzer, error) {
@@ -207,7 +241,7 @@ func (c *Analyzer) Parse() error {
 		if currentBB != nil {
 			matches := reLineInfo.FindAllStringSubmatch(line, -1)
 			for _, m := range matches {
-				filePath := m[1]
+				filePath := c.normalizeFilePath(m[1])
 				lineNum, _ := strconv.Atoi(m[2])
 				if currentBB.File == "" {
 					currentBB.File = filePath
@@ -265,7 +299,7 @@ func (c *Analyzer) buildPredecessorMaps() {
 func (c *Analyzer) indexFunction(fn *CFGFunction) {
 	for bbID, bb := range fn.Blocks {
 		for _, lineNum := range bb.Lines {
-			lid := LineID{File: bb.File, Line: lineNum}
+			lid := c.makeLineID(bb.File, lineNum)
 			c.lineToBB[lid] = append(c.lineToBB[lid], bbID)
 		}
 		key := fmt.Sprintf("%s:%d", fn.Name, bbID)
@@ -295,7 +329,7 @@ func (c *Analyzer) GetAllFunctions() []string {
 
 // GetBasicBlocksForLine returns the basic block IDs that cover a given source line.
 func (c *Analyzer) GetBasicBlocksForLine(file string, line int) []int {
-	lid := LineID{File: file, Line: line}
+	lid := c.makeLineID(file, line)
 	return c.lineToBB[lid]
 }
 
@@ -362,7 +396,7 @@ func (c *Analyzer) SelectTarget() *TargetInfo {
 		if ok {
 			for _, bb := range fn.Blocks {
 				for _, lineNum := range bb.Lines {
-					lid := LineID{File: bb.File, Line: lineNum}
+					lid := c.makeLineID(bb.File, lineNum)
 					if coveredLines[lid] {
 						seedID, seedFound := c.mapping.GetSeedForLine(lid)
 						if seedFound {
@@ -400,7 +434,7 @@ func (c *Analyzer) selectTargetBB(targetFunctions []string, coveredLines map[Lin
 
 			hasUncoveredLine := false
 			for _, lineNum := range bb.Lines {
-				lid := LineID{File: bb.File, Line: lineNum}
+				lid := c.makeLineID(bb.File, lineNum)
 				if !coveredLines[lid] {
 					hasUncoveredLine = true
 					break
@@ -418,7 +452,7 @@ func (c *Analyzer) selectTargetBB(targetFunctions []string, coveredLines map[Lin
 					}
 					// Check if any line in predecessor is covered
 					for _, lineNum := range predBB.Lines {
-						lid := LineID{File: predBB.File, Line: lineNum}
+						lid := c.makeLineID(predBB.File, lineNum)
 						if coveredLines[lid] {
 							isReachable = true
 							break
@@ -493,7 +527,7 @@ func (c *Analyzer) findCoveredPredecessorSeed(candidate *BBCandidate, coveredLin
 		}
 
 		for _, lineNum := range predBB.Lines {
-			lid := LineID{File: predBB.File, Line: lineNum}
+			lid := c.makeLineID(predBB.File, lineNum)
 			if coveredLines[lid] {
 				seedID, found := c.mapping.GetSeedForLine(lid)
 				if found {
@@ -525,7 +559,7 @@ func (c *Analyzer) GetCoveredPredecessors(funcName string, bbID int, coveredLine
 			continue
 		}
 		for _, lineNum := range predBB.Lines {
-			lid := LineID{File: predBB.File, Line: lineNum}
+			lid := c.makeLineID(predBB.File, lineNum)
 			if coveredLines[lid] {
 				coveredPreds = append(coveredPreds, predID)
 				break
@@ -568,11 +602,7 @@ func (c *Analyzer) parseLinesToIDs(coveredLines []string) []LineID {
 			var lineNum int
 			fmt.Sscanf(parts[1], "%d", &lineNum)
 			if lineNum > 0 {
-				filePath := parts[0]
-				if c.sourceDir != "" && !filepath.IsAbs(filePath) {
-					filePath = filepath.Join(c.sourceDir, filePath)
-				}
-				lineIDs = append(lineIDs, LineID{File: filePath, Line: lineNum})
+				lineIDs = append(lineIDs, c.makeLineID(parts[0], lineNum))
 			}
 		}
 	}
@@ -635,7 +665,7 @@ func (c *Analyzer) getFunctionCoverage(funcName string, coveredLines map[LineID]
 		}
 		total++
 		for _, lineNum := range bb.Lines {
-			lid := LineID{File: bb.File, Line: lineNum}
+			lid := c.makeLineID(bb.File, lineNum)
 			if coveredLines[lid] {
 				coveredBBs[bbID] = true
 				break
@@ -671,7 +701,7 @@ func (c *Analyzer) getFunctionLineCoverage(funcName string, coveredLines map[Lin
 			continue
 		}
 		for _, lineNum := range bb.Lines {
-			lid := LineID{File: bb.File, Line: lineNum}
+			lid := c.makeLineID(bb.File, lineNum)
 			allLines[lid] = true
 		}
 	}
@@ -707,7 +737,7 @@ func (c *Analyzer) getFunctionTotalLines(funcName string) int {
 			continue
 		}
 		for _, lineNum := range bb.Lines {
-			lid := LineID{File: bb.File, Line: lineNum}
+			lid := c.makeLineID(bb.File, lineNum)
 			allLines[lid] = true
 		}
 	}
