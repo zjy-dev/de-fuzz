@@ -173,6 +173,45 @@ test_func (test_func, funcdef_no=0, decl_uid=2) {
 	assert.True(t, covered[LineID{File: "test.c", Line: 5}])
 }
 
+func TestAnalyzer_GetFunctionCoverage_NormalizesSourceDirPaths(t *testing.T) {
+	sourceDir := filepath.Join("target_compilers", "gcc-v15.2.0-aarch64-cross-compile")
+	absoluteCFGFile := filepath.ToSlash(filepath.Join(
+		t.TempDir(),
+		sourceDir,
+		"gcc/gcc/cfgexpand.cc",
+	))
+	normalizedCoverageFile := filepath.ToSlash(filepath.Join(sourceDir, "gcc/gcc/cfgexpand.cc"))
+
+	cm, err := NewCoverageMapping("")
+	require.NoError(t, err)
+	cm.RecordLine(LineID{File: normalizedCoverageFile, Line: 2203}, 1)
+
+	analyzer := &Analyzer{
+		functions: map[string]*CFGFunction{
+			"stack_protect_classify_type": {
+				Name: "stack_protect_classify_type",
+				Blocks: map[int]*BasicBlock{
+					2: {
+						ID:       2,
+						Function: "stack_protect_classify_type",
+						File:     absoluteCFGFile,
+						Lines:    []int{2203, 2205},
+					},
+				},
+			},
+		},
+		targetFunctions: []string{"stack_protect_classify_type"},
+		mapping:         cm,
+		sourceDir:       sourceDir,
+	}
+
+	cov := analyzer.GetFunctionCoverage()
+	require.Contains(t, cov, "stack_protect_classify_type")
+	assert.Equal(t, 1, cov["stack_protect_classify_type"].Covered)
+	assert.Equal(t, 1, cov["stack_protect_classify_type"].Total)
+	assert.Equal(t, uint64(10000), analyzer.GetBBCoverageBasisPoints())
+}
+
 func TestCoverageMapping_NewAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()
 	mappingPath := filepath.Join(tmpDir, "mapping.json")

@@ -1,12 +1,14 @@
 package coverage
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/zjy-dev/de-fuzz/internal/exec"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
+	"github.com/zjy-dev/gcovr-json-util/v2/pkg/gcovr"
 )
 
 func TestGcovrReport_ToBytes(t *testing.T) {
@@ -224,5 +226,108 @@ func TestGCCCoverage_HasIncreased_FirstSeed(t *testing.T) {
 
 	if !increased {
 		t.Error("HasIncreased() should return true for first seed")
+	}
+}
+
+func TestGCCCoverage_ExtractCoveredLinesFiltered_MatchesDemangledLineNames(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "gcc-coverage-filter-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	reportPath := filepath.Join(tmpDir, "seed.json")
+	report := &gcovr.GcovrReport{
+		FormatVersion: "0.14",
+		Files: []gcovr.File{
+			{
+				FilePath: "gcc/gcc/cfgexpand.cc",
+				Lines: []gcovr.Line{
+					{
+						LineNumber:   2203,
+						FunctionName: "stack_protect_classify_type(tree_node*)",
+						Count:        2,
+					},
+					{
+						LineNumber:   6920,
+						FunctionName: "stack_protect_prologue()",
+						Count:        1,
+					},
+					{
+						LineNumber:   100,
+						FunctionName: "other_helper()",
+						Count:        99,
+					},
+				},
+				Functions: []gcovr.Function{
+					{
+						Name:           "_Z27stack_protect_classify_typeP9tree_node",
+						DemangledName:  "stack_protect_classify_type(tree_node*)",
+						LineNo:         2203,
+						ExecutionCount: 2,
+						BlocksPercent:  46.0,
+					},
+					{
+						Name:           "_Z22stack_protect_prologuev",
+						DemangledName:  "stack_protect_prologue()",
+						LineNo:         6920,
+						ExecutionCount: 1,
+						BlocksPercent:  100.0,
+					},
+					{
+						Name:           "_Z12other_helperv",
+						DemangledName:  "other_helper()",
+						LineNo:         100,
+						ExecutionCount: 99,
+						BlocksPercent:  100.0,
+					},
+				},
+			},
+		},
+	}
+
+	data, err := json.Marshal(report)
+	if err != nil {
+		t.Fatalf("Failed to marshal report: %v", err)
+	}
+	if err := os.WriteFile(reportPath, data, 0644); err != nil {
+		t.Fatalf("Failed to write report: %v", err)
+	}
+
+	gcc := &GCCCoverage{
+		filterConfig: &gcovr.FilterConfig{
+			Targets: []gcovr.TargetFile{
+				{
+					File: "gcc/gcc/cfgexpand.cc",
+					Functions: []string{
+						"stack_protect_classify_type",
+						"stack_protect_prologue",
+					},
+				},
+			},
+		},
+	}
+
+	lines, err := gcc.ExtractCoveredLinesFiltered(&GcovrReport{path: reportPath})
+	if err != nil {
+		t.Fatalf("ExtractCoveredLinesFiltered() error = %v", err)
+	}
+
+	if len(lines) != 2 {
+		t.Fatalf("ExtractCoveredLinesFiltered() returned %d lines, want 2: %v", len(lines), lines)
+	}
+
+	want := map[string]bool{
+		"gcc/gcc/cfgexpand.cc:2203": true,
+		"gcc/gcc/cfgexpand.cc:6920": true,
+	}
+	for _, line := range lines {
+		if !want[line] {
+			t.Fatalf("Unexpected filtered line %q in %v", line, lines)
+		}
+		delete(want, line)
+	}
+	if len(want) != 0 {
+		t.Fatalf("Missing filtered lines: %v", want)
 	}
 }

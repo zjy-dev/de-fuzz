@@ -524,6 +524,12 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	// Compile first to detect compile errors
+	if preparer, ok := e.cfg.Coverage.(coverage.PreCompileCoverage); ok {
+		if err := preparer.Prepare(); err != nil {
+			return result, fmt.Errorf("coverage preparation failed: %w", err)
+		}
+	}
+
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
 		result.CompileFailed = true
@@ -543,7 +549,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 		return result, nil
 	}
 
-	report, err := e.cfg.Coverage.Measure(s)
+	report, err := measureCoverage(e.cfg.Coverage, s)
 	if err != nil {
 		return result, fmt.Errorf("coverage measurement failed: %w", err)
 	}
@@ -642,6 +648,12 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 // measureSeed compiles and measures coverage for a seed.
 // Returns the coverage report, compile result, and any error.
 func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, *compiler.CompileResult, error) {
+	if preparer, ok := e.cfg.Coverage.(coverage.PreCompileCoverage); ok {
+		if err := preparer.Prepare(); err != nil {
+			return nil, nil, fmt.Errorf("coverage preparation failed: %w", err)
+		}
+	}
+
 	// Compile
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
@@ -658,12 +670,20 @@ func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, *compiler.CompileRe
 		return nil, compileResult, nil
 	}
 
-	report, err := e.cfg.Coverage.Measure(s)
+	report, err := measureCoverage(e.cfg.Coverage, s)
 	if err != nil {
 		return nil, compileResult, fmt.Errorf("coverage measurement failed: %w", err)
 	}
 
 	return report, compileResult, nil
+}
+
+func measureCoverage(c coverage.Coverage, s *seed.Seed) (coverage.Report, error) {
+	if postCompile, ok := c.(coverage.PostCompileCoverage); ok {
+		return postCompile.MeasureCompiled(s)
+	}
+
+	return c.Measure(s)
 }
 
 // extractCoveredLines extracts covered line identifiers from a coverage report.
