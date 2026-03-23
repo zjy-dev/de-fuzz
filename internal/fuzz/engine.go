@@ -25,6 +25,7 @@ type Config struct {
 	Coverage coverage.Coverage
 	Oracle   oracle.Oracle
 	LLM      llm.LLM
+	Flags    *FlagScheduler
 
 	// Analyzer for CFG-guided targeting
 	Analyzer *coverage.Analyzer
@@ -72,6 +73,10 @@ type Engine struct {
 
 	// Prompt debug log counters (to limit verbose output)
 	promptDebugCount map[string]int
+
+	// Lightweight profile aggregation for run summaries.
+	profileCoverage map[string]int
+	profileBugs     map[string]int
 }
 
 // seedTryResult holds the result of trying a mutated seed.
@@ -98,6 +103,8 @@ func NewEngine(cfg Config) *Engine {
 		cfg:              cfg,
 		bugsFound:        make([]*oracle.Bug, 0),
 		promptDebugCount: make(map[string]int),
+		profileCoverage:  make(map[string]int),
+		profileBugs:      make(map[string]int),
 	}
 }
 
@@ -204,6 +211,8 @@ func (e *Engine) processInitialSeeds() error {
 		logger.Debug("Processing initial seed %d...", s.Meta.ID)
 		seedStart := time.Now()
 
+		e.assignDefaultProfile(s)
+
 		// Get coverage before processing this seed
 		oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 
@@ -279,6 +288,10 @@ func (e *Engine) processInitialSeeds() error {
 // solveConstraint tries to generate a seed that covers the target BB.
 // Returns (hit bool, actualRetries int, err error)
 func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error) {
+	if e.cfg.Flags != nil {
+		e.cfg.Flags.BeginTarget(target)
+	}
+
 	// Load base seed from corpus if available
 	var baseSeed *seed.Seed
 	var baseSeedCode string
@@ -307,6 +320,7 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 	}
 
 	// First attempt: direct constraint solving
+	e.attachPromptProfile(target, ctx, ctx.BaseSeedCode)
 	mutatedSeed, err := e.generateMutatedSeed(ctx)
 	if err != nil {
 		logger.Warn("Failed to generate mutated seed: %v", err)
@@ -332,6 +346,7 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 	var systemPrompt string // Declare systemPrompt at broader scope
 	for retry := 0; retry < e.cfg.MaxRetries; retry++ {
 		logger.Debug("Retry %d/%d with divergence analysis...", retry+1, e.cfg.MaxRetries)
+		e.attachPromptProfile(target, ctx, mutatedSeed.Content)
 
 		// Check if previous attempt had compile error
 		if lastResult != nil && lastResult.CompileFailed {
@@ -436,6 +451,7 @@ func (e *Engine) solveConstraint(target *coverage.TargetInfo) (bool, int, error)
 		if ctx.BaseSeedID > 0 {
 			newSeed.Meta.ParentID = uint64(ctx.BaseSeedID)
 		}
+		newSeed.FlagProfile = clonePromptProfile(ctx)
 
 		// Try the new seed with V2 to capture compile errors
 		lastResult, err = e.tryMutatedSeed(newSeed, target)
@@ -490,6 +506,7 @@ func (e *Engine) generateMutatedSeed(ctx *prompt.TargetContext) (*seed.Seed, err
 	// This ensures the seed has a valid ID when being compiled
 	newSeed.Meta.ID = e.cfg.Corpus.AllocateID()
 	newSeed.Meta.CreatedAt = time.Now()
+	newSeed.FlagProfile = clonePromptProfile(ctx)
 
 	// Set lineage information from context
 	if ctx.BaseSeedID > 0 {
@@ -506,6 +523,9 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	result := &seedTryResult{
 		SeedCode: s.Content,
 	}
+
+	e.assignTargetProfile(target, s)
+	isNegativeProfile := s.FlagProfile != nil && s.FlagProfile.IsNegativeControl
 
 	// Save seed path for divergence analysis
 	stateDir := ""
@@ -562,15 +582,17 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	coveredLines := e.extractCoveredLines(report)
 
 	// Check if target was hit
-	for _, line := range coveredLines {
-		for _, targetLine := range target.Lines {
-			if line == fmt.Sprintf("%s:%d", target.File, targetLine) {
-				result.HitTarget = true
+	if !isNegativeProfile && target != nil {
+		for _, line := range coveredLines {
+			for _, targetLine := range target.Lines {
+				if line == fmt.Sprintf("%s:%d", target.File, targetLine) {
+					result.HitTarget = true
+					break
+				}
+			}
+			if result.HitTarget {
 				break
 			}
-		}
-		if result.HitTarget {
-			break
 		}
 	}
 
@@ -579,6 +601,9 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 
 	// Check if this seed would cover any new lines (without recording yet)
 	hasNewCoverage := e.cfg.Analyzer.CheckNewCoverage(coveredLines)
+	if isNegativeProfile {
+		hasNewCoverage = false
+	}
 
 	// Run oracle for ALL mutated seeds (need to know bug status before deciding to record)
 	foundBug := false
@@ -607,6 +632,9 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	result.CoveredNew = hasNewCoverage
 	if hasNewCoverage || result.HitTarget || foundBug {
 		e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
+		if s.FlagProfile != nil && s.FlagProfile.Name != "" {
+			e.profileCoverage[s.FlagProfile.Name]++
+		}
 	}
 
 	// Get updated coverage after potential recording
@@ -620,7 +648,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	// Add to corpus if: covered new lines, hit target, OR found bug
-	if result.CoveredNew || result.HitTarget || foundBug {
+	if !isNegativeProfile && (result.CoveredNew || result.HitTarget || foundBug) {
 		s.Meta.Depth = 1
 		if err := e.cfg.Corpus.Add(s); err != nil {
 			logger.Warn("Failed to add seed to corpus: %v", err)
@@ -642,7 +670,72 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 		}
 	}
 
+	if foundBug && s.FlagProfile != nil && s.FlagProfile.Name != "" {
+		e.profileBugs[s.FlagProfile.Name]++
+	}
+
 	return result, nil
+}
+
+func (e *Engine) assignDefaultProfile(s *seed.Seed) {
+	if e.cfg.Flags == nil || s == nil || s.FlagProfile != nil {
+		return
+	}
+	s.FlagProfile = e.cfg.Flags.DefaultProfileForSeed(s.Content)
+}
+
+func (e *Engine) assignTargetProfile(target *coverage.TargetInfo, s *seed.Seed) {
+	if e.cfg.Flags == nil || s == nil || s.FlagProfile != nil {
+		return
+	}
+	if target == nil {
+		e.assignDefaultProfile(s)
+		return
+	}
+	s.FlagProfile = e.cfg.Flags.NextProfileForTarget(target, s.Content)
+}
+
+func (e *Engine) attachPromptProfile(target *coverage.TargetInfo, ctx *prompt.TargetContext, source string) {
+	if ctx == nil || e.cfg.Flags == nil || target == nil {
+		return
+	}
+
+	profile := e.cfg.Flags.NextProfileForTarget(target, source)
+	if profile == nil {
+		return
+	}
+
+	ctx.ActiveFlagProfileName = profile.Name
+	ctx.ActiveFlagProfileFlags = append([]string(nil), profile.Flags...)
+	ctx.ActiveFlagProfileAxes = cloneProfileAxes(profile.AxisValues)
+	ctx.ActiveIsNegativeControl = profile.IsNegativeControl
+	ctx.AllowLLMCFlags = e.cfg.Flags.AllowLLMCFlags()
+	ctx.BlockedLLMFlagFamilies = e.cfg.Flags.BlockedLLMFlagFamilies()
+}
+
+func clonePromptProfile(ctx *prompt.TargetContext) *seed.FlagProfile {
+	if ctx == nil || ctx.ActiveFlagProfileName == "" {
+		return nil
+	}
+
+	return &seed.FlagProfile{
+		Name:              ctx.ActiveFlagProfileName,
+		AxisValues:        cloneProfileAxes(ctx.ActiveFlagProfileAxes),
+		Flags:             append([]string(nil), ctx.ActiveFlagProfileFlags...),
+		IsNegativeControl: ctx.ActiveIsNegativeControl,
+	}
+}
+
+func cloneProfileAxes(axes map[string]string) map[string]string {
+	if len(axes) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]string, len(axes))
+	for key, value := range axes {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // measureSeed compiles and measures coverage for a seed.
@@ -816,6 +909,18 @@ func (e *Engine) printSummary() {
 	logger.Info("Iterations:     %d", e.iterationCount)
 	logger.Info("Targets hit:    %d", e.targetHits)
 	logger.Info("Bugs found:     %d", len(e.bugsFound))
+	if len(e.profileCoverage) > 0 {
+		logger.Info("Profile coverage hits:")
+		for name, count := range e.profileCoverage {
+			logger.Info("  %s => %d", name, count)
+		}
+	}
+	if len(e.profileBugs) > 0 {
+		logger.Info("Profile bug hits:")
+		for name, count := range e.profileBugs {
+			logger.Info("  %s => %d", name, count)
+		}
+	}
 	logger.Info("-----------------------------------------")
 	logger.Info("Final BB Coverage:")
 	for name, stats := range funcCov {

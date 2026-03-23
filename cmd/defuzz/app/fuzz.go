@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -147,6 +148,16 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	// 2. Create corpus manager
 	corpusManager := corpus.NewFileManager(outputDir)
 
+	// Build deterministic flag scheduler before wiring compiler and engine.
+	flagScheduler, err := fuzz.NewFlagScheduler(cfg.ISA, cfg.Compiler.Fuzz.FlagStrategy)
+	if err != nil {
+		return fmt.Errorf("failed to create flag scheduler: %w", err)
+	}
+	allowLLMCFlags := true
+	if flagScheduler != nil {
+		allowLLMCFlags = flagScheduler.AllowLLMCFlags()
+	}
+
 	// 3. Create compiler
 	// Note: We do NOT add --coverage here. Coverage tracking is for the COMPILER itself,
 	// not the compiled binary. The instrumented compiler generates .gcda files when it runs.
@@ -158,14 +169,18 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	logger.Debug("CFlags from config: %v (count=%d)", cflags, len(cflags))
 	if len(cflags) == 0 {
 		logger.Warn("No cflags specified in config, using defaults")
-		cflags = []string{"-fstack-protector-strong", "-O0"}
+		cflags = []string{"-O0"}
+		if flagScheduler == nil {
+			cflags = []string{"-fstack-protector-strong", "-O0"}
+		}
 	}
 
 	gccCompiler := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
-		GCCPath:    cfg.Compiler.Path,
-		WorkDir:    filepath.Join(outputDir, "build"),
-		PrefixPath: compilerDir,
-		CFlags:     cflags,
+		GCCPath:          cfg.Compiler.Path,
+		WorkDir:          filepath.Join(outputDir, "build"),
+		PrefixPath:       compilerDir,
+		CFlags:           cflags,
+		DisableLLMCFlags: !allowLLMCFlags,
 	})
 
 	// 4. Create coverage tracker (coverage is generated during compilation by instrumented GCC)
@@ -305,10 +320,31 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePaths...)
 
 	if len(cfgPaths) > 0 && len(cfg.Compiler.Targets) > 0 {
-		// Collect all target function names
 		var targetFunctions []string
-		for _, target := range cfg.Compiler.Targets {
-			targetFunctions = append(targetFunctions, target.Functions...)
+		skippedTargets := 0
+		if len(cfgPaths) == 1 {
+			// With a single CFG dump, only track targets from the matching source file.
+			cfgSourceBase := inferCFGSourceBase(cfgPaths[0])
+			for _, target := range cfg.Compiler.Targets {
+				if cfgSourceBase != "" && filepath.Base(target.File) != cfgSourceBase {
+					skippedTargets += len(target.Functions)
+					continue
+				}
+				targetFunctions = append(targetFunctions, target.Functions...)
+			}
+			if len(targetFunctions) == 0 {
+				logger.Warn("No target functions matched CFG source %s; skipping analyzer", cfgSourceBase)
+			}
+			logger.Info("Creating analyzer with %d target functions (skipped %d outside %s)", len(targetFunctions), skippedTargets, cfgSourceBase)
+			logger.Debug("CFG file: %s", cfgPaths[0])
+		} else {
+			for _, target := range cfg.Compiler.Targets {
+				targetFunctions = append(targetFunctions, target.Functions...)
+			}
+			logger.Info("Creating analyzer with %d target functions from %d CFG files", len(targetFunctions), len(cfgPaths))
+			for _, p := range cfgPaths {
+				logger.Debug("CFG file: %s", p)
+			}
 		}
 
 		// Determine mapping path
@@ -317,24 +353,22 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 			mappingPath = filepath.Join(stateDir, "coverage_mapping.json")
 		}
 
-		logger.Info("Creating analyzer with %d target functions from %d CFG files", len(targetFunctions), len(cfgPaths))
-		for _, p := range cfgPaths {
-			logger.Debug("CFG file: %s", p)
-		}
 		logger.Debug("Target functions: %v", targetFunctions)
 
-		analyzer, err = coverage.NewAnalyzer(
-			cfgPaths,
-			targetFunctions,
-			cfg.Compiler.SourceParentPath,
-			mappingPath,
-			cfg.Compiler.Fuzz.WeightDecayFactor,
-		)
-		if err != nil {
-			logger.Warn("Failed to create analyzer: %v (continuing without target function tracking)", err)
-			analyzer = nil
-		} else {
-			logger.Info("Analyzer initialized, total target lines: %d", analyzer.GetTotalTargetLines())
+		if len(targetFunctions) > 0 {
+			analyzer, err = coverage.NewAnalyzer(
+				cfgPaths,
+				targetFunctions,
+				cfg.Compiler.SourceParentPath,
+				mappingPath,
+				cfg.Compiler.Fuzz.WeightDecayFactor,
+			)
+			if err != nil {
+				logger.Warn("Failed to create analyzer: %v (continuing without target function tracking)", err)
+				analyzer = nil
+			} else {
+				logger.Info("Analyzer initialized, total target lines: %d", analyzer.GetTotalTargetLines())
+			}
 		}
 	}
 
@@ -364,6 +398,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		Oracle:         oracleInstance,
 		OracleExecutor: oracleExecutor,
 		LLM:            llmClient,
+		Flags:          flagScheduler,
 		Analyzer:       analyzer,
 		PromptService:  promptService,
 		MaxIterations:  limit,
@@ -371,4 +406,15 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		MappingPath:    filepath.Join(stateDir, "coverage_mapping.json"),
 	})
 	return cfgEngine.Run()
+}
+
+func inferCFGSourceBase(cfgPath string) string {
+	base := filepath.Base(cfgPath)
+	if strings.HasSuffix(base, ".cfg") {
+		base = strings.TrimSuffix(base, ".cfg")
+	}
+	if idx := strings.LastIndex(base, "."); idx != -1 {
+		base = base[:idx]
+	}
+	return base
 }

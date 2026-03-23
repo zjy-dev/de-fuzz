@@ -145,6 +145,7 @@ func (p *RandomMutationPhase) mutateAndCheck(baseSeed *seed.Seed) (*oracle.Bug, 
 	mutatedSeed.Meta.ParentID = baseSeed.Meta.ID
 	mutatedSeed.Meta.Depth = baseSeed.Meta.Depth + 1
 	mutatedSeed.Meta.CreatedAt = time.Now()
+	p.engine.assignDefaultProfile(mutatedSeed)
 
 	// Compile the seed
 	compileResult, err := p.engine.cfg.Compiler.Compile(mutatedSeed)

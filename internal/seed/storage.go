@@ -10,6 +10,7 @@ import (
 
 const (
 	understandingFile = "understanding.md"
+	flagProfileFile   = "flag_profile.json"
 	// Separator defines the boundary between C source code and JSON test cases.
 	// Exported for use by other packages.
 	Separator = "\n// ||||| JSON_TESTCASES_START |||||\n"
@@ -87,6 +88,18 @@ func SaveSeedWithMetadata(dir string, s *Seed, namer NamingStrategy) (string, er
 		}
 	}
 
+	// Save selected flag profile when present so resumed runs preserve compile semantics.
+	if s.FlagProfile != nil {
+		jsonData, err := json.MarshalIndent(s.FlagProfile, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal flag profile: %w", err)
+		}
+		profileFile := filepath.Join(seedDir, flagProfileFile)
+		if err := os.WriteFile(profileFile, jsonData, 0644); err != nil {
+			return "", fmt.Errorf("failed to write flag profile file %s: %w", profileFile, err)
+		}
+	}
+
 	// Update metadata - use directory name (without .seed extension)
 	s.Meta.FilePath = seedDirName
 	s.Meta.ContentPath = sourceFile // Store absolute path to source.c
@@ -149,6 +162,16 @@ func loadSeedFromDirectory(seedDir, dirName string, namer NamingStrategy) (*Seed
 		}
 	}
 
+	// Read selected flag profile if it exists
+	var flagProfile *FlagProfile
+	profileFile := filepath.Join(seedDir, flagProfileFile)
+	if data, err := os.ReadFile(profileFile); err == nil {
+		flagProfile = &FlagProfile{}
+		if err := json.Unmarshal(data, flagProfile); err != nil {
+			flagProfile = nil
+		}
+	}
+
 	// Update metadata
 	meta.FilePath = dirName
 	meta.ContentPath = sourceFile
@@ -159,10 +182,11 @@ func loadSeedFromDirectory(seedDir, dirName string, namer NamingStrategy) (*Seed
 	}
 
 	return &Seed{
-		Meta:      *meta,
-		Content:   string(sourceBytes),
-		TestCases: testCases,
-		CFlags:    cflags,
+		Meta:        *meta,
+		Content:     string(sourceBytes),
+		TestCases:   testCases,
+		CFlags:      cflags,
+		FlagProfile: flagProfile,
 	}, nil
 }
 
@@ -217,6 +241,16 @@ func LoadSeedsWithMetadata(dir string, namer NamingStrategy) ([]*Seed, error) {
 			json.Unmarshal(data, &cflags)
 		}
 
+		// Read selected flag profile if it exists.
+		var flagProfile *FlagProfile
+		profileFile := filepath.Join(seedDir, flagProfileFile)
+		if data, err := os.ReadFile(profileFile); err == nil {
+			flagProfile = &FlagProfile{}
+			if err := json.Unmarshal(data, flagProfile); err != nil {
+				flagProfile = nil
+			}
+		}
+
 		// Update metadata
 		meta.FilePath = entry.Name()
 		meta.ContentPath = sourceFile
@@ -227,10 +261,11 @@ func LoadSeedsWithMetadata(dir string, namer NamingStrategy) ([]*Seed, error) {
 		}
 
 		seeds = append(seeds, &Seed{
-			Meta:      *meta,
-			Content:   string(sourceBytes),
-			TestCases: testCases,
-			CFlags:    cflags,
+			Meta:        *meta,
+			Content:     string(sourceBytes),
+			TestCases:   testCases,
+			CFlags:      cflags,
+			FlagProfile: flagProfile,
 		})
 	}
 

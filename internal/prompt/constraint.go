@@ -31,6 +31,14 @@ type TargetContext struct {
 
 	// File information
 	SourceFile string // Path to the source file
+
+	// Active compiler profile for this attempt.
+	ActiveFlagProfileName   string
+	ActiveFlagProfileFlags  []string
+	ActiveFlagProfileAxes   map[string]string
+	ActiveIsNegativeControl bool
+	AllowLLMCFlags          bool
+	BlockedLLMFlagFamilies  []string
 }
 
 // DivergenceInfo holds divergence analysis results.
@@ -106,6 +114,8 @@ This is your starting point. This seed covers line %d, which is close to your ta
 
 `, ctx.BaseSeedLine, ctx.TargetLines, "```c", ctx.BaseSeedCode, "```")
 	}
+
+	compilerProfileSection := buildCompilerProfileSection(ctx)
 
 	// Build output format based on configuration
 	outputFormat := b.getOutputFormat()
@@ -187,6 +197,7 @@ __attribute__((stack_protect)) void seed(int buf_size, int fill_size) {
 %s
 %s
 %s
+%s
 ## Your Task
 
 1. Analyze the target basic block and understand what conditions would cause the compiler to take that code path.
@@ -207,6 +218,7 @@ __attribute__((stack_protect)) void seed(int buf_size, int fill_size) {
 		targetDesc,
 		functionCodeSection,
 		baseSeedSection,
+		compilerProfileSection,
 		ctx.TargetLines,
 		criticalRules,
 		ctx.TargetFunction,
@@ -316,6 +328,7 @@ This seed successfully reaches nearby code (line %d). Start from this and make t
 	}
 
 	// Section 5: Task and strategy
+	compilerProfileSection := buildCompilerProfileSection(ctx)
 	taskSection := fmt.Sprintf(`## 5. Your Task
 
 Create a NEW seed that:
@@ -349,7 +362,7 @@ Create a NEW seed that:
 - Use only C99/C11 standard C code (no C++ features)`
 	}
 
-	prompt := fmt.Sprintf(`%s%s%s%s%s
+	prompt := fmt.Sprintf(`%s%s%s%s%s%s
 %s
 
 %s
@@ -360,6 +373,7 @@ Create a NEW seed that:
 		divergenceSection,
 		failedSection,
 		baseSeedSection,
+		compilerProfileSection,
 		taskSection,
 		criticalRules,
 		outputFormat,
@@ -440,6 +454,7 @@ This seed compiles and runs successfully. Use it as your starting point:
 	}
 
 	// Section 4: Task
+	compilerProfileSection := buildCompilerProfileSection(ctx)
 	taskSection := fmt.Sprintf(`## 4. Your Task
 
 1. **FIX the compilation error** shown in Section 2
@@ -472,7 +487,7 @@ This seed compiles and runs successfully. Use it as your starting point:
 
 	outputFormat := b.getOutputFormat()
 
-	prompt := fmt.Sprintf(`%s%s%s%s
+	prompt := fmt.Sprintf(`%s%s%s%s%s
 %s
 
 %s
@@ -482,6 +497,7 @@ This seed compiles and runs successfully. Use it as your starting point:
 		targetSection,
 		compileErrorSection,
 		baseSeedSection,
+		compilerProfileSection,
 		taskSection,
 		criticalRules,
 		outputFormat,
@@ -503,8 +519,9 @@ If you need to change compiler flags to reach the target, add after your code:
 -flag2
 // ||||| CFLAGS_END |||||
 
-Note: Your flags will be appended AFTER the default config flags,
-so they can override conflicting options (GCC uses last occurrence).`
+Note: Your flags are appended AFTER the default config/profile flags.
+Strategy-controlled conflicts may be filtered out before compilation, so do not rely on
+overriding stack-protector or backend guard options from the CFLAGS section.`
 
 	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format
@@ -658,4 +675,39 @@ func BuildTargetContextFromCFG(
 	}
 
 	return ctx, nil
+}
+
+func buildCompilerProfileSection(ctx *TargetContext) string {
+	if ctx == nil || ctx.ActiveFlagProfileName == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("## Active Compiler Profile\n\n")
+	sb.WriteString(fmt.Sprintf("This attempt will already compile with profile **%s**.\n\n", ctx.ActiveFlagProfileName))
+
+	if len(ctx.ActiveFlagProfileFlags) > 0 {
+		sb.WriteString("**Already-selected flags for this attempt:**\n")
+		sb.WriteString("```text\n")
+		sb.WriteString(strings.Join(ctx.ActiveFlagProfileFlags, "\n"))
+		sb.WriteString("\n```\n\n")
+	}
+
+	if policy, ok := ctx.ActiveFlagProfileAxes["policy"]; ok && policy == "explicit" {
+		sb.WriteString("**Important:** This profile only has meaning if your generated function uses `__attribute__((stack_protect))`.\n\n")
+	}
+
+	if ctx.AllowLLMCFlags {
+		sb.WriteString("If you emit a CFLAGS section, those flags are appended after the profile above.\n")
+		sb.WriteString("Use them only for supplemental decisions that do NOT replace the stack-protector profile axes.\n")
+		if len(ctx.BlockedLLMFlagFamilies) > 0 {
+			sb.WriteString("The following flag families are reserved for the profile selector and will be dropped if you emit them:\n")
+			for _, family := range ctx.BlockedLLMFlagFamilies {
+				sb.WriteString("- `" + family + "`\n")
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
 }

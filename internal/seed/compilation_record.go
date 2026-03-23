@@ -12,20 +12,28 @@ const compilationRecordFile = "compile_command.json"
 
 // CompilationRecord captures the actual compiler invocation for a seed.
 type CompilationRecord struct {
-	SeedID         uint64    `json:"seed_id"`
-	RecordedAt     time.Time `json:"recorded_at"`
-	SourcePath     string    `json:"source_path"`
-	BinaryPath     string    `json:"binary_path"`
-	Success        bool      `json:"success"`
-	CompilerPath   string    `json:"compiler_path"`
-	Command        string    `json:"command"`
-	Args           []string  `json:"args"`
-	PrefixFlags    []string  `json:"prefix_flags"`
-	ConfigCFlags   []string  `json:"config_cflags"`
-	SeedCFlags     []string  `json:"seed_cflags"`
-	EffectiveFlags []string  `json:"effective_flags"`
-	Stdout         string    `json:"stdout,omitempty"`
-	Stderr         string    `json:"stderr,omitempty"`
+	SeedID            uint64            `json:"seed_id"`
+	RecordedAt        time.Time         `json:"recorded_at"`
+	SourcePath        string            `json:"source_path"`
+	BinaryPath        string            `json:"binary_path"`
+	Success           bool              `json:"success"`
+	CompilerPath      string            `json:"compiler_path"`
+	Command           string            `json:"command"`
+	Args              []string          `json:"args"`
+	PrefixFlags       []string          `json:"prefix_flags"`
+	ConfigCFlags      []string          `json:"config_cflags"`
+	ProfileName       string            `json:"profile_name,omitempty"`
+	ProfileFlags      []string          `json:"profile_flags,omitempty"`
+	ProfileAxes       map[string]string `json:"profile_axes,omitempty"`
+	IsNegativeControl bool              `json:"is_negative_control,omitempty"`
+	SeedCFlags        []string          `json:"seed_cflags,omitempty"`
+	LLMCFlags         []string          `json:"llm_cflags,omitempty"`
+	AppliedLLMCFlags  []string          `json:"applied_llm_cflags,omitempty"`
+	DroppedLLMCFlags  []string          `json:"dropped_llm_cflags,omitempty"`
+	LLMCFlagsApplied  bool              `json:"llm_cflags_applied"`
+	EffectiveFlags    []string          `json:"effective_flags"`
+	Stdout            string            `json:"stdout,omitempty"`
+	Stderr            string            `json:"stderr,omitempty"`
 }
 
 // GetCompilationRecordPath returns the path to compile_command.json for a seed directory.
