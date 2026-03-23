@@ -5,7 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/zjy-dev/de-fuzz/internal/compiler"
+	"github.com/zjy-dev/de-fuzz/internal/corpus"
 	"github.com/zjy-dev/de-fuzz/internal/coverage"
+	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
 func TestEngine_NewEngine(t *testing.T) {
@@ -134,4 +137,108 @@ int test_func (int a, int b)
 	} else {
 		t.Error("test_func should be in coverage map")
 	}
+}
+
+func TestEngine_PersistCompilationRecord(t *testing.T) {
+	seedDir := filepath.Join(t.TempDir(), "id-000001-src-000000-cov-00000-aaaaaaaa")
+	err := os.MkdirAll(seedDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create seed dir: %v", err)
+	}
+
+	s := &seed.Seed{
+		Meta: seed.Metadata{
+			ID:          1,
+			ContentPath: filepath.Join(seedDir, "source.c"),
+		},
+	}
+	result := &compiler.CompileResult{
+		BinaryPath:     "/tmp/build/seed_1",
+		Success:        true,
+		Command:        "gcc source.c -o seed_1",
+		CompilerPath:   "gcc",
+		Args:           []string{"source.c", "-o", "seed_1"},
+		EffectiveFlags: []string{"-Wall"},
+	}
+
+	engine := NewEngine(Config{})
+	engine.persistCompilationRecord(s, result)
+
+	record, err := seed.LoadCompilationRecord(seedDir)
+	if err != nil {
+		t.Fatalf("Failed to load compilation record: %v", err)
+	}
+	if record.SeedID != 1 {
+		t.Fatalf("Expected seed ID 1, got %d", record.SeedID)
+	}
+	if record.Command != result.Command {
+		t.Fatalf("Expected command %q, got %q", result.Command, record.Command)
+	}
+	if record.SourcePath != s.Meta.ContentPath {
+		t.Fatalf("Expected source path %q, got %q", s.Meta.ContentPath, record.SourcePath)
+	}
+}
+
+func TestEngine_RunWithoutAnalyzer(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	corpusManager := corpus.NewFileManager(tmpDir)
+	if err := corpusManager.Initialize(); err != nil {
+		t.Fatalf("Failed to initialize corpus: %v", err)
+	}
+
+	initialSeed := &seed.Seed{
+		Content: "int main(void) { return 0; }\n",
+	}
+	if err := corpusManager.Add(initialSeed); err != nil {
+		t.Fatalf("Failed to add initial seed: %v", err)
+	}
+
+	engine := NewEngine(Config{
+		Corpus:        corpusManager,
+		Compiler:      &testCompiler{},
+		MaxIterations: 1,
+		MappingPath:   filepath.Join(tmpDir, "mapping.json"),
+	})
+
+	if err := engine.Run(); err != nil {
+		t.Fatalf("Run returned error without analyzer: %v", err)
+	}
+
+	if engine.GetIterationCount() != 0 {
+		t.Fatalf("Expected 0 constraint-solving iterations, got %d", engine.GetIterationCount())
+	}
+
+	processedSeed, err := corpusManager.Get(1)
+	if err != nil {
+		t.Fatalf("Failed to load processed seed: %v", err)
+	}
+	if processedSeed.Meta.State != seed.SeedStateProcessed {
+		t.Fatalf("Expected seed state %q, got %q", seed.SeedStateProcessed, processedSeed.Meta.State)
+	}
+	if processedSeed.Meta.OldCoverage != 0 || processedSeed.Meta.NewCoverage != 0 {
+		t.Fatalf("Expected zero BB coverage without analyzer, got %d -> %d",
+			processedSeed.Meta.OldCoverage, processedSeed.Meta.NewCoverage)
+	}
+
+	state := corpusManager.GetStateManager().GetState()
+	if state.CurrentFuzzingID != 0 {
+		t.Fatalf("Expected finalized current_fuzzing_id=0, got %d", state.CurrentFuzzingID)
+	}
+	if state.Stats.PoolSize != 0 {
+		t.Fatalf("Expected finalized pool_size=0, got %d", state.Stats.PoolSize)
+	}
+}
+
+type testCompiler struct{}
+
+func (c *testCompiler) Compile(s *seed.Seed) (*compiler.CompileResult, error) {
+	return &compiler.CompileResult{
+		Success:    true,
+		BinaryPath: filepath.Join(os.TempDir(), "defuzz-test-binary"),
+	}, nil
+}
+
+func (c *testCompiler) GetWorkDir() string {
+	return os.TempDir()
 }
