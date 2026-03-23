@@ -301,7 +301,14 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 
 	// 11. Create analyzer if configured
 	var analyzer *coverage.Analyzer
-	if cfg.Compiler.Fuzz.CFGFilePath != "" && len(cfg.Compiler.Targets) > 0 {
+	// Merge cfg_file_path (single, backward compat) and cfg_file_paths (multi)
+	var cfgPaths []string
+	if cfg.Compiler.Fuzz.CFGFilePath != "" {
+		cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePath)
+	}
+	cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePaths...)
+
+	if len(cfgPaths) > 0 && len(cfg.Compiler.Targets) > 0 {
 		// Collect all target function names
 		var targetFunctions []string
 		for _, target := range cfg.Compiler.Targets {
@@ -314,12 +321,14 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 			mappingPath = filepath.Join(stateDir, "coverage_mapping.json")
 		}
 
-		logger.Info("Creating analyzer with %d target functions", len(targetFunctions))
-		logger.Debug("CFG file: %s", cfg.Compiler.Fuzz.CFGFilePath)
+		logger.Info("Creating analyzer with %d target functions from %d CFG files", len(targetFunctions), len(cfgPaths))
+		for _, p := range cfgPaths {
+			logger.Debug("CFG file: %s", p)
+		}
 		logger.Debug("Target functions: %v", targetFunctions)
 
 		analyzer, err = coverage.NewAnalyzer(
-			cfg.Compiler.Fuzz.CFGFilePath,
+			cfgPaths,
 			targetFunctions,
 			cfg.Compiler.SourceParentPath,
 			mappingPath,

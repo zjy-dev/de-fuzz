@@ -19,6 +19,9 @@ vendor/
 *.test
 coverage.html
 coverage.txt
+*.gcda
+*.gcno
+*.gcov
 
 # Fuzzing artifacts
 fuzz_out/
@@ -56,5 +59,11 @@ ollama/
 *.temp
 .cache/
 tmp/
+.venv/
+docs/pptx-workspace/.venv/
+
+# Local experiment plots
+scripts/assets/*deepseek*.png
 
 fuzz_out*/
+compiler-audit/

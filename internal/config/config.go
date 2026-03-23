@@ -61,10 +61,16 @@ type FuzzConfig struct {
 	// QEMUSysroot is the sysroot path for QEMU (-L argument)
 	QEMUSysroot string `mapstructure:"qemu_sysroot"`
 
-	// CFGFilePath is the path to the GCC CFG dump file (optional)
+	// CFGFilePath is the path to the GCC CFG dump file (optional, single file - backward compat)
 	// Used for CFG-guided coverage analysis and target function tracking
 	// Example: "/path/to/gcc-build/gcc/cfgexpand.cc.015t.cfg"
 	CFGFilePath string `mapstructure:"cfg_file_path"`
+
+	// CFGFilePaths is a list of paths to GCC CFG dump files (optional, multi-file)
+	// Supports tracking functions across multiple source files (e.g., cfgexpand.cc, function.cc, targhooks.cc)
+	// Functions from all CFG files are merged into a single analyzer
+	// If both cfg_file_path and cfg_file_paths are specified, they are combined
+	CFGFilePaths []string `mapstructure:"cfg_file_paths"`
 
 	// MappingPath is the path to store/load coverage mapping (optional)
 	// If empty, defaults to {output_dir}/state/coverage_mapping.json
