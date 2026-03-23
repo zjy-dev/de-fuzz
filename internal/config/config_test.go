@@ -34,6 +34,13 @@ func setupTestConfigs(t *testing.T) (string, func()) {
 	return actualConfigPath, cleanup
 }
 
+func writeTestFile(t *testing.T, path string, content string, mode os.FileMode) {
+	t.Helper()
+
+	err := os.WriteFile(path, []byte(content), mode)
+	assert.NoError(t, err)
+}
+
 func TestLoad_Success(t *testing.T) {
 	actualConfigPath, cleanup := setupTestConfigs(t)
 	defer cleanup()
@@ -202,6 +209,80 @@ config:
 	_, err = GetCompilerConfigPath(&cfg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "compiler config file not found")
+}
+
+func TestValidateFuzzRuntime_Success(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	compilerPath := filepath.Join(tmpDir, "xgcc")
+	cfgPath := filepath.Join(tmpDir, "cfgexpand.cc.015t.cfg")
+	gcovrExecPath := filepath.Join(tmpDir, "gcovr-root")
+	qemuPath := filepath.Join(tmpDir, "qemu-aarch64")
+	qemuSysroot := filepath.Join(tmpDir, "sysroot")
+
+	writeTestFile(t, compilerPath, "#!/bin/sh\nexit 0\n", 0755)
+	writeTestFile(t, cfgPath, "mock cfg\n", 0644)
+	assert.NoError(t, os.MkdirAll(gcovrExecPath, 0755))
+	writeTestFile(t, qemuPath, "#!/bin/sh\nexit 0\n", 0755)
+	assert.NoError(t, os.MkdirAll(qemuSysroot, 0755))
+
+	cfg := &Config{
+		Compiler: CompilerConfig{
+			Path:          compilerPath,
+			GcovrExecPath: gcovrExecPath,
+			Fuzz: FuzzConfig{
+				CFGFilePath: cfgPath,
+				QEMUPath:    qemuPath,
+				QEMUSysroot: qemuSysroot,
+			},
+			Targets: []TargetFunction{
+				{File: "gcc/gcc/cfgexpand.cc", Functions: []string{"stack_protect_prologue"}},
+			},
+		},
+	}
+
+	err := ValidateFuzzRuntime(cfg, true)
+	assert.NoError(t, err)
+}
+
+func TestValidateFuzzRuntime_MissingCompiler(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &Config{
+		Compiler: CompilerConfig{
+			Path:          filepath.Join(tmpDir, "missing-xgcc"),
+			GcovrExecPath: tmpDir,
+		},
+	}
+
+	err := ValidateFuzzRuntime(cfg, false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "compiler.path not found")
+}
+
+func TestValidateFuzzRuntime_MissingCFGFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	compilerPath := filepath.Join(tmpDir, "xgcc")
+	writeTestFile(t, compilerPath, "#!/bin/sh\nexit 0\n", 0755)
+
+	cfg := &Config{
+		Compiler: CompilerConfig{
+			Path:          compilerPath,
+			GcovrExecPath: tmpDir,
+			Fuzz: FuzzConfig{
+				CFGFilePath: filepath.Join(tmpDir, "missing.cfg"),
+			},
+			Targets: []TargetFunction{
+				{File: "gcc/gcc/cfgexpand.cc", Functions: []string{"expand_used_vars"}},
+			},
+		},
+	}
+
+	err := ValidateFuzzRuntime(cfg, false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "compiler.fuzz.cfg_file_path not found")
+	assert.Contains(t, err.Error(), "rebuild the instrumented compiler or update the config path")
 }
 
 func TestLoad_CompilerConfig_WithSourceParentPath(t *testing.T) {

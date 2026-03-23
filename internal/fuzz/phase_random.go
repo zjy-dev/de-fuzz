@@ -113,8 +113,12 @@ func (p *RandomMutationPhase) getProcessedSeeds() []*seed.Seed {
 // Returns the bug if found, nil otherwise.
 func (p *RandomMutationPhase) mutateAndCheck(baseSeed *seed.Seed) (*oracle.Bug, error) {
 	// Build mutation prompt using the standard mutation prompt
+	totalCoveragePercentage := 0.0
+	if p.engine.cfg.Analyzer != nil {
+		totalCoveragePercentage = float64(p.engine.cfg.Analyzer.GetBBCoverageBasisPoints()) / 100.0
+	}
 	mutationCtx := &prompt.MutationContext{
-		TotalCoveragePercentage: float64(p.engine.cfg.Analyzer.GetBBCoverageBasisPoints()) / 100.0,
+		TotalCoveragePercentage: totalCoveragePercentage,
 	}
 
 	systemPrompt, userPrompt, err := p.engine.cfg.PromptService.GetMutatePrompt("", mutationCtx)
