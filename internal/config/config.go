@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -541,101 +540,4 @@ func GetCompilerConfigPath(cfg *Config) (string, error) {
 	}
 
 	return "", fmt.Errorf("compiler config file not found: %s", configFile)
-}
-
-// ValidateFuzzRuntime verifies that the external artifacts required by the
-// fuzz command are present before the campaign starts.
-func ValidateFuzzRuntime(cfg *Config, useQEMU bool) error {
-	if cfg == nil {
-		return fmt.Errorf("config is nil")
-	}
-
-	if err := validateExecutableSetting("compiler.path", cfg.Compiler.Path); err != nil {
-		return fmt.Errorf("%w; build the instrumented compiler or update the config path", err)
-	}
-	if err := validateDirSetting("compiler.gcovr_exec_path", cfg.Compiler.GcovrExecPath); err != nil {
-		return fmt.Errorf("%w; build the instrumented compiler or update the config path", err)
-	}
-
-	if len(cfg.Compiler.Targets) > 0 {
-		if cfg.Compiler.Fuzz.CFGFilePath == "" {
-			return fmt.Errorf("compiler.fuzz.cfg_file_path is required when targets are configured")
-		}
-		if err := validateFileSetting("compiler.fuzz.cfg_file_path", cfg.Compiler.Fuzz.CFGFilePath); err != nil {
-			return fmt.Errorf("%w; rebuild the instrumented compiler or update the config path", err)
-		}
-	}
-
-	if useQEMU {
-		if err := validateExecutableSetting("compiler.fuzz.qemu_path", cfg.Compiler.Fuzz.QEMUPath); err != nil {
-			return err
-		}
-		if err := validateDirSetting("compiler.fuzz.qemu_sysroot", cfg.Compiler.Fuzz.QEMUSysroot); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func validateExecutableSetting(fieldName, value string) error {
-	if value == "" {
-		return fmt.Errorf("%s is required", fieldName)
-	}
-
-	if usesExplicitPath(value) {
-		info, err := os.Stat(value)
-		if err != nil {
-			return fmt.Errorf("%s not found at %s: %w", fieldName, value, err)
-		}
-		if info.IsDir() {
-			return fmt.Errorf("%s points to a directory, not an executable: %s", fieldName, value)
-		}
-		return nil
-	}
-
-	if _, err := exec.LookPath(value); err != nil {
-		return fmt.Errorf("%s executable %q not found in PATH: %w", fieldName, value, err)
-	}
-
-	return nil
-}
-
-func validateDirSetting(fieldName, value string) error {
-	if value == "" {
-		return fmt.Errorf("%s is required", fieldName)
-	}
-
-	info, err := os.Stat(value)
-	if err != nil {
-		return fmt.Errorf("%s not found at %s: %w", fieldName, value, err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("%s is not a directory: %s", fieldName, value)
-	}
-
-	return nil
-}
-
-func validateFileSetting(fieldName, value string) error {
-	if value == "" {
-		return fmt.Errorf("%s is required", fieldName)
-	}
-
-	info, err := os.Stat(value)
-	if err != nil {
-		return fmt.Errorf("%s not found at %s: %w", fieldName, value, err)
-	}
-	if info.IsDir() {
-		return fmt.Errorf("%s points to a directory, not a file: %s", fieldName, value)
-	}
-
-	return nil
-}
-
-func usesExplicitPath(value string) bool {
-	return filepath.IsAbs(value) ||
-		strings.Contains(value, string(os.PathSeparator)) ||
-		strings.HasPrefix(value, "."+string(os.PathSeparator)) ||
-		strings.HasPrefix(value, ".."+string(os.PathSeparator))
 }

@@ -125,15 +125,6 @@ func (e *Engine) Run() error {
 		return fmt.Errorf("failed to process initial seeds: %w", err)
 	}
 
-	// Constraint solving depends on CFG analysis. When analyzer setup fails,
-	// we still allow initial seeds and oracle processing to complete cleanly.
-	if e.cfg.Analyzer == nil {
-		logger.Warn("CFG analyzer unavailable, skipping constraint-solving loop")
-		e.finalizeState()
-		e.printSummary()
-		return nil
-	}
-
 	// Special case: limit=0 means only run initial seeds, skip constraint solving
 	if e.cfg.MaxIterations == 0 {
 		logger.Info("Limit=0: skipping constraint solving loop")
@@ -214,15 +205,12 @@ func (e *Engine) processInitialSeeds() error {
 		seedStart := time.Now()
 
 		// Get coverage before processing this seed
-		oldBasisPoints := e.getBBCoverageBasisPoints()
+		oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 
 		// Compile and measure coverage
 		compileStart := time.Now()
-		report, compileResult, err := e.measureSeed(s)
+		report, binaryPath, err := e.measureSeed(s)
 		logger.Debug("[TIMING] Seed %d: compile+coverage took %v", s.Meta.ID, time.Since(compileStart))
-		if compileResult != nil {
-			e.persistCompilationRecord(s, compileResult)
-		}
 		if err != nil {
 			logger.Warn("Failed to measure initial seed %d: %v", s.Meta.ID, err)
 			continue
@@ -232,18 +220,18 @@ func (e *Engine) processInitialSeeds() error {
 		if report != nil {
 			recordStart := time.Now()
 			coveredLines := e.extractCoveredLines(report)
-			e.recordCoverage(int64(s.Meta.ID), coveredLines)
+			e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
 			logger.Debug("[TIMING] Seed %d: record coverage took %v", s.Meta.ID, time.Since(recordStart))
 		}
 
 		// Get coverage after processing
-		newBasisPoints := e.getBBCoverageBasisPoints()
+		newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 
 		// Run oracle on initial seed if configured
 		oracleVerdict := seed.OracleVerdictSkipped
-		if e.cfg.Oracle != nil && compileResult != nil && compileResult.BinaryPath != "" {
+		if e.cfg.Oracle != nil && binaryPath != "" {
 			oracleStart := time.Now()
-			bug := e.runOracle(s, compileResult.BinaryPath)
+			bug := e.runOracle(s, binaryPath)
 			logger.Debug("[TIMING] Seed %d: oracle took %v", s.Meta.ID, time.Since(oracleStart))
 			if bug != nil {
 				oracleVerdict = seed.OracleVerdictBug
@@ -272,7 +260,7 @@ func (e *Engine) processInitialSeeds() error {
 	}
 
 	// Print initial coverage stats
-	funcCov := e.getFunctionCoverage()
+	funcCov := e.cfg.Analyzer.GetFunctionCoverage()
 	for name, stats := range funcCov {
 		logger.Info("Initial coverage for %s: %d/%d BBs", name, stats.Covered, stats.Total)
 	}
@@ -533,12 +521,6 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	// Compile first to detect compile errors
-	if preparer, ok := e.cfg.Coverage.(coverage.PreCompileCoverage); ok {
-		if err := preparer.Prepare(); err != nil {
-			return result, fmt.Errorf("coverage preparation failed: %w", err)
-		}
-	}
-
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
 		result.CompileFailed = true
@@ -558,7 +540,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 		return result, nil
 	}
 
-	report, err := measureCoverage(e.cfg.Coverage, s)
+	report, err := e.cfg.Coverage.Measure(s)
 	if err != nil {
 		return result, fmt.Errorf("coverage measurement failed: %w", err)
 	}
@@ -584,10 +566,10 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	// Get coverage before any recording
-	oldBasisPoints := e.getBBCoverageBasisPoints()
+	oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 
 	// Check if this seed would cover any new lines (without recording yet)
-	hasNewCoverage := e.hasNewCoverage(coveredLines)
+	hasNewCoverage := e.cfg.Analyzer.CheckNewCoverage(coveredLines)
 
 	// Run oracle for ALL mutated seeds (need to know bug status before deciding to record)
 	foundBug := false
@@ -615,11 +597,11 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	// This ensures only qualified seeds are in the mapping for fair one-shot selection.
 	result.CoveredNew = hasNewCoverage
 	if hasNewCoverage || result.HitTarget || foundBug {
-		e.recordCoverage(int64(s.Meta.ID), coveredLines)
+		e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
 	}
 
 	// Get updated coverage after potential recording
-	newBasisPoints := e.getBBCoverageBasisPoints()
+	newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 
 	// Update seed metadata
 	s.Meta.OldCoverage = oldBasisPoints
@@ -634,7 +616,6 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 		if err := e.cfg.Corpus.Add(s); err != nil {
 			logger.Warn("Failed to add seed to corpus: %v", err)
 		} else {
-			e.persistCompilationRecord(s, compileResult)
 			reason := "coverage"
 			if foundBug {
 				reason = "bug"
@@ -655,44 +636,30 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 }
 
 // measureSeed compiles and measures coverage for a seed.
-// Returns the coverage report, compile result, and any error.
-func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, *compiler.CompileResult, error) {
-	if preparer, ok := e.cfg.Coverage.(coverage.PreCompileCoverage); ok {
-		if err := preparer.Prepare(); err != nil {
-			return nil, nil, fmt.Errorf("coverage preparation failed: %w", err)
-		}
-	}
-
+// Returns the coverage report, the compiled binary path, and any error.
+func (e *Engine) measureSeed(s *seed.Seed) (coverage.Report, string, error) {
 	// Compile
 	compileResult, err := e.cfg.Compiler.Compile(s)
 	if err != nil {
-		return nil, compileResult, fmt.Errorf("compilation failed: %w", err)
+		return nil, "", fmt.Errorf("compilation failed: %w", err)
 	}
 
 	if !compileResult.Success {
 		logger.Debug("Seed failed to compile: %s", compileResult.Stderr)
-		return nil, compileResult, nil
+		return nil, "", nil
 	}
 
 	// Measure coverage (generated by instrumented compiler during compilation)
 	if e.cfg.Coverage == nil {
-		return nil, compileResult, nil
+		return nil, compileResult.BinaryPath, nil
 	}
 
-	report, err := measureCoverage(e.cfg.Coverage, s)
+	report, err := e.cfg.Coverage.Measure(s)
 	if err != nil {
-		return nil, compileResult, fmt.Errorf("coverage measurement failed: %w", err)
+		return nil, "", fmt.Errorf("coverage measurement failed: %w", err)
 	}
 
-	return report, compileResult, nil
-}
-
-func measureCoverage(c coverage.Coverage, s *seed.Seed) (coverage.Report, error) {
-	if postCompile, ok := c.(coverage.PostCompileCoverage); ok {
-		return postCompile.MeasureCompiled(s)
-	}
-
-	return c.Measure(s)
+	return report, compileResult.BinaryPath, nil
 }
 
 // extractCoveredLines extracts covered line identifiers from a coverage report.
@@ -757,30 +724,18 @@ func (e *Engine) runOracle(s *seed.Seed, binaryPath string) *oracle.Bug {
 	return bug
 }
 
-func (e *Engine) persistCompilationRecord(s *seed.Seed, compileResult *compiler.CompileResult) {
-	if s == nil || compileResult == nil || s.Meta.ContentPath == "" {
-		return
-	}
-
-	record := compileResult.ToCompilationRecord(s.Meta.ID, s.Meta.ContentPath)
-	if record == nil {
-		return
-	}
-
-	seedDir := filepath.Dir(s.Meta.ContentPath)
-	if err := seed.SaveCompilationRecord(seedDir, record); err != nil {
-		logger.Warn("Failed to save compilation record for seed %d: %v", s.Meta.ID, err)
-	}
-}
-
 // saveState saves the current state.
 func (e *Engine) saveState() {
 	// Update total coverage in global state
-	coverageBP := e.getBBCoverageBasisPoints()
+	coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 	e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
 
 	// Save coverage mapping
-	e.saveMapping()
+	if e.cfg.MappingPath != "" {
+		if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
+			logger.Warn("Failed to save mapping: %v", err)
+		}
+	}
 
 	// Save corpus
 	if err := e.cfg.Corpus.Save(); err != nil {
@@ -791,11 +746,15 @@ func (e *Engine) saveState() {
 // finalizeState saves state and finalizes global state when fuzzing completes.
 func (e *Engine) finalizeState() {
 	// Update total coverage
-	coverageBP := e.getBBCoverageBasisPoints()
+	coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
 	e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
 
 	// Save coverage mapping
-	e.saveMapping()
+	if e.cfg.MappingPath != "" {
+		if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
+			logger.Warn("Failed to save mapping: %v", err)
+		}
+	}
 
 	// Finalize corpus state (sets pool_size=0, current_fuzzing_id=0)
 	if err := e.cfg.Corpus.Finalize(); err != nil {
@@ -808,7 +767,7 @@ func (e *Engine) printSummary() {
 	elapsed := time.Since(e.startTime)
 
 	// Get final coverage stats
-	funcCov := e.getFunctionCoverage()
+	funcCov := e.cfg.Analyzer.GetFunctionCoverage()
 
 	logger.Info("=========================================")
 	logger.Info("      FUZZING SUMMARY")
@@ -818,17 +777,13 @@ func (e *Engine) printSummary() {
 	logger.Info("Targets hit:    %d", e.targetHits)
 	logger.Info("Bugs found:     %d", len(e.bugsFound))
 	logger.Info("-----------------------------------------")
-	if e.cfg.Analyzer == nil {
-		logger.Info("Final BB Coverage: unavailable (CFG analyzer disabled)")
-	} else {
-		logger.Info("Final BB Coverage:")
-		for name, stats := range funcCov {
-			pct := float64(0)
-			if stats.Total > 0 {
-				pct = float64(stats.Covered) / float64(stats.Total) * 100
-			}
-			logger.Info("  %s: %d/%d BBs (%.1f%%)", name, stats.Covered, stats.Total, pct)
+	logger.Info("Final BB Coverage:")
+	for name, stats := range funcCov {
+		pct := float64(0)
+		if stats.Total > 0 {
+			pct = float64(stats.Covered) / float64(stats.Total) * 100
 		}
+		logger.Info("  %s: %d/%d BBs (%.1f%%)", name, stats.Covered, stats.Total, pct)
 	}
 	logger.Info("=========================================")
 
@@ -853,41 +808,4 @@ func (e *Engine) GetIterationCount() int {
 // GetTargetHits returns the number of times we successfully hit a target.
 func (e *Engine) GetTargetHits() int {
 	return e.targetHits
-}
-
-func (e *Engine) getBBCoverageBasisPoints() uint64 {
-	if e.cfg.Analyzer == nil {
-		return 0
-	}
-	return e.cfg.Analyzer.GetBBCoverageBasisPoints()
-}
-
-func (e *Engine) getFunctionCoverage() map[string]struct{ Covered, Total int } {
-	if e.cfg.Analyzer == nil {
-		return map[string]struct{ Covered, Total int }{}
-	}
-	return e.cfg.Analyzer.GetFunctionCoverage()
-}
-
-func (e *Engine) recordCoverage(seedID int64, coveredLines []string) {
-	if e.cfg.Analyzer == nil {
-		return
-	}
-	e.cfg.Analyzer.RecordCoverage(seedID, coveredLines)
-}
-
-func (e *Engine) hasNewCoverage(coveredLines []string) bool {
-	if e.cfg.Analyzer == nil {
-		return false
-	}
-	return e.cfg.Analyzer.CheckNewCoverage(coveredLines)
-}
-
-func (e *Engine) saveMapping() {
-	if e.cfg.Analyzer == nil || e.cfg.MappingPath == "" {
-		return
-	}
-	if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
-		logger.Warn("Failed to save mapping: %v", err)
-	}
 }

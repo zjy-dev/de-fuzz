@@ -50,11 +50,6 @@ type GCCCoverage struct {
 	lastIncreaseReport *gcovr.CoverageIncreaseReport
 }
 
-type targetFunctionMatcher struct {
-	exact  map[string]bool
-	simple map[string]bool
-}
-
 // NewGCCCoverage creates a new GCC coverage tracker using gcovr.
 func NewGCCCoverage(
 	executor exec.Executor,
@@ -93,113 +88,6 @@ func NewGCCCoverage(
 	return g
 }
 
-func newTargetFunctionMatcher() *targetFunctionMatcher {
-	return &targetFunctionMatcher{
-		exact:  make(map[string]bool),
-		simple: make(map[string]bool),
-	}
-}
-
-func (m *targetFunctionMatcher) add(name string) {
-	if m == nil {
-		return
-	}
-
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return
-	}
-
-	m.exact[name] = true
-	m.simple[simplifyFunctionName(name)] = true
-}
-
-func (m *targetFunctionMatcher) matches(name string) bool {
-	if m == nil {
-		return false
-	}
-
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return false
-	}
-
-	return m.exact[name] || m.simple[simplifyFunctionName(name)]
-}
-
-func normalizeCoveragePath(path string) string {
-	return filepath.ToSlash(filepath.Clean(path))
-}
-
-func simplifyFunctionName(name string) string {
-	name = strings.TrimSpace(name)
-	if idx := strings.Index(name, "("); idx != -1 {
-		name = name[:idx]
-	}
-	return strings.TrimSpace(name)
-}
-
-func (g *GCCCoverage) applyTargetFilter(report *gcovr.GcovrReport) *gcovr.GcovrReport {
-	if report == nil || g.filterConfig == nil || len(g.filterConfig.Targets) == 0 {
-		return report
-	}
-
-	filterMap := make(map[string]*targetFunctionMatcher)
-	for _, target := range g.filterConfig.Targets {
-		normalizedFile := normalizeCoveragePath(target.File)
-		matcher, ok := filterMap[normalizedFile]
-		if !ok {
-			matcher = newTargetFunctionMatcher()
-			filterMap[normalizedFile] = matcher
-		}
-
-		for _, fn := range target.Functions {
-			matcher.add(fn)
-		}
-	}
-
-	filteredReport := &gcovr.GcovrReport{
-		FormatVersion: report.FormatVersion,
-		Files:         make([]gcovr.File, 0),
-	}
-
-	for _, file := range report.Files {
-		normalizedFilePath := normalizeCoveragePath(file.FilePath)
-		matcher, ok := filterMap[normalizedFilePath]
-		if !ok {
-			fileName := filepath.Base(normalizedFilePath)
-			matcher, ok = filterMap[fileName]
-			if !ok {
-				continue
-			}
-		}
-
-		filteredFile := gcovr.File{
-			FilePath:  file.FilePath,
-			Lines:     make([]gcovr.Line, 0),
-			Functions: make([]gcovr.Function, 0),
-		}
-
-		for _, fn := range file.Functions {
-			if matcher.matches(fn.DemangledName) || matcher.matches(fn.Name) {
-				filteredFile.Functions = append(filteredFile.Functions, fn)
-			}
-		}
-
-		for _, line := range file.Lines {
-			if matcher.matches(line.FunctionName) {
-				filteredFile.Lines = append(filteredFile.Lines, line)
-			}
-		}
-
-		if len(filteredFile.Functions) > 0 || len(filteredFile.Lines) > 0 {
-			filteredReport.Files = append(filteredReport.Files, filteredFile)
-		}
-	}
-
-	return filteredReport
-}
-
 // Clean removes all .gcda files from the gcovr execution path.
 // Note: .gcno files (compile-time coverage notes) are NOT deleted because they
 // contain structural information about the source code and are reused across runs.
@@ -217,11 +105,6 @@ func (g *GCCCoverage) Clean() error {
 	}
 
 	return nil
-}
-
-// Prepare resets runtime coverage artifacts before a new compilation.
-func (g *GCCCoverage) Prepare() error {
-	return g.Clean()
 }
 
 // Measure compiles the seed and generates a coverage report using gcovr.
@@ -243,17 +126,6 @@ func (g *GCCCoverage) Measure(s *seed.Seed) (Report, error) {
 		if err := g.compileFunc(s); err != nil {
 			return nil, fmt.Errorf("failed to compile seed: %w", err)
 		}
-	}
-
-	return g.MeasureCompiled(s)
-}
-
-// MeasureCompiled generates a coverage report after the caller has already
-// compiled the seed with instrumentation enabled.
-func (g *GCCCoverage) MeasureCompiled(s *seed.Seed) (Report, error) {
-	// Validate seed ID - must be assigned before measuring to avoid seed_0 files
-	if s.Meta.ID == 0 {
-		return nil, fmt.Errorf("seed ID must be assigned before measuring coverage (got ID=0)")
 	}
 
 	// Step 3: Generate coverage report using gcovr
@@ -281,13 +153,7 @@ func (g *GCCCoverage) MeasureCompiled(s *seed.Seed) (Report, error) {
 
 	// Step 4: Verify the report file was created
 	if _, err := os.Stat(seedReportPath); err != nil {
-		return nil, fmt.Errorf(
-			"gcovr report file not created: %w (command: %s, stdout: %s, stderr: %s)",
-			err,
-			fullCommand,
-			result.Stdout,
-			result.Stderr,
-		)
+		return nil, fmt.Errorf("gcovr report file not created: %w", err)
 	}
 
 	return &GcovrReport{path: seedReportPath}, nil
@@ -322,8 +188,11 @@ func (g *GCCCoverage) HasIncreased(newReport Report) (bool, error) {
 		return false, fmt.Errorf("failed to parse new report: %w", err)
 	}
 
-	baseReport = g.applyTargetFilter(baseReport)
-	newReportParsed = g.applyTargetFilter(newReportParsed)
+	// Apply filtering if filter config is available
+	if g.filterConfig != nil {
+		baseReport = gcovr.ApplyFilter(baseReport, g.filterConfig)
+		newReportParsed = gcovr.ApplyFilter(newReportParsed, g.filterConfig)
+	}
 
 	// Compute coverage increase
 	increaseReport, err := gcovr.ComputeCoverageIncrease(baseReport, newReportParsed)
@@ -483,7 +352,10 @@ func (g *GCCCoverage) GetStats() (*CoverageStats, error) {
 		return nil, fmt.Errorf("failed to parse total report: %w", err)
 	}
 
-	totalReport = g.applyTargetFilter(totalReport)
+	// Apply filtering if available
+	if g.filterConfig != nil {
+		totalReport = gcovr.ApplyFilter(totalReport, g.filterConfig)
+	}
 
 	// Calculate coverage statistics using gcovr-json-util
 	coverageReport, err := gcovr.CalculateCoverage(totalReport)
@@ -555,7 +427,10 @@ func (g *GCCCoverage) ExtractCoveredLinesFiltered(report Report) ([]string, erro
 		return nil, fmt.Errorf("failed to parse report: %w", err)
 	}
 
-	parsed = g.applyTargetFilter(parsed)
+	// Apply filtering if filter config is available
+	if g.filterConfig != nil {
+		parsed = gcovr.ApplyFilter(parsed, g.filterConfig)
+	}
 
 	var coveredLines []string
 	for _, file := range parsed.Files {
