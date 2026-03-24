@@ -34,17 +34,6 @@ sudo apt-get install build-essential flex bison texinfo \
     libgmp-dev libmpfr-dev libmpc-dev zlib1g-dev
 ```
 
-### 文件系统要求
-
-`build-aarch64`、`install-aarch64` 和 `build-logs` 必须位于**大小写敏感**
-文件系统上。
-
-如果你在 WSL 中工作，避免把这些目录直接放在 `/mnt/c`、`/mnt/d` 这类默认
-大小写不敏感的 Windows 挂载点上。glibc 构建过程会同时生成 `stamp.os` 和
-`stamp.oS` 等文件；一旦文件系统忽略大小写，这些文件会互相覆盖，后续
-`rtld` 依赖扫描会漏掉 `getenv`、`lowlevellock` 等对象，最终在链接
-`ld.so` 时出现未定义符号错误。
-
 ### 获取 ARM GNU Toolchain 源码
 
 ```bash

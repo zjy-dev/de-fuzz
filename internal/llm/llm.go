@@ -25,7 +25,7 @@ type LLM interface {
 	Mutate(understanding, prompt string, s *seed.Seed) (*seed.Seed, error)
 }
 
-// New creates a new LLM client backed by the internal remixer.
+// New creates a new LLM client backed by llm-remixer.
 // configPath is the path to the remixer YAML config file.
 // temperature is the default sampling temperature for all requests.
 func New(configPath string, temperature float64) (LLM, error) {

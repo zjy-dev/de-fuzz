@@ -138,10 +138,6 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	logger.Info("Output directory: %s", outputDir)
 	logger.Debug("Log level: %s", logLevel)
 
-	if err := config.ValidateFuzzRuntime(cfg, useQEMU); err != nil {
-		return fmt.Errorf("fuzz runtime validation failed: %w", err)
-	}
-
 	// Create state directory (used for resume capability)
 	stateDir := filepath.Join(outputDir, "state")
 	if err := os.MkdirAll(stateDir, 0755); err != nil {
@@ -335,7 +331,8 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 			cfg.Compiler.Fuzz.WeightDecayFactor,
 		)
 		if err != nil {
-			return fmt.Errorf("failed to create analyzer: %w", err)
+			logger.Warn("Failed to create analyzer: %v (continuing without target function tracking)", err)
+			analyzer = nil
 		} else {
 			logger.Info("Analyzer initialized, total target lines: %d", analyzer.GetTotalTargetLines())
 		}

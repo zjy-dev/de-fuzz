@@ -6,18 +6,19 @@ import (
 	"strings"
 
 	"github.com/zjy-dev/de-fuzz/internal/seed"
+	remixer "github.com/zjy-dev/llm-remixer"
 )
 
-// RemixerClient implements the LLM interface using the internal remixer
+// RemixerClient implements the LLM interface using llm-remixer
 // for weighted-random multi-model LLM selection.
 type RemixerClient struct {
-	remixer     *remixerEngine
+	remixer     *remixer.Remixer
 	temperature float64
 }
 
 // NewRemixerClient creates a new RemixerClient from a config file path and default temperature.
 func NewRemixerClient(configPath string, temperature float64) (*RemixerClient, error) {
-	r, err := newRemixerEngine(configPath)
+	r, err := remixer.New(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create remixer: %w", err)
 	}
@@ -37,22 +38,22 @@ func (c *RemixerClient) GetCompletion(prompt string) (string, error) {
 
 // GetCompletionWithSystem sends a prompt with system context to the LLM.
 func (c *RemixerClient) GetCompletionWithSystem(systemPrompt, userPrompt string) (string, error) {
-	var messages []remixerMessage
+	var messages []remixer.Message
 
 	if systemPrompt != "" {
-		messages = append(messages, remixerMessage{
+		messages = append(messages, remixer.Message{
 			Role:    "system",
 			Content: systemPrompt,
 		})
 	}
 
-	messages = append(messages, remixerMessage{
+	messages = append(messages, remixer.Message{
 		Role:    "user",
 		Content: userPrompt,
 	})
 
 	temp := c.temperature
-	result, err := c.remixer.Chat(context.Background(), remixerChatRequest{
+	result, err := c.remixer.Chat(context.Background(), remixer.ChatRequest{
 		Messages:    messages,
 		Temperature: &temp,
 	})

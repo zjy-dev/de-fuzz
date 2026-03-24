@@ -36,17 +36,6 @@ doc/gcc-instrumentation/
 
 ## 快速开始
 
-## 文件系统要求
-
-GCC/GLIBC 的构建目录必须位于**大小写敏感**的文件系统上，例如 Linux 原生
-ext4、`/tmp` 或启用了大小写敏感的 WSL 目录。
-
-不要直接把 `build-*`、`install-*`、`build-logs` 放在默认大小写不敏感的
-Windows 挂载目录（例如 `/mnt/c`、`/mnt/d`）里。glibc 构建会同时生成
-`stamp.os` 和 `stamp.oS` 一类只靠大小写区分的文件；在大小写不敏感文件系统上，
-这些文件会互相覆盖，最终导致 `rtld` 依赖发现错误，表现为 `ld.so` 链接阶段缺少
-`getenv`、`__lll_lock_wait_private` 等符号。
-
 ### x86_64 原生编译器
 
 ```bash
