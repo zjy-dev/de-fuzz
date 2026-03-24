@@ -82,6 +82,9 @@ type FuzzConfig struct {
 	// WeightDecayFactor is the multiplier applied to BB weight after failed iteration
 	// Valid range: (0, 1], default: 0.8
 	WeightDecayFactor float64 `mapstructure:"weight_decay_factor"`
+
+	// FlagStrategy controls rule-driven compiler flag scheduling during fuzzing.
+	FlagStrategy FlagStrategyConfig `mapstructure:"flag_strategy"`
 }
 
 // CompilerInfo holds basic compiler identification from the main config.
@@ -482,6 +485,14 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.Compiler.Fuzz.WeightDecayFactor <= 0 || cfg.Compiler.Fuzz.WeightDecayFactor > 1 {
 		cfg.Compiler.Fuzz.WeightDecayFactor = 0.8
+	}
+	if cfg.Compiler.Fuzz.FlagStrategy.Enabled {
+		if cfg.Compiler.Fuzz.FlagStrategy.Mode == "" {
+			cfg.Compiler.Fuzz.FlagStrategy.Mode = "matrix"
+		}
+		if cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder == "" {
+			cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder = "deterministic"
+		}
 	}
 
 	// Set defaults for oracle config if not specified

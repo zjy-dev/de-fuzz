@@ -121,11 +121,17 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 // isNegativeCase checks if the seed's CFlags contain any flag that disables canary protection.
 // If so, SIGSEGV/SIGBUS is expected behavior (not a bug).
 func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
-	if s == nil || len(s.CFlags) == 0 || len(o.NegativeCFlags) == 0 {
+	if s == nil {
+		return false
+	}
+	if s.FlagProfile != nil && s.FlagProfile.IsNegativeControl {
+		return true
+	}
+	if !s.LLMCFlagsApplied || len(o.NegativeCFlags) == 0 {
 		return false
 	}
 
-	for _, seedFlag := range s.CFlags {
+	for _, seedFlag := range s.AppliedLLMCFlags {
 		for _, negativeFlag := range o.NegativeCFlags {
 			if seedFlag == negativeFlag {
 				return true

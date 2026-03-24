@@ -231,3 +231,51 @@ func TestCFlagsPersistence_EmptyCFlags(t *testing.T) {
 		t.Errorf("Expected 0 CFlags, got %d", len(loadedSeed.CFlags))
 	}
 }
+
+func TestFlagProfilePersistence(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "flag_profile_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	seed := &Seed{
+		Meta:    Metadata{ID: 7},
+		Content: "void seed(void) {}",
+		FlagProfile: &FlagProfile{
+			Name: "policy-strong__threshold-8__pic-default__guard-default",
+			AxisValues: map[string]string{
+				"policy":     "strong",
+				"threshold":  "8",
+				"pic_mode":   "default",
+				"guard_mode": "default",
+			},
+			Flags: []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		},
+	}
+
+	namer := NewDefaultNamingStrategy()
+	dirName, err := SaveSeedWithMetadata(tmpDir, seed, namer)
+	if err != nil {
+		t.Fatalf("Failed to save seed: %v", err)
+	}
+
+	profileFile := filepath.Join(tmpDir, dirName, "flag_profile.json")
+	if _, err := os.Stat(profileFile); os.IsNotExist(err) {
+		t.Fatalf("flag_profile.json was not created")
+	}
+
+	loadedSeed, err := LoadSeedWithMetadata(filepath.Join(tmpDir, dirName), namer)
+	if err != nil {
+		t.Fatalf("Failed to load seed: %v", err)
+	}
+	if loadedSeed.FlagProfile == nil {
+		t.Fatalf("expected flag profile to be loaded")
+	}
+	if loadedSeed.FlagProfile.Name != seed.FlagProfile.Name {
+		t.Fatalf("expected profile name %q, got %q", seed.FlagProfile.Name, loadedSeed.FlagProfile.Name)
+	}
+	if len(loadedSeed.FlagProfile.Flags) != 2 {
+		t.Fatalf("expected 2 profile flags, got %d", len(loadedSeed.FlagProfile.Flags))
+	}
+}

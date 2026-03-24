@@ -145,6 +145,7 @@ func (p *RandomMutationPhase) mutateAndCheck(baseSeed *seed.Seed) (*oracle.Bug, 
 	mutatedSeed.Meta.ParentID = baseSeed.Meta.ID
 	mutatedSeed.Meta.Depth = baseSeed.Meta.Depth + 1
 	mutatedSeed.Meta.CreatedAt = time.Now()
+	p.engine.assignDefaultProfile(mutatedSeed)
 
 	// Compile the seed
 	compileResult, err := p.engine.cfg.Compiler.Compile(mutatedSeed)
@@ -165,6 +166,8 @@ func (p *RandomMutationPhase) mutateAndCheck(baseSeed *seed.Seed) (*oracle.Bug, 
 		mutatedSeed.Meta.BugDescription = bug.Description
 		if err := p.engine.cfg.Corpus.Add(mutatedSeed); err != nil {
 			logger.Warn("Failed to persist bug-triggering seed: %v", err)
+		} else {
+			p.engine.persistCompilationRecord(mutatedSeed, compileResult)
 		}
 	}
 

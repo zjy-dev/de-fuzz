@@ -11,15 +11,19 @@ func TestBuilder_BuildConstraintSolvingPrompt(t *testing.T) {
 	builder := NewBuilder(3, "")
 
 	ctx := &TargetContext{
-		TargetFunction: "stack_protect_classify_type",
-		TargetBBID:     5,
-		TargetLines:    []int{1826, 1827},
-		SuccessorCount: 2,
-		SourceFile:     "/path/to/cfgexpand.cc",
-		BaseSeedID:     42,
-		BaseSeedCode:   "int main() { char buf[100]; return 0; }",
-		BaseSeedLine:   1820,
-		CoveredLines:   []int{1819, 1820, 1822},
+		TargetFunction:         "stack_protect_classify_type",
+		TargetBBID:             5,
+		TargetLines:            []int{1826, 1827},
+		SuccessorCount:         2,
+		SourceFile:             "/path/to/cfgexpand.cc",
+		BaseSeedID:             42,
+		BaseSeedCode:           "int main() { char buf[100]; return 0; }",
+		BaseSeedLine:           1820,
+		CoveredLines:           []int{1819, 1820, 1822},
+		ActiveFlagProfileName:  "policy-strong__threshold-8__pic-default__guard-default",
+		ActiveFlagProfileFlags: []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		AllowLLMCFlags:         true,
+		BlockedLLMFlagFamilies: []string{"-fstack-protector*", "--param=ssp-buffer-size=*"},
 	}
 
 	prompt, err := builder.BuildConstraintSolvingPrompt(ctx)
@@ -35,6 +39,8 @@ func TestBuilder_BuildConstraintSolvingPrompt(t *testing.T) {
 		"1826",                        // Target line
 		"Base Seed (MUST MODIFY)",     // Base seed section
 		"char buf[100]",               // Base seed code
+		"Active Compiler Profile",
+		"policy-strong__threshold-8__pic-default__guard-default",
 	}
 
 	for _, check := range checks {
@@ -77,13 +83,17 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 	builder := NewBuilder(1, "")
 
 	ctx := &TargetContext{
-		TargetFunction: "stack_protect_decl_phase",
-		TargetBBID:     7,
-		TargetLines:    []int{1876, 1877},
-		SuccessorCount: 2,
-		SourceFile:     "/path/to/cfgexpand.cc",
-		BaseSeedCode:   "int main() { return 0; }",
-		BaseSeedLine:   1870,
+		TargetFunction:         "stack_protect_decl_phase",
+		TargetBBID:             7,
+		TargetLines:            []int{1876, 1877},
+		SuccessorCount:         2,
+		SourceFile:             "/path/to/cfgexpand.cc",
+		BaseSeedCode:           "int main() { return 0; }",
+		BaseSeedLine:           1870,
+		ActiveFlagProfileName:  "policy-strong__threshold-8__pic-default__guard-sysreg-off0",
+		ActiveFlagProfileFlags: []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8", "-mstack-protector-guard=sysreg"},
+		AllowLLMCFlags:         true,
+		BlockedLLMFlagFamilies: []string{"-mstack-protector-guard*"},
 	}
 
 	div := &DivergenceInfo{
@@ -104,6 +114,7 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 		"stack_protect_classify_type", // Divergent function
 		"Failed Mutation",
 		"Working Base Seed",
+		"Active Compiler Profile",
 	}
 
 	for _, check := range checks {

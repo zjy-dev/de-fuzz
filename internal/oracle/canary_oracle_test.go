@@ -377,7 +377,9 @@ func TestCanaryOracle_NegativeCase_SIGSEGV_NoBug(t *testing.T) {
 
 	// Seed with -fno-stack-protector (negative case)
 	s := &seed.Seed{
-		CFlags: []string{"-fno-stack-protector"},
+		CFlags:           []string{"-fno-stack-protector"},
+		AppliedLLMCFlags: []string{"-fno-stack-protector"},
+		LLMCFlagsApplied: true,
 	}
 	bug, err := orc.Analyze(s, ctx, nil)
 
@@ -407,7 +409,9 @@ func TestCanaryOracle_NegativeCase_SIGBUS_NoBug(t *testing.T) {
 	}
 
 	s := &seed.Seed{
-		CFlags: []string{"-fno-stack-protector"},
+		CFlags:           []string{"-fno-stack-protector"},
+		AppliedLLMCFlags: []string{"-fno-stack-protector"},
+		LLMCFlagsApplied: true,
 	}
 	bug, err := orc.Analyze(s, ctx, nil)
 
@@ -438,7 +442,9 @@ func TestCanaryOracle_NegativeCase_SIGABRT_NoBug(t *testing.T) {
 	}
 
 	s := &seed.Seed{
-		CFlags: []string{"-fno-stack-protector"},
+		CFlags:           []string{"-fno-stack-protector"},
+		AppliedLLMCFlags: []string{"-fno-stack-protector"},
+		LLMCFlagsApplied: true,
 	}
 	bug, err := orc.Analyze(s, ctx, nil)
 
@@ -469,7 +475,9 @@ func TestCanaryOracle_PositiveCase_StillReportsBug(t *testing.T) {
 
 	// Seed without -fno-stack-protector (positive case)
 	s := &seed.Seed{
-		CFlags: []string{"-fstack-protector-strong"},
+		CFlags:           []string{"-fstack-protector-strong"},
+		AppliedLLMCFlags: []string{"-fstack-protector-strong"},
+		LLMCFlagsApplied: true,
 	}
 	bug, err := orc.Analyze(s, ctx, nil)
 
@@ -499,27 +507,47 @@ func TestCanaryOracle_isNegativeCase(t *testing.T) {
 		},
 		{
 			name:     "empty CFlags",
-			seed:     &seed.Seed{CFlags: []string{}},
+			seed:     &seed.Seed{CFlags: []string{}, AppliedLLMCFlags: []string{}, LLMCFlagsApplied: true},
 			expected: false,
 		},
 		{
 			name:     "positive case",
-			seed:     &seed.Seed{CFlags: []string{"-fstack-protector-strong"}},
+			seed:     &seed.Seed{CFlags: []string{"-fstack-protector-strong"}, AppliedLLMCFlags: []string{"-fstack-protector-strong"}, LLMCFlagsApplied: true},
 			expected: false,
 		},
 		{
 			name:     "negative case exact match",
-			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector"}},
+			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector"}, AppliedLLMCFlags: []string{"-fno-stack-protector"}, LLMCFlagsApplied: true},
 			expected: true,
 		},
 		{
 			name:     "negative case with other flags",
-			seed:     &seed.Seed{CFlags: []string{"-O2", "-fno-stack-protector", "-Wall"}},
+			seed:     &seed.Seed{CFlags: []string{"-O2", "-fno-stack-protector", "-Wall"}, AppliedLLMCFlags: []string{"-O2", "-fno-stack-protector", "-Wall"}, LLMCFlagsApplied: true},
 			expected: true,
 		},
 		{
 			name:     "multiple negative flags",
-			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector-all"}},
+			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector-all"}, AppliedLLMCFlags: []string{"-fno-stack-protector-all"}, LLMCFlagsApplied: true},
+			expected: true,
+		},
+		{
+			name:     "llm flags recorded but not applied",
+			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector"}, LLMCFlagsApplied: false},
+			expected: false,
+		},
+		{
+			name:     "negative flag dropped by conflict filter",
+			seed:     &seed.Seed{CFlags: []string{"-fno-stack-protector"}, AppliedLLMCFlags: []string{"-O2"}, LLMCFlagsApplied: true},
+			expected: false,
+		},
+		{
+			name: "profile negative control",
+			seed: &seed.Seed{
+				FlagProfile: &seed.FlagProfile{
+					Name:              "negative",
+					IsNegativeControl: true,
+				},
+			},
 			expected: true,
 		},
 	}
