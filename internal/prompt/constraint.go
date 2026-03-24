@@ -697,6 +697,13 @@ func buildCompilerProfileSection(ctx *TargetContext) string {
 		sb.WriteString("**Important:** This profile only has meaning if your generated function uses `__attribute__((stack_protect))`.\n\n")
 	}
 
+	if ctx.ActiveIsNegativeControl {
+		sb.WriteString("**Important:** This is a negative-control attempt. It is acceptable for `seed()` to disable stack protection in source if needed for sanity checking.\n\n")
+	} else {
+		sb.WriteString("**Important:** Do NOT annotate `seed()` with `__attribute__((no_stack_protector))`.\n")
+		sb.WriteString("Do NOT disable stack protection in source for `seed()`. If protection is disabled in source, the sample will be treated as a false positive candidate rather than a compiler bug.\n\n")
+	}
+
 	if ctx.AllowLLMCFlags {
 		sb.WriteString("If you emit a CFLAGS section, those flags are appended after the profile above.\n")
 		sb.WriteString("Use them only for supplemental decisions that do NOT replace the stack-protector profile axes.\n")

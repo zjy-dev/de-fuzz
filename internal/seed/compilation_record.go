@@ -26,6 +26,11 @@ type CompilationRecord struct {
 	ProfileFlags      []string          `json:"profile_flags,omitempty"`
 	ProfileAxes       map[string]string `json:"profile_axes,omitempty"`
 	IsNegativeControl bool              `json:"is_negative_control,omitempty"`
+	SourceDisablesSSP bool              `json:"source_disables_stack_protector,omitempty"`
+	SourceRequestsSSP bool              `json:"source_requests_stack_protect,omitempty"`
+	UsesAlloca        bool              `json:"uses_alloca,omitempty"`
+	UsesVLA           bool              `json:"uses_vla,omitempty"`
+	NegativeReason    string            `json:"effective_negative_reason,omitempty"`
 	SeedCFlags        []string          `json:"seed_cflags,omitempty"`
 	LLMCFlags         []string          `json:"llm_cflags,omitempty"`
 	AppliedLLMCFlags  []string          `json:"applied_llm_cflags,omitempty"`

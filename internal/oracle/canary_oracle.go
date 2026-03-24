@@ -127,6 +127,9 @@ func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
 	if s.FlagProfile != nil && s.FlagProfile.IsNegativeControl {
 		return true
 	}
+	if seed.AnalyzeCanarySource(s.Content).SeedDisablesStackProtector {
+		return true
+	}
 	if !s.LLMCFlagsApplied || len(o.NegativeCFlags) == 0 {
 		return false
 	}

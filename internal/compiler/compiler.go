@@ -27,6 +27,11 @@ type CompileResult struct {
 	ProfileFlags      []string          // Flags from the selected profile
 	ProfileAxes       map[string]string // Axis/value mapping for the selected profile
 	IsNegativeControl bool              // Whether the selected profile is a negative control
+	SourceDisablesSSP bool              // Source disables stack protector on seed()
+	SourceRequestsSSP bool              // Source explicitly requests stack protection on seed()
+	UsesAlloca        bool              // Source uses alloca()
+	UsesVLA           bool              // Source uses VLA syntax tied to buf_size
+	NegativeReason    string            // Why this sample should be treated as effectively negative
 	SeedCFlags        []string          // Flags requested by the seed/LLM
 	AppliedLLMCFlags  []string          // LLM flags that survived conflict filtering
 	DroppedLLMCFlags  []string          // LLM flags dropped due to profile conflicts
@@ -98,6 +103,7 @@ func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 
 	// Determine output binary path
 	binaryPath := filepath.Join(c.workDir, fmt.Sprintf("seed_%d", s.Meta.ID))
+	sourceAnalysis := seed.AnalyzeCanarySource(s.Content)
 
 	command, args, prefixFlags, effectiveFlags, appliedLLMCFlags, droppedLLMCFlags := c.buildCompileCommand(s, sourceFile, binaryPath)
 	commandString := shellJoin(command, args)
@@ -107,6 +113,8 @@ func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 	logger.Info("Compile seed %d prefix_flags=%v", s.Meta.ID, prefixFlags)
 	logger.Info("Compile seed %d config_cflags=%v", s.Meta.ID, c.cflags)
 	logger.Info("Compile seed %d profile=%s profile_flags=%v", s.Meta.ID, profileName(s.FlagProfile), profileFlags(s.FlagProfile))
+	logger.Info("Compile seed %d source_disables_ssp=%t source_requests_ssp=%t uses_alloca=%t uses_vla=%t",
+		s.Meta.ID, sourceAnalysis.SeedDisablesStackProtector, sourceAnalysis.SeedRequestsStackProtect, sourceAnalysis.UsesAlloca, sourceAnalysis.UsesVLA)
 	logger.Info("Compile seed %d seed_cflags=%v", s.Meta.ID, s.CFlags)
 	logger.Info("Compile seed %d applied_llm_cflags=%v dropped_llm_cflags=%v", s.Meta.ID, appliedLLMCFlags, droppedLLMCFlags)
 	logger.Info("Compile seed %d llm_cflags_applied=%t", s.Meta.ID, s.LLMCFlagsApplied)
@@ -129,6 +137,11 @@ func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 			ProfileFlags:      profileFlags(s.FlagProfile),
 			ProfileAxes:       profileAxes(s.FlagProfile),
 			IsNegativeControl: isNegativeProfile(s.FlagProfile),
+			SourceDisablesSSP: sourceAnalysis.SeedDisablesStackProtector,
+			SourceRequestsSSP: sourceAnalysis.SeedRequestsStackProtect,
+			UsesAlloca:        sourceAnalysis.UsesAlloca,
+			UsesVLA:           sourceAnalysis.UsesVLA,
+			NegativeReason:    effectiveNegativeReason(s.FlagProfile, sourceAnalysis, appliedLLMCFlags),
 			SeedCFlags:        append([]string(nil), s.CFlags...),
 			AppliedLLMCFlags:  append([]string(nil), appliedLLMCFlags...),
 			DroppedLLMCFlags:  append([]string(nil), droppedLLMCFlags...),
@@ -153,6 +166,11 @@ func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 		ProfileFlags:      profileFlags(s.FlagProfile),
 		ProfileAxes:       profileAxes(s.FlagProfile),
 		IsNegativeControl: isNegativeProfile(s.FlagProfile),
+		SourceDisablesSSP: sourceAnalysis.SeedDisablesStackProtector,
+		SourceRequestsSSP: sourceAnalysis.SeedRequestsStackProtect,
+		UsesAlloca:        sourceAnalysis.UsesAlloca,
+		UsesVLA:           sourceAnalysis.UsesVLA,
+		NegativeReason:    effectiveNegativeReason(s.FlagProfile, sourceAnalysis, appliedLLMCFlags),
 		SeedCFlags:        append([]string(nil), s.CFlags...),
 		AppliedLLMCFlags:  append([]string(nil), appliedLLMCFlags...),
 		DroppedLLMCFlags:  append([]string(nil), droppedLLMCFlags...),
@@ -220,6 +238,11 @@ func (r *CompileResult) ToCompilationRecord(seedID uint64, sourcePath string) *s
 		ProfileFlags:      append([]string(nil), r.ProfileFlags...),
 		ProfileAxes:       cloneAxes(r.ProfileAxes),
 		IsNegativeControl: r.IsNegativeControl,
+		SourceDisablesSSP: r.SourceDisablesSSP,
+		SourceRequestsSSP: r.SourceRequestsSSP,
+		UsesAlloca:        r.UsesAlloca,
+		UsesVLA:           r.UsesVLA,
+		NegativeReason:    r.NegativeReason,
 		SeedCFlags:        append([]string(nil), r.SeedCFlags...),
 		AppliedLLMCFlags:  append([]string(nil), r.AppliedLLMCFlags...),
 		DroppedLLMCFlags:  append([]string(nil), r.DroppedLLMCFlags...),
@@ -315,6 +338,28 @@ func shouldDropLLMFlag(flag string, profile *seed.FlagProfile) bool {
 	}
 	for _, prefix := range canaryLLMConflictPrefixes {
 		if strings.HasPrefix(flag, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func effectiveNegativeReason(profile *seed.FlagProfile, sourceAnalysis seed.CanarySourceAnalysis, appliedLLMCFlags []string) string {
+	switch {
+	case profile != nil && profile.IsNegativeControl:
+		return "negative_profile"
+	case sourceAnalysis.SeedDisablesStackProtector:
+		return "source_no_stack_protector_attr"
+	case hasNegativeLLMCFlag(appliedLLMCFlags):
+		return "negative_llm_cflag"
+	default:
+		return ""
+	}
+}
+
+func hasNegativeLLMCFlag(flags []string) bool {
+	for _, flag := range flags {
+		if strings.HasPrefix(flag, "-fno-stack-protector") {
 			return true
 		}
 	}
