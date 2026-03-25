@@ -1,6 +1,7 @@
 package fuzz
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zjy-dev/de-fuzz/internal/config"
@@ -86,6 +87,68 @@ func TestClonePromptProfile_PreservesNegativeControl(t *testing.T) {
 	}
 	if !profile.IsNegativeControl {
 		t.Fatal("expected negative control flag to be preserved")
+	}
+}
+
+func TestNewFlagScheduler_X64Profiles(t *testing.T) {
+	cfg := testFlagStrategyConfig()
+	cfg.Axes.ByISA["x64"] = map[string][][]string{
+		"guard_source": {
+			{},
+			{"-mstack-protector-guard=global"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=fs", "-mstack-protector-guard-offset=20"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=gs", "-mstack-protector-guard-offset=20"},
+		},
+	}
+
+	scheduler, err := NewFlagScheduler("x64", cfg)
+	if err != nil {
+		t.Fatalf("failed to create x64 scheduler: %v", err)
+	}
+	if scheduler.defaultProfile == nil {
+		t.Fatal("expected default profile")
+	}
+	foundTLS := false
+	for _, profile := range scheduler.mainProfiles {
+		if profile.AxisValues["guard_mode"] == "tls-fs-off20" {
+			foundTLS = true
+			break
+		}
+	}
+	if !foundTLS {
+		t.Fatal("expected x64 TLS guard profile")
+	}
+}
+
+func TestNewFlagScheduler_RiscvProfiles(t *testing.T) {
+	cfg := testFlagStrategyConfig()
+	cfg.Axes.ByISA["riscv64"] = map[string][][]string{
+		"guard_source": {
+			{},
+			{"-mstack-protector-guard=global"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<config-provided-gpr>", "-mstack-protector-guard-offset=0"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<same-gpr>", "-mstack-protector-guard-offset=16"},
+		},
+	}
+	cfg.ISAOptions["riscv64"] = config.FlagStrategyISAOptionConfig{
+		StackProtectorGuardReg: "tp",
+		SupportsHardwareTLS:    true,
+	}
+
+	scheduler, err := NewFlagScheduler("riscv64", cfg)
+	if err != nil {
+		t.Fatalf("failed to create riscv64 scheduler: %v", err)
+	}
+
+	foundTLS := false
+	for _, profile := range scheduler.mainProfiles {
+		if strings.HasPrefix(profile.AxisValues["guard_mode"], "tls-tp") {
+			foundTLS = true
+			break
+		}
+	}
+	if !foundTLS {
+		t.Fatal("expected riscv64 TLS guard profile")
 	}
 }
 

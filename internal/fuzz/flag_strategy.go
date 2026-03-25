@@ -139,23 +139,23 @@ func targetKey(target *coverage.TargetInfo) string {
 }
 
 func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.FlagProfile, *seed.FlagProfile, error) {
-	if isa != "aarch64" {
-		return nil, nil, fmt.Errorf("flag strategy currently supports only aarch64 canary")
+	isaKey, isaAxes, isaOptions, err := resolveCanaryISAConfig(isa, cfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	common := cfg.Axes.Common
-	byISA := cfg.Axes.ByISA[isa]
 	if len(common) == 0 {
 		return nil, nil, fmt.Errorf("flag strategy common axes are required")
 	}
-	if len(byISA) == 0 {
-		return nil, nil, fmt.Errorf("flag strategy ISA axes missing for %s", isa)
+	if len(isaAxes) == 0 {
+		return nil, nil, fmt.Errorf("flag strategy ISA axes missing for %s", isaKey)
 	}
 
 	policyValues := common["policy"]
 	thresholdValues := common["threshold"]
 	picValues := common["pic_mode"]
-	guardValues := byISA["guard_source"]
+	guardValues := isaAxes["guard_source"]
 	if len(policyValues) == 0 || len(thresholdValues) == 0 || len(picValues) == 0 {
 		return nil, nil, fmt.Errorf("policy, threshold and pic_mode axes are required")
 	}
@@ -163,7 +163,6 @@ func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.Fla
 		guardValues = [][]string{nil}
 	}
 
-	isaOptions := cfg.ISAOptions[isa]
 	profiles := make([]*seed.FlagProfile, 0)
 	seen := make(map[string]bool)
 
@@ -201,14 +200,33 @@ func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.Fla
 	return profiles, profiles[0].Clone(), nil
 }
 
+func resolveCanaryISAConfig(isa string, cfg config.FlagStrategyConfig) (string, map[string][][]string, config.FlagStrategyISAOptionConfig, error) {
+	candidates := []string{isa}
+	switch isa {
+	case "x64":
+		candidates = append(candidates, "x64/i386", "i386", "x86")
+	case "i386":
+		candidates = append(candidates, "x64/i386", "x64", "x86")
+	case "riscv64":
+		candidates = append(candidates, "riscv")
+	case "rs6000":
+		candidates = append(candidates, "powerpc64", "ppc64")
+	}
+
+	for _, candidate := range candidates {
+		if axes, ok := cfg.Axes.ByISA[candidate]; ok {
+			if options, exists := cfg.ISAOptions[candidate]; exists {
+				return candidate, axes, options, nil
+			}
+			return candidate, axes, cfg.ISAOptions[isa], nil
+		}
+	}
+
+	return "", nil, config.FlagStrategyISAOptionConfig{}, fmt.Errorf("flag strategy currently supports only configured canary ISAs; no axes found for %s", isa)
+}
+
 func materializeProfile(policyFlags, thresholdFlags, picFlags, guardFlags []string, isaOptions config.FlagStrategyISAOptionConfig) ([]string, map[string]string) {
 	flags := make([]string, 0, len(policyFlags)+len(thresholdFlags)+len(picFlags)+len(guardFlags))
-	axes := map[string]string{
-		"policy":     axisLabel("policy", policyFlags),
-		"threshold":  axisLabel("threshold", thresholdFlags),
-		"pic_mode":   axisLabel("pic_mode", picFlags),
-		"guard_mode": axisLabel("guard_mode", guardFlags),
-	}
 
 	flags = append(flags, policyFlags...)
 	flags = append(flags, thresholdFlags...)
@@ -228,10 +246,51 @@ func materializeProfile(policyFlags, thresholdFlags, picFlags, guardFlags []stri
 			}
 			flag = strings.ReplaceAll(flag, "<same-sysreg>", isaOptions.StackProtectorGuardReg)
 		}
+		if strings.Contains(flag, "<config-provided-gpr>") {
+			if isaOptions.StackProtectorGuardReg == "" {
+				return nil, nil
+			}
+			flag = strings.ReplaceAll(flag, "<config-provided-gpr>", isaOptions.StackProtectorGuardReg)
+		}
+		if strings.Contains(flag, "<same-gpr>") {
+			if isaOptions.StackProtectorGuardReg == "" {
+				return nil, nil
+			}
+			flag = strings.ReplaceAll(flag, "<same-gpr>", isaOptions.StackProtectorGuardReg)
+		}
 		flags = append(flags, flag)
 	}
 
+	if guardRequiresHardwareTLS(flags) && !isaOptions.SupportsHardwareTLS {
+		return nil, nil
+	}
+
+	axes := map[string]string{
+		"policy":     axisLabel("policy", policyFlags),
+		"threshold":  axisLabel("threshold", thresholdFlags),
+		"pic_mode":   axisLabel("pic_mode", picFlags),
+		"guard_mode": axisLabel("guard_mode", flags[len(policyFlags)+len(thresholdFlags)+len(picFlags):]),
+	}
+
 	return flags, axes
+}
+
+func guardRequiresHardwareTLS(flags []string) bool {
+	hasTLS := false
+	hasReg := false
+	hasSymbol := false
+	for _, flag := range flags {
+		if strings.Contains(flag, "-mstack-protector-guard=tls") {
+			hasTLS = true
+		}
+		if strings.HasPrefix(flag, "-mstack-protector-guard-reg=") {
+			hasReg = true
+		}
+		if strings.HasPrefix(flag, "-mstack-protector-guard-symbol=") {
+			hasSymbol = true
+		}
+	}
+	return hasTLS && !hasReg && !hasSymbol
 }
 
 func axisLabel(axis string, flags []string) string {
@@ -264,20 +323,43 @@ func axisLabel(axis string, flags []string) string {
 	case "pic_mode":
 		return strings.TrimPrefix(flags[0], "-")
 	case "guard_mode":
+		hasTLS := false
 		hasSysreg := false
+		reg := ""
 		for _, flag := range flags {
 			if flag == "-mstack-protector-guard=global" {
 				return "global"
+			}
+			if strings.HasPrefix(flag, "-mstack-protector-guard-reg=") {
+				reg = strings.TrimPrefix(flag, "-mstack-protector-guard-reg=")
 			}
 			if strings.HasPrefix(flag, "-mstack-protector-guard-offset=") {
 				offset := strings.TrimPrefix(flag, "-mstack-protector-guard-offset=")
 				if hasSysreg {
 					return "sysreg-off" + offset
 				}
+				if hasTLS {
+					if reg != "" {
+						return "tls-" + reg + "-off" + offset
+					}
+					return "tls-off" + offset
+				}
 			}
 			if strings.HasPrefix(flag, "-mstack-protector-guard=sysreg") {
 				hasSysreg = true
 			}
+			if strings.HasPrefix(flag, "-mstack-protector-guard=tls") {
+				hasTLS = true
+			}
+			if strings.HasPrefix(flag, "-mstack-protector-guard-symbol=") {
+				return "tls-symbol"
+			}
+		}
+		if hasTLS {
+			if reg != "" {
+				return "tls-" + reg
+			}
+			return "tls"
 		}
 		if hasSysreg {
 			for _, flag := range flags {
@@ -365,8 +447,16 @@ func lexicalAxisRank(profile *seed.FlagProfile) int {
 	guardRank := map[string]int{
 		"default":      0,
 		"global":       1,
-		"sysreg-off0":  2,
-		"sysreg-off16": 3,
+		"tls":          2,
+		"tls-fs-off20": 3,
+		"tls-gs-off20": 4,
+		"tls-symbol":   5,
+		"tls-off0":     6,
+		"tls-off16":    7,
+		"tls-tp-off0":  8,
+		"tls-tp-off16": 9,
+		"sysreg-off0":  10,
+		"sysreg-off16": 11,
 	}
 
 	threshold, err := strconv.Atoi(profile.AxisValues["threshold"])
