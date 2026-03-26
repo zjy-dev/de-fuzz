@@ -456,6 +456,39 @@ func TestCanaryOracle_NegativeCase_SIGABRT_NoBug(t *testing.T) {
 	}
 }
 
+func TestCanaryOracle_SourceDisablesStackProtector_TreatedAsNegative(t *testing.T) {
+	orc := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &MockExecutor{
+			CrashThreshold: 100,
+			CrashExitCode:  ExitCodeSIGSEGV,
+			ReturnSentinel: true,
+		},
+	}
+
+	s := &seed.Seed{
+		Content: `__attribute__((no_stack_protector))
+void seed(int buf_size, int fill_size) {
+    char buf[64];
+    (void)buf_size;
+    (void)fill_size;
+}`,
+	}
+
+	bug, err := orc.Analyze(s, ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Fatalf("expected source-disabled SSP sample to be suppressed, got %s", bug.Description)
+	}
+}
+
 func TestCanaryOracle_PositiveCase_StillReportsBug(t *testing.T) {
 	// Scenario: Seed without negative CFlags should still report SIGSEGV as bug
 	orc := &CanaryOracle{

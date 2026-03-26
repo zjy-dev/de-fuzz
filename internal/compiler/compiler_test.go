@@ -138,6 +138,11 @@ func TestGCCCompiler_Compile_RecordsCommandMetadata(t *testing.T) {
 	assert.Equal(t, "policy-strong__threshold-8__pic-default__guard-default", result.ProfileName)
 	assert.Equal(t, []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"}, result.ProfileFlags)
 	assert.Equal(t, []string{"-fstack-protector-all"}, result.SeedCFlags)
+	assert.False(t, result.SourceDisablesSSP)
+	assert.False(t, result.SourceRequestsSSP)
+	assert.False(t, result.UsesAlloca)
+	assert.False(t, result.UsesVLA)
+	assert.Equal(t, "", result.NegativeReason)
 	assert.Empty(t, result.AppliedLLMCFlags)
 	assert.Equal(t, []string{"-fstack-protector-all"}, result.DroppedLLMCFlags)
 	assert.False(t, result.LLMCFlagsApplied)
@@ -218,23 +223,28 @@ func TestGCCCompiler_SourceFileWritten(t *testing.T) {
 
 func TestCompileResult_ToCompilationRecord(t *testing.T) {
 	result := &CompileResult{
-		BinaryPath:       "/tmp/seed_1",
-		Success:          true,
-		Stdout:           "stdout",
-		Stderr:           "stderr",
-		Command:          "gcc source.c -o seed_1",
-		CompilerPath:     "gcc",
-		Args:             []string{"source.c", "-o", "seed_1"},
-		PrefixFlags:      []string{"-B/tmp/gcc"},
-		ConfigCFlags:     []string{"-Wall"},
-		ProfileName:      "policy-strong__threshold-8__pic-default__guard-default",
-		ProfileFlags:     []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
-		ProfileAxes:      map[string]string{"policy": "strong"},
-		SeedCFlags:       []string{"-O2"},
-		AppliedLLMCFlags: []string{"-O2"},
-		DroppedLLMCFlags: []string{"-fno-stack-protector"},
-		LLMCFlagsApplied: false,
-		EffectiveFlags:   []string{"-B/tmp/gcc", "-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		BinaryPath:        "/tmp/seed_1",
+		Success:           true,
+		Stdout:            "stdout",
+		Stderr:            "stderr",
+		Command:           "gcc source.c -o seed_1",
+		CompilerPath:      "gcc",
+		Args:              []string{"source.c", "-o", "seed_1"},
+		PrefixFlags:       []string{"-B/tmp/gcc"},
+		ConfigCFlags:      []string{"-Wall"},
+		ProfileName:       "policy-strong__threshold-8__pic-default__guard-default",
+		ProfileFlags:      []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		ProfileAxes:       map[string]string{"policy": "strong"},
+		SourceDisablesSSP: true,
+		SourceRequestsSSP: false,
+		UsesAlloca:        true,
+		UsesVLA:           true,
+		NegativeReason:    "source_no_stack_protector_attr",
+		SeedCFlags:        []string{"-O2"},
+		AppliedLLMCFlags:  []string{"-O2"},
+		DroppedLLMCFlags:  []string{"-fno-stack-protector"},
+		LLMCFlagsApplied:  false,
+		EffectiveFlags:    []string{"-B/tmp/gcc", "-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8"},
 	}
 
 	record := result.ToCompilationRecord(1, "/tmp/corpus/id-000001/source.c")
@@ -246,8 +256,49 @@ func TestCompileResult_ToCompilationRecord(t *testing.T) {
 	assert.Equal(t, result.Args, record.Args)
 	assert.Equal(t, result.EffectiveFlags, record.EffectiveFlags)
 	assert.Equal(t, result.ProfileName, record.ProfileName)
+	assert.True(t, record.SourceDisablesSSP)
+	assert.Equal(t, "source_no_stack_protector_attr", record.NegativeReason)
 	assert.False(t, record.LLMCFlagsApplied)
 	assert.False(t, record.RecordedAt.IsZero())
+}
+
+func TestGCCCompiler_Compile_RecordsSourceDisableEvidence(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "build")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	cfg := GCCCompilerConfig{
+		GCCPath: "gcc",
+		WorkDir: workDir,
+	}
+	compiler := NewGCCCompiler(cfg)
+	compiler.executor = &MockExecutor{
+		RunFunc: func(command string, args ...string) (*exec.ExecutionResult, error) {
+			return &exec.ExecutionResult{ExitCode: 0}, nil
+		},
+	}
+
+	testSeed := &seed.Seed{
+		Meta: seed.Metadata{ID: 15},
+		Content: `__attribute__((no_stack_protector))
+void seed(int buf_size, int fill_size) {
+    char vla[buf_size];
+    char *p = alloca(buf_size);
+    (void)p;
+}`,
+		FlagProfile: &seed.FlagProfile{
+			Name:              "negative-control__fno-stack-protector",
+			Flags:             []string{"-fno-stack-protector"},
+			IsNegativeControl: true,
+		},
+	}
+
+	result, err := compiler.Compile(testSeed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.SourceDisablesSSP)
+	assert.True(t, result.UsesAlloca)
+	assert.True(t, result.UsesVLA)
+	assert.Equal(t, "negative_profile", result.NegativeReason)
 }
 
 func TestGCCCompiler_Compile_DisablesLLMFlagsWhenConfigured(t *testing.T) {
@@ -332,6 +383,95 @@ func TestGCCCompiler_Compile_FiltersConflictingCanaryLLMFlags(t *testing.T) {
 	assert.Equal(t, []string{"-O2"}, result.AppliedLLMCFlags)
 	assert.Equal(t, []string{"-fno-stack-protector", "--param=ssp-buffer-size=1", "-mstack-protector-guard=global"}, result.DroppedLLMCFlags)
 	assert.Equal(t, []string{"-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8", "-O2", filepath.Join(workDir, "seed_13.c"), "-o", filepath.Join(workDir, "seed_13")}, capturedArgs)
+}
+
+func TestGCCCompiler_Compile_FiltersConflictingLoongArchLayoutLLMFlags(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "build")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	cfg := GCCCompilerConfig{
+		GCCPath: "gcc",
+		WorkDir: workDir,
+		CFlags:  []string{"-Wall"},
+	}
+	compiler := NewGCCCompiler(cfg)
+
+	var capturedArgs []string
+	compiler.executor = &MockExecutor{
+		RunFunc: func(command string, args ...string) (*exec.ExecutionResult, error) {
+			capturedArgs = append([]string(nil), args...)
+			return &exec.ExecutionResult{ExitCode: 0}, nil
+		},
+	}
+
+	testSeed := &seed.Seed{
+		Meta:    seed.Metadata{ID: 17},
+		Content: "int main() { return 0; }",
+		CFlags:  []string{"-O2", "-fpack-struct=1", "-fshort-enums"},
+		FlagProfile: &seed.FlagProfile{
+			Name: "policy-strong__threshold-8__pic-default__guard-default__layout-default",
+			AxisValues: map[string]string{
+				"policy":      "strong",
+				"threshold":   "8",
+				"pic_mode":    "default",
+				"guard_mode":  "default",
+				"layout_mode": "default",
+			},
+			Flags: []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		},
+	}
+
+	result, err := compiler.Compile(testSeed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.LLMCFlagsApplied)
+	assert.Equal(t, []string{"-O2"}, result.AppliedLLMCFlags)
+	assert.Equal(t, []string{"-fpack-struct=1", "-fshort-enums"}, result.DroppedLLMCFlags)
+	assert.Equal(t, []string{"-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8", "-O2", filepath.Join(workDir, "seed_17.c"), "-o", filepath.Join(workDir, "seed_17")}, capturedArgs)
+}
+
+func TestGCCCompiler_Compile_AllowsLayoutLLMFlagsWhenProfileDoesNotReserveThem(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "build")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	cfg := GCCCompilerConfig{
+		GCCPath: "gcc",
+		WorkDir: workDir,
+		CFlags:  []string{"-Wall"},
+	}
+	compiler := NewGCCCompiler(cfg)
+
+	var capturedArgs []string
+	compiler.executor = &MockExecutor{
+		RunFunc: func(command string, args ...string) (*exec.ExecutionResult, error) {
+			capturedArgs = append([]string(nil), args...)
+			return &exec.ExecutionResult{ExitCode: 0}, nil
+		},
+	}
+
+	testSeed := &seed.Seed{
+		Meta:    seed.Metadata{ID: 18},
+		Content: "int main() { return 0; }",
+		CFlags:  []string{"-O2", "-fshort-enums"},
+		FlagProfile: &seed.FlagProfile{
+			Name: "policy-strong__threshold-8__pic-default__guard-default",
+			AxisValues: map[string]string{
+				"policy":     "strong",
+				"threshold":  "8",
+				"pic_mode":   "default",
+				"guard_mode": "default",
+			},
+			Flags: []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		},
+	}
+
+	result, err := compiler.Compile(testSeed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.LLMCFlagsApplied)
+	assert.Equal(t, []string{"-O2", "-fshort-enums"}, result.AppliedLLMCFlags)
+	assert.Empty(t, result.DroppedLLMCFlags)
+	assert.Equal(t, []string{"-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8", "-O2", "-fshort-enums", filepath.Join(workDir, "seed_18.c"), "-o", filepath.Join(workDir, "seed_18")}, capturedArgs)
 }
 
 func TestNewCrossGCCCompiler(t *testing.T) {

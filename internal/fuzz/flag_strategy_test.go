@@ -1,6 +1,7 @@
 package fuzz
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zjy-dev/de-fuzz/internal/config"
@@ -89,6 +90,152 @@ func TestClonePromptProfile_PreservesNegativeControl(t *testing.T) {
 	}
 }
 
+func TestNewFlagScheduler_X64Profiles(t *testing.T) {
+	cfg := testFlagStrategyConfig()
+	cfg.Axes.ByISA["x64"] = map[string][][]string{
+		"guard_source": {
+			{},
+			{"-mstack-protector-guard=global"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=fs", "-mstack-protector-guard-offset=20"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=gs", "-mstack-protector-guard-offset=20"},
+		},
+	}
+
+	scheduler, err := NewFlagScheduler("x64", cfg)
+	if err != nil {
+		t.Fatalf("failed to create x64 scheduler: %v", err)
+	}
+	if scheduler.defaultProfile == nil {
+		t.Fatal("expected default profile")
+	}
+	foundTLS := false
+	for _, profile := range scheduler.mainProfiles {
+		if profile.AxisValues["guard_mode"] == "tls-fs-off20" {
+			foundTLS = true
+			break
+		}
+	}
+	if !foundTLS {
+		t.Fatal("expected x64 TLS guard profile")
+	}
+}
+
+func TestNewFlagScheduler_RiscvProfiles(t *testing.T) {
+	cfg := testFlagStrategyConfig()
+	cfg.Axes.ByISA["riscv64"] = map[string][][]string{
+		"guard_source": {
+			{},
+			{"-mstack-protector-guard=global"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<config-provided-gpr>", "-mstack-protector-guard-offset=0"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<same-gpr>", "-mstack-protector-guard-offset=16"},
+		},
+	}
+	cfg.ISAOptions["riscv64"] = config.FlagStrategyISAOptionConfig{
+		StackProtectorGuardReg: "tp",
+		SupportsHardwareTLS:    true,
+	}
+
+	scheduler, err := NewFlagScheduler("riscv64", cfg)
+	if err != nil {
+		t.Fatalf("failed to create riscv64 scheduler: %v", err)
+	}
+
+	foundTLS := false
+	for _, profile := range scheduler.mainProfiles {
+		if strings.HasPrefix(profile.AxisValues["guard_mode"], "tls-tp") {
+			foundTLS = true
+			break
+		}
+	}
+	if !foundTLS {
+		t.Fatal("expected riscv64 TLS guard profile")
+	}
+}
+
+func TestNewFlagScheduler_LoongArchLayoutProfiles(t *testing.T) {
+	cfg := testFlagStrategyConfig()
+	cfg.Axes.ByISA["loongarch64"] = map[string][][]string{
+		"layout": {
+			{},
+			{"-fpack-struct"},
+			{"-fpack-struct=1"},
+			{"-fpack-struct=2"},
+			{"-fpack-struct=4"},
+			{"-fshort-enums"},
+			{"-fpack-struct", "-fshort-enums"},
+		},
+	}
+
+	scheduler, err := NewFlagScheduler("loongarch64", cfg)
+	if err != nil {
+		t.Fatalf("failed to create loongarch64 scheduler: %v", err)
+	}
+	if scheduler.defaultProfile == nil {
+		t.Fatal("expected default profile")
+	}
+	if scheduler.defaultProfile.Name != "policy-strong__threshold-8__pic-default__guard-default__layout-default" {
+		t.Fatalf("unexpected default profile %q", scheduler.defaultProfile.Name)
+	}
+
+	foundPack := false
+	foundPack1 := false
+	foundShortEnums := false
+	foundCombined := false
+	for _, profile := range scheduler.mainProfiles {
+		switch profile.AxisValues["layout_mode"] {
+		case "pack":
+			foundPack = true
+		case "pack1":
+			foundPack1 = true
+		case "short-enums":
+			foundShortEnums = true
+		case "pack+short-enums":
+			foundCombined = true
+		}
+	}
+	if !foundPack || !foundPack1 || !foundShortEnums || !foundCombined {
+		t.Fatalf("expected loongarch64 layout profiles, got pack=%t pack1=%t short-enums=%t combined=%t", foundPack, foundPack1, foundShortEnums, foundCombined)
+	}
+}
+
+func TestFlagScheduler_BlockedLLMFlagFamilies_ExtendsForLayoutProfiles(t *testing.T) {
+	cfg := testFlagStrategyConfig()
+	cfg.Axes.ByISA["loongarch64"] = map[string][][]string{
+		"layout": {
+			{},
+			{"-fpack-struct"},
+		},
+	}
+
+	scheduler, err := NewFlagScheduler("loongarch64", cfg)
+	if err != nil {
+		t.Fatalf("failed to create loongarch64 scheduler: %v", err)
+	}
+
+	blocked := scheduler.BlockedLLMFlagFamilies()
+	if !containsString(blocked, "-fpack-struct*") {
+		t.Fatalf("expected -fpack-struct* in blocked families: %v", blocked)
+	}
+	if !containsString(blocked, "-fshort-enums") {
+		t.Fatalf("expected -fshort-enums in blocked families: %v", blocked)
+	}
+}
+
+func TestFlagScheduler_BlockedLLMFlagFamilies_NoLayoutProfilesKeepsCanarySet(t *testing.T) {
+	scheduler, err := NewFlagScheduler("aarch64", testFlagStrategyConfig())
+	if err != nil {
+		t.Fatalf("failed to create scheduler: %v", err)
+	}
+
+	blocked := scheduler.BlockedLLMFlagFamilies()
+	if containsString(blocked, "-fpack-struct*") {
+		t.Fatalf("did not expect layout families for non-layout scheduler: %v", blocked)
+	}
+	if containsString(blocked, "-fshort-enums") {
+		t.Fatalf("did not expect layout families for non-layout scheduler: %v", blocked)
+	}
+}
+
 func testFlagStrategyConfig() config.FlagStrategyConfig {
 	return config.FlagStrategyConfig{
 		Enabled:                 true,
@@ -134,4 +281,13 @@ func testFlagStrategyConfig() config.FlagStrategyConfig {
 			},
 		},
 	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

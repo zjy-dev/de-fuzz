@@ -22,15 +22,21 @@ var canaryLLMBlockedFlagFamilies = []string{
 	"-fhardened",
 }
 
+var canaryLayoutLLMBlockedFlagFamilies = []string{
+	"-fpack-struct*",
+	"-fshort-enums",
+}
+
 // FlagScheduler deterministically rotates compiler flag profiles during fuzzing.
 type FlagScheduler struct {
-	allowLLMCFlags  bool
-	mainProfiles    []*seed.FlagProfile
-	defaultProfile  *seed.FlagProfile
-	negative        *seed.FlagProfile
-	targetCursor    map[string]int
-	pendingNegative map[string]bool
-	targetCount     int
+	allowLLMCFlags         bool
+	blockedLLMFlagFamilies []string
+	mainProfiles           []*seed.FlagProfile
+	defaultProfile         *seed.FlagProfile
+	negative               *seed.FlagProfile
+	targetCursor           map[string]int
+	pendingNegative        map[string]bool
+	targetCount            int
 }
 
 // NewFlagScheduler builds a canary-specific flag scheduler from configuration.
@@ -51,15 +57,16 @@ func NewFlagScheduler(isa string, cfg config.FlagStrategyConfig) (*FlagScheduler
 	}
 
 	scheduler := &FlagScheduler{
-		allowLLMCFlags:  cfg.AllowLLMCFlags,
-		mainProfiles:    profiles,
-		defaultProfile:  defaultProfile,
-		targetCursor:    make(map[string]int),
-		pendingNegative: make(map[string]bool),
+		allowLLMCFlags:         cfg.AllowLLMCFlags,
+		blockedLLMFlagFamilies: blockedLLMFlagFamilies(profiles),
+		mainProfiles:           profiles,
+		defaultProfile:         defaultProfile,
+		targetCursor:           make(map[string]int),
+		pendingNegative:        make(map[string]bool),
 	}
 
 	if cfg.IncludeNegativeControls {
-		scheduler.negative = buildNegativeProfile(cfg.NegativeControls)
+		scheduler.negative = buildNegativeProfile(cfg.NegativeControls, defaultProfile.AxisValues)
 	}
 
 	return scheduler, nil
@@ -78,7 +85,10 @@ func (s *FlagScheduler) BlockedLLMFlagFamilies() []string {
 	if s == nil {
 		return nil
 	}
-	return append([]string(nil), canaryLLMBlockedFlagFamilies...)
+	if len(s.blockedLLMFlagFamilies) == 0 {
+		return append([]string(nil), canaryLLMBlockedFlagFamilies...)
+	}
+	return append([]string(nil), s.blockedLLMFlagFamilies...)
 }
 
 // DefaultProfileForSeed returns the baseline profile used for non-targeted compilations.
@@ -139,31 +149,30 @@ func targetKey(target *coverage.TargetInfo) string {
 }
 
 func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.FlagProfile, *seed.FlagProfile, error) {
-	if isa != "aarch64" {
-		return nil, nil, fmt.Errorf("flag strategy currently supports only aarch64 canary")
+	isaKey, isaAxes, isaOptions, err := resolveCanaryISAConfig(isa, cfg)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	common := cfg.Axes.Common
-	byISA := cfg.Axes.ByISA[isa]
 	if len(common) == 0 {
 		return nil, nil, fmt.Errorf("flag strategy common axes are required")
 	}
-	if len(byISA) == 0 {
-		return nil, nil, fmt.Errorf("flag strategy ISA axes missing for %s", isa)
+	if len(isaAxes) == 0 {
+		return nil, nil, fmt.Errorf("flag strategy ISA axes missing for %s", isaKey)
 	}
 
 	policyValues := common["policy"]
 	thresholdValues := common["threshold"]
 	picValues := common["pic_mode"]
-	guardValues := byISA["guard_source"]
 	if len(policyValues) == 0 || len(thresholdValues) == 0 || len(picValues) == 0 {
 		return nil, nil, fmt.Errorf("policy, threshold and pic_mode axes are required")
 	}
-	if len(guardValues) == 0 {
-		guardValues = [][]string{nil}
-	}
 
-	isaOptions := cfg.ISAOptions[isa]
+	guardValues := axisValuesOrDefault(isaAxes["guard_source"])
+	layoutValues := axisValuesOrDefault(isaAxes["layout"])
+	includeLayoutAxis := hasAxis(isaAxes, "layout")
+
 	profiles := make([]*seed.FlagProfile, 0)
 	seen := make(map[string]bool)
 
@@ -171,20 +180,30 @@ func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.Fla
 		for _, thresholdFlags := range thresholdValues {
 			for _, picFlags := range picValues {
 				for _, guardFlags := range guardValues {
-					flags, axes := materializeProfile(policyFlags, thresholdFlags, picFlags, guardFlags, isaOptions)
-					if len(flags) == 0 {
-						continue
+					for _, layoutFlags := range layoutValues {
+						flags, axes := materializeProfile(
+							policyFlags,
+							thresholdFlags,
+							picFlags,
+							guardFlags,
+							layoutFlags,
+							isaOptions,
+							includeLayoutAxis,
+						)
+						if len(flags) == 0 {
+							continue
+						}
+						name := buildProfileName(axes)
+						if seen[name] {
+							continue
+						}
+						seen[name] = true
+						profiles = append(profiles, &seed.FlagProfile{
+							Name:       name,
+							AxisValues: axes,
+							Flags:      flags,
+						})
 					}
-					name := buildProfileName(axes)
-					if seen[name] {
-						continue
-					}
-					seen[name] = true
-					profiles = append(profiles, &seed.FlagProfile{
-						Name:       name,
-						AxisValues: axes,
-						Flags:      flags,
-					})
 				}
 			}
 		}
@@ -201,19 +220,43 @@ func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.Fla
 	return profiles, profiles[0].Clone(), nil
 }
 
-func materializeProfile(policyFlags, thresholdFlags, picFlags, guardFlags []string, isaOptions config.FlagStrategyISAOptionConfig) ([]string, map[string]string) {
-	flags := make([]string, 0, len(policyFlags)+len(thresholdFlags)+len(picFlags)+len(guardFlags))
-	axes := map[string]string{
-		"policy":     axisLabel("policy", policyFlags),
-		"threshold":  axisLabel("threshold", thresholdFlags),
-		"pic_mode":   axisLabel("pic_mode", picFlags),
-		"guard_mode": axisLabel("guard_mode", guardFlags),
+func resolveCanaryISAConfig(isa string, cfg config.FlagStrategyConfig) (string, map[string][][]string, config.FlagStrategyISAOptionConfig, error) {
+	candidates := []string{isa}
+	switch isa {
+	case "x64":
+		candidates = append(candidates, "x64/i386", "i386", "x86")
+	case "i386":
+		candidates = append(candidates, "x64/i386", "x64", "x86")
+	case "riscv64":
+		candidates = append(candidates, "riscv")
+	case "rs6000":
+		candidates = append(candidates, "powerpc64", "ppc64")
 	}
+
+	for _, candidate := range candidates {
+		if axes, ok := cfg.Axes.ByISA[candidate]; ok {
+			if options, exists := cfg.ISAOptions[candidate]; exists {
+				return candidate, axes, options, nil
+			}
+			return candidate, axes, cfg.ISAOptions[isa], nil
+		}
+	}
+
+	return "", nil, config.FlagStrategyISAOptionConfig{}, fmt.Errorf("flag strategy currently supports only configured canary ISAs; no axes found for %s", isa)
+}
+
+func materializeProfile(
+	policyFlags, thresholdFlags, picFlags, guardFlags, layoutFlags []string,
+	isaOptions config.FlagStrategyISAOptionConfig,
+	includeLayoutAxis bool,
+) ([]string, map[string]string) {
+	flags := make([]string, 0, len(policyFlags)+len(thresholdFlags)+len(picFlags)+len(guardFlags)+len(layoutFlags))
 
 	flags = append(flags, policyFlags...)
 	flags = append(flags, thresholdFlags...)
 	flags = append(flags, picFlags...)
 
+	materializedGuardFlags := make([]string, 0, len(guardFlags))
 	for _, rawFlag := range guardFlags {
 		flag := rawFlag
 		if strings.Contains(flag, "<config-provided-valid-sysreg>") {
@@ -228,10 +271,57 @@ func materializeProfile(policyFlags, thresholdFlags, picFlags, guardFlags []stri
 			}
 			flag = strings.ReplaceAll(flag, "<same-sysreg>", isaOptions.StackProtectorGuardReg)
 		}
-		flags = append(flags, flag)
+		if strings.Contains(flag, "<config-provided-gpr>") {
+			if isaOptions.StackProtectorGuardReg == "" {
+				return nil, nil
+			}
+			flag = strings.ReplaceAll(flag, "<config-provided-gpr>", isaOptions.StackProtectorGuardReg)
+		}
+		if strings.Contains(flag, "<same-gpr>") {
+			if isaOptions.StackProtectorGuardReg == "" {
+				return nil, nil
+			}
+			flag = strings.ReplaceAll(flag, "<same-gpr>", isaOptions.StackProtectorGuardReg)
+		}
+		materializedGuardFlags = append(materializedGuardFlags, flag)
+	}
+
+	if guardRequiresHardwareTLS(materializedGuardFlags) && !isaOptions.SupportsHardwareTLS {
+		return nil, nil
+	}
+
+	flags = append(flags, materializedGuardFlags...)
+	flags = append(flags, layoutFlags...)
+
+	axes := map[string]string{
+		"policy":     axisLabel("policy", policyFlags),
+		"threshold":  axisLabel("threshold", thresholdFlags),
+		"pic_mode":   axisLabel("pic_mode", picFlags),
+		"guard_mode": axisLabel("guard_mode", materializedGuardFlags),
+	}
+	if includeLayoutAxis {
+		axes["layout_mode"] = axisLabel("layout_mode", layoutFlags)
 	}
 
 	return flags, axes
+}
+
+func guardRequiresHardwareTLS(flags []string) bool {
+	hasTLS := false
+	hasReg := false
+	hasSymbol := false
+	for _, flag := range flags {
+		if strings.Contains(flag, "-mstack-protector-guard=tls") {
+			hasTLS = true
+		}
+		if strings.HasPrefix(flag, "-mstack-protector-guard-reg=") {
+			hasReg = true
+		}
+		if strings.HasPrefix(flag, "-mstack-protector-guard-symbol=") {
+			hasSymbol = true
+		}
+	}
+	return hasTLS && !hasReg && !hasSymbol
 }
 
 func axisLabel(axis string, flags []string) string {
@@ -264,20 +354,43 @@ func axisLabel(axis string, flags []string) string {
 	case "pic_mode":
 		return strings.TrimPrefix(flags[0], "-")
 	case "guard_mode":
+		hasTLS := false
 		hasSysreg := false
+		reg := ""
 		for _, flag := range flags {
 			if flag == "-mstack-protector-guard=global" {
 				return "global"
+			}
+			if strings.HasPrefix(flag, "-mstack-protector-guard-reg=") {
+				reg = strings.TrimPrefix(flag, "-mstack-protector-guard-reg=")
 			}
 			if strings.HasPrefix(flag, "-mstack-protector-guard-offset=") {
 				offset := strings.TrimPrefix(flag, "-mstack-protector-guard-offset=")
 				if hasSysreg {
 					return "sysreg-off" + offset
 				}
+				if hasTLS {
+					if reg != "" {
+						return "tls-" + reg + "-off" + offset
+					}
+					return "tls-off" + offset
+				}
 			}
 			if strings.HasPrefix(flag, "-mstack-protector-guard=sysreg") {
 				hasSysreg = true
 			}
+			if strings.HasPrefix(flag, "-mstack-protector-guard=tls") {
+				hasTLS = true
+			}
+			if strings.HasPrefix(flag, "-mstack-protector-guard-symbol=") {
+				return "tls-symbol"
+			}
+		}
+		if hasTLS {
+			if reg != "" {
+				return "tls-" + reg
+			}
+			return "tls"
 		}
 		if hasSysreg {
 			for _, flag := range flags {
@@ -287,6 +400,21 @@ func axisLabel(axis string, flags []string) string {
 			}
 			return "sysreg"
 		}
+	case "layout_mode":
+		parts := make([]string, 0, len(flags))
+		for _, flag := range flags {
+			switch {
+			case flag == "-fpack-struct":
+				parts = append(parts, "pack")
+			case strings.HasPrefix(flag, "-fpack-struct="):
+				parts = append(parts, "pack"+strings.TrimPrefix(flag, "-fpack-struct="))
+			case flag == "-fshort-enums":
+				parts = append(parts, "short-enums")
+			default:
+				parts = append(parts, strings.TrimPrefix(flag, "-"))
+			}
+		}
+		return strings.Join(parts, "+")
 	}
 
 	parts := make([]string, 0, len(flags))
@@ -302,6 +430,9 @@ func buildProfileName(axes map[string]string) string {
 		"threshold-" + axes["threshold"],
 		"pic-" + axes["pic_mode"],
 		"guard-" + axes["guard_mode"],
+	}
+	if layoutMode, ok := axes["layout_mode"]; ok {
+		nameParts = append(nameParts, "layout-"+layoutMode)
 	}
 	return strings.Join(nameParts, "__")
 }
@@ -329,27 +460,40 @@ func profileRank(profile *seed.FlagProfile) int {
 	policy := profile.AxisValues["policy"]
 	threshold := profile.AxisValues["threshold"]
 	pic := profile.AxisValues["pic_mode"]
-	guard := profile.AxisValues["guard_mode"]
+	guard := axisValue(profile, "guard_mode", "default")
+	layout := axisValue(profile, "layout_mode", "default")
 
 	switch {
-	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default":
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default" && layout == "default":
 		return 0
-	case policy == "strong" && threshold == "1" && pic == "default" && guard == "default":
+	case policy == "strong" && threshold == "1" && pic == "default" && guard == "default" && layout == "default":
 		return 1
-	case policy == "strong" && threshold == "32" && pic == "default" && guard == "default":
+	case policy == "strong" && threshold == "32" && pic == "default" && guard == "default" && layout == "default":
 		return 2
-	case policy == "all" && threshold == "8" && pic == "default" && guard == "default":
+	case policy == "all" && threshold == "8" && pic == "default" && guard == "default" && layout == "default":
 		return 3
-	case policy == "strong" && threshold == "8" && pic == "fPIC" && guard == "default":
+	case policy == "strong" && threshold == "8" && pic == "fPIC" && guard == "default" && layout == "default":
 		return 4
-	case policy == "strong" && threshold == "8" && pic == "default" && guard == "global":
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default" && layout == "pack":
 		return 5
-	case policy == "strong" && threshold == "8" && pic == "default" && strings.HasPrefix(guard, "sysreg") && hasGuardOffset(profile, "0"):
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default" && layout == "pack1":
 		return 6
-	case policy == "strong" && threshold == "8" && pic == "default" && strings.HasPrefix(guard, "sysreg") && hasGuardOffset(profile, "16"):
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default" && layout == "pack2":
 		return 7
-	case policy == "explicit" && threshold == "8" && pic == "default" && guard == "default":
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default" && layout == "pack4":
 		return 8
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default" && layout == "short-enums":
+		return 9
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "default" && layout == "pack+short-enums":
+		return 10
+	case policy == "strong" && threshold == "8" && pic == "default" && guard == "global" && layout == "default":
+		return 11
+	case policy == "strong" && threshold == "8" && pic == "default" && strings.HasPrefix(guard, "sysreg") && layout == "default" && hasGuardOffset(profile, "0"):
+		return 12
+	case policy == "strong" && threshold == "8" && pic == "default" && strings.HasPrefix(guard, "sysreg") && layout == "default" && hasGuardOffset(profile, "16"):
+		return 13
+	case policy == "explicit" && threshold == "8" && pic == "default" && guard == "default" && layout == "default":
+		return 14
 	}
 
 	return 100 + lexicalAxisRank(profile)
@@ -365,20 +509,42 @@ func lexicalAxisRank(profile *seed.FlagProfile) int {
 	guardRank := map[string]int{
 		"default":      0,
 		"global":       1,
-		"sysreg-off0":  2,
-		"sysreg-off16": 3,
+		"tls":          2,
+		"tls-fs-off20": 3,
+		"tls-gs-off20": 4,
+		"tls-symbol":   5,
+		"tls-off0":     6,
+		"tls-off16":    7,
+		"tls-tp-off0":  8,
+		"tls-tp-off16": 9,
+		"sysreg-off0":  10,
+		"sysreg-off16": 11,
+	}
+	layoutRank := map[string]int{
+		"default":          0,
+		"pack":             1,
+		"pack1":            2,
+		"pack2":            3,
+		"pack4":            4,
+		"short-enums":      5,
+		"pack+short-enums": 6,
 	}
 
 	threshold, err := strconv.Atoi(profile.AxisValues["threshold"])
 	if err != nil {
 		threshold = 999
 	}
-	rank := policyRank[profile.AxisValues["policy"]] * 1000
+	policy := axisValue(profile, "policy", "zzz")
+	guard := axisValue(profile, "guard_mode", "default")
+	layout := axisValue(profile, "layout_mode", "default")
+
+	rank := policyRank[policy] * 1000
 	rank += threshold * 10
-	if profile.AxisValues["pic_mode"] == "fPIC" {
+	if axisValue(profile, "pic_mode", "default") == "fPIC" {
 		rank += 1
 	}
-	rank += guardRank[profile.AxisValues["guard_mode"]] * 10000
+	rank += layoutRank[layout] * 100
+	rank += guardRank[guard] * 10000
 	return rank
 }
 
@@ -394,19 +560,23 @@ func hasGuardOffset(profile *seed.FlagProfile, want string) bool {
 	return false
 }
 
-func buildNegativeProfile(controls [][]string) *seed.FlagProfile {
+func buildNegativeProfile(controls [][]string, defaultAxes map[string]string) *seed.FlagProfile {
 	flags := []string{"-fno-stack-protector"}
 	if len(controls) > 0 && len(controls[0]) > 0 {
 		flags = append([]string(nil), controls[0]...)
 	}
+	axes := map[string]string{
+		"policy":     "negative_control",
+		"threshold":  "default",
+		"pic_mode":   "default",
+		"guard_mode": "default",
+	}
+	if _, ok := defaultAxes["layout_mode"]; ok {
+		axes["layout_mode"] = "default"
+	}
 	return &seed.FlagProfile{
-		Name: "negative-control__fno-stack-protector",
-		AxisValues: map[string]string{
-			"policy":     "negative_control",
-			"threshold":  "default",
-			"pic_mode":   "default",
-			"guard_mode": "default",
-		},
+		Name:              "negative-control__fno-stack-protector",
+		AxisValues:        axes,
 		Flags:             flags,
 		IsNegativeControl: true,
 	}
@@ -425,4 +595,46 @@ func isProfileApplicable(profile *seed.FlagProfile, source string, allowLLMCFlag
 func hasStackProtectAttribute(source string) bool {
 	return strings.Contains(source, "__attribute__((stack_protect))") ||
 		strings.Contains(source, "__attribute__ ((stack_protect))")
+}
+
+func axisValuesOrDefault(values [][]string) [][]string {
+	if len(values) == 0 {
+		return [][]string{nil}
+	}
+	return values
+}
+
+func hasAxis(axes map[string][][]string, name string) bool {
+	_, ok := axes[name]
+	return ok
+}
+
+func axisValue(profile *seed.FlagProfile, axis, fallback string) string {
+	if profile == nil || len(profile.AxisValues) == 0 {
+		return fallback
+	}
+	if value, ok := profile.AxisValues[axis]; ok && value != "" {
+		return value
+	}
+	return fallback
+}
+
+func blockedLLMFlagFamilies(profiles []*seed.FlagProfile) []string {
+	families := append([]string(nil), canaryLLMBlockedFlagFamilies...)
+	if profilesReserveLayoutFlags(profiles) {
+		families = append(families, canaryLayoutLLMBlockedFlagFamilies...)
+	}
+	return families
+}
+
+func profilesReserveLayoutFlags(profiles []*seed.FlagProfile) bool {
+	for _, profile := range profiles {
+		if profile == nil || len(profile.AxisValues) == 0 {
+			continue
+		}
+		if _, ok := profile.AxisValues["layout_mode"]; ok {
+			return true
+		}
+	}
+	return false
 }

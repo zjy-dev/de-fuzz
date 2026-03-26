@@ -34,6 +34,9 @@
  * - buf_size: controls buffer allocation size (for VLA/alloca)
  * - fill_size: controls how many bytes to write
  * - You CAN add function attributes like __attribute__((stack_protect)) if needed
+ * - DO NOT add __attribute__((no_stack_protector)) to seed() unless the current
+ *   compile profile is explicitly a negative-control run. Doing so turns protected
+ *   samples into false positives.
  *
  * CRITICAL: SENTINEL REQUIREMENT
  * - You MUST add the following two lines BEFORE the function returns:
