@@ -309,6 +309,14 @@ var canaryLLMConflictFlags = []string{
 	"-fhardened",
 }
 
+var canaryLayoutLLMConflictPrefixes = []string{
+	"-fpack-struct",
+}
+
+var canaryLayoutLLMConflictFlags = []string{
+	"-fshort-enums",
+}
+
 func filterLLMCFlags(seedFlags []string, profile *seed.FlagProfile) ([]string, []string) {
 	if len(seedFlags) == 0 {
 		return nil, nil
@@ -341,7 +349,28 @@ func shouldDropLLMFlag(flag string, profile *seed.FlagProfile) bool {
 			return true
 		}
 	}
+
+	if profileReservesLayoutFlags(profile) {
+		for _, blocked := range canaryLayoutLLMConflictFlags {
+			if flag == blocked {
+				return true
+			}
+		}
+		for _, prefix := range canaryLayoutLLMConflictPrefixes {
+			if strings.HasPrefix(flag, prefix) {
+				return true
+			}
+		}
+	}
 	return false
+}
+
+func profileReservesLayoutFlags(profile *seed.FlagProfile) bool {
+	if profile == nil || len(profile.AxisValues) == 0 {
+		return false
+	}
+	_, ok := profile.AxisValues["layout_mode"]
+	return ok
 }
 
 func effectiveNegativeReason(profile *seed.FlagProfile, sourceAnalysis seed.CanarySourceAnalysis, appliedLLMCFlags []string) string {

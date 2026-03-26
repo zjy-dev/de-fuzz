@@ -385,6 +385,95 @@ func TestGCCCompiler_Compile_FiltersConflictingCanaryLLMFlags(t *testing.T) {
 	assert.Equal(t, []string{"-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8", "-O2", filepath.Join(workDir, "seed_13.c"), "-o", filepath.Join(workDir, "seed_13")}, capturedArgs)
 }
 
+func TestGCCCompiler_Compile_FiltersConflictingLoongArchLayoutLLMFlags(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "build")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	cfg := GCCCompilerConfig{
+		GCCPath: "gcc",
+		WorkDir: workDir,
+		CFlags:  []string{"-Wall"},
+	}
+	compiler := NewGCCCompiler(cfg)
+
+	var capturedArgs []string
+	compiler.executor = &MockExecutor{
+		RunFunc: func(command string, args ...string) (*exec.ExecutionResult, error) {
+			capturedArgs = append([]string(nil), args...)
+			return &exec.ExecutionResult{ExitCode: 0}, nil
+		},
+	}
+
+	testSeed := &seed.Seed{
+		Meta:    seed.Metadata{ID: 17},
+		Content: "int main() { return 0; }",
+		CFlags:  []string{"-O2", "-fpack-struct=1", "-fshort-enums"},
+		FlagProfile: &seed.FlagProfile{
+			Name: "policy-strong__threshold-8__pic-default__guard-default__layout-default",
+			AxisValues: map[string]string{
+				"policy":      "strong",
+				"threshold":   "8",
+				"pic_mode":    "default",
+				"guard_mode":  "default",
+				"layout_mode": "default",
+			},
+			Flags: []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		},
+	}
+
+	result, err := compiler.Compile(testSeed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.LLMCFlagsApplied)
+	assert.Equal(t, []string{"-O2"}, result.AppliedLLMCFlags)
+	assert.Equal(t, []string{"-fpack-struct=1", "-fshort-enums"}, result.DroppedLLMCFlags)
+	assert.Equal(t, []string{"-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8", "-O2", filepath.Join(workDir, "seed_17.c"), "-o", filepath.Join(workDir, "seed_17")}, capturedArgs)
+}
+
+func TestGCCCompiler_Compile_AllowsLayoutLLMFlagsWhenProfileDoesNotReserveThem(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "build")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	cfg := GCCCompilerConfig{
+		GCCPath: "gcc",
+		WorkDir: workDir,
+		CFlags:  []string{"-Wall"},
+	}
+	compiler := NewGCCCompiler(cfg)
+
+	var capturedArgs []string
+	compiler.executor = &MockExecutor{
+		RunFunc: func(command string, args ...string) (*exec.ExecutionResult, error) {
+			capturedArgs = append([]string(nil), args...)
+			return &exec.ExecutionResult{ExitCode: 0}, nil
+		},
+	}
+
+	testSeed := &seed.Seed{
+		Meta:    seed.Metadata{ID: 18},
+		Content: "int main() { return 0; }",
+		CFlags:  []string{"-O2", "-fshort-enums"},
+		FlagProfile: &seed.FlagProfile{
+			Name: "policy-strong__threshold-8__pic-default__guard-default",
+			AxisValues: map[string]string{
+				"policy":     "strong",
+				"threshold":  "8",
+				"pic_mode":   "default",
+				"guard_mode": "default",
+			},
+			Flags: []string{"-fstack-protector-strong", "--param=ssp-buffer-size=8"},
+		},
+	}
+
+	result, err := compiler.Compile(testSeed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.LLMCFlagsApplied)
+	assert.Equal(t, []string{"-O2", "-fshort-enums"}, result.AppliedLLMCFlags)
+	assert.Empty(t, result.DroppedLLMCFlags)
+	assert.Equal(t, []string{"-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8", "-O2", "-fshort-enums", filepath.Join(workDir, "seed_18.c"), "-o", filepath.Join(workDir, "seed_18")}, capturedArgs)
+}
+
 func TestNewCrossGCCCompiler(t *testing.T) {
 	cfg := CrossGCCCompilerConfig{
 		GCCCompilerConfig: GCCCompilerConfig{
