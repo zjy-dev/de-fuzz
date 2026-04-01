@@ -1,0 +1,179 @@
+strategies:
+  canary:
+    workers: 4
+    group_order:
+      - policy
+      - threshold
+      - pic_mode
+      - guard_source
+      - layout
+    strip_rules:
+      exact:
+        - -fpic
+        - -fPIC
+        - -fpie
+        - -fPIE
+        - -fhardened
+        - -fshort-enums
+      prefixes:
+        - -fstack-protector
+        - -fno-stack-protector
+        - --param=ssp-buffer-size=
+        - -mstack-protector-guard
+        - -fpack-struct
+    groups:
+      common:
+        policy:
+          - name: ssp
+            flags: ["-fstack-protector"]
+          - name: strong
+            flags: ["-fstack-protector-strong"]
+          - name: all
+            flags: ["-fstack-protector-all"]
+          - name: explicit
+            flags: ["-fstack-protector-explicit"]
+        threshold:
+          - name: "1"
+            flags: ["--param=ssp-buffer-size=1"]
+          - name: "4"
+            flags: ["--param=ssp-buffer-size=4"]
+          - name: "8"
+            flags: ["--param=ssp-buffer-size=8"]
+          - name: "16"
+            flags: ["--param=ssp-buffer-size=16"]
+          - name: "32"
+            flags: ["--param=ssp-buffer-size=32"]
+        pic_mode:
+          - name: default
+            flags: []
+          - name: fPIC
+            flags: ["-fPIC"]
+      by_isa:
+        aarch64:
+          guard_source:
+            - name: default
+              flags: []
+            - name: global
+              flags: ["-mstack-protector-guard=global"]
+            - name: sysreg-off0
+              flags:
+                - -mstack-protector-guard=sysreg
+                - -mstack-protector-guard-reg=<config-provided-valid-sysreg>
+                - -mstack-protector-guard-offset=0
+            - name: sysreg-off16
+              flags:
+                - -mstack-protector-guard=sysreg
+                - -mstack-protector-guard-reg=<same-sysreg>
+                - -mstack-protector-guard-offset=16
+        riscv64:
+          guard_source:
+            - name: default
+              flags: []
+            - name: global
+              flags: ["-mstack-protector-guard=global"]
+            - name: tls-tp-off0
+              flags:
+                - -mstack-protector-guard=tls
+                - -mstack-protector-guard-reg=<config-provided-gpr>
+                - -mstack-protector-guard-offset=0
+            - name: tls-tp-off16
+              flags:
+                - -mstack-protector-guard=tls
+                - -mstack-protector-guard-reg=<same-gpr>
+                - -mstack-protector-guard-offset=16
+        x64:
+          guard_source:
+            - name: default
+              flags: []
+            - name: global
+              flags: ["-mstack-protector-guard=global"]
+            - name: tls-fs-off20
+              flags:
+                - -mstack-protector-guard=tls
+                - -mstack-protector-guard-reg=fs
+                - -mstack-protector-guard-offset=20
+            - name: tls-gs-off20
+              flags:
+                - -mstack-protector-guard=tls
+                - -mstack-protector-guard-reg=gs
+                - -mstack-protector-guard-offset=20
+            - name: tls-symbol
+              flags:
+                - -mstack-protector-guard=tls
+                - -mstack-protector-guard-symbol=__stack_chk_guard
+        loongarch64:
+          layout:
+            - name: default
+              flags: []
+            - name: pack
+              flags: ["-fpack-struct"]
+            - name: pack1
+              flags: ["-fpack-struct=1"]
+            - name: pack2
+              flags: ["-fpack-struct=2"]
+            - name: pack4
+              flags: ["-fpack-struct=4"]
+            - name: short-enums
+              flags: ["-fshort-enums"]
+            - name: pack-short-enums
+              flags: ["-fpack-struct", "-fshort-enums"]
+    isa_options:
+      aarch64:
+        stack_protector_guard_reg: tpidr_el0
+      riscv64:
+        stack_protector_guard_reg: tp
+        supports_hardware_tls: true
+
+  fortify:
+    workers: 4
+    group_order:
+      - optimization
+      - fortify_level
+      - stack_protector
+    strip_rules:
+      exact:
+        - -U_FORTIFY_SOURCE
+      prefixes:
+        - -O
+        - -D_FORTIFY_SOURCE=
+        - -fstack-protector
+        - -fno-stack-protector
+    groups:
+      common:
+        optimization:
+          - name: O1
+            flags: ["-O1"]
+          - name: O2
+            flags: ["-O2"]
+          - name: O3
+            flags: ["-O3"]
+        fortify_level:
+          - name: fortify1
+            flags: ["-D_FORTIFY_SOURCE=1"]
+          - name: fortify2
+            flags: ["-D_FORTIFY_SOURCE=2"]
+          - name: fortify3
+            flags: ["-D_FORTIFY_SOURCE=3"]
+        stack_protector:
+          - name: no-stack-protector
+            flags: ["-fno-stack-protector"]
+
+  crash:
+    workers: 4
+    group_order: []
+    strip_rules:
+      exact: []
+      prefixes: []
+    groups:
+      common: {}
+      by_isa: {}
+
+  llm:
+    workers: 2
+    group_order: []
+    strip_rules:
+      exact: []
+      prefixes: []
+    groups:
+      common: {}
+      by_isa: {}
