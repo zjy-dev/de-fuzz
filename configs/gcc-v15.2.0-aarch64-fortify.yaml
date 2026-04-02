@@ -1,0 +1,95 @@
+compiler:
+    path: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
+    gcovr_exec_path: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
+    source_parent_path: "target_compilers/gcc-v15.2.0-aarch64-cross-compile"
+    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov --demangled-names" -r ..'
+
+    # Stable toolchain flags only. Fortify behavior is selected by compiler.fuzz.flag_strategy.
+    cflags:
+        - "-O0"
+        - "--sysroot=target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        - "-Btarget_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc"
+        - "-Btarget_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/15.2.0"
+        - "-Ltarget_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
+
+    fuzz:
+        output_root_dir: "fuzz_out"
+        max_iterations: 256
+        max_new_seeds: 1
+        max_test_cases: 0
+        function_template: "initial_seeds/aarch64/fortify/function_template.c"
+        base_prompt_dir: "prompts/base"
+        timeout: 30
+        use_qemu: true
+        qemu_path: "qemu-aarch64"
+        qemu_sysroot: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        cfg_file_paths:
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/c-family/c-opts.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/builtins.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/gimple-fold.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/linux.cc.015t.cfg"
+        max_constraint_retries: 8
+        weight_decay_factor: 0.8
+        flag_strategy:
+            enabled: true
+            mode: "matrix"
+            allow_llm_cflags: true
+            include_negative_controls: false
+            selection_order: "deterministic"
+            axes:
+                common:
+                    optimization:
+                        - ["-O0"]
+                        - ["-O1"]
+                        - ["-O2"]
+                        - ["-O3"]
+                    fortify_mode:
+                        - ["-D_FORTIFY_SOURCE=0"]
+                        - ["-D_FORTIFY_SOURCE=1"]
+                        - ["-D_FORTIFY_SOURCE=2"]
+                        - ["-D_FORTIFY_SOURCE=3"]
+                        - ["-fhardened"]
+                        - ["-fhardened", "-U_FORTIFY_SOURCE"]
+                        - ["-fhardened", "-D_FORTIFY_SOURCE=1"]
+                        - ["-fhardened", "-D_FORTIFY_SOURCE=2"]
+                        - ["-fhardened", "-D_FORTIFY_SOURCE=3"]
+                    stack_protector_mode:
+                        - ["-fno-stack-protector"]
+
+    oracle:
+        type: "fortify"
+        options:
+            max_fill_size: 1024
+            default_buf_size: 64
+
+targets:
+    - file: "gcc/gcc/c-family/c-opts.cc"
+      functions:
+          - "c_finish_options"
+
+    - file: "gcc/gcc/builtins.cc"
+      functions:
+          - "fold_builtin_object_size"
+          - "maybe_emit_chk_warning"
+          - "expand_builtin_memory_chk"
+          - "avoid_folding_inline_builtin"
+          - "fold_call_expr"
+
+    - file: "gcc/gcc/gimple-fold.cc"
+      functions:
+          - "gimple_fold_builtin"
+          - "gimple_fold_builtin_memory_chk"
+          - "gimple_fold_builtin_stxcpy_chk"
+          - "gimple_fold_builtin_sprintf_chk"
+          - "gimple_fold_builtin_strncat_chk"
+          - "gimple_fold_builtin_stxncpy_chk"
+          - "gimple_fold_builtin_snprintf_chk"
+
+    - file: "gcc/gcc/targhooks.cc"
+      functions:
+          - "default_fortify_source_default_level"
+
+    - file: "gcc/gcc/config/linux.cc"
+      functions:
+          - "linux_fortify_source_default_level"

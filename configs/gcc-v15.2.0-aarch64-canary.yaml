@@ -15,7 +15,8 @@ compiler:
 
     # Compiler flags (CFlags) for cross-compilation
     # These flags are stable environment/toolchain flags.
-    # Canary behavior profiles are scheduled by compiler.fuzz.flag_strategy.
+    # Stable toolchain/environment flags only.
+    # Canary-specific dynamic flags now come only from LLM-generated CFLAGS.
     cflags:
         - "-O0" # No optimization for better debugging
         # Cross-compilation specific flags:
@@ -52,14 +53,19 @@ compiler:
         # Sysroot path for QEMU (-L argument)
         # This should point to the cross-compiled sysroot with aarch64 libraries
         qemu_sysroot: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
-        # CFG dump file path for target function analysis
-        cfg_file_path: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        # CFG dump files for active target source files
+        cfg_file_paths:
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/function.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/calls.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/aarch64.cc.015t.cfg"
         # Maximum number of divergence analysis retries per target BB
         max_constraint_retries: 8
         # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8
         weight_decay_factor: 0.8
         flag_strategy:
-            enabled: true
+            enabled: false
             mode: "matrix"
             allow_llm_cflags: true
             include_negative_controls: true

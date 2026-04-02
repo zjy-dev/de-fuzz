@@ -682,6 +682,7 @@ func buildCompilerProfileSection(ctx *TargetContext) string {
 		return ""
 	}
 
+	profileStrategy := activeProfileStrategy(ctx.ActiveFlagProfileName, ctx.ActiveFlagProfileAxes)
 	var sb strings.Builder
 	sb.WriteString("## Active Compiler Profile\n\n")
 	sb.WriteString(fmt.Sprintf("This attempt will already compile with profile **%s**.\n\n", ctx.ActiveFlagProfileName))
@@ -693,20 +694,29 @@ func buildCompilerProfileSection(ctx *TargetContext) string {
 		sb.WriteString("\n```\n\n")
 	}
 
-	if policy, ok := ctx.ActiveFlagProfileAxes["policy"]; ok && policy == "explicit" {
-		sb.WriteString("**Important:** This profile only has meaning if your generated function uses `__attribute__((stack_protect))`.\n\n")
-	}
+	switch profileStrategy {
+	case "canary":
+		if policy, ok := ctx.ActiveFlagProfileAxes["policy"]; ok && policy == "explicit" {
+			sb.WriteString("**Important:** This profile only has meaning if your generated function uses `__attribute__((stack_protect))`.\n\n")
+		}
 
-	if ctx.ActiveIsNegativeControl {
-		sb.WriteString("**Important:** This is a negative-control attempt. It is acceptable for `seed()` to disable stack protection in source if needed for sanity checking.\n\n")
-	} else {
-		sb.WriteString("**Important:** Do NOT annotate `seed()` with `__attribute__((no_stack_protector))`.\n")
-		sb.WriteString("Do NOT disable stack protection in source for `seed()`. If protection is disabled in source, the sample will be treated as a false positive candidate rather than a compiler bug.\n\n")
+		if ctx.ActiveIsNegativeControl {
+			sb.WriteString("**Important:** This is a negative-control attempt. It is acceptable for `seed()` to disable stack protection in source if needed for sanity checking.\n\n")
+		} else {
+			sb.WriteString("**Important:** Do NOT annotate `seed()` with `__attribute__((no_stack_protector))`.\n")
+			sb.WriteString("Do NOT disable stack protection in source for `seed()`. If protection is disabled in source, the sample will be treated as a false positive candidate rather than a compiler bug.\n\n")
+		}
+	case "fortify":
+		sb.WriteString("**Important:** This profile already controls fortify-related compiler options such as optimization level, `_FORTIFY_SOURCE`, `-fhardened`, and stack-protector isolation.\n")
+		if mode, ok := ctx.ActiveFlagProfileAxes["stack_protector_mode"]; ok && mode == "no-stack-protector" {
+			sb.WriteString("Stack protector is intentionally disabled in this profile to isolate fortify behavior.\n")
+		}
+		sb.WriteString("Prefer changing source patterns that affect object-size inference and checked builtin lowering, rather than re-declaring fortify-related compiler flags.\n\n")
 	}
 
 	if ctx.AllowLLMCFlags {
 		sb.WriteString("If you emit a CFLAGS section, those flags are appended after the profile above.\n")
-		sb.WriteString("Use them only for supplemental decisions that do NOT replace the stack-protector profile axes.\n")
+		sb.WriteString("Use them only for supplemental decisions that do NOT replace the strategy-managed profile axes.\n")
 		if len(ctx.BlockedLLMFlagFamilies) > 0 {
 			sb.WriteString("The following flag families are reserved for the profile selector and will be dropped if you emit them:\n")
 			for _, family := range ctx.BlockedLLMFlagFamilies {
@@ -717,4 +727,27 @@ func buildCompilerProfileSection(ctx *TargetContext) string {
 	}
 
 	return sb.String()
+}
+
+func activeProfileStrategy(profileName string, axes map[string]string) string {
+	if len(axes) == 0 {
+		switch {
+		case strings.Contains(profileName, "fortify_mode-") || strings.Contains(profileName, "optimization-"):
+			return "fortify"
+		case strings.Contains(profileName, "policy-") || strings.Contains(profileName, "negative-control"):
+			return "canary"
+		default:
+			return ""
+		}
+	}
+	if _, ok := axes["fortify_mode"]; ok {
+		return "fortify"
+	}
+	if _, ok := axes["optimization"]; ok {
+		return "fortify"
+	}
+	if _, ok := axes["policy"]; ok {
+		return "canary"
+	}
+	return ""
 }

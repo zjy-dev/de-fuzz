@@ -12,7 +12,8 @@ compiler:
 
     # Compiler flags for RISC-V 64 cross-compilation
     # These flags are stable environment/toolchain flags.
-    # Canary behavior profiles are scheduled by compiler.fuzz.flag_strategy.
+    # Stable toolchain/environment flags only.
+    # Canary-specific dynamic flags now come only from LLM-generated CFLAGS.
     cflags:
         - "-O0"
         - "--sysroot=target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
@@ -31,11 +32,16 @@ compiler:
         use_qemu: true
         qemu_path: "qemu-riscv64"
         qemu_sysroot: "target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
-        cfg_file_path: "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        cfg_file_paths:
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/function.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/calls.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/riscv.cc.015t.cfg"
         max_constraint_retries: 8
         weight_decay_factor: 0.8
         flag_strategy:
-            enabled: true
+            enabled: false
             mode: "matrix"
             allow_llm_cflags: true
             include_negative_controls: true
@@ -97,26 +103,22 @@ targets:
           - "expand_used_vars"                  # line 2457
           - "stack_protect_prologue"            # line 6920
 
-    # function.cc - epilogue 及参数处理
     - file: "gcc/gcc/function.cc"
       functions:
           - "stack_protect_epilogue"            # line 5042
           - "assign_parm_adjust_stack_rtl"      # line 2836
           - "expand_function_end"               # line 5397
 
-    # calls.cc - sibling/noreturn call path can also trigger stack_protect_epilogue
     - file: "gcc/gcc/calls.cc"
       functions:
           - "expand_call"                       # line 2666
 
-    # targhooks.cc - 默认 target hook 实现（RISC-V 使用默认实现）
     - file: "gcc/gcc/targhooks.cc"
       functions:
           - "default_stack_protect_guard"           # line 919
           - "default_external_stack_protect_fail"   # line 952
           - "default_hidden_stack_protect_fail"     # line 979
 
-    # riscv.cc - 目标相关 guard 选项解析和校验
     - file: "gcc/gcc/config/riscv/riscv.cc"
       functions:
           - "riscv_option_override"                # line 10674

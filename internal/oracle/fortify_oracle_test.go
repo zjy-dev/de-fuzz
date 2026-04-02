@@ -291,6 +291,77 @@ func TestFortifyOracle_Analyze_SIGBUS_WithSentinel(t *testing.T) {
 	assert.Contains(t, bug.Description, "unaligned")
 }
 
+func TestFortifyOracle_Analyze_NegativeProfiles_NoBug(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile *seed.FlagProfile
+	}{
+		{
+			name: "optimization O0 disables fortify",
+			profile: &seed.FlagProfile{
+				Name: "optimization-O0__fortify_mode-fortify2__stack_protector_mode-no-stack-protector",
+				AxisValues: map[string]string{
+					"optimization":         "O0",
+					"fortify_mode":         "fortify2",
+					"stack_protector_mode": "no-stack-protector",
+				},
+			},
+		},
+		{
+			name: "fortify0 disables fortify",
+			profile: &seed.FlagProfile{
+				Name: "optimization-O2__fortify_mode-fortify0__stack_protector_mode-no-stack-protector",
+				AxisValues: map[string]string{
+					"optimization":         "O2",
+					"fortify_mode":         "fortify0",
+					"stack_protector_mode": "no-stack-protector",
+				},
+			},
+		},
+		{
+			name: "hardened no fortify disables fortify",
+			profile: &seed.FlagProfile{
+				Name: "optimization-O2__fortify_mode-hardened-no-fortify__stack_protector_mode-no-stack-protector",
+				AxisValues: map[string]string{
+					"optimization":         "O2",
+					"fortify_mode":         "hardened-no-fortify",
+					"stack_protector_mode": "no-stack-protector",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oracle := &FortifyOracle{
+				MaxFillSize:    200,
+				DefaultBufSize: 64,
+			}
+
+			executor := &mockExecutorFortify{
+				responses: map[string]struct {
+					exitCode int
+					stdout   string
+					stderr   string
+					err      error
+				}{
+					"100": {exitCode: 132, stdout: "SEED_RETURNED\n", stderr: ""},
+					"200": {exitCode: 132, stdout: "SEED_RETURNED\n", stderr: ""},
+				},
+			}
+
+			ctx := &AnalyzeContext{
+				BinaryPath: "/test/binary",
+				Executor:   executor,
+			}
+
+			bug, err := oracle.Analyze(&seed.Seed{FlagProfile: tt.profile}, ctx, nil)
+			assert.NoError(t, err)
+			assert.Nil(t, bug, "negative fortify profile should not be reported as bug")
+		})
+	}
+}
+
 func TestFortifyOracleRegistration(t *testing.T) {
 	// Test that FortifyOracle is properly registered
 	oracle, err := New("fortify", nil, nil, nil, "")

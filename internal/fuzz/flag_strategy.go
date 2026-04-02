@@ -13,6 +13,11 @@ import (
 
 const negativeControlInterval = 20
 
+const (
+	flagStrategyCanary  = "canary"
+	flagStrategyFortify = "fortify"
+)
+
 var canaryLLMBlockedFlagFamilies = []string{
 	"-fstack-protector*",
 	"-fno-stack-protector*",
@@ -27,8 +32,18 @@ var canaryLayoutLLMBlockedFlagFamilies = []string{
 	"-fshort-enums",
 }
 
+var fortifyLLMBlockedFlagFamilies = []string{
+	"-O*",
+	"-D_FORTIFY_SOURCE=*",
+	"-U_FORTIFY_SOURCE",
+	"-fhardened",
+	"-fstack-protector*",
+	"-fno-stack-protector*",
+}
+
 // FlagScheduler deterministically rotates compiler flag profiles during fuzzing.
 type FlagScheduler struct {
+	strategy               string
 	allowLLMCFlags         bool
 	blockedLLMFlagFamilies []string
 	mainProfiles           []*seed.FlagProfile
@@ -41,6 +56,11 @@ type FlagScheduler struct {
 
 // NewFlagScheduler builds a canary-specific flag scheduler from configuration.
 func NewFlagScheduler(isa string, cfg config.FlagStrategyConfig) (*FlagScheduler, error) {
+	return NewFlagSchedulerForStrategy("", isa, cfg)
+}
+
+// NewFlagSchedulerForStrategy builds a deterministic compiler flag scheduler from configuration.
+func NewFlagSchedulerForStrategy(strategy string, isa string, cfg config.FlagStrategyConfig) (*FlagScheduler, error) {
 	if !cfg.Enabled {
 		return nil, nil
 	}
@@ -48,17 +68,19 @@ func NewFlagScheduler(isa string, cfg config.FlagStrategyConfig) (*FlagScheduler
 		return nil, fmt.Errorf("unsupported flag strategy mode: %s", cfg.Mode)
 	}
 
-	profiles, defaultProfile, err := buildProfilesForISA(isa, cfg)
+	strategy = resolveFlagStrategyName(strategy, cfg)
+	profiles, defaultProfile, err := buildProfilesForStrategy(strategy, isa, cfg)
 	if err != nil {
 		return nil, err
 	}
 	if len(profiles) == 0 {
-		return nil, fmt.Errorf("no flag profiles available for ISA %s", isa)
+		return nil, fmt.Errorf("no %s flag profiles available for ISA %s", strategy, isa)
 	}
 
 	scheduler := &FlagScheduler{
+		strategy:               strategy,
 		allowLLMCFlags:         cfg.AllowLLMCFlags,
-		blockedLLMFlagFamilies: blockedLLMFlagFamilies(profiles),
+		blockedLLMFlagFamilies: blockedLLMFlagFamiliesForStrategy(strategy, profiles),
 		mainProfiles:           profiles,
 		defaultProfile:         defaultProfile,
 		targetCursor:           make(map[string]int),
@@ -96,11 +118,11 @@ func (s *FlagScheduler) DefaultProfileForSeed(source string) *seed.FlagProfile {
 	if s == nil || s.defaultProfile == nil {
 		return nil
 	}
-	if isProfileApplicable(s.defaultProfile, source, s.allowLLMCFlags) {
+	if isProfileApplicable(s.strategy, s.defaultProfile, source, s.allowLLMCFlags) {
 		return s.defaultProfile.Clone()
 	}
 	for _, profile := range s.mainProfiles {
-		if isProfileApplicable(profile, source, s.allowLLMCFlags) {
+		if isProfileApplicable(s.strategy, profile, source, s.allowLLMCFlags) {
 			return profile.Clone()
 		}
 	}
@@ -134,7 +156,7 @@ func (s *FlagScheduler) NextProfileForTarget(target *coverage.TargetInfo, source
 	for offset := 0; offset < len(s.mainProfiles); offset++ {
 		idx := (start + offset) % len(s.mainProfiles)
 		profile := s.mainProfiles[idx]
-		if !isProfileApplicable(profile, source, s.allowLLMCFlags) {
+		if !isProfileApplicable(s.strategy, profile, source, s.allowLLMCFlags) {
 			continue
 		}
 		s.targetCursor[key] = (idx + 1) % len(s.mainProfiles)
@@ -148,7 +170,32 @@ func targetKey(target *coverage.TargetInfo) string {
 	return fmt.Sprintf("%s:%d", target.Function, target.BBID)
 }
 
-func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.FlagProfile, *seed.FlagProfile, error) {
+func resolveFlagStrategyName(strategy string, cfg config.FlagStrategyConfig) string {
+	strategy = strings.TrimSpace(strings.ToLower(strategy))
+	if strategy != "" {
+		return strategy
+	}
+
+	switch {
+	case len(cfg.Axes.Common["fortify_mode"]) > 0 || len(cfg.Axes.Common["optimization"]) > 0:
+		return flagStrategyFortify
+	default:
+		return flagStrategyCanary
+	}
+}
+
+func buildProfilesForStrategy(strategy string, isa string, cfg config.FlagStrategyConfig) ([]*seed.FlagProfile, *seed.FlagProfile, error) {
+	switch strategy {
+	case flagStrategyCanary:
+		return buildCanaryProfilesForISA(isa, cfg)
+	case flagStrategyFortify:
+		return buildFortifyProfiles(isa, cfg)
+	default:
+		return nil, nil, fmt.Errorf("unsupported flag strategy for %q", strategy)
+	}
+}
+
+func buildCanaryProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.FlagProfile, *seed.FlagProfile, error) {
 	isaKey, isaAxes, isaOptions, err := resolveCanaryISAConfig(isa, cfg)
 	if err != nil {
 		return nil, nil, err
@@ -210,11 +257,67 @@ func buildProfilesForISA(isa string, cfg config.FlagStrategyConfig) ([]*seed.Fla
 	}
 
 	sort.SliceStable(profiles, func(i, j int) bool {
-		return compareProfilePriority(profiles[i], profiles[j]) < 0
+		return compareProfilePriority(flagStrategyCanary, profiles[i], profiles[j]) < 0
 	})
 
 	if len(profiles) == 0 {
 		return nil, nil, fmt.Errorf("no materialized profiles generated")
+	}
+
+	return profiles, profiles[0].Clone(), nil
+}
+
+func buildFortifyProfiles(isa string, cfg config.FlagStrategyConfig) ([]*seed.FlagProfile, *seed.FlagProfile, error) {
+	_ = isa
+
+	common := cfg.Axes.Common
+	if len(common) == 0 {
+		return nil, nil, fmt.Errorf("flag strategy common axes are required")
+	}
+
+	optimizationValues := axisValuesOrDefault(common["optimization"])
+	fortifyValues := axisValuesOrDefault(common["fortify_mode"])
+	stackProtectorValues := axisValuesOrDefault(common["stack_protector_mode"])
+	if len(common["optimization"]) == 0 || len(common["fortify_mode"]) == 0 || len(common["stack_protector_mode"]) == 0 {
+		return nil, nil, fmt.Errorf("optimization, fortify_mode and stack_protector_mode axes are required")
+	}
+
+	profiles := make([]*seed.FlagProfile, 0)
+	seen := make(map[string]bool)
+
+	for _, optimizationFlags := range optimizationValues {
+		for _, fortifyFlags := range fortifyValues {
+			for _, stackProtectorFlags := range stackProtectorValues {
+				flags := make([]string, 0, len(optimizationFlags)+len(fortifyFlags)+len(stackProtectorFlags))
+				flags = append(flags, optimizationFlags...)
+				flags = append(flags, fortifyFlags...)
+				flags = append(flags, stackProtectorFlags...)
+
+				axes := map[string]string{
+					"optimization":         fortifyAxisLabel("optimization", optimizationFlags),
+					"fortify_mode":         fortifyAxisLabel("fortify_mode", fortifyFlags),
+					"stack_protector_mode": fortifyAxisLabel("stack_protector_mode", stackProtectorFlags),
+				}
+				name := buildFortifyProfileName(axes)
+				if seen[name] {
+					continue
+				}
+				seen[name] = true
+				profiles = append(profiles, &seed.FlagProfile{
+					Name:       name,
+					AxisValues: axes,
+					Flags:      flags,
+				})
+			}
+		}
+	}
+
+	sort.SliceStable(profiles, func(i, j int) bool {
+		return compareProfilePriority(flagStrategyFortify, profiles[i], profiles[j]) < 0
+	})
+
+	if len(profiles) == 0 {
+		return nil, nil, fmt.Errorf("no materialized fortify profiles generated")
 	}
 
 	return profiles, profiles[0].Clone(), nil
@@ -424,6 +527,56 @@ func axisLabel(axis string, flags []string) string {
 	return strings.Join(parts, "+")
 }
 
+func fortifyAxisLabel(axis string, flags []string) string {
+	if len(flags) == 0 {
+		return "default"
+	}
+
+	switch axis {
+	case "optimization":
+		return strings.TrimPrefix(flags[0], "-")
+	case "fortify_mode":
+		hasHardened := false
+		level := ""
+		hasUndef := false
+		for _, flag := range flags {
+			switch {
+			case flag == "-fhardened":
+				hasHardened = true
+			case flag == "-U_FORTIFY_SOURCE":
+				hasUndef = true
+			case strings.HasPrefix(flag, "-D_FORTIFY_SOURCE="):
+				level = strings.TrimPrefix(flag, "-D_FORTIFY_SOURCE=")
+			}
+		}
+		switch {
+		case hasHardened && hasUndef:
+			return "hardened-no-fortify"
+		case hasHardened && level != "":
+			return "hardened-fortify" + level
+		case hasHardened:
+			return "hardened"
+		case level != "":
+			return "fortify" + level
+		}
+	case "stack_protector_mode":
+		switch flags[0] {
+		case "-fno-stack-protector":
+			return "no-stack-protector"
+		case "-fstack-protector":
+			return "stack-protector"
+		case "-fstack-protector-strong":
+			return "stack-protector-strong"
+		}
+	}
+
+	parts := make([]string, 0, len(flags))
+	for _, flag := range flags {
+		parts = append(parts, strings.TrimPrefix(flag, "-"))
+	}
+	return strings.Join(parts, "+")
+}
+
 func buildProfileName(axes map[string]string) string {
 	nameParts := []string{
 		"policy-" + axes["policy"],
@@ -437,9 +590,18 @@ func buildProfileName(axes map[string]string) string {
 	return strings.Join(nameParts, "__")
 }
 
-func compareProfilePriority(left, right *seed.FlagProfile) int {
-	leftRank := profileRank(left)
-	rightRank := profileRank(right)
+func buildFortifyProfileName(axes map[string]string) string {
+	nameParts := []string{
+		"optimization-" + axes["optimization"],
+		"fortify_mode-" + axes["fortify_mode"],
+		"stack_protector_mode-" + axes["stack_protector_mode"],
+	}
+	return strings.Join(nameParts, "__")
+}
+
+func compareProfilePriority(strategy string, left, right *seed.FlagProfile) int {
+	leftRank := profileRank(strategy, left)
+	rightRank := profileRank(strategy, right)
 	if leftRank != rightRank {
 		return leftRank - rightRank
 	}
@@ -452,11 +614,20 @@ func compareProfilePriority(left, right *seed.FlagProfile) int {
 	return 0
 }
 
-func profileRank(profile *seed.FlagProfile) int {
+func profileRank(strategy string, profile *seed.FlagProfile) int {
 	if profile == nil {
 		return 1 << 30
 	}
 
+	switch strategy {
+	case flagStrategyFortify:
+		return fortifyProfileRank(profile)
+	default:
+		return canaryProfileRank(profile)
+	}
+}
+
+func canaryProfileRank(profile *seed.FlagProfile) int {
 	policy := profile.AxisValues["policy"]
 	threshold := profile.AxisValues["threshold"]
 	pic := profile.AxisValues["pic_mode"]
@@ -497,6 +668,56 @@ func profileRank(profile *seed.FlagProfile) int {
 	}
 
 	return 100 + lexicalAxisRank(profile)
+}
+
+func fortifyProfileRank(profile *seed.FlagProfile) int {
+	optimization := axisValue(profile, "optimization", "default")
+	fortifyMode := axisValue(profile, "fortify_mode", "default")
+	stackProtector := axisValue(profile, "stack_protector_mode", "default")
+
+	switch {
+	case optimization == "O2" && fortifyMode == "hardened" && stackProtector == "no-stack-protector":
+		return 0
+	case optimization == "O2" && fortifyMode == "fortify2" && stackProtector == "no-stack-protector":
+		return 1
+	case optimization == "O2" && fortifyMode == "fortify1" && stackProtector == "no-stack-protector":
+		return 2
+	case optimization == "O2" && fortifyMode == "fortify3" && stackProtector == "no-stack-protector":
+		return 3
+	case optimization == "O0" && fortifyMode == "hardened" && stackProtector == "no-stack-protector":
+		return 4
+	case optimization == "O2" && fortifyMode == "hardened-no-fortify" && stackProtector == "no-stack-protector":
+		return 5
+	case optimization == "O2" && fortifyMode == "hardened-fortify1" && stackProtector == "no-stack-protector":
+		return 6
+	case optimization == "O2" && fortifyMode == "hardened-fortify2" && stackProtector == "no-stack-protector":
+		return 7
+	case optimization == "O2" && fortifyMode == "hardened-fortify3" && stackProtector == "no-stack-protector":
+		return 8
+	}
+
+	optimizationRank := map[string]int{"O0": 0, "O1": 1, "O2": 2, "O3": 3}
+	fortifyRank := map[string]int{
+		"fortify0":            0,
+		"fortify1":            1,
+		"fortify2":            2,
+		"fortify3":            3,
+		"hardened":            4,
+		"hardened-no-fortify": 5,
+		"hardened-fortify1":   6,
+		"hardened-fortify2":   7,
+		"hardened-fortify3":   8,
+	}
+	stackProtectorRank := map[string]int{
+		"no-stack-protector":     0,
+		"stack-protector":        1,
+		"stack-protector-strong": 2,
+	}
+
+	return 100 +
+		optimizationRank[optimization]*100 +
+		fortifyRank[fortifyMode]*10 +
+		stackProtectorRank[stackProtector]
 }
 
 func lexicalAxisRank(profile *seed.FlagProfile) int {
@@ -582,12 +803,15 @@ func buildNegativeProfile(controls [][]string, defaultAxes map[string]string) *s
 	}
 }
 
-func isProfileApplicable(profile *seed.FlagProfile, source string, allowLLMCFlags bool) bool {
+func isProfileApplicable(strategy string, profile *seed.FlagProfile, source string, allowLLMCFlags bool) bool {
 	if profile == nil {
 		return false
 	}
-	if profile.AxisValues["policy"] == "explicit" && !hasStackProtectAttribute(source) && !allowLLMCFlags {
-		return false
+	switch strategy {
+	case flagStrategyCanary:
+		if profile.AxisValues["policy"] == "explicit" && !hasStackProtectAttribute(source) && !allowLLMCFlags {
+			return false
+		}
 	}
 	return true
 }
@@ -619,12 +843,17 @@ func axisValue(profile *seed.FlagProfile, axis, fallback string) string {
 	return fallback
 }
 
-func blockedLLMFlagFamilies(profiles []*seed.FlagProfile) []string {
-	families := append([]string(nil), canaryLLMBlockedFlagFamilies...)
-	if profilesReserveLayoutFlags(profiles) {
-		families = append(families, canaryLayoutLLMBlockedFlagFamilies...)
+func blockedLLMFlagFamiliesForStrategy(strategy string, profiles []*seed.FlagProfile) []string {
+	switch strategy {
+	case flagStrategyFortify:
+		return append([]string(nil), fortifyLLMBlockedFlagFamilies...)
+	default:
+		families := append([]string(nil), canaryLLMBlockedFlagFamilies...)
+		if profilesReserveLayoutFlags(profiles) {
+			families = append(families, canaryLayoutLLMBlockedFlagFamilies...)
+		}
+		return families
 	}
-	return families
 }
 
 func profilesReserveLayoutFlags(profiles []*seed.FlagProfile) bool {

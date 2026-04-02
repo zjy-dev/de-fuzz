@@ -59,7 +59,7 @@ func TestMaterializeFortify(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, combos, 3*3*1)
 
-	require.Equal(t, "optimization-O1__fortify_level-fortify1__stack_protector-no-stack-protector", combos[0].Name)
+	require.Equal(t, "optimization-O1__fortify_level-fortify1__stack_protector_mode-no-stack-protector", combos[0].Name)
 }
 
 func TestMaterializeStrategyWithoutGroupsReturnsDefault(t *testing.T) {

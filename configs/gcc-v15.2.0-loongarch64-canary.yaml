@@ -14,7 +14,8 @@ compiler:
     gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov --demangled-names" -r ..'
 
     # Compiler flags for stable toolchain / environment setup only.
-    # Canary behavior and LoongArch64 layout profiles are scheduled by compiler.fuzz.flag_strategy.
+    # Stable toolchain/environment flags only.
+    # Canary-specific dynamic flags now come only from LLM-generated CFLAGS.
     cflags:
         - "-O0"
         - "--sysroot=target_compilers/gcc-v15.2.0-loongarch64-cross-compile/install-loongarch64-unknown-linux-gnu/loongarch64-unknown-linux-gnu/libc"
@@ -33,11 +34,15 @@ compiler:
         use_qemu: true
         qemu_path: "qemu-loongarch64"
         qemu_sysroot: "target_compilers/gcc-v15.2.0-loongarch64-cross-compile/install-loongarch64-unknown-linux-gnu/loongarch64-unknown-linux-gnu/libc"
-        cfg_file_path: "target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        cfg_file_paths:
+            - "target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc/function.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc/calls.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-loongarch64-cross-compile/build-loongarch64-unknown-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
         max_constraint_retries: 8
         weight_decay_factor: 0.8
         flag_strategy:
-            enabled: true
+            enabled: false
             mode: "matrix"
             allow_llm_cflags: true
             include_negative_controls: true
@@ -110,6 +115,6 @@ targets:
 
     - file: "gcc/gcc/targhooks.cc"
       functions:
-          - "default_stack_protect_guard"        # line 919
+          - "default_stack_protect_guard"         # line 919
           - "default_external_stack_protect_fail" # line 952
           - "default_hidden_stack_protect_fail"   # line 979

@@ -317,6 +317,18 @@ var canaryLayoutLLMConflictFlags = []string{
 	"-fshort-enums",
 }
 
+var fortifyLLMConflictPrefixes = []string{
+	"-O",
+	"-D_FORTIFY_SOURCE=",
+	"-fstack-protector",
+	"-fno-stack-protector",
+}
+
+var fortifyLLMConflictFlags = []string{
+	"-U_FORTIFY_SOURCE",
+	"-fhardened",
+}
+
 func filterLLMCFlags(seedFlags []string, profile *seed.FlagProfile) ([]string, []string) {
 	if len(seedFlags) == 0 {
 		return nil, nil
@@ -336,6 +348,21 @@ func filterLLMCFlags(seedFlags []string, profile *seed.FlagProfile) ([]string, [
 
 func shouldDropLLMFlag(flag string, profile *seed.FlagProfile) bool {
 	if profile == nil || len(profile.AxisValues) == 0 {
+		return false
+	}
+
+	switch profileStrategy(profile) {
+	case "fortify":
+		for _, blocked := range fortifyLLMConflictFlags {
+			if flag == blocked {
+				return true
+			}
+		}
+		for _, prefix := range fortifyLLMConflictPrefixes {
+			if strings.HasPrefix(flag, prefix) {
+				return true
+			}
+		}
 		return false
 	}
 
@@ -363,6 +390,22 @@ func shouldDropLLMFlag(flag string, profile *seed.FlagProfile) bool {
 		}
 	}
 	return false
+}
+
+func profileStrategy(profile *seed.FlagProfile) string {
+	if profile == nil || len(profile.AxisValues) == 0 {
+		return ""
+	}
+	if _, ok := profile.AxisValues["fortify_mode"]; ok {
+		return "fortify"
+	}
+	if _, ok := profile.AxisValues["optimization"]; ok {
+		return "fortify"
+	}
+	if _, ok := profile.AxisValues["policy"]; ok {
+		return "canary"
+	}
+	return ""
 }
 
 func profileReservesLayoutFlags(profile *seed.FlagProfile) bool {

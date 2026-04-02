@@ -153,6 +153,39 @@ func TestBuilder_BuildConstraintSolvingPrompt_NegativeProfileAllowsSourceDisable
 	}
 }
 
+func TestBuilder_BuildConstraintSolvingPrompt_FortifyProfileGuidance(t *testing.T) {
+	builder := NewBuilder(0, "")
+
+	ctx := &TargetContext{
+		TargetFunction:         "gimple_fold_builtin_memory_chk",
+		TargetBBID:             12,
+		TargetLines:            []int{3172},
+		SuccessorCount:         2,
+		SourceFile:             "/path/to/gimple-fold.cc",
+		ActiveFlagProfileName:  "optimization-O2__fortify_mode-fortify2__stack_protector_mode-no-stack-protector",
+		ActiveFlagProfileFlags: []string{"-O2", "-D_FORTIFY_SOURCE=2", "-fno-stack-protector"},
+		ActiveFlagProfileAxes: map[string]string{
+			"optimization":         "O2",
+			"fortify_mode":         "fortify2",
+			"stack_protector_mode": "no-stack-protector",
+		},
+		AllowLLMCFlags:         true,
+		BlockedLLMFlagFamilies: []string{"-O*", "-D_FORTIFY_SOURCE=*", "-U_FORTIFY_SOURCE", "-fhardened"},
+	}
+
+	prompt, err := builder.BuildConstraintSolvingPrompt(ctx)
+	if err != nil {
+		t.Fatalf("BuildConstraintSolvingPrompt() failed: %v", err)
+	}
+
+	if !strings.Contains(prompt, "fortify-related compiler options") {
+		t.Fatal("expected fortify profile guidance")
+	}
+	if strings.Contains(prompt, "Do NOT annotate `seed()` with `__attribute__((no_stack_protector))`") {
+		t.Fatal("did not expect canary-specific no_stack_protector warning for fortify profiles")
+	}
+}
+
 func TestBuilder_BuildRefinedPrompt_NilInputs(t *testing.T) {
 	builder := NewBuilder(0, "")
 

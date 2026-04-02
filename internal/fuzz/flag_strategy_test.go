@@ -236,6 +236,35 @@ func TestFlagScheduler_BlockedLLMFlagFamilies_NoLayoutProfilesKeepsCanarySet(t *
 	}
 }
 
+func TestNewFlagScheduler_FortifyDefaultProfileOrder(t *testing.T) {
+	scheduler, err := NewFlagSchedulerForStrategy("fortify", "aarch64", testFortifyFlagStrategyConfig())
+	if err != nil {
+		t.Fatalf("failed to create fortify scheduler: %v", err)
+	}
+
+	profile := scheduler.DefaultProfileForSeed("void seed(int buf_size, int fill_size) { char buf[16]; memcpy(buf, buf, fill_size); }")
+	if profile == nil {
+		t.Fatal("expected default profile")
+	}
+	if profile.Name != "optimization-O2__fortify_mode-hardened__stack_protector_mode-no-stack-protector" {
+		t.Fatalf("unexpected default fortify profile %q", profile.Name)
+	}
+}
+
+func TestFlagScheduler_FortifyBlockedLLMFamilies(t *testing.T) {
+	scheduler, err := NewFlagSchedulerForStrategy("fortify", "aarch64", testFortifyFlagStrategyConfig())
+	if err != nil {
+		t.Fatalf("failed to create fortify scheduler: %v", err)
+	}
+
+	blocked := scheduler.BlockedLLMFlagFamilies()
+	for _, family := range []string{"-O*", "-D_FORTIFY_SOURCE=*", "-U_FORTIFY_SOURCE", "-fhardened", "-fstack-protector*", "-fno-stack-protector*"} {
+		if !containsString(blocked, family) {
+			t.Fatalf("expected %s in blocked families: %v", family, blocked)
+		}
+	}
+}
+
 func testFlagStrategyConfig() config.FlagStrategyConfig {
 	return config.FlagStrategyConfig{
 		Enabled:                 true,
@@ -278,6 +307,38 @@ func testFlagStrategyConfig() config.FlagStrategyConfig {
 		ISAOptions: map[string]config.FlagStrategyISAOptionConfig{
 			"aarch64": {
 				StackProtectorGuardReg: "tpidr_el0",
+			},
+		},
+	}
+}
+
+func testFortifyFlagStrategyConfig() config.FlagStrategyConfig {
+	return config.FlagStrategyConfig{
+		Enabled:                 true,
+		Mode:                    "matrix",
+		AllowLLMCFlags:          true,
+		IncludeNegativeControls: false,
+		SelectionOrder:          "deterministic",
+		Axes: config.FlagStrategyAxesConfig{
+			Common: map[string][][]string{
+				"optimization": {
+					{"-O0"},
+					{"-O1"},
+					{"-O2"},
+					{"-O3"},
+				},
+				"fortify_mode": {
+					{"-D_FORTIFY_SOURCE=0"},
+					{"-D_FORTIFY_SOURCE=1"},
+					{"-D_FORTIFY_SOURCE=2"},
+					{"-D_FORTIFY_SOURCE=3"},
+					{"-fhardened"},
+					{"-fhardened", "-U_FORTIFY_SOURCE"},
+					{"-fhardened", "-D_FORTIFY_SOURCE=1"},
+				},
+				"stack_protector_mode": {
+					{"-fno-stack-protector"},
+				},
 			},
 		},
 	}

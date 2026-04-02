@@ -527,6 +527,11 @@ func loadCompilerConfigInto(cfg *Config) error {
 
 	applyEnvResolution(compilerViper)
 
+	// Reset compiler-specific state before unmarshaling a possibly different
+	// ISA/strategy config. Without this, slices such as cfg_file_paths may keep
+	// stale values from the previously loaded compiler config.
+	cfg.Compiler = CompilerConfig{}
+
 	if err := compilerViper.UnmarshalKey("compiler", &cfg.Compiler); err != nil {
 		return fmt.Errorf("failed to unmarshal compiler config: %w", err)
 	}

@@ -474,6 +474,49 @@ func TestGCCCompiler_Compile_AllowsLayoutLLMFlagsWhenProfileDoesNotReserveThem(t
 	assert.Equal(t, []string{"-Wall", "-fstack-protector-strong", "--param=ssp-buffer-size=8", "-O2", "-fshort-enums", filepath.Join(workDir, "seed_18.c"), "-o", filepath.Join(workDir, "seed_18")}, capturedArgs)
 }
 
+func TestGCCCompiler_Compile_FiltersConflictingFortifyLLMFlags(t *testing.T) {
+	workDir := filepath.Join(t.TempDir(), "build")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	cfg := GCCCompilerConfig{
+		GCCPath: "gcc",
+		WorkDir: workDir,
+		CFlags:  []string{"-Wall"},
+	}
+	compiler := NewGCCCompiler(cfg)
+
+	var capturedArgs []string
+	compiler.executor = &MockExecutor{
+		RunFunc: func(command string, args ...string) (*exec.ExecutionResult, error) {
+			capturedArgs = append([]string(nil), args...)
+			return &exec.ExecutionResult{ExitCode: 0}, nil
+		},
+	}
+
+	testSeed := &seed.Seed{
+		Meta:    seed.Metadata{ID: 19},
+		Content: "int main() { return 0; }",
+		CFlags:  []string{"-O3", "-D_FORTIFY_SOURCE=3", "-fhardened", "-fstack-protector-strong", "-Wall", "-Wextra"},
+		FlagProfile: &seed.FlagProfile{
+			Name: "optimization-O2__fortify_mode-fortify2__stack_protector_mode-no-stack-protector",
+			AxisValues: map[string]string{
+				"optimization":         "O2",
+				"fortify_mode":         "fortify2",
+				"stack_protector_mode": "no-stack-protector",
+			},
+			Flags: []string{"-O2", "-D_FORTIFY_SOURCE=2", "-fno-stack-protector"},
+		},
+	}
+
+	result, err := compiler.Compile(testSeed)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.LLMCFlagsApplied)
+	assert.Equal(t, []string{"-Wall", "-Wextra"}, result.AppliedLLMCFlags)
+	assert.Equal(t, []string{"-O3", "-D_FORTIFY_SOURCE=3", "-fhardened", "-fstack-protector-strong"}, result.DroppedLLMCFlags)
+	assert.Equal(t, []string{"-Wall", "-O2", "-D_FORTIFY_SOURCE=2", "-fno-stack-protector", "-Wall", "-Wextra", filepath.Join(workDir, "seed_19.c"), "-o", filepath.Join(workDir, "seed_19")}, capturedArgs)
+}
+
 func TestNewCrossGCCCompiler(t *testing.T) {
 	cfg := CrossGCCCompilerConfig{
 		GCCCompilerConfig: GCCCompilerConfig{

@@ -129,7 +129,7 @@ strategies:
     group_order:
       - optimization
       - fortify_level
-      - stack_protector
+      - stack_protector_mode
     strip_rules:
       exact:
         - -U_FORTIFY_SOURCE
@@ -154,7 +154,7 @@ strategies:
             flags: ["-D_FORTIFY_SOURCE=2"]
           - name: fortify3
             flags: ["-D_FORTIFY_SOURCE=3"]
-        stack_protector:
+        stack_protector_mode:
           - name: no-stack-protector
             flags: ["-fno-stack-protector"]
 

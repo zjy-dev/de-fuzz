@@ -82,6 +82,8 @@ func (o *FortifyOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Res
 		return nil, fmt.Errorf("fortify oracle requires AnalyzeContext with Executor and BinaryPath")
 	}
 
+	isNegative := o.isNegativeCase(s)
+
 	// Binary search for the minimum crash size
 	minCrashSize, crashExitCode, hasSentinel := o.binarySearchCrash(ctx)
 
@@ -91,6 +93,10 @@ func (o *FortifyOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Res
 	// 3. The max_fill_size is too small
 	if minCrashSize == -1 {
 		return nil, nil
+	}
+
+	if isNegative {
+		return o.analyzeNegativeCase()
 	}
 
 	// Analyze the crash type
@@ -153,6 +159,42 @@ func (o *FortifyOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Res
 			),
 		}, nil
 	}
+}
+
+func (o *FortifyOracle) isNegativeCase(s *seed.Seed) bool {
+	if s == nil || s.FlagProfile == nil {
+		return false
+	}
+	if s.FlagProfile.IsNegativeControl {
+		return true
+	}
+
+	optimization := axisValueOrDefault(s.FlagProfile, "optimization")
+	fortifyMode := axisValueOrDefault(s.FlagProfile, "fortify_mode")
+
+	// _FORTIFY_SOURCE requires optimization; -O0 profiles should not be
+	// reported as fortify bypasses because fortify is not effectively enabled.
+	if optimization == "O0" {
+		return true
+	}
+
+	switch fortifyMode {
+	case "fortify0", "hardened-no-fortify":
+		return true
+	default:
+		return false
+	}
+}
+
+func (o *FortifyOracle) analyzeNegativeCase() (*Bug, error) {
+	return nil, nil
+}
+
+func axisValueOrDefault(profile *seed.FlagProfile, axis string) string {
+	if profile == nil || profile.AxisValues == nil {
+		return ""
+	}
+	return profile.AxisValues[axis]
 }
 
 // binarySearchCrash performs binary search to find the minimum fill_size that causes a crash.

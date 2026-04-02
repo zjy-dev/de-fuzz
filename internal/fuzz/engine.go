@@ -140,6 +140,10 @@ func (e *Engine) Run() error {
 		return nil
 	}
 
+	if e.cfg.Analyzer == nil {
+		return fmt.Errorf("constraint solving requires analyzer/CFG targets; current configuration has no analyzer (set --limit 0 to run initial seeds only, or configure CFG dumps and targets)")
+	}
+
 	// Main fuzzing loop
 	for {
 		// Check iteration limit (-1 = unlimited)
@@ -214,7 +218,10 @@ func (e *Engine) processInitialSeeds() error {
 		e.assignDefaultProfile(s)
 
 		// Get coverage before processing this seed
-		oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+		oldBasisPoints := uint64(0)
+		if e.cfg.Analyzer != nil {
+			oldBasisPoints = e.cfg.Analyzer.GetBBCoverageBasisPoints()
+		}
 
 		// Compile and measure coverage
 		compileStart := time.Now()
@@ -229,7 +236,7 @@ func (e *Engine) processInitialSeeds() error {
 		}
 
 		// Record coverage in mapping
-		if report != nil {
+		if report != nil && e.cfg.Analyzer != nil {
 			recordStart := time.Now()
 			coveredLines := e.extractCoveredLines(report)
 			e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
@@ -237,7 +244,10 @@ func (e *Engine) processInitialSeeds() error {
 		}
 
 		// Get coverage after processing
-		newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+		newBasisPoints := oldBasisPoints
+		if e.cfg.Analyzer != nil {
+			newBasisPoints = e.cfg.Analyzer.GetBBCoverageBasisPoints()
+		}
 
 		// Run oracle on initial seed if configured
 		oracleVerdict := seed.OracleVerdictSkipped
@@ -272,9 +282,11 @@ func (e *Engine) processInitialSeeds() error {
 	}
 
 	// Print initial coverage stats
-	funcCov := e.cfg.Analyzer.GetFunctionCoverage()
-	for name, stats := range funcCov {
-		logger.Info("Initial coverage for %s: %d/%d BBs", name, stats.Covered, stats.Total)
+	if e.cfg.Analyzer != nil {
+		funcCov := e.cfg.Analyzer.GetFunctionCoverage()
+		for name, stats := range funcCov {
+			logger.Info("Initial coverage for %s: %d/%d BBs", name, stats.Covered, stats.Total)
+		}
 	}
 
 	// Save state immediately after processing initial seeds
@@ -597,10 +609,16 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	// Get coverage before any recording
-	oldBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+	oldBasisPoints := uint64(0)
+	if e.cfg.Analyzer != nil {
+		oldBasisPoints = e.cfg.Analyzer.GetBBCoverageBasisPoints()
+	}
 
 	// Check if this seed would cover any new lines (without recording yet)
-	hasNewCoverage := e.cfg.Analyzer.CheckNewCoverage(coveredLines)
+	hasNewCoverage := false
+	if e.cfg.Analyzer != nil {
+		hasNewCoverage = e.cfg.Analyzer.CheckNewCoverage(coveredLines)
+	}
 	if isNegativeProfile {
 		hasNewCoverage = false
 	}
@@ -630,7 +648,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	// - Seeds that hit the target
 	// This ensures only qualified seeds are in the mapping for fair one-shot selection.
 	result.CoveredNew = hasNewCoverage
-	if hasNewCoverage || result.HitTarget || foundBug {
+	if e.cfg.Analyzer != nil && (hasNewCoverage || result.HitTarget || foundBug) {
 		e.cfg.Analyzer.RecordCoverage(int64(s.Meta.ID), coveredLines)
 		if s.FlagProfile != nil && s.FlagProfile.Name != "" {
 			e.profileCoverage[s.FlagProfile.Name]++
@@ -638,7 +656,10 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	// Get updated coverage after potential recording
-	newBasisPoints := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+	newBasisPoints := oldBasisPoints
+	if e.cfg.Analyzer != nil {
+		newBasisPoints = e.cfg.Analyzer.GetBBCoverageBasisPoints()
+	}
 
 	// Update seed metadata
 	s.Meta.OldCoverage = oldBasisPoints
@@ -860,11 +881,13 @@ func (e *Engine) persistCompilationRecord(s *seed.Seed, compileResult *compiler.
 // saveState saves the current state.
 func (e *Engine) saveState() {
 	// Update total coverage in global state
-	coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
-	e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
+	if e.cfg.Analyzer != nil {
+		coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+		e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
+	}
 
 	// Save coverage mapping
-	if e.cfg.MappingPath != "" {
+	if e.cfg.Analyzer != nil && e.cfg.MappingPath != "" {
 		if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
 			logger.Warn("Failed to save mapping: %v", err)
 		}
@@ -879,11 +902,13 @@ func (e *Engine) saveState() {
 // finalizeState saves state and finalizes global state when fuzzing completes.
 func (e *Engine) finalizeState() {
 	// Update total coverage
-	coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
-	e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
+	if e.cfg.Analyzer != nil {
+		coverageBP := e.cfg.Analyzer.GetBBCoverageBasisPoints()
+		e.cfg.Corpus.UpdateTotalCoverage(coverageBP)
+	}
 
 	// Save coverage mapping
-	if e.cfg.MappingPath != "" {
+	if e.cfg.Analyzer != nil && e.cfg.MappingPath != "" {
 		if err := e.cfg.Analyzer.SaveMapping(e.cfg.MappingPath); err != nil {
 			logger.Warn("Failed to save mapping: %v", err)
 		}
@@ -900,7 +925,10 @@ func (e *Engine) printSummary() {
 	elapsed := time.Since(e.startTime)
 
 	// Get final coverage stats
-	funcCov := e.cfg.Analyzer.GetFunctionCoverage()
+	funcCov := map[string]struct{ Covered, Total int }{}
+	if e.cfg.Analyzer != nil {
+		funcCov = e.cfg.Analyzer.GetFunctionCoverage()
+	}
 
 	logger.Info("=========================================")
 	logger.Info("      FUZZING SUMMARY")
