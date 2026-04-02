@@ -94,3 +94,15 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 	_, err := LoadConfig(path)
 	require.Error(t, err)
 }
+
+func TestComboApplicableCanaryExplicitRequiresAttribute(t *testing.T) {
+	combo := MaterializedCombo{
+		Name: "policy-explicit__threshold-8__pic_mode-default__guard_source-default__layout-default",
+		GroupValues: map[string]string{
+			"policy": "explicit",
+		},
+	}
+
+	require.False(t, comboApplicable("canary", combo, `void seed(int buf_size, int fill_size) {}`))
+	require.True(t, comboApplicable("canary", combo, `__attribute__((stack_protect)) void seed(int buf_size, int fill_size) {}`))
+}

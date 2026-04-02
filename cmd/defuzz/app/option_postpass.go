@@ -208,7 +208,7 @@ func runOptionPostPass(
 		return err
 	}
 
-	logger.Info("[PostPass] Completed run %s: seeds=%d combos=%d attempts=%d bugs=%d compile_failures=%d oracle_errors=%d skipped=%d",
+	logger.Info("[PostPass] Completed run %s: seeds=%d combos=%d attempts=%d bugs=%d compile_failures=%d oracle_errors=%d skipped_seeds=%d skipped_combos=%d",
 		summary.RunName,
 		summary.SeedCount,
 		summary.CombinationCount,
@@ -217,6 +217,7 @@ func runOptionPostPass(
 		summary.CompileFailures,
 		summary.OracleErrors,
 		summary.SkippedSeeds,
+		summary.SkippedCombos,
 	)
 
 	return nil

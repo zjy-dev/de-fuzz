@@ -47,6 +47,7 @@ type RunSummary struct {
 	BugsFound        int       `json:"bugs_found"`
 	SkippedSeeds     int       `json:"skipped_seeds"`
 	SkippedNoRecord  int       `json:"skipped_missing_compile_record"`
+	SkippedCombos    int       `json:"skipped_inapplicable_combinations"`
 }
 
 // AttemptRecord captures a single post-pass replay attempt.
@@ -173,10 +174,17 @@ func (r *Runner) Run() (*RunSummary, error) {
 			continue
 		}
 
-		logger.Info("[PostPass] Replaying seed %d (%s) across %d combinations", corpusSeed.Meta.ID, corpusSeed.Meta.FilePath, len(combos))
 		baselineFlags, removedOwnedFlags := ReconstructBaseline(record, r.cfg.Matrix.StripRules)
+		applicableCount := 0
+		skippedForSeed := 0
 
 		for _, combo := range combos {
+			if !comboApplicable(r.cfg.Strategy, combo, corpusSeed.Content) {
+				summary.SkippedCombos++
+				skippedForSeed++
+				continue
+			}
+			applicableCount++
 			attemptDir := filepath.Join(runDir, corpusSeed.Meta.FilePath, combo.SafeName())
 			tasks = append(tasks, attemptTask{
 				original:          corpusSeed,
@@ -187,6 +195,14 @@ func (r *Runner) Run() (*RunSummary, error) {
 				attemptDir:        attemptDir,
 			})
 		}
+
+		logger.Info("[PostPass] Replaying seed %d (%s): total_combos=%d applicable=%d skipped=%d",
+			corpusSeed.Meta.ID,
+			corpusSeed.Meta.FilePath,
+			len(combos),
+			applicableCount,
+			skippedForSeed,
+		)
 	}
 
 	summary.AttemptCount = len(tasks)
@@ -433,6 +449,16 @@ func cloneSeed(s *seed.Seed) *seed.Seed {
 		TestCases: testCases,
 	}
 	return cloned
+}
+
+func comboApplicable(strategy string, combo MaterializedCombo, source string) bool {
+	switch strategy {
+	case "canary":
+		if combo.GroupValues["policy"] == "explicit" {
+			return seed.AnalyzeCanarySource(source).SeedRequestsStackProtect
+		}
+	}
+	return true
 }
 
 func persistReusedArtifacts(dir string, s *seed.Seed) error {
