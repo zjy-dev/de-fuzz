@@ -1,23 +1,25 @@
 compiler:
     # Cross-compiler for riscv64 (GCC 15.2)
-    path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/xgcc"
+    path: "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/xgcc"
 
     # gcovr execution path - should be the source root directory
-    gcovr_exec_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu"
+    gcovr_exec_path: "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu"
 
-    source_parent_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile"
+    source_parent_path: "target_compilers/gcc-v15.2.0-riscv64-cross-compile"
 
     # gcovr command template
-    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov --demangled-names" -r ..'
 
     # Compiler flags for RISC-V 64 cross-compilation
+    # These flags are stable environment/toolchain flags.
+    # Stable toolchain/environment flags only.
+    # Canary-specific dynamic flags now come only from LLM-generated CFLAGS.
     cflags:
-        - "-fstack-protector-strong"
         - "-O0"
-        - "--sysroot=/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
-        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc"
-        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/lib/gcc/riscv64-unknown-linux-gnu/15.2.0"
-        - "-L/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/lib"
+        - "--sysroot=target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
+        - "-Btarget_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc"
+        - "-Btarget_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/lib/gcc/riscv64-unknown-linux-gnu/15.2.0"
+        - "-Ltarget_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/lib"
 
     fuzz:
         output_root_dir: "fuzz_out"
@@ -29,14 +31,50 @@ compiler:
         timeout: 30
         use_qemu: true
         qemu_path: "qemu-riscv64"
-        qemu_sysroot: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
+        qemu_sysroot: "target_compilers/gcc-v15.2.0-riscv64-cross-compile/install-riscv64-unknown-linux-gnu/riscv64-unknown-linux-gnu/libc"
         cfg_file_paths:
-            - "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
-            - "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/function.cc.015t.cfg"
-            - "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
-            - "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/toplev.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/function.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/calls.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-riscv64-cross-compile/build-riscv64-unknown-linux-gnu/gcc-final-build/gcc/riscv.cc.015t.cfg"
         max_constraint_retries: 8
         weight_decay_factor: 0.8
+        flag_strategy:
+            enabled: false
+            mode: "matrix"
+            allow_llm_cflags: true
+            include_negative_controls: true
+            selection_order: "deterministic"
+            negative_controls:
+                - ["-fno-stack-protector"]
+            axes:
+                common:
+                    policy:
+                        - ["-fstack-protector"]
+                        - ["-fstack-protector-strong"]
+                        - ["-fstack-protector-all"]
+                        - ["-fstack-protector-explicit"]
+                    threshold:
+                        - ["--param=ssp-buffer-size=1"]
+                        - ["--param=ssp-buffer-size=4"]
+                        - ["--param=ssp-buffer-size=8"]
+                        - ["--param=ssp-buffer-size=16"]
+                        - ["--param=ssp-buffer-size=32"]
+                    pic_mode:
+                        - []
+                        - ["-fPIC"]
+                by_isa:
+                    riscv64:
+                        guard_source:
+                            - []
+                            - ["-mstack-protector-guard=global"]
+                            - ["-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<config-provided-gpr>", "-mstack-protector-guard-offset=0"]
+                            - ["-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<same-gpr>", "-mstack-protector-guard-offset=16"]
+            isa_options:
+                riscv64:
+                    stack_protector_guard_reg: "tp"
+                    supports_hardware_tls: true
 
     oracle:
         type: "canary"
@@ -47,10 +85,8 @@ compiler:
                 - "-fno-stack-protector"
 
 # Stack Canary (Stack Protector) related core functions for RISC-V 64
-# RISC-V 使用 targhooks.cc 的默认实现（与 MIPS 类似），无架构特定函数
-#
-# 注意: 仅 cfgexpand.cc 有 CFG dump 和覆盖率插桩，
-#       其余文件的函数作为注释保留，待多文件 CFG 分析支持后启用
+# RISC-V uses targhooks defaults for the generic hooks, but keeps guard-source
+# validation in riscv.cc via riscv_option_override.
 
 targets:
     # cfgexpand.cc - 栈保护核心逻辑（变量分类、冲突分析、prologue生成）
@@ -67,20 +103,22 @@ targets:
           - "expand_used_vars"                  # line 2457
           - "stack_protect_prologue"            # line 6920
 
-    # function.cc - epilogue 及参数处理
     - file: "gcc/gcc/function.cc"
       functions:
           - "stack_protect_epilogue"            # line 5042
           - "assign_parm_adjust_stack_rtl"      # line 2836
+          - "expand_function_end"               # line 5397
 
-    # targhooks.cc - 默认 target hook 实现（RISC-V 使用默认实现）
+    - file: "gcc/gcc/calls.cc"
+      functions:
+          - "expand_call"                       # line 2666
+
     - file: "gcc/gcc/targhooks.cc"
       functions:
           - "default_stack_protect_guard"           # line 919
           - "default_external_stack_protect_fail"   # line 952
           - "default_hidden_stack_protect_fail"     # line 979
 
-    # toplev.cc - 编译选项处理（stack-protector 相关选项解析）
-    - file: "gcc/gcc/toplev.cc"
+    - file: "gcc/gcc/config/riscv/riscv.cc"
       functions:
-          - "process_options"                       # line 1563
+          - "riscv_option_override"                # line 10674

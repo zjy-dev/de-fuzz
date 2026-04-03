@@ -1,151 +1,86 @@
 # CFlags Configuration Guide
 
-## Overview
+## 1. Purpose
 
-Compiler flags (CFlags) are now configurable in the compiler configuration files instead of being hardcoded. This provides better flexibility for different ISA architectures and compilation scenarios.
+This document describes the current flag-ownership model in DeFuzz. The important point is no longer just "where to put flags", but "which layer owns which flags" so experiments stay reproducible and strategies stay extensible.
 
-## GCC Build Optimization
+## 2. Four Flag Sources
 
-The instrumented GCC compilers in `target_compilers/gcc-v12.2.0-x64/` and `target_compilers/gcc-v12.2.0-aarch64-cross-compile/` are built with **-O0** optimization level to:
+DeFuzz now has four distinct flag sources:
 
-1. **Ensure accurate coverage measurement** - Optimizations can merge or eliminate code paths, leading to inaccurate coverage data
-2. **Enable easier debugging** - No inlining or code reordering
-3. **Preserve CFG structure** - The control flow graph matches the source code more closely
+1. `compiler.cflags`
+   - stable toolchain and environment flags
+   - examples: `--sysroot`, `-B...`, `-L...`, neutral baseline optimization
+2. `compiler.fuzz.flag_strategy`
+   - deterministic strategy-owned flags for online fuzzing
+   - examples: canary policy/threshold/layout matrices, fortify mode matrices
+3. `Seed.CFlags`
+   - dynamic per-seed flags emitted by the LLM
+4. `configs/postpass.yaml`
+   - deterministic replay-time option traversal for persisted corpus seeds
 
-The build scripts (`build-gcc-instrumented.sh`) explicitly set:
-```bash
-export CFLAGS="-g -O0"
-export CXXFLAGS="-g -O0"
+These sources should not be mixed casually.
+
+## 3. Actual Compile Merge Order
+
+The compiler layer merges flags in this order:
+
+1. prefix flags inferred by the tool,
+2. `compiler.cflags`,
+3. selected `FlagProfile` flags,
+4. filtered `Seed.CFlags`.
+
+This order is what you see later in `compile_command.json.effective_flags`.
+
+If `compiler.cflags` is omitted, the compiler falls back to the neutral baseline:
+
+```text
+-O0
 ```
 
-## Configuration Structure
+## 4. What Belongs in `compiler.cflags`
 
-In your compiler configuration file (e.g., `gcc-v12.2.0-x64-canary.yaml`), add the `cflags` section under `compiler`:
+`compiler.cflags` should contain only stable flags needed to make the compiler invocation valid and reproducible.
+
+Typical examples:
 
 ```yaml
 compiler:
-  path: "/path/to/gcc"
-  
-  # Compiler flags passed to GCC during compilation
   cflags:
-    - "-fstack-protector-strong"  # Enable stack canary protection
-    - "-O0"                         # No optimization for debugging
-    - "--sysroot=/path/to/sysroot"  # For cross-compilation
-    - "-B/path/to/gcc/lib"          # Additional library search path
-    - "-L/path/to/libs"             # Linker library path
-```
-
-## Examples
-
-### x64 Native Compilation
-
-```yaml
-compiler:
-  path: "/path/to/gcc/xgcc"
-  
-  cflags:
-    - "-fstack-protector-strong"
     - "-O0"
+    - "--sysroot=/path/to/sysroot"
+    - "-B/path/to/gcc-final-build/gcc"
+    - "-B/path/to/install/lib/gcc/<triplet>/<version>"
+    - "-L/path/to/sysroot/lib64"
 ```
 
-### AArch64 Cross-Compilation
+These flags are not supposed to represent the defense search space. They describe the execution environment.
 
-```yaml
-compiler:
-  path: "/path/to/aarch64-linux-gnu-gcc"
-  
-  cflags:
-    - "-fstack-protector-strong"
-    - "-O0"
-    - "--sysroot=/path/to/aarch64-sysroot/libc"
-    - "-B/path/to/install/lib/gcc/aarch64-none-linux-gnu/12.2.1"
-    - "-L/path/to/install/aarch64-none-linux-gnu/lib64"
-  
-  fuzz:
-    use_qemu: true
-    qemu_path: "qemu-aarch64"
-    qemu_sysroot: "/path/to/aarch64-sysroot/libc"
-```
+## 5. What Belongs in `flag_strategy`
 
-## Important Notes
+`compiler.fuzz.flag_strategy` owns deterministic strategy-specific option axes for online fuzzing.
 
-### -B Parameter Usage
+Current examples:
 
-The `-B` parameter can be specified in two places:
+- canary:
+  - `policy`
+  - `threshold`
+  - `pic_mode`
+  - ISA-specific `guard_source`
+  - LoongArch64-specific `layout`
+- fortify:
+  - `optimization`
+  - `fortify_mode`
+  - `stack_protector_mode`
 
-1. **PrefixPath** (in code): Used to find compiler components (cc1, as, ld)
-   - Automatically set to the directory containing the GCC binary
-   - Example: `/path/to/gcc/bin/`
+If a flag family is owned by `flag_strategy`, it should not also be hard-coded into `compiler.cflags`.
 
-2. **CFlags** (in config): Used to find additional libraries (crtbegin.o, libgcc)
-   - Explicitly configured in the `cflags` section
-   - Example: `-B/path/to/lib/gcc/aarch64-none-linux-gnu/12.2.1`
+## 6. What Belongs in LLM-Generated `Seed.CFlags`
 
-GCC supports multiple `-B` parameters and will search them in order. This design allows:
-- The code to automatically handle compiler component lookup
-- The configuration to specify architecture-specific library paths
+`Seed.CFlags` is for dynamic LLM exploration when the current strategy allows it.
 
-### Default Behavior
+Example:
 
-If `cflags` is not specified in the configuration file, the fuzzer will use these defaults:
-```
--fstack-protector-strong -O0
-```
-
-A warning will be logged when defaults are used.
-
-## Migration Guide
-
-If you have an existing configuration without the `cflags` section:
-
-1. Add the `cflags` section to your compiler configuration file
-2. Move any hardcoded flags from the code to the configuration
-3. For cross-compilation, include sysroot and library paths in `cflags`
-
-Before:
-```yaml
-compiler:
-  path: "/path/to/gcc"
-  # No cflags section
-```
-
-After:
-```yaml
-compiler:
-  path: "/path/to/gcc"
-  
-  cflags:
-    - "-fstack-protector-strong"
-    - "-O0"
-    # Add any additional flags needed
-```
-
-## Testing
-
-After configuration changes, verify the flags are being used:
-
-```bash
-# Build and run a single iteration
-./defuzz fuzz --max-iterations 1
-
-# Check the compiled binary's flags
-readelf -p .comment fuzz_out/x64/canary/build/seed_1
-```
-
-## Benefits
-
-1. **Flexibility**: Different flags for different architectures/strategies
-2. **Maintainability**: No need to modify code for new compilation scenarios
-3. **Clarity**: All compilation settings in one place
-4. **Version Control**: Easy to track changes to compilation flags
-
-## LLM-Controlled CFlags (Dynamic)
-
-In addition to configuration-based CFlags, LLM can specify additional compiler flags per seed to reach different compiler code paths.
-
-### How It Works
-
-1. LLM generates code and optionally adds a CFLAGS section:
 ```c
 void seed(int buf_size, int fill_size) {
     char buffer[64];
@@ -156,42 +91,129 @@ void seed(int buf_size, int fill_size) {
 // ||||| CFLAGS_END |||||
 ```
 
-2. The parser extracts these flags into `Seed.CFlags`
-3. During compilation, flags are applied in order:
-   - Config CFlags (from yaml) come first
-   - Seed CFlags (from LLM) come last
-   - GCC uses last occurrence for conflicting flags
+The compiler records:
 
-### What Gets Recorded
+- requested LLM flags,
+- applied LLM flags,
+- dropped LLM flags,
+- final effective flags.
 
-After this change, the project keeps two different flag records:
+For historical analysis, always prefer `compile_command.json` over `cflags.json`, because `compile_command.json` reflects the real final argv.
 
-- `cflags.json`: only the seed-specific flags generated by the LLM for that seed
-- `compile_command.json`: the actual compiler invocation used for that seed, including:
-  - compiler path
-  - full shell-safe command string
-  - prefix flags injected by the tool (such as `-B...`)
-  - config `cflags`
-  - seed `cflags`
-  - final effective flag list used during compilation
+## 7. Current Strategy Policy
 
-If you need to diff the flags already exercised by the project against defense-related flags you found manually, prefer `compile_command.json` because it reflects the real command that was executed.
+### GCC 15.2 Canary
 
-### Use Case
+The active GCC 15.2 canary configs now use:
 
-Some compiler code paths are controlled by **compiler flags**, not code patterns:
+```yaml
+flag_strategy:
+  enabled: false
+```
 
-| Flag | Code Path |
-|------|-----------|
-| `-fstack-protector` | DEFAULT mode (flag=1) |
-| `-fstack-protector-strong` | STRONG mode (flag=3) |
-| `-fstack-protector-all` | ALL mode (flag=2) |
-| `-fstack-protector-explicit` | EXPLICIT mode (flag=4) |
+This means:
 
-This allows LLM to dynamically explore different compiler code paths by specifying appropriate flags.
+- online canary fuzzing keeps only stable `compiler.cflags` plus LLM-generated `Seed.CFlags`,
+- deterministic canary option traversal should happen in `option-postpass`,
+- disabling `flag_strategy` is now the correct way to stop online injection of the discovered canary layout/policy option matrix.
 
-### Security Note
+### GCC 15.2 Fortify
 
-All flags from LLM are accepted without validation. This is safe because:
-- Execution happens in QEMU (sandboxed)
-- Only affects compiler behavior, not host system
+The active GCC 15.2 fortify configs keep `flag_strategy.enabled: true`.
+
+That is intentional because current fortify online fuzzing still uses deterministic fortify profile rotation. The current ranked default fortify profile is effectively:
+
+```text
+-O2 -fhardened -fno-stack-protector
+```
+
+## 8. Post-Pass Interaction
+
+`option-postpass` reconstructs the historical baseline from each seed’s `compile_command.json`, strips strategy-owned flags defined in `configs/postpass.yaml`, then appends deterministic replay combinations.
+
+That gives the repository a clean split:
+
+- online fuzzing discovers interesting seeds,
+- post-pass traverses the deterministic defense-option space on top of that seed pool.
+
+For reproducibility, this is better than hiding more option traversal inside the online loop.
+
+For `option-postpass`, the replay-time compile option changes come from exactly these sources:
+
+1. historical baseline from the original seed's `compile_command.json`
+   - first choice: `config_cflags + applied_llm_cflags`
+   - fallback: `effective_flags - prefix_flags`
+2. strategy-owned historical flags removed by `strip_rules`
+3. replay combination flags materialized from `configs/postpass.yaml`
+4. prefix flags re-added automatically by the compiler wrapper
+
+Just as important, `option-postpass` replay does **not** take its changing option set from:
+
+- the current compiler YAML's `compiler.cflags`,
+- the current online `compiler.fuzz.flag_strategy`,
+- new LLM-generated `Seed.CFlags`.
+
+So when reading this document, keep the distinction strict:
+
+- sections 2-7 describe the general and online ownership model,
+- this section describes the replay-specific source of option changes in `option-postpass`.
+
+## 9. `-B` and Prefix Paths
+
+DeFuzz uses two related mechanisms:
+
+1. prefix path inferred from the GCC binary directory
+   - used to find `cc1`, assembler, linker, and related compiler components
+2. explicit `-B...` entries inside `compiler.cflags`
+   - used for runtime libraries such as `crtbegin.o` and `libgcc`
+
+Multiple `-B` entries are valid and expected.
+
+## 10. Reproducibility Rules
+
+1. Put only stable environment flags in `compiler.cflags`.
+2. Put deterministic strategy-owned flags in `flag_strategy` or `postpass.yaml`, not in `compiler.cflags`.
+3. Use `compile_command.json` as the historical source of truth.
+4. Prefer `--isa` and `--strategy` CLI overrides instead of relying on the current `configs/config.yaml`.
+5. If an experiment is meant to compare source behavior only, keep the stable `compiler.cflags` fixed.
+
+## 11. Config Examples
+
+### Cross-compiler baseline
+
+```yaml
+compiler:
+  path: "target_compilers/.../gcc/xgcc"
+  cflags:
+    - "-O0"
+    - "--sysroot=target_compilers/.../libc"
+    - "-Btarget_compilers/.../gcc-final-build/gcc"
+    - "-Btarget_compilers/.../lib/gcc/<triplet>/<version>"
+    - "-Ltarget_compilers/.../lib64"
+```
+
+### Fortify with deterministic online profiles
+
+```yaml
+compiler:
+  cflags:
+    - "-O0"
+    - "--sysroot=..."
+  fuzz:
+    flag_strategy:
+      enabled: true
+      mode: "matrix"
+      allow_llm_cflags: true
+```
+
+### Canary with online deterministic profiles disabled
+
+```yaml
+compiler:
+  cflags:
+    - "-O0"
+    - "--sysroot=..."
+  fuzz:
+    flag_strategy:
+      enabled: false
+```

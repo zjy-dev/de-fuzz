@@ -25,6 +25,8 @@ type AnalyzeContext struct {
 	BinaryPath string
 	// Executor is an interface to run the binary (optional, can be nil for passive oracles)
 	Executor Executor
+	// EffectiveFlags is the final compiler flag list used to build BinaryPath.
+	EffectiveFlags []string
 }
 
 // Executor is a minimal interface for running binaries.

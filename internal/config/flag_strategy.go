@@ -20,6 +20,6 @@ type FlagStrategyAxesConfig struct {
 
 // FlagStrategyISAOptionConfig carries target-specific inputs needed to materialize profiles.
 type FlagStrategyISAOptionConfig struct {
-	StackProtectorGuardReg string `mapstructure:"stack_protector_guard_reg"`
-	SupportsHardwareTLS    bool   `mapstructure:"supports_hardware_tls"`
+	StackProtectorGuardReg string `mapstructure:"stack_protector_guard_reg" yaml:"stack_protector_guard_reg"`
+	SupportsHardwareTLS    bool   `mapstructure:"supports_hardware_tls" yaml:"supports_hardware_tls"`
 }

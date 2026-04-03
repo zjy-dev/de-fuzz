@@ -50,7 +50,7 @@ fi
 # Verify Makefile.in has been patched
 if ! grep -q "FUZZ-COVERAGE-INSTRUMENTATION" "${SRC_DIR}/gcc/Makefile.in"; then
     echo "ERROR: Makefile.in has not been patched for instrumentation"
-    echo "Please apply the patch from doc/gcc-instrumentation/Makefile.in.patch"
+    echo "Please apply the patch from docs/gcc-instrumentation/Makefile.in.patch"
     exit 1
 fi
 

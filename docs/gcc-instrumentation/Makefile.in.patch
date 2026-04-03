@@ -1,7 +1,13 @@
 # GCC Makefile.in Instrumentation Patch
 # =====================================
-# This file contains the modifications needed to add selective coverage
-# and CFG dump instrumentation to GCC's Makefile.in
+# This file documents the patch pattern used by DeFuzz to add selective
+# coverage and CFG dump instrumentation to GCC's Makefile.in.
+#
+# Current repository status:
+# - the checked-in GCC 15.2 cross builds already use a validated multi-file
+#   whitelist rather than a cfgexpand-only whitelist
+# - each object in the whitelist corresponds to one compiler source file that
+#   can later contribute a real *.cfg dump to cfg_file_paths
 #
 # How to apply:
 # 1. Locate the lines mentioned in each section
@@ -17,9 +23,11 @@
 # ====================================================================
 # FUZZ-COVERAGE-INSTRUMENTATION-1: Selective Coverage Whitelist
 # ====================================================================
-# Selective coverage: only instrument specific files to reduce overhead
-# Add target files here that should have coverage instrumentation
-COVERAGE_WHITELIST = cfgexpand.o
+# Selective coverage: only instrument specific files to reduce overhead.
+# IMPORTANT:
+# every compiler source file you want the analyzer to actively target needs its
+# own object entry here, otherwise no matching *.cfg will be generated.
+COVERAGE_WHITELIST = cfgexpand.o function.o calls.o targhooks.o builtins.o gimple-fold.o c-family/c-opts.o linux.o aarch64.o riscv.o
 
 # Function to determine if a target should use coverage flags
 # Returns COVERAGE_FLAGS if the target is in whitelist, empty otherwise
@@ -27,14 +35,32 @@ coverage-for = $(if $(filter $(1),$(COVERAGE_WHITELIST)),$(COVERAGE_FLAGS),)
 
 # Per-file coverage flags (empty by default, overridden for whitelisted files)
 CFLAGS-cfgexpand.o = $(COVERAGE_FLAGS)
+CFLAGS-function.o = $(COVERAGE_FLAGS)
+CFLAGS-calls.o = $(COVERAGE_FLAGS)
+CFLAGS-targhooks.o = $(COVERAGE_FLAGS)
+CFLAGS-builtins.o = $(COVERAGE_FLAGS)
+CFLAGS-gimple-fold.o = $(COVERAGE_FLAGS)
+CFLAGS-c-family/c-opts.o = $(COVERAGE_FLAGS)
+CFLAGS-linux.o = $(COVERAGE_FLAGS)
+CFLAGS-aarch64.o = $(COVERAGE_FLAGS)
+CFLAGS-riscv.o = $(COVERAGE_FLAGS)
 
 # CFG Dump flags for static analysis (control flow graph generation)
-# This enables CFG dump for specific files to support constraint solving
-CFG_DUMP_WHITELIST = cfgexpand.o
+# This enables CFG dump for specific files to support CFG-guided fuzzing
+CFG_DUMP_WHITELIST = $(COVERAGE_WHITELIST)
 CFG_DUMP_FLAGS = -fdump-tree-cfg-lineno
 
 # Per-file CFG dump flags
 CFLAGS-cfgexpand.o += $(CFG_DUMP_FLAGS)
+CFLAGS-function.o += $(CFG_DUMP_FLAGS)
+CFLAGS-calls.o += $(CFG_DUMP_FLAGS)
+CFLAGS-targhooks.o += $(CFG_DUMP_FLAGS)
+CFLAGS-builtins.o += $(CFG_DUMP_FLAGS)
+CFLAGS-gimple-fold.o += $(CFG_DUMP_FLAGS)
+CFLAGS-c-family/c-opts.o += $(CFG_DUMP_FLAGS)
+CFLAGS-linux.o += $(CFG_DUMP_FLAGS)
+CFLAGS-aarch64.o += $(CFG_DUMP_FLAGS)
+CFLAGS-riscv.o += $(CFG_DUMP_FLAGS)
 # ====================================================================
 
 
@@ -86,7 +112,8 @@ COVERAGE_LDFLAGS = -lgcov --coverage
 # ============================================================================
 # 
 # 1. The key insight is using $(CFLAGS-$@) which expands to target-specific flags
-#    For cfgexpand.o, it expands to: $(COVERAGE_FLAGS) -fdump-tree-cfg-lineno
+#    For each whitelisted object, it expands to:
+#      $(COVERAGE_FLAGS) -fdump-tree-cfg-lineno
 #    For other targets, it expands to empty string
 #
 # 2. Search for "FUZZ-COVERAGE-INSTRUMENTATION" to find all modified sections
@@ -96,5 +123,17 @@ COVERAGE_LDFLAGS = -lgcov --coverage
 #    - CFG_DUMP_WHITELIST (for CFG dump)
 #    And add corresponding CFLAGS-xxx.o lines
 #
-# 4. For cross-compilers (aarch64), the same patch applies to:
-#    arm-gnu-toolchain-src-snapshot-12.2.rel1/arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/Makefile.in
+#    Rule of thumb:
+#    one source file you want to target => one object in the whitelist
+#    => one generated .cfg dump during the compiler build.
+#
+# 4. linux.o maps to gcc/gcc/config/linux.cc.
+#    aarch64.o maps to gcc/gcc/config/aarch64/aarch64.cc.
+#    riscv.o maps to gcc/gcc/config/riscv/riscv.cc.
+#    If you later need backend-specific LoongArch CFGs, you must add the
+#    corresponding LoongArch object explicitly as well.
+#
+# 5. After changing the whitelist or CFG flags:
+#    - rebuild the affected objects
+#    - relink cc1
+#    Rebuilding only the *.o without relinking cc1 is insufficient.

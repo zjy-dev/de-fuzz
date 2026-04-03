@@ -14,6 +14,7 @@ func NewDefuzzCommand() *cobra.Command {
 
 	cmd.AddCommand(NewGenerateCommand())
 	cmd.AddCommand(NewFuzzCommand())
+	cmd.AddCommand(NewOptionPostPassCommand())
 
 	return cmd
 }

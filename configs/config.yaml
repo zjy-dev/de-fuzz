@@ -2,9 +2,9 @@ config:
   remixer_config: "configs/remixer.yaml"
   default_temperature: 0.1
 
-  isa: "riscv64"
+  isa: "aarch64"
 
-  strategy: "canary"
+  strategy: "fortify"
 
   # Log level: debug, info, warn, error, fatal
   log_level: "info"
