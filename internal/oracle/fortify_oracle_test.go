@@ -362,6 +362,65 @@ func TestFortifyOracle_Analyze_NegativeProfiles_NoBug(t *testing.T) {
 	}
 }
 
+func TestFortifyOracle_Analyze_NoProfileAndFortifyDisabled_NoBug(t *testing.T) {
+	oracle := &FortifyOracle{
+		MaxFillSize:    200,
+		DefaultBufSize: 64,
+	}
+
+	executor := &mockExecutorFortify{
+		responses: map[string]struct {
+			exitCode int
+			stdout   string
+			stderr   string
+			err      error
+		}{
+			"100": {exitCode: 133, stdout: "SEED_RETURNED\n", stderr: ""},
+			"200": {exitCode: 133, stdout: "SEED_RETURNED\n", stderr: ""},
+		},
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath:     "/test/binary",
+		Executor:       executor,
+		EffectiveFlags: []string{"-O0"},
+	}
+
+	bug, err := oracle.Analyze(&seed.Seed{}, ctx, nil)
+	assert.NoError(t, err)
+	assert.Nil(t, bug, "fortify-disabled compile should not be reported as bug")
+}
+
+func TestFortifyOracle_Analyze_NoProfileButFortifyEnabled_ReportsBug(t *testing.T) {
+	oracle := &FortifyOracle{
+		MaxFillSize:    200,
+		DefaultBufSize: 64,
+	}
+
+	executor := &mockExecutorFortify{
+		responses: map[string]struct {
+			exitCode int
+			stdout   string
+			stderr   string
+			err      error
+		}{
+			"100": {exitCode: 133, stdout: "SEED_RETURNED\n", stderr: ""},
+			"200": {exitCode: 133, stdout: "SEED_RETURNED\n", stderr: ""},
+		},
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath:     "/test/binary",
+		Executor:       executor,
+		EffectiveFlags: []string{"-O2", "-D_FORTIFY_SOURCE=2", "-fno-stack-protector"},
+	}
+
+	bug, err := oracle.Analyze(&seed.Seed{}, ctx, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, bug, "fortify-enabled compile should still report unexpected crashing seed")
+	assert.Contains(t, bug.Description, "Potential _FORTIFY_SOURCE bypass detected")
+}
+
 func TestFortifyOracleRegistration(t *testing.T) {
 	// Test that FortifyOracle is properly registered
 	oracle, err := New("fortify", nil, nil, nil, "")

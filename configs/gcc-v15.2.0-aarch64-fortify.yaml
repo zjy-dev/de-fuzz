@@ -32,7 +32,7 @@ compiler:
         max_constraint_retries: 8
         weight_decay_factor: 0.8
         flag_strategy:
-            enabled: true
+            enabled: false
             mode: "matrix"
             allow_llm_cflags: true
             include_negative_controls: false

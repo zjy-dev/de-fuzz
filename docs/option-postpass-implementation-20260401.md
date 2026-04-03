@@ -1,6 +1,6 @@
 # Option Post-Pass Implementation Notes
 
-Date: 2026-04-01
+Date: 2026-04-02
 
 This document explains the newly added `option-postpass` framework, how it is configured, how it runs, and how to use it in practice.
 
@@ -19,6 +19,8 @@ This makes the workflow more reproducible and aligns better with the intended mo
 
 - first build a seed pool,
 - then traverse defense-related option space on top of that pool.
+
+For the active GCC 15.2 canary configs, this is now the intended place to do deterministic canary option traversal. Online canary fuzzing no longer injects those deterministic canary matrices when `flag_strategy.enabled=false`.
 
 ## 2. New CLI Command
 
@@ -50,6 +52,11 @@ The CLI now exposes:
 9. save all attempt artifacts under `postpass/<run-name>/`.
 
 The main corpus is not mutated by this command.
+
+Important path rule:
+
+- `--run-dir` must point to the run root containing `corpus/`,
+- not to the `corpus/` directory itself.
 
 ## 4. New Config File: `configs/postpass.yaml`
 
@@ -120,6 +127,8 @@ This points directly to the directory that contains:
 - `state/`
 - `build/`
 
+Do not pass the `corpus/` subdirectory itself. If you pass `.../corpus`, the command will look for `.../corpus/corpus` and fail by design because `--run-dir` is defined as the run root.
+
 ### 6.2 Composed path from output + ISA + strategy
 
 Use `--output`, `--isa`, and `--strategy`:
@@ -182,6 +191,8 @@ Reason:
 - QEMU increases per-attempt cost significantly.
 
 Very large worker counts are usually counterproductive on QEMU-heavy runs.
+
+If you need build-time parallelism rather than replay-time parallelism, set `JOBS=<n>` when rebuilding the instrumented compiler. `workers` only controls concurrent post-pass replay attempts.
 
 ## 8. Baseline Reconstruction Semantics
 
@@ -309,7 +320,7 @@ Current limitations of this implementation:
 - it does not promote replayed variants back into the main corpus,
 - it does not yet provide `--seed-limit` or `--combo-filter`,
 - it does not yet deduplicate semantically identical combinations across strategies,
-- `fortify` support is config-ready, but the repository still lacks compiler configs and initial seeds for a real fortify fuzzing target,
+- fortify is now fully wired for GCC 15.2 on `aarch64`, `riscv64`, and `loongarch64`, but live LLM-backed online fuzzing can still be blocked by external provider authentication state,
 - `go test ./...` remains unsuitable at repo root because `target_compilers/` vendors upstream GCC Go testsuite content.
 
 These do not block the new command itself.
@@ -336,7 +347,7 @@ Related support:
 
 Docs:
 
-- [project-understanding-20260401.md](/home/bigsmater/de-fuzz/docs/project-understanding-20260401.md)
+- [project-understanding-20260402.md](/home/bigsmater/de-fuzz/docs/project-understanding-20260402.md)
 - this document
 
 ## 15. Recommended Example Commands

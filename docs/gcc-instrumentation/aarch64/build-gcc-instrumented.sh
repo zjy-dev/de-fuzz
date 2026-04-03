@@ -70,7 +70,7 @@ fi
 
 MAKEFILE_IN="${SRC_DIR}/arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/Makefile.in"
 if ! grep -q "FUZZ-COVERAGE-INSTRUMENTATION" "${MAKEFILE_IN}"; then
-    log_error "Makefile.in not patched. Apply doc/gcc-instrumentation/Makefile.in.patch first."
+    log_error "Makefile.in not patched. Apply docs/gcc-instrumentation/Makefile.in.patch first."
     exit 1
 fi
 log_info "Makefile.in patch verified ✓"

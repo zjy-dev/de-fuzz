@@ -253,7 +253,7 @@ func (e *Engine) processInitialSeeds() error {
 		oracleVerdict := seed.OracleVerdictSkipped
 		if e.cfg.Oracle != nil && compileResult != nil && compileResult.BinaryPath != "" {
 			oracleStart := time.Now()
-			bug := e.runOracle(s, compileResult.BinaryPath)
+			bug := e.runOracle(s, compileResult)
 			logger.Debug("[TIMING] Seed %d: oracle took %v", s.Meta.ID, time.Since(oracleStart))
 			if bug != nil {
 				oracleVerdict = seed.OracleVerdictBug
@@ -626,7 +626,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	// Run oracle for ALL mutated seeds (need to know bug status before deciding to record)
 	foundBug := false
 	if e.cfg.Oracle != nil {
-		bug := e.runOracle(s, compileResult.BinaryPath)
+		bug := e.runOracle(s, compileResult)
 		if bug != nil {
 			result.OracleVerdict = seed.OracleVerdictBug
 			result.BugDescription = bug.Description
@@ -830,16 +830,22 @@ func (e *Engine) extractCoveredLines(report coverage.Report) []string {
 }
 
 // runOracle runs bug detection oracle on a seed.
-// binaryPath is the path to the already-compiled binary.
+// compileResult must describe the already-compiled binary.
 // Returns the detected bug (if any) for persistence.
-func (e *Engine) runOracle(s *seed.Seed, binaryPath string) *oracle.Bug {
+func (e *Engine) runOracle(s *seed.Seed, compileResult *compiler.CompileResult) *oracle.Bug {
+	if compileResult == nil {
+		return nil
+	}
+
+	binaryPath := compileResult.BinaryPath
 	if binaryPath == "" {
 		return nil
 	}
 
 	ctx := &oracle.AnalyzeContext{
-		BinaryPath: binaryPath,
-		Executor:   e.cfg.OracleExecutor,
+		BinaryPath:     binaryPath,
+		Executor:       e.cfg.OracleExecutor,
+		EffectiveFlags: append([]string(nil), compileResult.EffectiveFlags...),
 	}
 
 	// Fall back to local executor if OracleExecutor not configured
