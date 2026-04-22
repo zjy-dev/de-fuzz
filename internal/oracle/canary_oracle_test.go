@@ -103,6 +103,7 @@ func TestCanaryOracle_SafeWithSIGABRT(t *testing.T) {
 			CrashThreshold: 100,
 			CrashExitCode:  ExitCodeSIGABRT, // 134
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	s := &seed.Seed{}
@@ -130,6 +131,7 @@ func TestCanaryOracle_BugWithSIGSEGV(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGSEGV, // 139
 			ReturnSentinel: true,            // seed() returned before crash
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	s := &seed.Seed{}
@@ -165,6 +167,7 @@ func TestCanaryOracle_CVE2023_4039_Pattern(t *testing.T) {
 			SecondCrashExitCode:  ExitCodeSIGABRT, // 134
 			ReturnSentinel:       true,            // seed() returned before crash (true bypass)
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	s := &seed.Seed{}
@@ -195,6 +198,7 @@ func TestCanaryOracle_BinarySearchAccuracy(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGSEGV,
 			ReturnSentinel: true,
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	minCrash, exitCode, hasSentinel := orc.binarySearchCrash(ctx)
@@ -285,6 +289,7 @@ func TestCanaryOracle_FalsePositive_NoSentinel(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGSEGV,
 			ReturnSentinel: false, // seed() did NOT return - crashed inside
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	s := &seed.Seed{}
@@ -313,6 +318,7 @@ func TestCanaryOracle_TrueBypass_WithSentinel(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGSEGV,
 			ReturnSentinel: true, // seed() returned normally before crash
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	s := &seed.Seed{}
@@ -341,6 +347,7 @@ func TestCanaryOracle_SIGBUS_NoSentinel_FalsePositive(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGBUS,
 			ReturnSentinel: false,
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	s := &seed.Seed{}
@@ -373,6 +380,7 @@ func TestCanaryOracle_NegativeCase_SIGSEGV_NoBug(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGSEGV,
 			ReturnSentinel: true,
 		},
+		EffectiveFlags: []string{"-fno-stack-protector"},
 	}
 
 	// Seed with -fno-stack-protector (negative case)
@@ -406,6 +414,7 @@ func TestCanaryOracle_NegativeCase_SIGBUS_NoBug(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGBUS,
 			ReturnSentinel: true,
 		},
+		EffectiveFlags: []string{"-fno-stack-protector"},
 	}
 
 	s := &seed.Seed{
@@ -439,6 +448,7 @@ func TestCanaryOracle_NegativeCase_SIGABRT_NoBug(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGABRT,
 			ReturnSentinel: true,
 		},
+		EffectiveFlags: []string{"-fno-stack-protector"},
 	}
 
 	s := &seed.Seed{
@@ -469,6 +479,7 @@ func TestCanaryOracle_SourceDisablesStackProtector_TreatedAsNegative(t *testing.
 			CrashExitCode:  ExitCodeSIGSEGV,
 			ReturnSentinel: true,
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	s := &seed.Seed{
@@ -504,6 +515,7 @@ func TestCanaryOracle_PositiveCase_StillReportsBug(t *testing.T) {
 			CrashExitCode:  ExitCodeSIGSEGV,
 			ReturnSentinel: true,
 		},
+		EffectiveFlags: []string{"-fstack-protector-strong"},
 	}
 
 	// Seed without -fno-stack-protector (positive case)
@@ -587,11 +599,111 @@ func TestCanaryOracle_isNegativeCase(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := orc.isNegativeCase(tt.seed)
+			result := orc.isNegativeCase(tt.seed, nil)
 			if result != tt.expected {
 				t.Errorf("isNegativeCase() = %v, expected %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestCanaryOracle_Analyze_NoProfileAndCanaryDisabled_NoBug(t *testing.T) {
+	oracle := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
+
+	executor := &MockExecutor{
+		CrashThreshold: 100,
+		CrashExitCode:  132,
+		ReturnSentinel: true,
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath:     "/test/binary",
+		Executor:       executor,
+		EffectiveFlags: []string{"-O0"},
+	}
+
+	bug, err := oracle.Analyze(&seed.Seed{}, ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Fatalf("expected canary-disabled compile to be suppressed, got %s", bug.Description)
+	}
+}
+
+func TestCanaryOracle_Analyze_ExplicitModeWithoutAttribute_NoBug(t *testing.T) {
+	oracle := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
+
+	executor := &MockExecutor{
+		CrashThreshold: 100,
+		CrashExitCode:  132,
+		ReturnSentinel: true,
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath:     "/test/binary",
+		Executor:       executor,
+		EffectiveFlags: []string{"-fstack-protector-explicit", "--param=ssp-buffer-size=4"},
+	}
+
+	s := &seed.Seed{
+		Content: `void seed(int buf_size, int fill_size) {
+    char buf[64];
+    (void)buf_size;
+    (void)fill_size;
+    (void)buf;
+}`,
+	}
+
+	bug, err := oracle.Analyze(s, ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Fatalf("expected explicit mode without stack_protect attribute to be suppressed, got %s", bug.Description)
+	}
+}
+
+func TestCanaryOracle_Analyze_ExplicitModeWithAttribute_ReportsBug(t *testing.T) {
+	oracle := &CanaryOracle{
+		MaxBufferSize:  200,
+		DefaultBufSize: 64,
+	}
+
+	executor := &MockExecutor{
+		CrashThreshold: 100,
+		CrashExitCode:  132,
+		ReturnSentinel: true,
+	}
+
+	ctx := &AnalyzeContext{
+		BinaryPath:     "/test/binary",
+		Executor:       executor,
+		EffectiveFlags: []string{"-fstack-protector-explicit", "--param=ssp-buffer-size=4"},
+	}
+
+	s := &seed.Seed{
+		Content: `__attribute__((stack_protect))
+void seed(int buf_size, int fill_size) {
+    char buf[64];
+    (void)buf_size;
+    (void)fill_size;
+    (void)buf;
+}`,
+	}
+
+	bug, err := oracle.Analyze(s, ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug == nil {
+		t.Fatal("expected explicit mode with stack_protect attribute to report bug")
 	}
 }
 

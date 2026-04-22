@@ -116,7 +116,7 @@ func (p *openAIProvider) chatCompletions(ctx context.Context, req remixerChatReq
 		Model:    p.model,
 		Messages: messages,
 	}
-	if req.Temperature != nil {
+	if req.Temperature != nil && allowsOpenAITemperature(p.model) {
 		openAIRequest.Temperature = float32(*req.Temperature)
 	}
 	if req.MaxTokens != nil {
@@ -154,7 +154,7 @@ func (p *openAIProvider) responses(ctx context.Context, req remixerChatRequest) 
 
 	// GPT-5 style Responses backends commonly reject temperature overrides, so
 	// we omit them on that family to keep the compatibility path stable.
-	if req.Temperature != nil && allowsResponsesTemperature(p.model) {
+	if req.Temperature != nil && allowsOpenAITemperature(p.model) {
 		responseReq.Temperature = req.Temperature
 	}
 
@@ -398,6 +398,6 @@ func normalizeOpenAIBaseURL(endpoint string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
-func allowsResponsesTemperature(model string) bool {
+func allowsOpenAITemperature(model string) bool {
 	return !strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-5")
 }
