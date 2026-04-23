@@ -152,6 +152,38 @@ func TestNewFlagScheduler_RiscvProfiles(t *testing.T) {
 	}
 }
 
+func TestNewFlagScheduler_Ppc64leProfiles(t *testing.T) {
+	cfg := testFlagStrategyConfig()
+	cfg.Axes.ByISA["ppc64le"] = map[string][][]string{
+		"guard_source": {
+			{},
+			{"-mstack-protector-guard=global"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<config-provided-gpr>", "-mstack-protector-guard-offset=-28688"},
+			{"-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<same-gpr>", "-mstack-protector-guard-offset=-28672"},
+		},
+	}
+	cfg.ISAOptions["ppc64le"] = config.FlagStrategyISAOptionConfig{
+		StackProtectorGuardReg: "r13",
+		SupportsHardwareTLS:    true,
+	}
+
+	scheduler, err := NewFlagScheduler("ppc64le", cfg)
+	if err != nil {
+		t.Fatalf("failed to create ppc64le scheduler: %v", err)
+	}
+
+	foundTLS := false
+	for _, profile := range scheduler.mainProfiles {
+		if strings.HasPrefix(profile.AxisValues["guard_mode"], "tls-r13-off-2868") {
+			foundTLS = true
+			break
+		}
+	}
+	if !foundTLS {
+		t.Fatal("expected ppc64le TLS guard profile")
+	}
+}
+
 func TestNewFlagScheduler_LoongArchLayoutProfiles(t *testing.T) {
 	cfg := testFlagStrategyConfig()
 	cfg.Axes.ByISA["loongarch64"] = map[string][][]string{

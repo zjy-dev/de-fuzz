@@ -101,6 +101,22 @@ strategies:
               flags:
                 - -mstack-protector-guard=tls
                 - -mstack-protector-guard-symbol=__stack_chk_guard
+        ppc64le:
+          guard_source:
+            - name: default
+              flags: []
+            - name: global
+              flags: ["-mstack-protector-guard=global"]
+            - name: tls-r13-off-default
+              flags:
+                - -mstack-protector-guard=tls
+                - -mstack-protector-guard-reg=<config-provided-gpr>
+                - -mstack-protector-guard-offset=-28688
+            - name: tls-r13-off-shift16
+              flags:
+                - -mstack-protector-guard=tls
+                - -mstack-protector-guard-reg=<same-gpr>
+                - -mstack-protector-guard-offset=-28672
         loongarch64:
           layout:
             - name: default
@@ -122,6 +138,9 @@ strategies:
         stack_protector_guard_reg: tpidr_el0
       riscv64:
         stack_protector_guard_reg: tp
+        supports_hardware_tls: true
+      ppc64le:
+        stack_protector_guard_reg: r13
         supports_hardware_tls: true
 
   fortify:

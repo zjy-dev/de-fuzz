@@ -333,7 +333,11 @@ func resolveCanaryISAConfig(isa string, cfg config.FlagStrategyConfig) (string, 
 	case "riscv64":
 		candidates = append(candidates, "riscv")
 	case "rs6000":
-		candidates = append(candidates, "powerpc64", "ppc64")
+		candidates = append(candidates, "ppc64le", "powerpc64le", "powerpc64", "ppc64")
+	case "powerpc64le", "ppc64le":
+		candidates = append(candidates, "ppc64le", "powerpc64le", "rs6000")
+	case "powerpc64", "ppc64":
+		candidates = append(candidates, "powerpc64", "ppc64", "rs6000")
 	}
 
 	for _, candidate := range candidates {
@@ -728,18 +732,20 @@ func lexicalAxisRank(profile *seed.FlagProfile) int {
 		"explicit": 3,
 	}
 	guardRank := map[string]int{
-		"default":      0,
-		"global":       1,
-		"tls":          2,
-		"tls-fs-off20": 3,
-		"tls-gs-off20": 4,
-		"tls-symbol":   5,
-		"tls-off0":     6,
-		"tls-off16":    7,
-		"tls-tp-off0":  8,
-		"tls-tp-off16": 9,
-		"sysreg-off0":  10,
-		"sysreg-off16": 11,
+		"default":           0,
+		"global":            1,
+		"tls":               2,
+		"tls-fs-off20":      3,
+		"tls-gs-off20":      4,
+		"tls-symbol":        5,
+		"tls-off0":          6,
+		"tls-off16":         7,
+		"tls-tp-off0":       8,
+		"tls-tp-off16":      9,
+		"sysreg-off0":       10,
+		"sysreg-off16":      11,
+		"tls-r13-off-28688": 12,
+		"tls-r13-off-28672": 13,
 	}
 	layoutRank := map[string]int{
 		"default":          0,

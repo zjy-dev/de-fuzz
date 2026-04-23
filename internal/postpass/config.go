@@ -312,7 +312,11 @@ func isaCandidates(isa string) []string {
 	case "riscv64":
 		candidates = append(candidates, "riscv")
 	case "rs6000":
-		candidates = append(candidates, "powerpc64", "ppc64")
+		candidates = append(candidates, "ppc64le", "powerpc64le", "powerpc64", "ppc64")
+	case "powerpc64le", "ppc64le":
+		candidates = append(candidates, "ppc64le", "powerpc64le", "rs6000")
+	case "powerpc64", "ppc64":
+		candidates = append(candidates, "powerpc64", "ppc64", "rs6000")
 	}
 	return candidates
 }

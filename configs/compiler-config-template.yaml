@@ -13,7 +13,7 @@ compiler:
   source_parent_path: "/path/to/source/parent"
 
   # Gcovr command template (without --json output path)
-  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+  gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov --demangled-names" -r ..'
 
   # Path to the total accumulated coverage report (optional)
   # If empty, defaults to {fuzz_output}/state/total.json for resume capability
@@ -37,6 +37,10 @@ compiler:
     qemu_path: "qemu-aarch64"
     # Sysroot path for QEMU (-L argument)
     qemu_sysroot: ""
+    # Optional single CFG dump path (legacy / single-file mode)
+    cfg_file_path: ""
+    # Optional multiple CFG dump paths (preferred when target functions span multiple files)
+    cfg_file_paths: []
 
   # Oracle configuration
   oracle:
@@ -47,6 +51,11 @@ compiler:
 
 # Configuration pattern: Map each file to its target functions
 # This allows fine-grained control over which functions to track per file
+#
+# Important:
+# Every source file listed below must have a corresponding CFG dump in
+# compiler.fuzz.cfg_file_path / cfg_file_paths, otherwise the analyzer cannot
+# actively target its functions.
 #
 # Example for Stack Canary (Stack Protector) related core functions for x86_64:
 targets:

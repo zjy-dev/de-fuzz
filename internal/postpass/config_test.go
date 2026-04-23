@@ -48,6 +48,32 @@ func TestMaterializeCanaryAArch64(t *testing.T) {
 	require.True(t, found)
 }
 
+func TestMaterializeCanaryPpc64le(t *testing.T) {
+	cfg, err := LoadConfig(filepath.Join("..", "..", "configs", "postpass.yaml"))
+	require.NoError(t, err)
+
+	canary, err := cfg.Strategy("canary")
+	require.NoError(t, err)
+
+	combos, err := canary.Materialize("ppc64le")
+	require.NoError(t, err)
+	require.Len(t, combos, 4*5*2*4)
+
+	found := false
+	for _, combo := range combos {
+		if combo.Name == "policy-strong__threshold-8__pic_mode-default__guard_source-tls-r13-off-default__layout-default" {
+			found = true
+			require.Contains(t, combo.StrategyFlags, "-fstack-protector-strong")
+			require.Contains(t, combo.StrategyFlags, "--param=ssp-buffer-size=8")
+			require.Contains(t, combo.StrategyFlags, "-mstack-protector-guard=tls")
+			require.Contains(t, combo.StrategyFlags, "-mstack-protector-guard-reg=r13")
+			require.Contains(t, combo.StrategyFlags, "-mstack-protector-guard-offset=-28688")
+			require.NotContains(t, combo.StrategyFlags, "<config-provided-gpr>")
+		}
+	}
+	require.True(t, found)
+}
+
 func TestMaterializeFortify(t *testing.T) {
 	cfg, err := LoadConfig(filepath.Join("..", "..", "configs", "postpass.yaml"))
 	require.NoError(t, err)

@@ -27,7 +27,7 @@
 # IMPORTANT:
 # every compiler source file you want the analyzer to actively target needs its
 # own object entry here, otherwise no matching *.cfg will be generated.
-COVERAGE_WHITELIST = cfgexpand.o function.o calls.o targhooks.o builtins.o gimple-fold.o c-family/c-opts.o linux.o aarch64.o riscv.o
+COVERAGE_WHITELIST = cfgexpand.o function.o calls.o targhooks.o builtins.o gimple-fold.o c-family/c-opts.o linux.o aarch64.o riscv.o rs6000.o rs6000-logue.o
 
 # Function to determine if a target should use coverage flags
 # Returns COVERAGE_FLAGS if the target is in whitelist, empty otherwise
@@ -44,6 +44,8 @@ CFLAGS-c-family/c-opts.o = $(COVERAGE_FLAGS)
 CFLAGS-linux.o = $(COVERAGE_FLAGS)
 CFLAGS-aarch64.o = $(COVERAGE_FLAGS)
 CFLAGS-riscv.o = $(COVERAGE_FLAGS)
+CFLAGS-rs6000.o = $(COVERAGE_FLAGS)
+CFLAGS-rs6000-logue.o = $(COVERAGE_FLAGS)
 
 # CFG Dump flags for static analysis (control flow graph generation)
 # This enables CFG dump for specific files to support CFG-guided fuzzing
@@ -61,6 +63,8 @@ CFLAGS-c-family/c-opts.o += $(CFG_DUMP_FLAGS)
 CFLAGS-linux.o += $(CFG_DUMP_FLAGS)
 CFLAGS-aarch64.o += $(CFG_DUMP_FLAGS)
 CFLAGS-riscv.o += $(CFG_DUMP_FLAGS)
+CFLAGS-rs6000.o += $(CFG_DUMP_FLAGS)
+CFLAGS-rs6000-logue.o += $(CFG_DUMP_FLAGS)
 # ====================================================================
 
 
@@ -130,6 +134,8 @@ COVERAGE_LDFLAGS = -lgcov --coverage
 # 4. linux.o maps to gcc/gcc/config/linux.cc.
 #    aarch64.o maps to gcc/gcc/config/aarch64/aarch64.cc.
 #    riscv.o maps to gcc/gcc/config/riscv/riscv.cc.
+#    rs6000.o maps to gcc/gcc/config/rs6000/rs6000.cc.
+#    rs6000-logue.o maps to gcc/gcc/config/rs6000/rs6000-logue.cc.
 #    If you later need backend-specific LoongArch CFGs, you must add the
 #    corresponding LoongArch object explicitly as well.
 #

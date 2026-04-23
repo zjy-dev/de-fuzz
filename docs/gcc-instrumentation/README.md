@@ -1,6 +1,6 @@
 # GCC Instrumentation Documentation
 
-本目录说明 DeFuzz 如何构建带覆盖率插桩和 CFG dump 的 GCC，并重点记录当前仓库已经验证过的多文件 CFG 方案。
+本目录说明 DeFuzz 如何构建带覆盖率插桩和 CFG dump 的 GCC，并重点记录当前仓库已经验证或已经接入的多文件 CFG 方案。
 
 ## 目录结构
 
@@ -11,7 +11,8 @@ docs/gcc-instrumentation/
 ├── x64/BUILD-GUIDE.md
 ├── aarch64/BUILD-GUIDE.md
 ├── riscv64/BUILD-GUIDE.md
-└── loongarch64/BUILD-GUIDE.md
+├── loongarch64/BUILD-GUIDE.md
+└── ppc64le/BUILD-GUIDE.md
 ```
 
 ## 1. 当前项目的真实规则
@@ -46,9 +47,9 @@ DeFuzz 现在不是“单个 `cfgexpand.cc` CFG 文件也能覆盖所有 target 
    - 生成 `*.cfg`
    - 用于 CFG-guided target selection 和约束求解
 
-## 3. 当前验证过的 GCC 15.2 白名单
+## 3. 当前仓库的 GCC 15.2 白名单
 
-当前仓库中已经验证过的 GCC 15.2 白名单对象为：
+当前仓库中的 GCC 15.2 白名单对象为：
 
 - `cfgexpand.o`
 - `function.o`
@@ -60,13 +61,22 @@ DeFuzz 现在不是“单个 `cfgexpand.cc` CFG 文件也能覆盖所有 target 
 - `linux.o`
 - `aarch64.o`
 - `riscv.o`
+- `rs6000.o`
+- `rs6000-logue.o`
 
 这已经覆盖了当前活动配置中的：
 
 - canary 多文件 CFG 目标面
 - fortify 多文件 CFG 目标面
 
-如果未来要把 LoongArch64 后端专有源码也纳入 CFG-guided target surface，需要额外把对应对象加入白名单并重新生成 `.cfg`。
+其中：
+
+- `aarch64.o` 对应 `gcc/gcc/config/aarch64/aarch64.cc`
+- `riscv.o` 对应 `gcc/gcc/config/riscv/riscv.cc`
+- `rs6000.o` 对应 `gcc/gcc/config/rs6000/rs6000.cc`
+- `rs6000-logue.o` 对应 `gcc/gcc/config/rs6000/rs6000-logue.cc`
+
+LoongArch64 当前仍只使用 generic 目标面；如果未来要把 LoongArch64 后端专有源码也纳入 CFG-guided target surface，需要额外把对应对象加入白名单并重新生成 `.cfg`。
 
 ## 4. 当前已经验证存在的多文件 CFG
 
@@ -104,6 +114,15 @@ DeFuzz 现在不是“单个 `cfgexpand.cc` CFG 文件也能覆盖所有 target 
 - `gimple-fold.cc.015t.cfg`
 - `linux.cc.015t.cfg`
 - `c-family/c-opts.cc.015t.cfg`
+
+### PPC64LE（新增接入目标面，构建后应存在）
+
+- `cfgexpand.cc.015t.cfg`
+- `function.cc.015t.cfg`
+- `calls.cc.015t.cfg`
+- `targhooks.cc.015t.cfg`
+- `rs6000.cc.015t.cfg`
+- `rs6000-logue.cc.015t.cfg`
 
 ## 5. 重要的可复现性约束
 

@@ -32,3 +32,12 @@ func TestLoadConfigWithOverrides_CanaryLoongArch64MultiCFGAndLLMOnlyMode(t *test
 	require.False(t, cfg.Compiler.Fuzz.FlagStrategy.Enabled)
 	require.Len(t, cfg.Compiler.Fuzz.CFGFilePaths, 4)
 }
+
+func TestLoadConfigWithOverrides_CanaryPpc64leMultiCFGAndLLMOnlyMode(t *testing.T) {
+	cfg, err := LoadConfigWithOverrides("ppc64le", "canary")
+	require.NoError(t, err)
+	require.Equal(t, "ppc64le", cfg.ISA)
+	require.Equal(t, "canary", cfg.Strategy)
+	require.False(t, cfg.Compiler.Fuzz.FlagStrategy.Enabled)
+	require.Len(t, cfg.Compiler.Fuzz.CFGFilePaths, 6)
+}
