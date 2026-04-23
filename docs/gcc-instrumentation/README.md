@@ -1,99 +1,188 @@
 # GCC Instrumentation Documentation
 
-本目录包含为编译器模糊测试构建带插桩 GCC 的文档和脚本。
+本目录说明 DeFuzz 如何构建带覆盖率插桩和 CFG dump 的 GCC，并重点记录当前仓库已经验证或已经接入的多文件 CFG 方案。
 
 ## 目录结构
 
+```text
+docs/gcc-instrumentation/
+├── README.md
+├── Makefile.in.patch
+├── x64/BUILD-GUIDE.md
+├── aarch64/BUILD-GUIDE.md
+├── riscv64/BUILD-GUIDE.md
+├── loongarch64/BUILD-GUIDE.md
+└── ppc64le/BUILD-GUIDE.md
 ```
-doc/gcc-instrumentation/
-├── README.md                    # 本文件
-├── Makefile.in.patch            # Makefile.in 修改说明
-├── x64/                         # x86_64 原生编译器
-│   ├── BUILD-GUIDE.md           # 构建指南
-│   └── build-gcc-instrumented.sh
-└── aarch64/                     # AArch64 交叉编译器
-    ├── BUILD-GUIDE.md           # 构建指南
-    └── build-gcc-instrumented.sh
-```
 
-## 插桩说明
+## 1. 当前项目的真实规则
 
-我们对 GCC 进行**选择性插桩**，只为 `cfgexpand.cc` 添加：
+DeFuzz 现在不是“单个 `cfgexpand.cc` CFG 文件也能覆盖所有 target functions”的模型，而是严格的一文件一 CFG 模型。
 
-1. **覆盖率插桩** (`-fprofile-arcs -ftest-coverage`)
-   - 生成 `.gcno` 和 `.gcda` 文件
-   - 用于测量编译器代码覆盖率
+规则是：
 
-2. **CFG dump** (`-fdump-tree-cfg-lineno`)
-   - 生成 `.cfg` 文件
-   - 包含控制流图信息，用于 CFG-guided fuzzing
+- 如果要 target `cfgexpand.cc` 的函数，就必须有 `cfgexpand.cc.*.cfg`
+- 如果要 target `function.cc` 的函数，就必须有 `function.cc.*.cfg`
+- 如果要 target `builtins.cc`、`gimple-fold.cc`、`c-family/c-opts.cc`、`linux.cc`、后端文件等函数，也都必须分别有自己的 `.cfg`
 
-### 为什么选择性插桩？
+也就是说：
 
-- **减少开销**：只插桩关键路径 (cfgexpand.cc)，避免全量插桩的性能损失
-- **聚焦测试**：cfgexpand.cc 是 GIMPLE → RTL 转换的核心，是编译器 bug 的高发区域
-- **简化分析**：更小的 CFG 文件便于分析和约束求解
+- 一个要主动 target 的编译器源码文件
+- 对应一个被插桩并带 `-fdump-tree-cfg-lineno` 的目标对象
+- 对应一个生成出来的 `*.cfg`
+- 对应一个写入 `cfg_file_path` 或 `cfg_file_paths` 的配置路径
 
-## 快速开始
+缺哪一步，analyzer 都不能真正把那个文件里的函数当成 CFG-guided target。
 
-### x86_64 原生编译器
+## 2. 当前插桩内容
+
+当前机制包含两类插桩：
+
+1. 覆盖率插桩
+   - `-fprofile-arcs -ftest-coverage`
+   - 生成 `.gcno` 和 `.gcda`
+   - 用于统计编译器源码覆盖率
+2. CFG dump
+   - `-fdump-tree-cfg-lineno`
+   - 生成 `*.cfg`
+   - 用于 CFG-guided target selection 和约束求解
+
+## 3. 当前仓库的 GCC 15.2 白名单
+
+当前仓库中的 GCC 15.2 白名单对象为：
+
+- `cfgexpand.o`
+- `function.o`
+- `calls.o`
+- `targhooks.o`
+- `builtins.o`
+- `gimple-fold.o`
+- `c-family/c-opts.o`
+- `linux.o`
+- `aarch64.o`
+- `riscv.o`
+- `rs6000.o`
+- `rs6000-logue.o`
+
+这已经覆盖了当前活动配置中的：
+
+- canary 多文件 CFG 目标面
+- fortify 多文件 CFG 目标面
+
+其中：
+
+- `aarch64.o` 对应 `gcc/gcc/config/aarch64/aarch64.cc`
+- `riscv.o` 对应 `gcc/gcc/config/riscv/riscv.cc`
+- `rs6000.o` 对应 `gcc/gcc/config/rs6000/rs6000.cc`
+- `rs6000-logue.o` 对应 `gcc/gcc/config/rs6000/rs6000-logue.cc`
+
+LoongArch64 当前仍只使用 generic 目标面；如果未来要把 LoongArch64 后端专有源码也纳入 CFG-guided target surface，需要额外把对应对象加入白名单并重新生成 `.cfg`。
+
+## 4. 当前已经验证存在的多文件 CFG
+
+### AArch64
+
+- `cfgexpand.cc.015t.cfg`
+- `function.cc.015t.cfg`
+- `calls.cc.015t.cfg`
+- `targhooks.cc.015t.cfg`
+- `builtins.cc.015t.cfg`
+- `gimple-fold.cc.015t.cfg`
+- `linux.cc.015t.cfg`
+- `aarch64.cc.015t.cfg`
+- `c-family/c-opts.cc.015t.cfg`
+
+### RISC-V
+
+- `cfgexpand.cc.015t.cfg`
+- `function.cc.015t.cfg`
+- `calls.cc.015t.cfg`
+- `targhooks.cc.015t.cfg`
+- `builtins.cc.015t.cfg`
+- `gimple-fold.cc.015t.cfg`
+- `linux.cc.015t.cfg`
+- `riscv.cc.015t.cfg`
+- `c-family/c-opts.cc.015t.cfg`
+
+### LoongArch64
+
+- `cfgexpand.cc.015t.cfg`
+- `function.cc.015t.cfg`
+- `calls.cc.015t.cfg`
+- `targhooks.cc.015t.cfg`
+- `builtins.cc.015t.cfg`
+- `gimple-fold.cc.015t.cfg`
+- `linux.cc.015t.cfg`
+- `c-family/c-opts.cc.015t.cfg`
+
+### PPC64LE（新增接入目标面，构建后应存在）
+
+- `cfgexpand.cc.015t.cfg`
+- `function.cc.015t.cfg`
+- `calls.cc.015t.cfg`
+- `targhooks.cc.015t.cfg`
+- `rs6000.cc.015t.cfg`
+- `rs6000-logue.cc.015t.cfg`
+
+## 5. 重要的可复现性约束
+
+### 5.1 改白名单后必须重链 `cc1`
+
+只重编某个对象文件不够。因为运行时真正执行的是 `cc1`，所以在对象重编之后必须再执行一次：
 
 ```bash
-# 1. 下载 GCC 源码
-wget https://github.com/gcc-mirror/gcc/archive/refs/tags/releases/gcc-12.2.0.tar.gz
-tar xzf gcc-12.2.0.tar.gz
-
-# 2. 应用补丁（参考 Makefile.in.patch）
-# 编辑 gcc-releases-gcc-12.2.0/gcc/Makefile.in
-
-# 3. 构建
-cd doc/gcc-instrumentation/x64
-./build-gcc-instrumented.sh /path/to/gcc-source /path/to/build
+make -C <gcc-final-build/gcc> -j<N> cc1
 ```
 
-### AArch64 交叉编译器
+### 5.2 `JOBS` 控制构建并行度
+
+当前交叉编译构建脚本都支持：
 
 ```bash
-# 1. 下载 ARM GNU Toolchain 源码
-wget https://developer.arm.com/.../arm-gnu-toolchain-src-snapshot-12.2.rel1.tar.xz
-tar xf arm-gnu-toolchain-src-snapshot-12.2.rel1.tar.xz
-
-# 2. 应用补丁
-# 编辑 .../arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/Makefile.in
-
-# 3. 构建
-cd doc/gcc-instrumentation/aarch64
-./build-gcc-instrumented.sh /path/to/source /path/to/build /path/to/install
+JOBS=16 ./build-gcc-instrumented.sh
 ```
 
-## 与 de-fuzz 集成
+这控制的是 GCC 构建阶段的并行编译，不是 DeFuzz 运行时的 replay 并发。
 
-de-fuzz 项目使用这些插桩编译器进行模糊测试：
+### 5.3 不要用“删 target functions”替代“补 `.cfg`”
 
-1. 编译器在编译测试用例时生成 `.gcda` 覆盖率数据
-2. de-fuzz 读取覆盖率数据计算覆盖率增量
-3. CFG 文件用于 CFG-guided seed 生成
+当前项目规则是：
 
-配置示例 (`configs/gcc-v12.2.0-x64.yaml`):
+- 所有配置里的 target functions 都视为必需，
+- 如果目标文件没有 `.cfg`，应该补齐 `.cfg`，
+- 不应仅为了让当前运行通过而把函数从配置里注释掉。
+
+## 6. 与 DeFuzz 的对接方式
+
+单文件兼容模式：
 
 ```yaml
 compiler:
-  path: /path/to/gcc-build/gcc/xgcc
-  args: ["-B/path/to/gcc-build/gcc/"]
-  
-coverage:
-  gcno_dir: /path/to/gcc-build/gcc/
-  gcda_dir: /path/to/gcc-build/gcc/
-  source_file: cfgexpand.cc
+  fuzz:
+    cfg_file_path: /path/to/gcc-final-build/gcc/cfgexpand.cc.015t.cfg
 ```
 
-## 支持的 GCC 版本
+推荐的多文件模式：
 
-- GCC 12.2.0 (已测试)
-- 其他 GCC 12.x 版本应该也可以工作
+```yaml
+compiler:
+  fuzz:
+    cfg_file_paths:
+      - /path/to/gcc-final-build/gcc/cfgexpand.cc.015t.cfg
+      - /path/to/gcc-final-build/gcc/function.cc.015t.cfg
+      - /path/to/gcc-final-build/gcc/calls.cc.015t.cfg
+      - /path/to/gcc-final-build/gcc/targhooks.cc.015t.cfg
+```
 
-## 参考资料
+`cfg_file_paths` 应与 `targets` 中列出的源码文件保持一致。
+
+## 7. 阅读顺序建议
+
+- 想看补丁规则：`Makefile.in.patch`
+- 想从零构建：对应 ISA 的 `BUILD-GUIDE.md`
+- 想增量补 `.cfg`：优先看各 ISA 的 `BUILD-GUIDE.md` 里的“增量重生成”章节
+
+## 8. 参考资料
 
 - [GCC Internals](https://gcc.gnu.org/onlinedocs/gccint/)
 - [Gcov Documentation](https://gcc.gnu.org/onlinedocs/gcc/Gcov.html)
-- [ARM GNU Toolchain](https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain)

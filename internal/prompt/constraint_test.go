@@ -41,6 +41,7 @@ func TestBuilder_BuildConstraintSolvingPrompt(t *testing.T) {
 		"char buf[100]",               // Base seed code
 		"Active Compiler Profile",
 		"policy-strong__threshold-8__pic-default__guard-default",
+		"Do NOT annotate `seed()` with `__attribute__((no_stack_protector))`",
 	}
 
 	for _, check := range checks {
@@ -115,6 +116,7 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 		"Failed Mutation",
 		"Working Base Seed",
 		"Active Compiler Profile",
+		"Do NOT annotate `seed()` with `__attribute__((no_stack_protector))`",
 	}
 
 	for _, check := range checks {
@@ -124,6 +126,64 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 	}
 
 	t.Logf("Generated refined prompt length: %d chars", len(prompt))
+}
+
+func TestBuilder_BuildConstraintSolvingPrompt_NegativeProfileAllowsSourceDisable(t *testing.T) {
+	builder := NewBuilder(0, "")
+
+	ctx := &TargetContext{
+		TargetFunction:          "expand_used_vars",
+		TargetBBID:              1,
+		TargetLines:             []int{1},
+		SuccessorCount:          1,
+		SourceFile:              "/path/to/cfgexpand.cc",
+		ActiveFlagProfileName:   "negative-control__fno-stack-protector",
+		ActiveFlagProfileFlags:  []string{"-fno-stack-protector"},
+		ActiveIsNegativeControl: true,
+		AllowLLMCFlags:          true,
+		BlockedLLMFlagFamilies:  []string{"-fstack-protector*"},
+	}
+
+	prompt, err := builder.BuildConstraintSolvingPrompt(ctx)
+	if err != nil {
+		t.Fatalf("BuildConstraintSolvingPrompt() failed: %v", err)
+	}
+	if !strings.Contains(prompt, "negative-control attempt") {
+		t.Fatal("expected negative-control guidance in prompt")
+	}
+}
+
+func TestBuilder_BuildConstraintSolvingPrompt_FortifyProfileGuidance(t *testing.T) {
+	builder := NewBuilder(0, "")
+
+	ctx := &TargetContext{
+		TargetFunction:         "gimple_fold_builtin_memory_chk",
+		TargetBBID:             12,
+		TargetLines:            []int{3172},
+		SuccessorCount:         2,
+		SourceFile:             "/path/to/gimple-fold.cc",
+		ActiveFlagProfileName:  "optimization-O2__fortify_mode-fortify2__stack_protector_mode-no-stack-protector",
+		ActiveFlagProfileFlags: []string{"-O2", "-D_FORTIFY_SOURCE=2", "-fno-stack-protector"},
+		ActiveFlagProfileAxes: map[string]string{
+			"optimization":         "O2",
+			"fortify_mode":         "fortify2",
+			"stack_protector_mode": "no-stack-protector",
+		},
+		AllowLLMCFlags:         true,
+		BlockedLLMFlagFamilies: []string{"-O*", "-D_FORTIFY_SOURCE=*", "-U_FORTIFY_SOURCE", "-fhardened"},
+	}
+
+	prompt, err := builder.BuildConstraintSolvingPrompt(ctx)
+	if err != nil {
+		t.Fatalf("BuildConstraintSolvingPrompt() failed: %v", err)
+	}
+
+	if !strings.Contains(prompt, "fortify-related compiler options") {
+		t.Fatal("expected fortify profile guidance")
+	}
+	if strings.Contains(prompt, "Do NOT annotate `seed()` with `__attribute__((no_stack_protector))`") {
+		t.Fatal("did not expect canary-specific no_stack_protector warning for fortify profiles")
+	}
 }
 
 func TestBuilder_BuildRefinedPrompt_NilInputs(t *testing.T) {

@@ -98,7 +98,7 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 	}
 
 	// Check if this is a negative test case (canary protection disabled by CFlags)
-	isNegative := o.isNegativeCase(s)
+	isNegative := o.isNegativeCase(s, ctx)
 
 	// Binary search for the minimum crash size
 	minCrashSize, crashExitCode, hasSentinel := o.binarySearchCrash(ctx)
@@ -120,11 +120,22 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 
 // isNegativeCase checks if the seed's CFlags contain any flag that disables canary protection.
 // If so, SIGSEGV/SIGBUS is expected behavior (not a bug).
-func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
+func (o *CanaryOracle) isNegativeCase(s *seed.Seed, ctx *AnalyzeContext) bool {
+	sourceAnalysis := seed.CanarySourceAnalysis{}
 	if s == nil {
-		return false
+		if ctx == nil || len(ctx.EffectiveFlags) == 0 {
+			return false
+		}
+		return !canaryEnabledByFlags(ctx.EffectiveFlags, sourceAnalysis)
 	}
+	sourceAnalysis = seed.AnalyzeCanarySource(s.Content)
 	if s.FlagProfile != nil && s.FlagProfile.IsNegativeControl {
+		return true
+	}
+	if sourceAnalysis.SeedDisablesStackProtector {
+		return true
+	}
+	if ctx != nil && len(ctx.EffectiveFlags) > 0 && !canaryEnabledByFlags(ctx.EffectiveFlags, sourceAnalysis) {
 		return true
 	}
 	if !s.LLMCFlagsApplied || len(o.NegativeCFlags) == 0 {
@@ -139,6 +150,39 @@ func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
 		}
 	}
 	return false
+}
+
+func canaryEnabledByFlags(flags []string, sourceAnalysis seed.CanarySourceAnalysis) bool {
+	if len(flags) == 0 {
+		return false
+	}
+
+	mode := ""
+	for _, flag := range flags {
+		switch {
+		case strings.HasPrefix(flag, "-fno-stack-protector"):
+			mode = "disabled"
+		case flag == "-fstack-protector":
+			mode = "ssp"
+		case flag == "-fstack-protector-strong":
+			mode = "strong"
+		case flag == "-fstack-protector-all":
+			mode = "all"
+		case flag == "-fstack-protector-explicit":
+			mode = "explicit"
+		case flag == "-fhardened":
+			mode = "hardened"
+		}
+	}
+
+	switch mode {
+	case "", "disabled":
+		return false
+	case "explicit":
+		return sourceAnalysis.SeedRequestsStackProtect
+	default:
+		return true
+	}
 }
 
 // analyzePositiveCase handles normal canary bypass detection (canary should be enabled).

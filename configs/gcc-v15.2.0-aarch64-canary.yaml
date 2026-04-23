@@ -1,30 +1,31 @@
 compiler:
     # Cross-compiler for aarch64 (GCC 15.2)
-    path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
+    path: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/xgcc"
 
     # gcovr execution path - should be the source root directory
     # gcovr will be executed from here with --object-directory pointing to build
-    gcovr_exec_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
+    gcovr_exec_path: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu"
 
-    source_parent_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile"
+    source_parent_path: "target_compilers/gcc-v15.2.0-aarch64-cross-compile"
 
     # gcovr command template (without --json output path)
     # Note: For cross-compile builds, we need --object-directory to find .gcda/.gcno files
     # -r specifies the source root directory relative to gcovr_exec_path
-    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov-14 --demangled-names" -r ..'
+    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov --demangled-names" -r ..'
 
     # Compiler flags (CFlags) for cross-compilation
-    # These flags are passed to GCC during compilation
+    # These flags are stable environment/toolchain flags.
+    # Stable toolchain/environment flags only.
+    # Canary-specific dynamic flags now come only from LLM-generated CFLAGS.
     cflags:
-        - "-fstack-protector-strong" # Enable stack canary protection
         - "-O0" # No optimization for better debugging
         # Cross-compilation specific flags:
-        - "--sysroot=/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        - "--sysroot=target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
         # -B path for cc1 and other compiler components (build directory)
-        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc"
+        - "-Btarget_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc"
         # -B path for crtbegin.o, libgcc.a, etc (install directory)
-        - "-B/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/15.2.1"
-        - "-L/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
+        - "-Btarget_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/lib/gcc/aarch64-none-linux-gnu/15.2.0"
+        - "-Ltarget_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/lib64"
 
     # Fuzzing configuration
     fuzz:
@@ -51,13 +52,52 @@ compiler:
         qemu_path: "qemu-aarch64"
         # Sysroot path for QEMU (-L argument)
         # This should point to the cross-compiled sysroot with aarch64 libraries
-        qemu_sysroot: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
-        # CFG dump file path for target function analysis
-        cfg_file_path: "/root/project/de-fuzz/target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+        qemu_sysroot: "target_compilers/gcc-v15.2.0-aarch64-cross-compile/install-aarch64-none-linux-gnu/aarch64-none-linux-gnu/libc"
+        # CFG dump files for active target source files
+        cfg_file_paths:
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/function.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/calls.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-aarch64-cross-compile/build-aarch64-none-linux-gnu/gcc-final-build/gcc/aarch64.cc.015t.cfg"
         # Maximum number of divergence analysis retries per target BB
         max_constraint_retries: 8
         # Weight decay factor for uncovered BBs per iteration (0, 1], default 0.8
         weight_decay_factor: 0.8
+        flag_strategy:
+            enabled: false
+            mode: "matrix"
+            allow_llm_cflags: true
+            include_negative_controls: true
+            selection_order: "deterministic"
+            negative_controls:
+                - ["-fno-stack-protector"]
+            axes:
+                common:
+                    policy:
+                        - ["-fstack-protector"]
+                        - ["-fstack-protector-strong"]
+                        - ["-fstack-protector-all"]
+                        - ["-fstack-protector-explicit"]
+                    threshold:
+                        - ["--param=ssp-buffer-size=1"]
+                        - ["--param=ssp-buffer-size=4"]
+                        - ["--param=ssp-buffer-size=8"]
+                        - ["--param=ssp-buffer-size=16"]
+                        - ["--param=ssp-buffer-size=32"]
+                    pic_mode:
+                        - []
+                        - ["-fPIC"]
+                by_isa:
+                    aarch64:
+                        guard_source:
+                            - []
+                            - ["-mstack-protector-guard=global"]
+                            - ["-mstack-protector-guard=sysreg", "-mstack-protector-guard-reg=<config-provided-valid-sysreg>", "-mstack-protector-guard-offset=0"]
+                            - ["-mstack-protector-guard=sysreg", "-mstack-protector-guard-reg=<same-sysreg>", "-mstack-protector-guard-offset=16"]
+            isa_options:
+                aarch64:
+                    stack_protector_guard_reg: "tpidr_el0"
 
     # Oracle configuration
     oracle:
@@ -117,39 +157,24 @@ targets:
           - "expand_used_vars" # line 2457
           - "stack_protect_prologue" # line 6920
 
+    - file: "gcc/gcc/function.cc"
+      functions:
+          - "assign_parm_adjust_stack_rtl" # line 2836
+          - "stack_protect_epilogue" # line 5042
+          - "expand_function_end" # line 5397
 
-    # # function.cc - epilogue 及参数处理
-    # - file: "gcc/gcc/function.cc"
-    #   functions:
-    #       - "stack_protect_epilogue" # line 5042
-    #       - "assign_parm_adjust_stack_rtl" # line 2836
+    - file: "gcc/gcc/calls.cc"
+      functions:
+          - "expand_call" # line 2666
 
-    # # toplev.cc - 选项验证
-    # # - file: "gcc/gcc/toplev.cc"
-    # #   functions:
-    # #       - "process_options" # line 1276
+    - file: "gcc/gcc/targhooks.cc"
+      functions:
+          - "default_stack_protect_guard" # line 919
+          - "default_external_stack_protect_fail" # line 952
+          - "default_hidden_stack_protect_fail" # line 979
 
-    # # targhooks.cc - 默认 target hook 实现
-    # - file: "gcc/gcc/targhooks.cc"
-    #   functions:
-    #       - "default_stack_protect_guard" # line 919
-    #       - "default_external_stack_protect_fail" # line 952
-    #       - "default_hidden_stack_protect_fail" # line 979
-
-    # # # i386.cc - x86 特定实现
-    # # - file: "gcc/gcc/config/i386/i386.cc"
-    # #   functions:
-    # #       - "ix86_stack_protect_guard" # line 24568
-    # #       - "ix86_stack_protect_fail" # line 24634
-
-    # # # arm.cc - ARM 特定实现
-    # # - file: "gcc/gcc/config/arm/arm.cc"
-    # #   functions:
-    # #       - "arm_stack_protect_guard" # line 36116
-
-    # # aarch64.cc - AArch64 特定实现
-    # - file: "gcc/gcc/config/aarch64/aarch64.cc"
-    #   functions:
-    #       - "aarch64_stack_protect_guard" # line 29791
-
-    # # mips - 使用 targhooks.cc 的默认实现
+    - file: "gcc/gcc/config/aarch64/aarch64.cc"
+      functions:
+          - "aarch64_override_options_internal" # line 18707
+          - "aarch64_stack_protect_canary_mem" # line 6379
+          - "aarch64_stack_protect_guard" # line 29791

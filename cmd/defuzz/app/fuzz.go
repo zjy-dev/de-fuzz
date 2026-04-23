@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -26,11 +27,13 @@ import (
 // NewFuzzCommand creates the "fuzz" subcommand.
 func NewFuzzCommand() *cobra.Command {
 	var (
-		output  string
-		logDir  string
-		limit   int
-		timeout int
-		useQEMU bool
+		output   string
+		logDir   string
+		limit    int
+		timeout  int
+		useQEMU  bool
+		isa      string
+		strategy string
 	)
 
 	cmd := &cobra.Command{
@@ -79,7 +82,7 @@ Examples:
   defuzz fuzz --limit 30 --timeout 60`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load config first to get defaults
-			cfg, err := config.LoadConfig()
+			cfg, err := config.LoadConfigWithOverrides(isa, strategy)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
@@ -110,6 +113,8 @@ Examples:
 
 	// Core flags only - detailed config should be in config files
 	cmd.Flags().StringVar(&output, "output", "fuzz_out", "Output directory (actual output at {output}/{isa}/{strategy})")
+	cmd.Flags().StringVar(&isa, "isa", "", "Override ISA from config.yaml when selecting compiler config and output path")
+	cmd.Flags().StringVar(&strategy, "strategy", "", "Override defense strategy from config.yaml when selecting compiler config and output path")
 	cmd.Flags().StringVar(&logDir, "log-dir", "", "Log file directory (timestamped log files, empty = console only)")
 	cmd.Flags().IntVar(&limit, "limit", -1, "Max number of target BBs for constraint solving (-1 = unlimited, 0 = initial seeds only)")
 	cmd.Flags().IntVar(&timeout, "timeout", 30, "Execution timeout in seconds")
@@ -149,7 +154,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	corpusManager := corpus.NewFileManager(outputDir)
 
 	// Build deterministic flag scheduler before wiring compiler and engine.
-	flagScheduler, err := fuzz.NewFlagScheduler(cfg.ISA, cfg.Compiler.Fuzz.FlagStrategy)
+	flagScheduler, err := fuzz.NewFlagSchedulerForStrategy(cfg.Strategy, cfg.ISA, cfg.Compiler.Fuzz.FlagStrategy)
 	if err != nil {
 		return fmt.Errorf("failed to create flag scheduler: %w", err)
 	}
@@ -164,16 +169,9 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	compilerDir := filepath.Dir(cfg.Compiler.Path)
 
 	// Use CFlags from config (allows customization per ISA/strategy)
-	// Default to basic flags if not specified in config
-	cflags := cfg.Compiler.CFlags
+	// Default to a neutral baseline if not specified in config.
+	cflags := resolveCompilerCFlags(cfg.Compiler.CFlags)
 	logger.Debug("CFlags from config: %v (count=%d)", cflags, len(cflags))
-	if len(cflags) == 0 {
-		logger.Warn("No cflags specified in config, using defaults")
-		cflags = []string{"-O0"}
-		if flagScheduler == nil {
-			cflags = []string{"-fstack-protector-strong", "-O0"}
-		}
-	}
 
 	gccCompiler := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
 		GCCPath:          cfg.Compiler.Path,
@@ -319,18 +317,17 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 	}
 	cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePaths...)
 
+	if len(cfgPaths) == 0 && len(cfg.Compiler.Targets) > 0 {
+		logger.Warn("Targets are configured but no CFG dump paths are set; analyzer will be disabled")
+	}
+
 	if len(cfgPaths) > 0 && len(cfg.Compiler.Targets) > 0 {
-		var targetFunctions []string
-		skippedTargets := 0
+		targetFunctions, skippedTargets, missingTargetFiles := collectTargetFunctionsForCFGPaths(cfgPaths, cfg.Compiler.Targets)
 		if len(cfgPaths) == 1 {
-			// With a single CFG dump, only track targets from the matching source file.
 			cfgSourceBase := inferCFGSourceBase(cfgPaths[0])
-			for _, target := range cfg.Compiler.Targets {
-				if cfgSourceBase != "" && filepath.Base(target.File) != cfgSourceBase {
-					skippedTargets += len(target.Functions)
-					continue
-				}
-				targetFunctions = append(targetFunctions, target.Functions...)
+			if skippedTargets > 0 {
+				logger.Warn("Single CFG dump mode: only functions from %s can be actively targeted; skipped %d target functions from other files (%v)",
+					cfgSourceBase, skippedTargets, missingTargetFiles)
 			}
 			if len(targetFunctions) == 0 {
 				logger.Warn("No target functions matched CFG source %s; skipping analyzer", cfgSourceBase)
@@ -338,8 +335,8 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 			logger.Info("Creating analyzer with %d target functions (skipped %d outside %s)", len(targetFunctions), skippedTargets, cfgSourceBase)
 			logger.Debug("CFG file: %s", cfgPaths[0])
 		} else {
-			for _, target := range cfg.Compiler.Targets {
-				targetFunctions = append(targetFunctions, target.Functions...)
+			if skippedTargets > 0 {
+				logger.Warn("Multi-CFG mode: skipped %d target functions because matching CFG dumps are missing for source files %v", skippedTargets, missingTargetFiles)
 			}
 			logger.Info("Creating analyzer with %d target functions from %d CFG files", len(targetFunctions), len(cfgPaths))
 			for _, p := range cfgPaths {
@@ -406,6 +403,51 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		MappingPath:    filepath.Join(stateDir, "coverage_mapping.json"),
 	})
 	return cfgEngine.Run()
+}
+
+func resolveCompilerCFlags(configFlags []string) []string {
+	cflags := append([]string(nil), configFlags...)
+	if len(cflags) == 0 {
+		logger.Warn("No cflags specified in config, using neutral baseline [-O0]")
+		return []string{"-O0"}
+	}
+	return cflags
+}
+
+func collectTargetFunctionsForCFGPaths(cfgPaths []string, targets []config.TargetFunction) ([]string, int, []string) {
+	if len(cfgPaths) == 0 || len(targets) == 0 {
+		return nil, 0, nil
+	}
+
+	cfgSourceBases := make(map[string]bool)
+	for _, path := range cfgPaths {
+		base := inferCFGSourceBase(path)
+		if base != "" {
+			cfgSourceBases[base] = true
+		}
+	}
+
+	targetFunctions := make([]string, 0)
+	skippedTargets := 0
+	missingTargetFilesSet := make(map[string]bool)
+
+	for _, target := range targets {
+		targetBase := filepath.Base(target.File)
+		if len(cfgSourceBases) > 0 && !cfgSourceBases[targetBase] {
+			skippedTargets += len(target.Functions)
+			missingTargetFilesSet[targetBase] = true
+			continue
+		}
+		targetFunctions = append(targetFunctions, target.Functions...)
+	}
+
+	missingTargetFiles := make([]string, 0, len(missingTargetFilesSet))
+	for file := range missingTargetFilesSet {
+		missingTargetFiles = append(missingTargetFiles, file)
+	}
+	sort.Strings(missingTargetFiles)
+
+	return targetFunctions, skippedTargets, missingTargetFiles
 }
 
 func inferCFGSourceBase(cfgPath string) string {

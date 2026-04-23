@@ -431,76 +431,8 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal compiler info: %w", err)
 	}
 
-	// Load compiler-specific config based on the pattern
-	// Only load the 'compiler' top-level object
-	compilerConfigName := GetCompilerConfigName(&cfg)
-	compilerViper := viper.New()
-	compilerViper.SetConfigName(compilerConfigName)
-	compilerViper.SetConfigType("yaml")
-	compilerViper.AddConfigPath("configs")
-	compilerViper.AddConfigPath("../configs")
-	compilerViper.AddConfigPath("../../configs")
-
-	if err := compilerViper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("failed to load compiler config %s: %w", compilerConfigName, err)
-	}
-
-	// Apply environment variable resolution to compiler config values
-	applyEnvResolution(compilerViper)
-
-	// Only unmarshal the 'compiler' top-level object
-	// Other top-level objects (like 'targets') are ignored as they're for external tools
-	if err := compilerViper.UnmarshalKey("compiler", &cfg.Compiler); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal compiler config: %w", err)
-	}
-
-	// Also parse top-level 'targets' field for CFG-guided fuzzing
-	// The 'targets' field specifies which source files and functions to focus on
-	if compilerViper.IsSet("targets") {
-		var targets []TargetFunction
-		if err := compilerViper.UnmarshalKey("targets", &targets); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal targets config: %w", err)
-		}
-		cfg.Compiler.Targets = targets
-	}
-
-	// Set defaults for fuzz config if not specified
-	if cfg.Compiler.Fuzz.OutputRootDir == "" {
-		cfg.Compiler.Fuzz.OutputRootDir = "fuzz_out"
-	}
-	if cfg.Compiler.Fuzz.MaxIterations == 0 {
-		cfg.Compiler.Fuzz.MaxIterations = 0 // 0 means unlimited
-	}
-	if cfg.Compiler.Fuzz.MaxNewSeeds == 0 {
-		cfg.Compiler.Fuzz.MaxNewSeeds = 3
-	}
-	if cfg.Compiler.Fuzz.Timeout == 0 {
-		cfg.Compiler.Fuzz.Timeout = 30
-	}
-	if cfg.Compiler.Fuzz.QEMUPath == "" {
-		cfg.Compiler.Fuzz.QEMUPath = "qemu-aarch64"
-	}
-	if cfg.Compiler.Fuzz.MaxConstraintRetries == 0 {
-		cfg.Compiler.Fuzz.MaxConstraintRetries = 32
-	}
-	if cfg.Compiler.Fuzz.WeightDecayFactor <= 0 || cfg.Compiler.Fuzz.WeightDecayFactor > 1 {
-		cfg.Compiler.Fuzz.WeightDecayFactor = 0.8
-	}
-	if cfg.Compiler.Fuzz.FlagStrategy.Enabled {
-		if cfg.Compiler.Fuzz.FlagStrategy.Mode == "" {
-			cfg.Compiler.Fuzz.FlagStrategy.Mode = "matrix"
-		}
-		if cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder == "" {
-			cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder = "deterministic"
-		}
-	}
-
-	// Set defaults for oracle config if not specified
-	if cfg.Compiler.Oracle.Type == "" {
-		cfg.Compiler.Oracle.Type = "llm"
-	}
-	if cfg.Compiler.Oracle.Options == nil {
-		cfg.Compiler.Oracle.Options = make(map[string]interface{})
+	if err := loadCompilerConfigInto(&cfg); err != nil {
+		return nil, err
 	}
 
 	return &cfg, nil
@@ -551,4 +483,103 @@ func GetCompilerConfigPath(cfg *Config) (string, error) {
 	}
 
 	return "", fmt.Errorf("compiler config file not found: %s", configFile)
+}
+
+// LoadConfigWithOverrides loads config and optionally overrides ISA/strategy before
+// resolving the compiler-specific config.
+func LoadConfigWithOverrides(isa, strategy string) (*Config, error) {
+	cfg, err := LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if isa == "" && strategy == "" {
+		return cfg, nil
+	}
+
+	if isa != "" {
+		cfg.ISA = isa
+	}
+	if strategy != "" {
+		cfg.Strategy = strategy
+	}
+
+	if err := loadCompilerConfigInto(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func loadCompilerConfigInto(cfg *Config) error {
+	// Load compiler-specific config based on the pattern
+	// Only load the 'compiler' top-level object
+	compilerConfigName := GetCompilerConfigName(cfg)
+	compilerViper := viper.New()
+	compilerViper.SetConfigName(compilerConfigName)
+	compilerViper.SetConfigType("yaml")
+	compilerViper.AddConfigPath("configs")
+	compilerViper.AddConfigPath("../configs")
+	compilerViper.AddConfigPath("../../configs")
+
+	if err := compilerViper.ReadInConfig(); err != nil {
+		return fmt.Errorf("failed to load compiler config %s: %w", compilerConfigName, err)
+	}
+
+	applyEnvResolution(compilerViper)
+
+	// Reset compiler-specific state before unmarshaling a possibly different
+	// ISA/strategy config. Without this, slices such as cfg_file_paths may keep
+	// stale values from the previously loaded compiler config.
+	cfg.Compiler = CompilerConfig{}
+
+	if err := compilerViper.UnmarshalKey("compiler", &cfg.Compiler); err != nil {
+		return fmt.Errorf("failed to unmarshal compiler config: %w", err)
+	}
+
+	if compilerViper.IsSet("targets") {
+		var targets []TargetFunction
+		if err := compilerViper.UnmarshalKey("targets", &targets); err != nil {
+			return fmt.Errorf("failed to unmarshal targets config: %w", err)
+		}
+		cfg.Compiler.Targets = targets
+	}
+
+	if cfg.Compiler.Fuzz.OutputRootDir == "" {
+		cfg.Compiler.Fuzz.OutputRootDir = "fuzz_out"
+	}
+	if cfg.Compiler.Fuzz.MaxIterations == 0 {
+		cfg.Compiler.Fuzz.MaxIterations = 0
+	}
+	if cfg.Compiler.Fuzz.MaxNewSeeds == 0 {
+		cfg.Compiler.Fuzz.MaxNewSeeds = 3
+	}
+	if cfg.Compiler.Fuzz.Timeout == 0 {
+		cfg.Compiler.Fuzz.Timeout = 30
+	}
+	if cfg.Compiler.Fuzz.QEMUPath == "" {
+		cfg.Compiler.Fuzz.QEMUPath = "qemu-aarch64"
+	}
+	if cfg.Compiler.Fuzz.MaxConstraintRetries == 0 {
+		cfg.Compiler.Fuzz.MaxConstraintRetries = 32
+	}
+	if cfg.Compiler.Fuzz.WeightDecayFactor <= 0 || cfg.Compiler.Fuzz.WeightDecayFactor > 1 {
+		cfg.Compiler.Fuzz.WeightDecayFactor = 0.8
+	}
+	if cfg.Compiler.Fuzz.FlagStrategy.Enabled {
+		if cfg.Compiler.Fuzz.FlagStrategy.Mode == "" {
+			cfg.Compiler.Fuzz.FlagStrategy.Mode = "matrix"
+		}
+		if cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder == "" {
+			cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder = "deterministic"
+		}
+	}
+
+	if cfg.Compiler.Oracle.Type == "" {
+		cfg.Compiler.Oracle.Type = "llm"
+	}
+	if cfg.Compiler.Oracle.Options == nil {
+		cfg.Compiler.Oracle.Options = make(map[string]interface{})
+	}
+
+	return nil
 }

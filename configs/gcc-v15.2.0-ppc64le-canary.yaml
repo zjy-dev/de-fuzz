@@ -1,0 +1,132 @@
+compiler:
+    # Cross-compiler for ppc64le / PowerPC64 Little Endian (GCC 15.2)
+    path: "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc/xgcc"
+
+    # gcovr execution path - should be the build root directory
+    gcovr_exec_path: "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu"
+
+    source_parent_path: "target_compilers/gcc-v15.2.0-ppc64le-cross-compile"
+
+    # gcovr command template (without --json output path)
+    gcovr_command: 'gcovr --exclude ".*\.(h|hpp|hxx)$" --gcov-executable "gcov --demangled-names" -r ..'
+
+    # Stable toolchain/environment flags only.
+    # Canary-specific dynamic flags now come only from LLM-generated CFLAGS.
+    cflags:
+        - "-O0"
+        - "-mcpu=power8"
+        - "-mabi=elfv2"
+        - "--sysroot=target_compilers/gcc-v15.2.0-ppc64le-cross-compile/install-powerpc64le-linux-gnu/powerpc64le-linux-gnu/libc"
+        - "-Btarget_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc"
+        - "-Btarget_compilers/gcc-v15.2.0-ppc64le-cross-compile/install-powerpc64le-linux-gnu/lib/gcc/powerpc64le-linux-gnu/15.2.0"
+        - "-Ltarget_compilers/gcc-v15.2.0-ppc64le-cross-compile/install-powerpc64le-linux-gnu/powerpc64le-linux-gnu/lib64"
+
+    fuzz:
+        output_root_dir: "fuzz_out"
+        max_iterations: 256
+        max_new_seeds: 1
+        max_test_cases: 0
+        function_template: "initial_seeds/ppc64le/canary/function_template.c"
+        base_prompt_dir: "prompts/base"
+        timeout: 30
+        use_qemu: true
+        qemu_path: "qemu-ppc64le"
+        qemu_sysroot: "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/install-powerpc64le-linux-gnu/powerpc64le-linux-gnu/libc"
+        cfg_file_paths:
+            - "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc/cfgexpand.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc/function.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc/calls.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc/targhooks.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc/rs6000.cc.015t.cfg"
+            - "target_compilers/gcc-v15.2.0-ppc64le-cross-compile/build-powerpc64le-linux-gnu/gcc-final-build/gcc/rs6000-logue.cc.015t.cfg"
+        max_constraint_retries: 8
+        weight_decay_factor: 0.8
+        flag_strategy:
+            enabled: false
+            mode: "matrix"
+            allow_llm_cflags: true
+            include_negative_controls: true
+            selection_order: "deterministic"
+            negative_controls:
+                - ["-fno-stack-protector"]
+            axes:
+                common:
+                    policy:
+                        - ["-fstack-protector"]
+                        - ["-fstack-protector-strong"]
+                        - ["-fstack-protector-all"]
+                        - ["-fstack-protector-explicit"]
+                    threshold:
+                        - ["--param=ssp-buffer-size=1"]
+                        - ["--param=ssp-buffer-size=4"]
+                        - ["--param=ssp-buffer-size=8"]
+                        - ["--param=ssp-buffer-size=16"]
+                        - ["--param=ssp-buffer-size=32"]
+                    pic_mode:
+                        - []
+                        - ["-fPIC"]
+                by_isa:
+                    ppc64le:
+                        guard_source:
+                            - []
+                            - ["-mstack-protector-guard=global"]
+                            - ["-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<config-provided-gpr>", "-mstack-protector-guard-offset=-28688"]
+                            - ["-mstack-protector-guard=tls", "-mstack-protector-guard-reg=<same-gpr>", "-mstack-protector-guard-offset=-28672"]
+            isa_options:
+                ppc64le:
+                    stack_protector_guard_reg: "r13"
+                    supports_hardware_tls: true
+
+    oracle:
+        type: "canary"
+        options:
+            max_buffer_size: 1024
+            default_buf_size: 64
+            negative_cflags:
+                - "-fno-stack-protector"
+
+# Stack Canary (Stack Protector) related core functions for ppc64le / rs6000.
+# PowerPC64LE uses rs6000-specific stack-protector guard/fail hooks and an
+# ELFv2 frame layout implemented in rs6000-logue.cc.
+targets:
+    - file: "gcc/gcc/cfgexpand.cc"
+      functions:
+          - "stack_protect_classify_type"    # line 2203
+          - "stack_protect_decl_phase"       # line 2256
+          - "stack_protect_decl_phase_1"     # line 2290
+          - "stack_protect_decl_phase_2"     # line 2296
+          - "add_stack_protection_conflicts" # line 2322
+          - "create_stack_guard"             # line 2351
+          - "stack_protect_return_slot_p"    # line 2435
+          - "defer_stack_allocation"         # line 1968
+          - "expand_used_vars"               # line 2457
+          - "stack_protect_prologue"         # line 6920
+
+    - file: "gcc/gcc/function.cc"
+      functions:
+          - "assign_parm_adjust_stack_rtl"   # line 2836
+          - "stack_protect_epilogue"         # line 5042
+          - "expand_function_end"            # line 5397
+
+    - file: "gcc/gcc/calls.cc"
+      functions:
+          - "expand_call"                    # line 2666
+
+    - file: "gcc/gcc/targhooks.cc"
+      functions:
+          - "default_stack_protect_guard"         # line 919
+          - "default_external_stack_protect_fail" # line 952
+          - "default_hidden_stack_protect_fail"   # line 979
+
+    - file: "gcc/gcc/config/rs6000/rs6000.cc"
+      functions:
+          - "rs6000_init_stack_protect_guard" # line 9810
+          - "rs6000_stack_protect_fail"       # line 24410
+
+    - file: "gcc/gcc/config/rs6000/rs6000-logue.cc"
+      functions:
+          - "rs6000_stack_info"                # line 668
+          - "rs6000_emit_prologue_components"  # line 2751
+          - "rs6000_emit_epilogue_components"  # line 2831
+          - "rs6000_emit_prologue"             # line 2994
+          - "rs6000_emit_epilogue"             # line 4294

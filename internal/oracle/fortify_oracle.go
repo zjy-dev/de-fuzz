@@ -2,6 +2,7 @@ package oracle
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/zjy-dev/de-fuzz/internal/llm"
@@ -82,6 +83,8 @@ func (o *FortifyOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Res
 		return nil, fmt.Errorf("fortify oracle requires AnalyzeContext with Executor and BinaryPath")
 	}
 
+	isNegative := o.isNegativeCase(s, ctx)
+
 	// Binary search for the minimum crash size
 	minCrashSize, crashExitCode, hasSentinel := o.binarySearchCrash(ctx)
 
@@ -91,6 +94,10 @@ func (o *FortifyOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Res
 	// 3. The max_fill_size is too small
 	if minCrashSize == -1 {
 		return nil, nil
+	}
+
+	if isNegative {
+		return o.analyzeNegativeCase()
 	}
 
 	// Analyze the crash type
@@ -152,6 +159,93 @@ func (o *FortifyOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Res
 				minCrashSize, o.DefaultBufSize, crashExitCode,
 			),
 		}, nil
+	}
+}
+
+func (o *FortifyOracle) isNegativeCase(s *seed.Seed, ctx *AnalyzeContext) bool {
+	if s != nil && s.FlagProfile != nil {
+		if s.FlagProfile.IsNegativeControl {
+			return true
+		}
+
+		optimization := axisValueOrDefault(s.FlagProfile, "optimization")
+		fortifyMode := axisValueOrDefault(s.FlagProfile, "fortify_mode")
+
+		// _FORTIFY_SOURCE requires optimization; -O0 profiles should not be
+		// reported as fortify bypasses because fortify is not effectively enabled.
+		if optimization == "O0" {
+			return true
+		}
+
+		switch fortifyMode {
+		case "fortify0", "hardened-no-fortify":
+			return true
+		}
+	}
+
+	if ctx == nil {
+		return false
+	}
+	if len(ctx.EffectiveFlags) == 0 {
+		return false
+	}
+
+	// Initial seeds and LLM-only runs may not carry a profile. Fall back to the
+	// actual compiler argv so we only report bugs when fortify was really enabled.
+	return !fortifyEnabledByFlags(ctx.EffectiveFlags)
+}
+
+func (o *FortifyOracle) analyzeNegativeCase() (*Bug, error) {
+	return nil, nil
+}
+
+func axisValueOrDefault(profile *seed.FlagProfile, axis string) string {
+	if profile == nil || profile.AxisValues == nil {
+		return ""
+	}
+	return profile.AxisValues[axis]
+}
+
+func fortifyEnabledByFlags(flags []string) bool {
+	optimizationEnabled := false
+	fortifyDefined := false
+	fortifyLevel := -1
+	hardened := false
+
+	for _, flag := range flags {
+		switch {
+		case isOptimizationFlag(flag):
+			optimizationEnabled = flag != "-O0"
+		case flag == "-fhardened":
+			hardened = true
+		case flag == "-U_FORTIFY_SOURCE":
+			fortifyDefined = true
+			fortifyLevel = -1
+		case strings.HasPrefix(flag, "-D_FORTIFY_SOURCE="):
+			level, err := strconv.Atoi(strings.TrimPrefix(flag, "-D_FORTIFY_SOURCE="))
+			if err != nil {
+				continue
+			}
+			fortifyDefined = true
+			fortifyLevel = level
+		}
+	}
+
+	if !optimizationEnabled {
+		return false
+	}
+	if fortifyDefined {
+		return fortifyLevel > 0
+	}
+	return hardened
+}
+
+func isOptimizationFlag(flag string) bool {
+	switch flag {
+	case "-O0", "-O1", "-O2", "-O3", "-Og", "-Os", "-Oz", "-Ofast":
+		return true
+	default:
+		return false
 	}
 }
 
