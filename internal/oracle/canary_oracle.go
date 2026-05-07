@@ -2,7 +2,6 @@ package oracle
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/zjy-dev/de-fuzz/internal/llm"
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
@@ -30,22 +29,40 @@ func init() {
 	Register("canary", NewCanaryOracle)
 }
 
-// CanaryOracle implements an oracle for detecting stack canary bypasses.
-// It uses a binary search approach to find if there's a buffer size that
-// causes SIGSEGV (ret modified) before SIGABRT (canary check).
+// CanaryOracle is the public façade for the stack-canary mechanism oracle.
+//
+// Internally it now delegates to a `MechanismOracle` composed of one or more
+// `InvariantChecker`s, one per row in
+// `@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md`. The legacy
+// fields (`MaxBufferSize`, `DefaultBufSize`, `NegativeCFlags`) are preserved
+// so existing tests and config files keep working unchanged; see
+// `@/home/yall/project/de-fuzz/docs/architecture/oracle-multi-invariant-redesign.md`
+// §3.4 for the migration plan.
 type CanaryOracle struct {
-	MaxBufferSize  int
-	DefaultBufSize int      // Default buffer size for buf_size parameter
-	NegativeCFlags []string // CFlags that disable canary protection (negative test cases)
+	// MaxBufferSize bounds the binary search upper end (fill_size domain).
+	MaxBufferSize int
+	// DefaultBufSize is passed as argv[1] to every probe (the buf_size
+	// parameter in the seed template, see `docs/canary-oracle.md` §"函数模板").
+	DefaultBufSize int
+	// NegativeCFlags are seed-level flags whose presence flips the oracle
+	// polarity: when `-fno-stack-protector` (or similar) is applied to the
+	// seed, SIGSEGV is the EXPECTED outcome and not a bug. Polarity-sensitive
+	// invariants get inverted; polarity-insensitive ones (like INV-SP-A01)
+	// stay positive.
+	NegativeCFlags []string
 }
 
-// NewCanaryOracle creates a new canary-detection oracle.
+// NewCanaryOracle creates a new canary-detection oracle from a YAML options
+// map. Schema:
+//
+//	max_buffer_size:  int  (default DefaultMaxBufferSize)
+//	default_buf_size: int  (default 64)
+//	negative_cflags:  []string (default empty)
 func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt.Builder, context string) (Oracle, error) {
 	maxSize := DefaultMaxBufferSize
-	bufSize := 64 // Default buffer size for buf_size parameter
+	bufSize := 64
 	var negativeCFlags []string
 
-	// Parse options
 	if options != nil {
 		if v, ok := options["max_buffer_size"]; ok {
 			switch val := v.(type) {
@@ -63,7 +80,6 @@ func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt
 				bufSize = int(val)
 			}
 		}
-		// Parse negative_cflags - flags that disable canary protection
 		if v, ok := options["negative_cflags"]; ok {
 			switch val := v.(type) {
 			case []interface{}:
@@ -85,41 +101,66 @@ func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt
 	}, nil
 }
 
-// Analyze uses binary search to detect stack canary bypasses.
-// It requires ctx.Executor and ctx.BinaryPath to be set.
+// Analyze runs the full canary mechanism evaluation on the seed.
 //
-// For negative test cases (seeds with CFlags that disable canary protection),
-// the oracle inverts its judgment: SIGSEGV/SIGBUS is expected (no bug),
-// and only logs if canary unexpectedly triggers.
+// Pre-checks (kept for backward compatibility with existing tests):
+//   - nil ctx, missing Executor, or missing BinaryPath all return an error
+//     (this is a contract with the fuzz engine: canary oracle is *active*
+//     and refuses to silently no-op when its dependencies are absent).
+//
+// The actual invariant work is delegated to a freshly-built MechanismOracle.
+// We construct it on every Analyze call rather than caching, because the
+// configuration is cheap to assemble and per-Analyze freshness avoids
+// hidden state across seeds (the dynamic-search Cache lives inside
+// CheckContext, which is already per-call).
 func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Result) (*Bug, error) {
-	// Validate context
 	if ctx == nil || ctx.Executor == nil || ctx.BinaryPath == "" {
 		return nil, fmt.Errorf("canary oracle requires AnalyzeContext with Executor and BinaryPath")
 	}
-
-	// Check if this is a negative test case (canary protection disabled by CFlags)
-	isNegative := o.isNegativeCase(s)
-
-	// Binary search for the minimum crash size
-	minCrashSize, crashExitCode, hasSentinel := o.binarySearchCrash(ctx)
-
-	// If no crash found, the canary protection is working correctly
-	// (or the buffer is too small to reach the return address)
-	if minCrashSize == -1 {
-		return nil, nil
-	}
-
-	// For negative cases (canary disabled), invert the judgment
-	if isNegative {
-		return o.analyzeNegativeCase(s, results, minCrashSize, crashExitCode, hasSentinel)
-	}
-
-	// Positive case: normal canary bypass detection
-	return o.analyzePositiveCase(s, results, minCrashSize, crashExitCode, hasSentinel)
+	return o.mechanism().Analyze(s, ctx, results)
 }
 
-// isNegativeCase checks if the seed's CFlags contain any flag that disables canary protection.
-// If so, SIGSEGV/SIGBUS is expected behavior (not a bug).
+// mechanism builds the MechanismOracle that backs Analyze. Exposed as a
+// helper so tests / future composition layers can override the checker list.
+func (o *CanaryOracle) mechanism() *MechanismOracle {
+	return &MechanismOracle{
+		Name: "stack canary",
+		Checkers: []InvariantChecker{
+			// Static (cheap, run first):
+			&StackChkSymbolsChecker{},
+			&MainNoCanaryChecker{},
+			// Dynamic (binary search; expensive):
+			&DynamicBufferSearchChecker{
+				InvariantID:    "INV-SP-L01",
+				MechanismLabel: "Stack canary",
+				SourceURL:      "https://gcc.gnu.org/onlinedocs/gccint/Stack-Smashing-Protection.html",
+				Sensitivity:    "stable",
+				MaxFillSize:    o.MaxBufferSize,
+				DefaultBufSize: o.DefaultBufSize,
+				SentinelMarker: SentinelMarker,
+			},
+		},
+		Polarizer: PolarizerFunc(o.polarityFor),
+	}
+}
+
+// polarityFor maps a seed to its canary-mechanism polarity. Wraps the
+// legacy `isNegativeCase` heuristic so the rest of the framework is
+// polarity-aware without leaking canary-specific knowledge.
+func (o *CanaryOracle) polarityFor(s *seed.Seed) Polarity {
+	if o.isNegativeCase(s) {
+		return PolarityInverted
+	}
+	return PolarityPositive
+}
+
+// isNegativeCase checks if the seed's CFlags or flag profile mark it as a
+// negative-control case (canary protection deliberately disabled). When
+// true, SIGSEGV / SIGBUS at the dynamic phase is expected behavior and the
+// aggregator inverts the polarity-sensitive checkers.
+//
+// Kept on the public type for backward compatibility with
+// `TestCanaryOracle_isNegativeCase`.
 func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
 	if s == nil {
 		return false
@@ -141,136 +182,28 @@ func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
 	return false
 }
 
-// analyzePositiveCase handles normal canary bypass detection (canary should be enabled).
-func (o *CanaryOracle) analyzePositiveCase(s *seed.Seed, results []Result, minCrashSize, crashExitCode int, hasSentinel bool) (*Bug, error) {
-	switch crashExitCode {
-	case ExitCodeSIGSEGV:
-		// SIGSEGV can be either true canary bypass or false positive (indirect crash)
-		// True bypass: seed() returned (sentinel present) then crashed on return
-		// False positive: crashed inside seed() due to corrupted local variables
-		if !hasSentinel {
-			// No sentinel = crash happened inside seed(), likely false positive
-			// This can happen when buffer overflow corrupts local variables
-			// (e.g., fill_size parameter) causing indirect crashes
-			return nil, nil
-		}
-		// Sentinel present = seed() returned, crash on function return = true bypass
-		return &Bug{
-			Seed:    s,
-			Results: results,
-			Description: fmt.Sprintf(
-				"Stack canary bypass detected! Buffer overflow at size %d bytes caused SIGSEGV (exit code %d) "+
-					"instead of SIGABRT. This indicates the return address was modified before the canary check.",
-				minCrashSize, crashExitCode,
-			),
-		}, nil
-
-	case ExitCodeSIGBUS:
-		// SIGBUS also indicates return address corruption (unaligned jump)
-		// Apply same sentinel check for consistency
-		if !hasSentinel {
-			return nil, nil
-		}
-		return &Bug{
-			Seed:    s,
-			Results: results,
-			Description: fmt.Sprintf(
-				"Stack canary bypass detected! Buffer overflow at size %d bytes caused SIGBUS (exit code %d) "+
-					"instead of SIGABRT. This indicates the return address was modified to an unaligned address before the canary check.",
-				minCrashSize, crashExitCode,
-			),
-		}, nil
-
-	case ExitCodeSIGABRT:
-		// SIGABRT means canary check caught the overflow - this is SAFE
-		return nil, nil
-
-	default:
-		// Any other crash type - apply sentinel check
-		if !hasSentinel {
-			return nil, nil
-		}
-		return &Bug{
-			Seed:    s,
-			Results: results,
-			Description: fmt.Sprintf(
-				"Potential stack canary bypass detected! Buffer overflow at size %d bytes caused unexpected exit (exit code %d) "+
-					"instead of SIGABRT. This may indicate the return address was corrupted before the canary check.",
-				minCrashSize, crashExitCode,
-			),
-		}, nil
-	}
-}
-
-// analyzeNegativeCase handles negative test cases (canary disabled by CFlags).
-// In this mode, SIGSEGV/SIGBUS is expected behavior (not a bug).
-// We only log (but don't report as bug) if SIGABRT occurs unexpectedly.
-func (o *CanaryOracle) analyzeNegativeCase(s *seed.Seed, results []Result, minCrashSize, crashExitCode int, hasSentinel bool) (*Bug, error) {
-	switch crashExitCode {
-	case ExitCodeSIGSEGV, ExitCodeSIGBUS:
-		// Expected behavior for negative case: canary is disabled, so SIGSEGV/SIGBUS is normal
-		// No bug to report
-		return nil, nil
-
-	case ExitCodeSIGABRT:
-		// Unexpected: canary check triggered even though protection should be disabled
-		// This could indicate the negative CFlag didn't take effect
-		// Log this as anomaly but don't report as security bug
-		// (It's a test configuration issue, not a compiler vulnerability)
-		return nil, nil
-
-	default:
-		// Other exit codes are also not bugs in negative case
-		return nil, nil
-	}
-}
-
-// binarySearchCrash performs binary search to find the minimum input size that causes a crash.
-// Returns (minCrashSize, exitCode, hasSentinel) or (-1, 0, false) if no crash found.
-// hasSentinel indicates whether the sentinel marker was present in stdout at crash time.
+// binarySearchCrash is preserved as a thin wrapper over the
+// DynamicBufferSearchChecker's internal search so that
+// `TestCanaryOracle_BinarySearchAccuracy` keeps working without modification.
+//
+// It is no longer the canonical implementation — that lives on the checker.
+// New callers should construct a `DynamicBufferSearchChecker` directly.
+//
+// Returns (minCrashSize, exitCode, hasSentinel); minCrashSize == -1 when
+// no crash was observed within `[0, MaxBufferSize]`.
 func (o *CanaryOracle) binarySearchCrash(ctx *AnalyzeContext) (int, int, bool) {
-	L := 0
-	R := o.MaxBufferSize
-	ans := -1
-	ansExitCode := 0
-	ansSentinel := false
-
-	for L <= R {
-		mid := (L + R) / 2
-		// Pass both buf_size (fixed) and fill_size (binary search variable)
-		bufSizeArg := fmt.Sprintf("%d", o.DefaultBufSize)
-		fillSizeArg := fmt.Sprintf("%d", mid)
-
-		exitCode, stdout, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
-		if err != nil {
-			// Execution error, try larger size
-			L = mid + 1
-			continue
-		}
-
-		if exitCode != 0 {
-			// Found a crash, record it and try smaller size
-			ans = mid
-			ansExitCode = exitCode
-			ansSentinel = strings.Contains(stdout, SentinelMarker)
-			R = mid - 1
-		} else {
-			// No crash, try larger size
-			L = mid + 1
-		}
+	checker := &DynamicBufferSearchChecker{
+		InvariantID:    "INV-SP-L01",
+		MechanismLabel: "Stack canary",
+		MaxFillSize:    o.MaxBufferSize,
+		DefaultBufSize: o.DefaultBufSize,
+		SentinelMarker: SentinelMarker,
 	}
-
-	// If we found a crash, verify and get the actual exit code and sentinel status
-	// (in case the binary search landed on a boundary)
-	if ans != -1 {
-		bufSizeArg := fmt.Sprintf("%d", o.DefaultBufSize)
-		fillSizeArg := fmt.Sprintf("%d", ans)
-		exitCode, stdout, _, err := ctx.Executor.ExecuteWithArgs(ctx.BinaryPath, bufSizeArg, fillSizeArg)
-		if err == nil && exitCode != 0 {
-			ansExitCode = exitCode
-			ansSentinel = strings.Contains(stdout, SentinelMarker)
-		}
+	cctx := &CheckContext{
+		BinaryPath: ctx.BinaryPath,
+		Executor:   ctx.Executor,
+		Cache:      make(map[string]any),
 	}
-
-	return ans, ansExitCode, ansSentinel
+	dyn := checker.binarySearchCrash(cctx)
+	return dyn.MinCrashSize, dyn.CrashExitCode, dyn.HasSentinel
 }
