@@ -248,7 +248,7 @@
 - **source_url_or_path**: glibc `debug/memcpy_chk.c`, `debug/strcpy_chk.c`, `string/bits/string_fortified.h` 等
 - **evidence_snippet**: `bits/string_fortified.h`: `__fortify_function ... { return __builtin___memcpy_chk (__dest, __src, __len, __glibc_objsize0 (__dest)); }`
 - **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz 若观察到 "level ≥ 1 下 `dstlen` 恒为 `-1`", 即使 libc 存在 `__*_chk` 也无防护 (ccc 的 F-1 / F-2 属此类, 见 `@/home/yall/project/de-fuzz/docs/compiler-defense-audit-report.md:85-124`).
+- **oracle_mapping**: DeFuzz 若观察到 "level ≥ 1 下 `dstlen` 恒为 `-1`", 即使 libc 存在 `__*_chk` 也无防护; 这通常意味着 compiler-side BOS/BDOS 一直退化到 unknown.
 
 ### INV-FORT-F03 — 编译期已知越界直接 `#error`
 
@@ -355,23 +355,23 @@
 
 ### INV-FORT-N04 — 编译器不实现 BOS 时 fortify 完全失效
 
-- **statement**: 若 C 编译器不实现 `__builtin_object_size` (返回常量 `-1` 或完全不识别), 则 glibc 头文件的 `__glibc_objsize0 / __bos` 宏始终为 `-1`, 所有 `_chk` 调用退化为原函数. 等价于 level=0. 审计中已观察到此模式的编译器: ccc (空壳返回 `-1` / `0`), chibicc / slimcc / widcc (完全不识别).
+- **statement**: 若 C 编译器不实现 `__builtin_object_size` / `__builtin_dynamic_object_size` (返回常量 `-1` / `0` 或完全不识别), 则 glibc 头文件的 `__glibc_objsize0 / __bos` 宏无法得到有效边界, 所有 `_chk` 调用都会退化为原函数. 对用户而言等价于 level=0.
 - **compiler**: third-party C compilers
 - **version**: n/a
 - **target**: generic
-- **source_kind**: bug-disclosure (DeFuzz 审计)
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/compiler-defense-audit-report.md:81-130`
+- **source_kind**: user-doc + runtime
+- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html ; https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html
 - **version_sensitivity**: stable
 - **oracle_mapping**: DeFuzz 对这类编译器跑 fortify oracle 时期望 level ≥ 1 下仍发生 bypass (exit 139); 不视为回归, 但可作为"该编译器无 fortify 能力"的结论性证据.
 
 ### INV-FORT-N05 — 部分 libc 显式禁用 `_FORTIFY_SOURCE`
 
-- **statement**: 某些第三方 C 编译器 / libc 在其预置头文件里 `#undef _FORTIFY_SOURCE` 或 `add_define("_FORTIFY_SOURCE", "0", ...)`, 覆盖用户命令行设置. 已观察到: TCC (`tccdefs.h`), cparser (`predefs.c`), ccc (`pipeline.rs`).
+- **statement**: 如果编译器驱动、内建预定义或 libc 头文件在 TU 预处理阶段显式 `#undef _FORTIFY_SOURCE` 或强制设为 `0`, 用户命令行的 `-D_FORTIFY_SOURCE=N` 也不会真正生效. 这属于工具链能力 / 配置问题, 不是 fortify oracle 的目标 bug.
 - **compiler**: third-party C compilers
 - **version**: n/a
 - **target**: generic
-- **source_kind**: bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/compiler-defense-audit-report.md:49-55,114-123,205-219`
+- **source_kind**: user-doc
+- **source_url_or_path**: https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html
 - **version_sensitivity**: stable
 - **oracle_mapping**: DeFuzz 构建前应运行 `gcc -D_FORTIFY_SOURCE=2 -E empty.c | grep _FORTIFY_SOURCE` 或同类探针验证 `_FORTIFY_SOURCE` 在 TU 末端仍然定义, 否则 oracle 结果无效.
 
@@ -421,46 +421,7 @@
 - **version_sensitivity**: likely-to-drift (BS 仍在演进)
 - **oracle_mapping**: DeFuzz 暂不把 BS 纳入 fortify oracle 矩阵; 未来可作独立 oracle.
 
-## 9. 已知回归与编译器审计发现 (Known Issues)
-
-### INV-FORT-AUDIT-CCC — `__builtin_object_size` 空壳 (ccc)
-
-- **statement**: ccc 编译器在 `src/ir/lowering/expr_builtins.rs` 中对 `__builtin_object_size(ptr, 0)` 与 `type=1` 一律返回 `(size_t)-1`, 对 `type=2/3` 返回 `0`, 不做任何 points-to 分析; 同时 `src/driver/pipeline.rs` 显式 `preprocessor.undefine_macro("_FORTIFY_SOURCE")`. 叠加效应: 所有 `__*_chk` 调用都被 runtime 退化为无保护.
-- **compiler**: ccc
-- **version**: ccc master (2026-03-07 审计)
-- **target**: x86_64, i686, aarch64, riscv64
-- **source_kind**: bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/compiler-defense-audit-report.md:81-130`
-- **oracle_mapping**: DeFuzz fortify oracle 跑 ccc 时预期 level ≥ 1 仍出现 exit 139 (bypass); 作为"编译器无 fortify 能力"的正控组.
-
-### INV-FORT-AUDIT-TCC — `_FORTIFY_SOURCE` 预置 undef (TCC)
-
-- **statement**: TCC 在 `tccdefs.h` 中 `#undef _FORTIFY_SOURCE`, 用户命令行的 `-D_FORTIFY_SOURCE=N` 会被 TU 内置头覆盖. 无 `__builtin_object_size` 实现, 无 `_chk` 路径.
-- **compiler**: TCC
-- **version**: TCC master
-- **target**: x86, x86_64, ARM, ARM64, RISC-V64
-- **source_kind**: bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/compiler-defense-audit-report.md:49-55`
-
-### INV-FORT-AUDIT-CPARSER — 双重禁用 (cparser)
-
-- **statement**: cparser 在 `predefs.c` 中 `add_define("_FORTIFY_SOURCE", "0", false)`, 并在 `c_driver.c` 中强制追加 `-U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0`. 用户无法以任何方式启用 fortify.
-- **compiler**: cparser
-- **version**: cparser master
-- **target**: x86, x86_64, ARM, SPARC
-- **source_kind**: bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/compiler-defense-audit-report.md:205-219`
-
-### INV-FORT-AUDIT-SMALL — 静默忽略 (slimcc / chibicc / widcc / kefir / ...)
-
-- **statement**: 若干小型 C 编译器接受 `-D_FORTIFY_SOURCE=N` 不报错, 但不实现 `__builtin_object_size`, 因此 glibc 头文件里的 `__bos` 展开结果依赖 GCC 兼容性 (一般会返回 `-1`), fortify 静默失效.
-- **compiler**: slimcc, chibicc, widcc, kefir, mir-c, 等
-- **version**: 各 master (2026-03-07 审计)
-- **target**: 主要 x86_64
-- **source_kind**: bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/compiler-defense-audit-report.md:244-304`
-
-## 10. DeFuzz Fortify Oracle 与上述 invariants 的映射总表
+## 9. DeFuzz Fortify Oracle 与上述 invariants 的映射总表
 
 | Invariant | Oracle 信号 | 触发 seed 模式 |
 |---|---|---|
@@ -474,9 +435,9 @@
 | INV-FORT-F01 | `exit_code == 134` | 任意被 fortify 覆盖的越界 |
 | INV-FORT-F02 | 观察到 `dstlen == -1` → 退化 | objdump 确认 `__*_chk` 被保留但 runtime 不触发 |
 | INV-FORT-X01 | 必须 `-fno-stack-protector` | oracle 标准配置 |
-| INV-FORT-N04/N05 | 第三方编译器下 level ≥ 1 仍 exit 139 | ccc / TCC / cparser 正控组 |
+| INV-FORT-N04/N05 | 第三方编译器下 level ≥ 1 仍 exit 139 | 无 BOS / `_FORTIFY_SOURCE` 被 toolchain 清空的编译器 |
 
-## 11. 假阳性处理 (False Positive)
+## 10. 假阳性处理 (False Positive)
 
 与 canary oracle 相同 (见 `@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md` INV-SP-L04), fortify oracle 在观察到 `exit_code == 139` 时也需要借助 **sentinel 输出** (`printf("SEED_RETURNED\n"); fflush(stdout);`) 区分:
 
@@ -489,7 +450,7 @@
 
 原理见 `@/home/yall/project/de-fuzz/docs/fortify-oracle.md:204-243`.
 
-## 12. 开放问题 / 未覆盖 invariants (Follow-ups)
+## 11. 开放问题 / 未覆盖 invariants (Follow-ups)
 
 - **GCC 15 `__counted_by` 与 glibc ≥ 2.38 的端到端联动**: GCC 15 开始支持 `__attribute__((counted_by(field)))`, 与 Clang 17 的语义对齐, 但 BDOS 下降规则是否完全一致待核.
 - **musl / bionic 的 `__*_chk` 覆盖清单**: 与 glibc 有差异 (musl 历史上较晚引入 `_FORTIFY_SOURCE`, 1.2.5+ 才接近 glibc 覆盖面), 需单独校对.
@@ -498,10 +459,10 @@
 - **交叉编译场景下 target libc 与 host BOS 计算的一致性**: 跨 ISA 交叉编译时 `size_t` 宽度差异可能影响 `(size_t)-1` 的判定 (32-bit target vs 64-bit host BOS).
 - **`_FORTIFY_SOURCE` 对 C++ `std::string` / `std::vector` 的覆盖缺口**: 这些容器内部使用 libc 函数, 但从用户代码视角 `s.resize()` / `v.push_back()` 不走 fortify 路径, 依赖 `_GLIBCXX_ASSERTIONS` / libc++ hardening 独立机制.
 
-## 13. 使用建议
+## 12. 使用建议
 
 - **新增 CFLAGS 变种**时, 优先确认 `-O1/-O2/-O3 × level∈{0,1,2,3} × {带/不带 -flto}` 的笛卡尔积结果矩阵是否仍满足 INV-FORT-L04 (单调性).
-- **升级 glibc / gcc / clang** 时, 对 §5-§7 逐条回归, §9 审计条目作为第三方编译器的正控组.
+- **升级 glibc / gcc / clang** 时, 对 §5-§7 逐条回归, §9 的退化模式作为第三方编译器的正控组.
 - 遇到 `exit_code == 139` 时必须先查 sentinel, 区分 **INV-FORT-N01/N02 的合法退化** vs **真正的 fortify bypass**.
 - `version_sensitivity = likely-to-drift` 的条目 (INV-FORT-B03, INV-FORT-B04, INV-FORT-B06, INV-FORT-I01, INV-FORT-I02, INV-FORT-X04) 每次编译器升级都需要人工确认覆盖面变化.
 - fortify 的核心哲学是 **"覆盖 libc wrapper, 不覆盖语言"**; DeFuzz 在设计 seed 模板时应严格遵守 INV-FORT-C01 / C02 的覆盖边界, 避免把 "手写循环越界" 误判为 fortify bug.

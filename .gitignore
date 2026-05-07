@@ -60,7 +60,8 @@ ollama/
 .cache/
 tmp/
 .venv/
-docs/pptx-workspace/.venv/
+presentations/pptx-workspace/.venv/
+presentations/pptx-workspace/node_modules/
 
 # Local experiment plots
 scripts/assets/*deepseek*.png

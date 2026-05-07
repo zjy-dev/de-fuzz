@@ -108,7 +108,7 @@
 - **version**: GCC 14+ (CVE-2023-4039 修复后; 此前 GCC ≤13.2 存在相反布局缺陷)
 - **target**: aarch64
 - **source_kind**: source
-- **source_url_or_path**: `gcc/config/aarch64/aarch64.cc` `aarch64_save_regs_above_locals_p` (见 `@/home/yall/project/de-fuzz/docs/gcc-15.2.0-aarch64-canary-bug-analysis.md:144-156`)
+- **source_url_or_path**: `gcc/config/aarch64/aarch64.cc` `aarch64_save_regs_above_locals_p`
 - **evidence_snippet**: 同上注释
 - **version_sensitivity**: stable since fix; historical CVE 对 GCC ≤13.2 存在
 - **oracle_mapping**: 在 GCC ≤13.2 的受控版本里可作为正控组验证 oracle 能检出 CVE-2023-4039 模式; GCC 14+ 应当不再触发.
@@ -127,13 +127,12 @@
 
 ### INV-SP-L04 — Spill area / 参数副本不得落在 canary 保护范围外
 
-- **statement**: 跨调用活跃的参数副本、寄存器 spill 槽, 若被放在 "VLA/alloca 之上且在 canary 之下" (布局 (2) 的 "local variables (2)" 或 padding 区), 则小规模 VLA 溢出可破坏这些副本, 间接放大成覆盖 retaddr 的大溢出而不触发 canary. 这是 `@/home/yall/project/de-fuzz/docs/gcc-15.2.0-aarch64-canary-bug-analysis.md` 发现的 GCC 15.2.0 问题.
-- **compiler**: GCC (目前观测到), LLVM/Clang (对称路径存在但未验证)
-- **version**: GCC 15.2.0 AArch64 `-O0` / `-O2` (阳性), `-O1` (阴性, 因为用 `x19` callee-saved 保存 `fill_size`)
-- **target**: aarch64
-- **source_kind**: bug-disclosure (DeFuzz 发现) + internals
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/gcc-15.2.0-aarch64-canary-bug-analysis.md`
-- **evidence_snippet**: "VLA 结束位置 (FP-32) 与 fill_size 副本 (FP-24) 之间只有 8 字节!"
+- **statement**: 跨调用活跃的参数副本、寄存器 spill 槽, 若被放在 "VLA/alloca 之上且在 canary 之下" (布局 (2) 的 "local variables (2)" 或 padding 区), 则小规模 VLA 溢出可先破坏这些副本, 再被后续 `memset` / `memcpy` 放大成覆盖 retaddr 的大溢出, 且 SIGSEGV 可能发生在 canary check 之前. 对 DeFuzz 而言, 这类现象应归入 hardening 缺陷 / oracle 假阳性边界, 不能直接当成经典 canary bypass.
+- **compiler**: GCC, LLVM/Clang
+- **version**: optimization-dependent
+- **target**: generic (aarch64 上最易观察)
+- **source_kind**: internals + calling-convention
+- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gccint/Stack-and-Calling.html ; `gcc/config/aarch64/aarch64.cc`
 - **version_sensitivity**: likely-to-drift (依赖 RA 策略)
 - **oracle_mapping**: 这是当前 oracle 已知 false positive / hardening bug 边界. 需要 sentinel (`SEED_RETURNED`) 区分 "函数内部间接崩溃 vs 返回时崩溃" (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:245-285`).
 
@@ -163,12 +162,12 @@
 
 ### INV-SP-R02 — 跨调用参数副本应优先 callee-saved 寄存器
 
-- **statement**: 对于 VLA/alloca 函数, 若参数 (尤其是用于后续 `memset/memcpy` 的 size 参数) 跨调用活跃, 将其保存到 callee-saved 寄存器 (AArch64 `x19-x28`; x86_64 `rbx/r12-r15`) 比溢出到栈 spill 更安全. 当前 GCC `-O1` 遵守, `-O0/-O2` 有时违反 (参见 INV-SP-L04).
-- **compiler**: GCC (观测), LLVM/Clang (未定)
-- **version**: GCC 15.2.0 (partial violation at `-O0`/`-O2`)
-- **target**: aarch64 (已验证), 其他 ISA 待核
-- **source_kind**: bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/gcc-15.2.0-aarch64-canary-bug-analysis.md:209-216`
+- **statement**: 对于 VLA/alloca 函数, 若参数 (尤其是用于后续 `memset/memcpy` 的 size 参数) 跨调用活跃, 将其保存到 callee-saved 寄存器 (AArch64 `x19-x28`; x86_64 `rbx/r12-r15`) 比溢出到紧邻动态分配区的栈 spill 更安全; 否则小溢出可能先污染参数副本并触发函数内部间接崩溃.
+- **compiler**: GCC, LLVM/Clang
+- **version**: optimization-dependent
+- **target**: generic
+- **source_kind**: internals + ABI-spec
+- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gccint/Stack-and-Calling.html ; https://github.com/ARM-software/abi-aa
 - **version_sensitivity**: likely-to-drift
 - **oracle_mapping**: 当前不是强 invariant, 属 hardening-ideal; DeFuzz 把违反者标为 "security hardening 缺陷", 而非经典 canary 绕过.
 
@@ -334,15 +333,6 @@
 - **source_url_or_path**: https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html
 - **oracle_mapping**: canary oracle case 3 `canary -> ret -> buf` 即 CVE 的观察形式 (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:33-37`).
 
-### INV-SP-HARDEN-GCC15 (AArch64, GCC 15.2.0)
-
-- **statement**: 参见 INV-SP-L04: VLA 与 spill area 相邻且 padding 不足, 小溢出破坏参数副本 → 放大成巨大溢出 → SIGSEGV 发生在 canary check 之前. 属 hardening 层缺陷.
-- **compiler**: GCC 15.2.0
-- **target**: aarch64
-- **source_kind**: bug-disclosure (DeFuzz)
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/gcc-15.2.0-aarch64-canary-bug-analysis.md`
-- **oracle_mapping**: 需配合 sentinel 输出机制区分真假绕过 (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:255-285`).
-
 ## 10. DeFuzz Canary Oracle 与上述 invariants 的映射总表
 
 | Invariant | Oracle 信号 | 触发 seed 模式 |
@@ -358,7 +348,7 @@
 ## 11. 开放问题 / 未覆盖 invariants (Follow-ups)
 
 - **LLVM `StackProtector.cpp` 启发式 vs GCC `cfgexpand.cc` 的精确差异**: 已知"等价但不一一对应", 但 8 字节边界、取址判定等细节需要对照 lit tests 逐条列出.
-- **RISC-V / LoongArch64 的 canary 布局**: survey 给出 psABI 入口 (`riscv-non-isa/riscv-elf-psABI-doc`), 但 DeFuzz 已有 `@/home/yall/project/de-fuzz/docs/riscv64-canary-bug-triage-2026-03-13.md`, 应作为后续专门扩展.
+- **RISC-V / LoongArch64 的 canary 布局**: survey 给出 psABI 入口 (`riscv-non-isa/riscv-elf-psABI-doc`), 但当前还缺少各自后端的专门栈帧归纳, 需要后续补齐.
 - **Clang `-mstack-protector-guard=tls` 系列 Linux kernel 专属 flag**: 内核场景下 guard 由 per-CPU 变量提供, invariant 与 user-space 不同.
 - **`-fstrub` / `-fharden-control-flow-redundancy` 与 SP 的叠加效应**: survey 给出了入口, 但 SP 与 strub 边界上的栈擦除顺序尚未单独抽 invariant.
 - **多线程下的 guard 重置**: 子线程是否共享 `__stack_chk_guard` 与 TLS `%fs:0x28` 的关系, 需要查 glibc `__pthread_initialize_minimal`.

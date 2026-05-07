@@ -233,14 +233,9 @@ NO_CANARY int main(int argc, char *argv[]) {
 
 ## Issue
 
-[[docs/gcc-15.2.0-aarch64-canary-bug-analysis.md]] 的 bug 被定义为了假阳性, 但目前的方案无法排查这个假阳性. 简述一下和导师的讨论结果:
-```
+当前方案把 `SIGSEGV` 视为 canary bypass, 这个判定过宽.
 
-buffer overflow 会覆盖 local vars, 也可能导致 seg fault
-
-思路是 oracle 现在基于 segfault 定义错误, 这是一个超集, 应该更 specific 一点, 也许可以通过日志来细分
-
-```
+buffer overflow 既可能覆盖返回地址, 也可能先破坏 `fill_size` 这类参数副本、局部变量或 spill 槽, 进而导致后续 `memset` / `memcpy` 在 `seed()` 内部崩溃. 这类 "函数内部间接崩溃" 不应直接归类为 canary bypass.
 
 ## 假阳性修复：哨兵输出机制
 
@@ -250,7 +245,7 @@ SIGSEGV 可能由两种情况触发：
 1. **真正的 canary bypass**：返回地址被覆盖，函数返回时崩溃
 2. **间接崩溃（假阳性）**：局部变量被溢出覆盖，导致函数内部崩溃
 
-例如 `gcc-15.2.0-aarch64-canary-bug-analysis.md` 中的情况：VLA 溢出破坏了 `fill_size` 参数副本，后续 memset 使用错误值导致 SIGSEGV，这是假阳性。
+典型情况是 VLA/alloca 的小溢出先破坏了 `fill_size` 这类参数副本，后续 `memset` / `memcpy` 使用污染值导致 SIGSEGV，这是假阳性。
 
 ### 解决方案：哨兵输出 (Sentinel Output)
 
