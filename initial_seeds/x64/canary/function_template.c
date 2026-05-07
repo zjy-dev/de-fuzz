@@ -23,6 +23,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <unistd.h>
 #include <alloca.h>
 
 /**
@@ -78,13 +80,91 @@
  *    }
  */
 
-// Disable stack protector for main to maximize attack surface
-// This ensures canary check only happens in seed() if at all
+// Disable stack protector for main / scrub probe so the seed callee is
+// the only function that can possibly invoke __stack_chk_fail. This
+// realizes INV-SP-A01 ("main has no canary slot") at the binary level.
 #define NO_CANARY __attribute__((no_stack_protector))
 
+// INV-SP-R03 ground truth on x86_64 glibc.
+//
+// Unlike AArch64 / RISC-V / LoongArch (where __stack_chk_guard is a
+// regular global initialized in glibc's csu/libc-start.c), x86_64 glibc
+// stores the canary value in TLS at fs:0x28 — there is no exported
+// `__stack_chk_guard` symbol. Reading it the same way GCC does in the
+// canary check (mov %fs:0x28, %reg) is therefore the only portable way
+// to obtain the ground truth here. Verified against glibc x86_64 emit:
+// see `cmp %fs:0x28, %rax` in the seed() epilogue of any
+// -fstack-protector-strong build.
+static inline uintptr_t read_canary_guard(void) {
+  uintptr_t g;
+  __asm__ volatile ("movq %%fs:0x28, %0" : "=r"(g));
+  return g;
+}
+
+// Force seed() to keep an independent epilogue regardless of what the
+// LLM annotated. Without `noinline` the seed body could be merged into
+// run_scrub_probe and the post-call register snapshot would observe the
+// inliner's output rather than seed's leaked residue. `used` blocks LTO
+// from dropping the function. The redeclaration below the placeholder
+// merges these attributes onto the LLM-provided definition.
+void seed(int buf_size, int fill_size) __attribute__((noinline, used));
+
+// INV-SP-R03 scrub probe: x86_64 System V AMD64 caller-saved GPRs.
+// Caller-saved set per the AMD64 ABI: rax, rcx, rdx, rsi, rdi, r8-r11.
+// We pin the snapshot pointer to a callee-saved register (r12) so it
+// survives `call seed`, and rely on the input constraints "D" / "S" to
+// place buf_size / fill_size into rdi / rsi at the asm boundary.
+#define SCRUB_N_X64 9
+NO_CANARY static void run_scrub_probe(int buf_size, int fill_size) {
+  static const char *const SCRUB_NAMES[SCRUB_N_X64] = {
+    "rax", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10", "r11",
+  };
+  uintptr_t snap[SCRUB_N_X64] = {0};
+  register uintptr_t *snap_ptr __asm__("r12") = snap;
+
+  __asm__ volatile (
+    "call seed\n\t"
+    "movq %%rax,   0(%%r12)\n\t"
+    "movq %%rcx,   8(%%r12)\n\t"
+    "movq %%rdx,  16(%%r12)\n\t"
+    "movq %%rsi,  24(%%r12)\n\t"
+    "movq %%rdi,  32(%%r12)\n\t"
+    "movq %%r8,   40(%%r12)\n\t"
+    "movq %%r9,   48(%%r12)\n\t"
+    "movq %%r10,  56(%%r12)\n\t"
+    "movq %%r11,  64(%%r12)\n\t"
+    :
+    : "D"(buf_size), "S"(fill_size), "r"(snap_ptr)
+    : "rax", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory", "cc"
+  );
+
+  uintptr_t guard = read_canary_guard();
+  for (int i = 0; i < SCRUB_N_X64; i++) {
+    if (snap[i] == guard) {
+      printf("GUARD_LEAKED reg=%d name=%s\n", i, SCRUB_NAMES[i]);
+      fflush(stdout);
+      _exit(1);
+    }
+  }
+  printf("CANARY_SCRUB_OK\n");
+  fflush(stdout);
+  _exit(0);
+}
+
 NO_CANARY int main(int argc, char *argv[]) {
+  // INV-SP-R03 scrub mode: argv = "scrub". Dispatched first so a
+  // misuse of the binary-search path cannot accidentally trigger it.
+  if (argc == 2 && strcmp(argv[1], "scrub") == 0) {
+    run_scrub_probe(64, 0);
+    return 1;  // unreachable; run_scrub_probe always _exit()s.
+  }
+
+  // INV-SP-L01 binary-search mode (existing path, unchanged).
   if (argc != 3) {
-    fprintf(stderr, "Usage: %s <buf_size> <fill_size>\n", argv[0]);
+    fprintf(stderr,
+            "Usage: %s <buf_size> <fill_size>\n"
+            "   or: %s scrub\n",
+            argv[0], argv[0]);
     return 1;
   }
 

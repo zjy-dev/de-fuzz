@@ -171,6 +171,30 @@
 - **version_sensitivity**: likely-to-drift
 - **oracle_mapping**: 当前不是强 invariant, 属 hardening-ideal; DeFuzz 把违反者标为 "security hardening 缺陷", 而非经典 canary 绕过.
 
+### INV-SP-R03 — Epilogue 必须在 return 前 clobber canary 寄存器
+
+- **statement**: 在 SP-protected 函数的 epilogue 中, 从 guard load (`__stack_chk_guard` 全局符号 / `%fs:0x28` / `TPIDR_ELn + offset` 等) 与 frame-saved canary 的 XOR / 比较得出 "校验通过" 之后, 到返回指令 (`ret` / `jr $ra` / `jirl $zero, $ra, 0` / `rts` 等) 之前, 任何 transiently 持有过 canary 值 (从 guard 加载得到, 或 XOR 中间值) 的 GPR 必须被显式覆写 (零写 / move-from-zero / 加载无关值). 否则函数返回后 caller-saved 寄存器中残留的 guard 值, 可被随后的寄存器暴露 primitive (caller 中的寄存器 dump 内联汇编 / 编译器注入的 spill-before-call / signal handler `mcontext_t` / side-channel / 调试 probe) 读出, 攻击者据此伪造任意函数的 canary, 静默绕过整个进程生命期内 `-fstack-protector{,-strong,-all}` 的保护. 注意: 此 invariant 与 INV-SP-R01 的区别是作用域 — R01 约束 *函数体内跨调用* 期间 guard 不得驻留 caller-saved 寄存器; R03 约束 *校验通过到返回指令* 之间持有过 canary 的寄存器必须 clobber.
+- **compiler**: GCC (主要), LLVM/Clang (对应路径需独立审计)
+- **version**: 历史已修 — PR-96191 (2020) 在 aarch64 / arm / thumb1 backend 引入 `stack_protect_test` define_insn 完成 scrub; GCC ≤ 16.1 仍未修复 `gcc/cfgexpand.cc::stack_protect_prologue` 与 `gcc/function.cc::stack_protect_epilogue` 的 generic fallback, 因此 mips / mips64 / loongarch64 / xtensa / csky 以及一长串未提供 backend template 的目标 (or1k / hppa / m68k / alpha / arc / nds32 / microblaze / visium / mcore / mmix / v850 / rx / rl78 / mn10300 / m32r / m32c / lm32 / cris / h8300 / frv / fr30 / ft32 / epiphany / stormy16 / iq2000 / moxie 等) 全部命中此条违反.
+- **target**: 任意 backend 未提供 `targetm.have_stack_protect_set` / `targetm.have_stack_protect_test`, 落到 generic fallback 的 ISA.
+- **source_kind**: source + bug-disclosure
+- **source_url_or_path**: `gcc/cfgexpand.cc::stack_protect_prologue` (line 6951, generic fallback 用 `emit_move_insn`, 未 clobber source 寄存器) ; `gcc/function.cc::stack_protect_epilogue` (line 5070, 用 `emit_cmp_and_jump_insns`, 跳转后未 scrub 任何 GPR) ; `gcc/config/aarch64/aarch64.md` `stack_protect_test_<mode>` (line 8086, 参考实现, 显式清洗 temp 寄存器) ; https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96191 (AArch64/Arm/Thumb1 历史修复) ; https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045 (meta-bug, per-target 子 bug 待提) ; `@/home/yall/project/defend-reviewer/findings/DREV-2026-001/README.md`
+- **evidence_snippet**: PR-96191 报告 "the secret canary value is left in registers after the function returns"; aarch64.md `stack_protect_test_<mode>` 注释明确把 temp 寄存器清洗标为安全关键; DREV-2026-001 在本地 `gcc-16.1.0-RC-20260424` `loongarch64-linux-gnu` cross 上观测到 `$r12` 从 `__stack_chk_guard` 加载, 经 `bne $r13,$r12,.L5` 比较, 直到 `jr $r1` 之间无任何零写.
+- **version_sensitivity**: likely-to-drift (随每个 backend 是否新增 `stack_protect_{set,test}` define_insn 而变; 长尾 backend 升级或新增 backend 都会改变命中范围). 对应到 oracle: 每次 GCC 主版本升级或新 ISA 接入都要重跑此条.
+- **oracle_mapping**: **运行时 caller-saved 寄存器快照** (不走静态反汇编路径). 流程:
+  (1) seed 模板对 `seed()` 加 `__attribute__((noinline, used))`, 强制保留独立 epilogue, 否则被内联后 caller-saved 残留无从观察;
+  (2) `main` 标 `__attribute__((no_stack_protector))` (沿用现模板的 `NO_CANARY`), 整个函数体改写为单段 inline asm: 调用 `seed(...)`, 紧接着把 ISA-specific 的全部 caller-saved GPR `store` 到栈 buffer, 再调 `_exit` — 用 inline asm 包裹是为避免 C 编译器在 call 与快照之间插入任何 spill / reload / 临时寄存器使用;
+  (3) C-side 在 inline asm 之外读 `extern uintptr_t __stack_chk_guard;` 取 ground truth, 逐一比对 buffer 内每个寄存器值; 任一相等即沿 stdout 输出 sentinel `GUARD_LEAKED reg=<idx>` 并非零退出, 全部不等输出 `CANARY_SCRUB_OK` 正常退出;
+  (4) Oracle 仅解析 stdout: `GUARD_LEAKED` ⇒ `VerdictFail` (Detail 含 reg idx 与 ISA-specific 寄存器名); `CANARY_SCRUB_OK` ⇒ `VerdictPass`; 二者皆无 ⇒ `VerdictError`.
+  每 ISA 仅需提供两件事: (a) caller-saved GPR 列表 (x86_64 SysV: `rax,rcx,rdx,rsi,rdi,r8-r11`; AArch64 AAPCS64: `x0-x18`; MIPS O32/N64: `$v0-$v1,$a0-$a3,$t0-$t9`; LoongArch64 LP64: `$r4-$r20` 等); (b) "把这些 GPR 写入栈 buffer 并调 `_exit`" 的 inline asm 序列. 跨 ISA 检测逻辑统一.
+  已知 `VerdictNotApplicable`:
+  - `seed()` 被内联进 `main` (用 `noinline` 抑制即可);
+  - guard 被分配到 callee-saved 寄存器 — ABI 上在 ret 点已 restore, 不构成残留, 也即非本 invariant 所约束;
+  - `-mstack-protector-guard=sysreg` (AArch64 / LoongArch sysreg 变体) 下 guard 不来自 `__stack_chk_guard` 符号, 需把 ground truth 改为对应 sysreg 直读, 第一版标 NA.
+  不选静态反汇编路径的原因: 受影响 ISA 含 xtensa / csky / 多数长尾 backend, Capstone / `golang.org/x/arch` 覆盖不全, 等价于必须 shell-out `objdump` 文本解析, pattern 表跨 GCC peephole 易碎. 运行时方案直接观测安全契约 ("guard 是否残留进 caller-saved 寄存器"), 64-bit 随机 guard 偶然碰撞概率 ~2⁻⁶⁴, FP 可忽略.
+  此条**不能**通过现有 `DynamicBufferSearchChecker` 间接覆盖 — 违反此条时 overflow 路径上 `__stack_chk_fail` 仍正确触发, 退出码仍为 134 (SIGABRT), 二分搜索会判 PASS, 形成 false-negative; 必须由独立的 dynamic checker 配合 seed 模板的 scrub mode 来发现.
+- **implementation**: `@/home/yall/project/de-fuzz/internal/oracle/checker_dynamic_scrub.go` (`EpilogueCanaryScrubChecker`, 注册于 `(*CanaryOracle).mechanism()` 的 dynamic phase). seed 模板 scrub helper 见 `@/home/yall/project/de-fuzz/initial_seeds/x64/canary/function_template.c` `run_scrub_probe` (其余三个 ISA 同名函数). 触发方式: 同一份编译产物用 argv `scrub` 单独跑一次, 与 INV-SP-L01 的 `<buf_size> <fill_size>` 共用 binary. x86_64 用 `mov %fs:0x28` 直接读 TLS canary; aarch64 / riscv64 / loongarch64 通过弱声明的 `__stack_chk_guard` 全局符号读取 (sysreg 模式下符号缺失则发 `CANARY_SCRUB_NA reason=no_guard_symbol` → NA). Polarity-insensitive: `-fno-stack-protector` 下无 canary 加载即无可泄露, "无泄露" 仍是正确结论.
+
 ## 5. Guard 值来源 (Guard Source)
 
 ### INV-SP-G01 — 默认 guard 符号
@@ -344,6 +368,7 @@
 | INV-SP-F01 | `exit_code == 134` | 任意溢出到 canary 槽 |
 | INV-SP-H03 | 静态判定插桩存在 + `exit_code == 134` | alloca / VLA 小溢出 |
 | INV-SP-A01 | main 不插 canary | `main` 标注 `no_stack_protector` |
+| INV-SP-R03 | `main` 在 `seed()` 返回后立即用 inline asm 快照所有 caller-saved GPR; 任一等于 guard 运行时值则 stdout 含 `GUARD_LEAKED reg=<idx> name=<reg-name>` | `seed()` 经模板内 redeclaration 加 `noinline,used`; `main` 标 `no_stack_protector` 并多一条 argv `scrub` 分支调 `run_scrub_probe` (call→snapshot→C 比对→`_exit`). 实现: `EpilogueCanaryScrubChecker` (`@/home/yall/project/de-fuzz/internal/oracle/checker_dynamic_scrub.go`) + 4 ISA 模板 `run_scrub_probe`. ISA 覆盖: x64 (TLS `%fs:0x28`) / aarch64 / riscv64 / loongarch64. 受影响 ISA 中其余长尾 backend (mips / xtensa / csky / ...) 待 follow-up. 退出码 134 不可由动态二分发现, 必须 leak-snapshot 通道 |
 
 ## 11. 开放问题 / 未覆盖 invariants (Follow-ups)
 

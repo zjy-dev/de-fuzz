@@ -139,6 +139,17 @@ func (o *CanaryOracle) mechanism() *MechanismOracle {
 				DefaultBufSize: o.DefaultBufSize,
 				SentinelMarker: SentinelMarker,
 			},
+			// Dynamic (single scrub probe; cheap relative to binary search).
+			// INV-SP-R03: epilogue must clobber registers that transiently
+			// held the guard. Detects the leak channel observed in
+			// DREV-2026-001 on long-tail backends (loongarch64, riscv64,
+			// mips, csky, xtensa, ...). Polarity-insensitive; absence of
+			// leak is correct under both -fstack-protector* and -fno-*.
+			&EpilogueCanaryScrubChecker{
+				InvariantID: "INV-SP-R03",
+				SourceURL:   "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045",
+				Sensitivity: "likely-to-drift",
+			},
 		},
 		Polarizer: PolarizerFunc(o.polarityFor),
 	}

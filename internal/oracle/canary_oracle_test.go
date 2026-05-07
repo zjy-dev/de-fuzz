@@ -590,3 +590,142 @@ func TestCanaryOracle_NegativeCFlagsFromOptions(t *testing.T) {
 		}
 	}
 }
+
+// dualModeMockExecutor routes argv to two independent response sets so a
+// single AnalyzeContext can exercise both INV-SP-L01 (binary-search,
+// argv = "<n> <m>") and INV-SP-R03 (scrub, argv = "scrub") simultaneously.
+//
+// This is the integration-test surface for the multi-invariant wiring in
+// `(*CanaryOracle).mechanism()` — see
+// `@/home/yall/project/de-fuzz/docs/architecture/oracle-multi-invariant-redesign.md`
+// §3.2 (dynamic phase runs multiple checkers; cache only protects shared
+// keys, scrub uses its own argv pattern).
+type dualModeMockExecutor struct {
+	// Binary-search mode tunables (argv = <buf_size> <fill_size>):
+	bsCrashThreshold int
+	bsCrashExitCode  int
+	bsReturnSentinel bool
+	// Scrub mode response (argv = "scrub"):
+	scrubExitCode int
+	scrubStdout   string
+}
+
+func (m *dualModeMockExecutor) ExecuteWithInput(binaryPath string, stdin string) (int, string, string, error) {
+	return 0, "", "", nil
+}
+
+func (m *dualModeMockExecutor) ExecuteWithArgs(binaryPath string, args ...string) (int, string, string, error) {
+	if len(args) == 1 && args[0] == "scrub" {
+		return m.scrubExitCode, m.scrubStdout, "", nil
+	}
+	if len(args) >= 2 {
+		fill, _ := strconv.Atoi(args[1])
+		stdout := ""
+		if m.bsReturnSentinel {
+			stdout = SentinelMarker + "\n"
+		}
+		if m.bsCrashThreshold > 0 && fill >= m.bsCrashThreshold {
+			return m.bsCrashExitCode, stdout, "", nil
+		}
+		// No crash → always emit sentinel (matches MockExecutor convention).
+		return 0, SentinelMarker + "\n", "", nil
+	}
+	return 0, "", "", nil
+}
+
+// TestCanaryOracle_DualCheckers_R03LeakDetected: end-to-end mechanism test.
+// L01 sees a SIGABRT (canary held), R03 sees a leak — the bug must be
+// attributed to R03 specifically.
+//
+// This test exists to guard the wiring in `(*CanaryOracle).mechanism()`:
+// regressions where R03 stops being invoked (e.g., someone removes it
+// from the Checkers slice) are caught here.
+func TestCanaryOracle_DualCheckers_R03LeakDetected(t *testing.T) {
+	orc := &CanaryOracle{MaxBufferSize: 200, DefaultBufSize: 64}
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &dualModeMockExecutor{
+			// L01 path: SIGABRT @ 100 → Pass.
+			bsCrashThreshold: 100,
+			bsCrashExitCode:  ExitCodeSIGABRT,
+			// R03 path: leak detected.
+			scrubExitCode: 1,
+			scrubStdout:   "GUARD_LEAKED reg=12 name=t0\n",
+		},
+	}
+	bug, err := orc.Analyze(&seed.Seed{}, ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug == nil {
+		t.Fatal("expected a Bug from R03 leak; got nil")
+	}
+	if !contains(bug.Description, "INV-SP-R03") {
+		t.Errorf("Bug.Description should reference INV-SP-R03; got:\n%s", bug.Description)
+	}
+	if !contains(bug.Description, "reg=12") {
+		t.Errorf("Bug.Description should preserve leak detail; got:\n%s", bug.Description)
+	}
+}
+
+// TestCanaryOracle_DualCheckers_BothPass: both invariants hold → no Bug.
+// L01 sees SIGABRT (Pass), R03 sees CANARY_SCRUB_OK (Pass).
+func TestCanaryOracle_DualCheckers_BothPass(t *testing.T) {
+	orc := &CanaryOracle{MaxBufferSize: 200, DefaultBufSize: 64}
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &dualModeMockExecutor{
+			bsCrashThreshold: 100,
+			bsCrashExitCode:  ExitCodeSIGABRT,
+			scrubExitCode:    0,
+			scrubStdout:      "CANARY_SCRUB_OK\n",
+		},
+	}
+	bug, err := orc.Analyze(&seed.Seed{}, ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug != nil {
+		t.Fatalf("expected no Bug when both invariants pass; got:\n%s", bug.Description)
+	}
+}
+
+// TestCanaryOracle_DualCheckers_ScrubNADoesNotMaskL01Fail: when R03 is NA
+// (e.g., sysreg mode) but L01 detects a canary bypass, the bug must
+// still be reported and attributed to L01.
+func TestCanaryOracle_DualCheckers_ScrubNADoesNotMaskL01Fail(t *testing.T) {
+	orc := &CanaryOracle{MaxBufferSize: 200, DefaultBufSize: 64}
+	ctx := &AnalyzeContext{
+		BinaryPath: "/fake/binary",
+		Executor: &dualModeMockExecutor{
+			// L01: classic bypass (SIGSEGV with sentinel) → Fail.
+			bsCrashThreshold: 100,
+			bsCrashExitCode:  ExitCodeSIGSEGV,
+			bsReturnSentinel: true,
+			// R03: sysreg-mode NA.
+			scrubExitCode: 0,
+			scrubStdout:   "CANARY_SCRUB_NA reason=no_guard_symbol\n",
+		},
+	}
+	bug, err := orc.Analyze(&seed.Seed{}, ctx, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bug == nil {
+		t.Fatal("expected a Bug from L01 bypass; got nil (R03 NA must not mask it)")
+	}
+	if !contains(bug.Description, "INV-SP-L01") {
+		t.Errorf("Bug.Description should reference INV-SP-L01; got:\n%s", bug.Description)
+	}
+}
+
+// contains is a tiny helper that tolerates the test file being read both
+// before and after Go 1.21's `strings.Contains` import path normalization.
+func contains(s, sub string) bool {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
+}
