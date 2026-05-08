@@ -1,3 +1,15 @@
+---
+title: GCC 相关工作流架构总览
+description: 构建期插桩 GCC 与运行期 fuzz 主循环之间数据流的端到端拆解
+priority: HIGH
+last_updated: 2026-05-08
+status: IMPLEMENTED
+related_docs:
+  - ./overview.md
+  - ./fuzz-engine-loop.md
+  - ../guides/building-instrumented-gcc.md
+---
+
 # GCC 相关工作流架构总览
 
 > 本文梳理 **de-fuzz** 项目中所有与 GCC 直接交互的组件：从"构建一个带插桩的 GCC"开始，到 fuzz 循环中如何用它产生覆盖率、消费 CFG、通过 `uftrace` 比对执行轨迹。读完此文，你应当能说清楚 **每个 `.gcno`/`.gcda`/`.cfg`/`cc1` 来自哪里、被谁消费、推动了哪一步决策**。

@@ -1,6 +1,23 @@
+---
+title: "ADR-002: Multi-CFG Orchestration"
+description: 多文件 CFG 解析、目标过滤与 PR `b907c01` 评估的历史决策记录
+priority: MEDIUM
+last_updated: 2026-05-08
+status: Superseded
+related_docs:
+  - ../gcc-pipeline.md
+  - ../../reference/config-schema.md
+---
+
+# ADR-002: Multi-CFG Orchestration
+
+> **状态说明**：本文档原为对未合入分支 `more_architecture` 上 commit `b907c01` "Multi-File CFG and Fortify Update" 的评估。当前 main 上的多 CFG 实现保留于 `cmd/defuzz/app/fuzz.go` `inferCFGSourceBase` + `cfgPaths` 合并逻辑（`internal/coverage/analyzer.go:113-162` 收 `cfgPaths []string`），并未采纳 PR 中的 `collectTargetFunctionsForCFGPaths` helper 与 `CompilerConfig{}` reset。本文保留作为历史评估与后续改造对照。
+>
+> **配套阅读**：`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/gcc-pipeline.md`。本文假设读者已理解 "构建期 GCC 插桩 → 运行期 CFG 解析 + 目标选择" 的整体链路。
+
 # 多 CFG 支持：意义与 PR 实现评估
 
-> **配套阅读**：`@/home/yall/project/de-fuzz/docs/architecture/gcc-pipeline.md`。本文假设读者已理解 "构建期 GCC 插桩 → 运行期 CFG 解析 + 目标选择" 的整体链路。
+> **配套阅读**：`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/gcc-pipeline.md`。
 >
 > **评估目标**：分支 `more_architecture` 上 BIGSMATER 的 commit `b907c01` "Multi-File CFG and Fortify Update"（未合入 main），这是本项目目前唯一专门围绕多 CFG 改动的 PR。
 

@@ -1,3 +1,14 @@
+---
+title: 开源 C 编译器调研报告
+description: DeFuzz 黑盒模糊测试中可选的 C 编译器目标的调研，含 GCC / Clang / TCC / SDCC 等的对比
+priority: MEDIUM
+last_updated: 2026-03-06
+status: IMPLEMENTED
+related_docs:
+  - ./tech-stack.md
+  - ../guides/building-instrumented-gcc.md
+---
+
 # 开源 C 编译器调研报告
 
 > 目标：为 DeFuzz 黑盒模糊测试选择合适的 C 编译器作为测试目标。

@@ -1,3 +1,14 @@
+---
+title: GCC Instrumentation
+description: 为编译器模糊测试构建带插桩 GCC 所需的补丁、脚本与平台分支说明
+priority: HIGH
+last_updated: 2026-05-08
+status: IMPLEMENTED
+related_docs:
+  - ../guides/building-instrumented-gcc.md
+  - ../architecture/gcc-pipeline.md
+---
+
 # GCC Instrumentation Documentation
 
 本目录包含为编译器模糊测试构建带插桩 GCC 的文档和脚本。

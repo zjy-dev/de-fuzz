@@ -1,3 +1,15 @@
+---
+title: Stack Canary Oracle
+description: 跨 ISA 的 stack canary 检测方案，含设计动机、二分搜索算法、哨兵机制与当前已注册的 invariant checker
+priority: HIGH
+last_updated: 2026-05-08
+status: IMPLEMENTED
+related_docs:
+  - ../architecture/oracle-mechanism-framework.md
+  - ../architecture/decisions/003-oracle-multi-invariant-redesign.md
+  - ../invariants/stack-canary.md
+---
+
 # stack canary oracle
 
 本文档描述我原创的针对 stack canary 的跨 isa 的 oracle 方案.
@@ -278,3 +290,22 @@ void seed(int buf_size, int fill_size) {
 
 - **有哨兵 + SIGSEGV**：`seed()` 正常返回后崩溃，说明返回地址被覆盖但 canary 没检测到
 - **无哨兵 + SIGSEGV**：`seed()` 内部崩溃，可能是局部变量被破坏导致的间接溢出
+
+## 实现现状 (2026-05-08)
+
+`CanaryOracle.mechanism()`（`@/home/yall/project/de-fuzz/internal/oracle/canary_oracle.go:125-156`）按 ADR-003 推荐结构组装一个 `MechanismOracle`，当前包含 4 个 invariant checker：
+
+| Invariant ID | Category | 实现 | 触发观测 |
+| --- | --- | --- | --- |
+| `INV-SP-G01` | Static | `StackChkSymbolsChecker` (`checker_static_canary.go:30-86`) | ELF dynsym 含 `__stack_chk_fail` → Pass；缺失 → NA (歧义) |
+| `INV-SP-A01` | Static | `MainNoCanaryChecker` (`checker_static_canary.go:118-191`) | 整个 binary 不导入 `__stack_chk_*` → Pass；导入 → NA (需反汇编 `main` 才能进一步判) |
+| `INV-SP-L01` | Dynamic | `DynamicBufferSearchChecker` (`checker_dynamic_buffer.go:22-241`) | 二分 `fill_size`：SIGABRT/134 → Pass；SIGSEGV/139 + 哨兵 → Fail；其它 → NA |
+| `INV-SP-R03` | Dynamic | `EpilogueCanaryScrubChecker` (`checker_dynamic_scrub.go:46-167`) | 以 `<binary> scrub` argv 调用，stdout `GUARD_LEAKED` → Fail；`CANARY_SCRUB_OK` → Pass；`CANARY_SCRUB_NA` → NA |
+
+阶段调度由 `MechanismOracle.Analyze`（`mechanism.go:61-114`）按 Enablement → Static → Dynamic 顺序执行；当前 canary 暂未注册 enablement checker，等价于"机制总是认为已启用"，由配置层（cflags）保证 `-fstack-protector*`。
+
+**Polarity（负控）**：`CanaryOracle.polarityFor`（`canary_oracle.go:161-194`）读取 `seed.FlagProfile.IsNegativeControl` 或匹配配置中的 `negative_cflags`（默认含 `-fno-stack-protector`）；命中即翻成 `PolarityInverted`。`DynamicBufferSearchChecker` 标记 `polarity_sensitive: true`，在负控下 SIGSEGV 反而成为期望（被聚合器降级为 Pass）；`EpilogueCanaryScrubChecker` 与两个 static checker **polarity-insensitive**，无 canary 时仍期望"无泄漏 + 无 main canary 槽"。
+
+**报告格式**：违规结果走 `MechanismOracle.formatDescription`（`mechanism.go:215-252`）渲染成结构化文本，落入 `Seed.Metadata.BugDescription`。样例与字段语义见 `@/home/yall/project/de-fuzz/docs/tech-docs/architecture/oracle-mechanism-framework.md`。
+
+**扩展指引**：往 canary 新增 invariant（例如 INV-SP-G02 prologue 反汇编、INV-SP-CVE-2023-4039 跨版本 diff），按 `@/home/yall/project/de-fuzz/docs/tech-docs/guides/adding-a-defense-mechanism.md` §"扩展现有机制" 走。

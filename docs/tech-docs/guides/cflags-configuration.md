@@ -1,3 +1,14 @@
+---
+title: CFlags Configuration Guide
+description: 配置文件中 cflags 字段的语义，以及与 LLM 动态 cflags、FlagScheduler profile 的相互作用
+priority: MEDIUM
+last_updated: 2026-05-08
+status: IMPLEMENTED
+related_docs:
+  - ../reference/config-schema.md
+  - ../features/flag-scheduler.md
+---
+
 # CFlags Configuration Guide
 
 ## Overview

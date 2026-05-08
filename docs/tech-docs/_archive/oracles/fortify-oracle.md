@@ -1,3 +1,24 @@
+---
+title: "[ARCHIVED] _FORTIFY_SOURCE Oracle"
+description: 已归档的 Fortify oracle 设计文档，原 Go 实现于 commit a7307b6 被移除，目前未重新实现
+priority: MEDIUM
+last_updated: 2026-05-08
+status: DEPRECATED
+related_docs:
+  - ../../invariants/fortify-source.md
+  - ../../architecture/decisions/003-oracle-multi-invariant-redesign.md
+---
+
+# [ARCHIVED] _FORTIFY_SOURCE Oracle
+
+> ⚠️ **ARCHIVED (2026-05-08)**
+>
+> 该 oracle 的 Go 实现 (`internal/oracle/fortify_oracle.go` 与配套测试 `fortify_oracle_test.go`) 于 commit `a7307b6 refactor(prompt): bind strategies to mechanism contracts` 被移除（共 -413 行）。当前 main 上 **fortify 机制没有 oracle 实现**，也没有对应的 `internal/prompt/mechanism/fortify.go` 契约，因此 `defuzz fuzz --strategy fortify` 会在启动期被 mechanism contract 校验拒绝（`cmd/defuzz/app/fuzz.go:251-260`）。
+>
+> 本文保留原设计内容供未来重实现参考；如需按 ADR-003 复用 `MechanismOracle` + `DynamicBufferSearchChecker` 接入 fortify，参见 `@/home/yall/project/de-fuzz/docs/tech-docs/guides/adding-a-defense-mechanism.md` 的端到端 checklist，以及 invariant survey `@/home/yall/project/de-fuzz/docs/tech-docs/invariants/fortify-source.md` 中的 84 条 fortify invariant。
+
+---
+
 _FORTIFY_SOURCE Oracle
 
 本文档描述针对 GCC/GLIBC _FORTIFY_SOURCE 机制的跨 ISA Oracle 方案。

@@ -1,3 +1,14 @@
+---
+title: Prompt Architecture
+description: 分层 prompt 设计、PromptService 组装逻辑、mechanism contract 后置校验
+priority: HIGH
+last_updated: 2026-05-08
+status: IMPLEMENTED
+related_docs:
+  - ../features/mechanism-contract.md
+  - ./oracle-mechanism-framework.md
+---
+
 # Prompt Architecture
 
 本文档描述了 DeFuzz 的提示词架构设计，包括提示词的层次结构、组装逻辑和文件组织。
@@ -172,10 +183,25 @@ initial_seeds/{isa}/{strategy}/understanding.md
 | `GetGeneratePrompt(path)` | `(system, user, error)` | 种子生成提示词 |
 | `ParseLLMResponse(resp)` | `(*seed.Seed, error)` | 解析 LLM 响应 |
 
+## Mechanism Contract 后置校验
+
+自 commit `a7307b6 refactor(prompt): bind strategies to mechanism contracts` 起，prompt 流水线的"模板路径 / 占位函数名 / 必需 marker"由 mechanism contract 集中提供，详见 `@/home/yall/project/de-fuzz/docs/tech-docs/features/mechanism-contract.md`。在 prompt 与组装层有两个落点：
+
+1. **启动期校验**（`@/home/yall/project/de-fuzz/cmd/defuzz/app/fuzz.go:250-264`）：`mechanism.Get(cfg.Strategy)` 必须返回一个 contract，且 `contract.OracleType()` 必须与 `cfg.Compiler.Oracle.Type` 一致；不一致即 fail-fast。`function_template` 不再从 YAML 读取，而是从 `contract.FunctionTemplatePath(cfg.ISA)` 推导（`fuzz.go:262-264`）。
+2. **响应期校验**（`@/home/yall/project/de-fuzz/internal/prompt/prompt.go` 与 `internal/seed/template.go`）：LLM 输出经过 `ParseLLMResponse` 与模板合并后，`contract.RequiredMarkers()` 返回的字符串列表（canary 是 `["SEED_RETURNED"]`）必须全部出现在最终 seed 文本中；否则该次响应被判为无效，回到约束求解循环重试。
+
+contract 还为约束求解 prompt 注入：
+
+- `FuzzTimePromptExample()` —— 一段标准化的"正确输出示例 + 反例"块，写入 `## CRITICAL OUTPUT REQUIREMENTS`；
+- `CriticalRulesAddendum()` —— 防御机制特有的约束（例如 canary 允许 `__attribute__((stack_protect))`）。
+
+这两块由 `prompt.NewBuilder(maxTestCases, functionTemplate, contract)` 接收并按"prompt = base + understanding + contract block"的顺序拼装。
+
 ## 文件状态
 
 | 文件 | 状态 | 说明 |
 |------|------|------|
 | `prompts/base/*.md` | ✅ 活跃 | 所有阶段的基础提示词 |
 | `understanding.md` | ✅ 活跃 | 编译器上下文 + 领域知识，参与提示词组装 |
-| `function_template.c` | ✅ 活跃 | LLM 生成代码的模板 |
+| `function_template.c` | ✅ 活跃 | LLM 生成代码的模板，路径由 mechanism contract 推导 |
+| `internal/prompt/mechanism/*.go` | ✅ 活跃 | 防御机制契约（contract + registry），见 features/mechanism-contract.md |

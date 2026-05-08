@@ -1,6 +1,28 @@
+---
+title: "ADR-003: Oracle Multi-Invariant Redesign"
+description: 把 oracle 从"每机制单一 verdict"演化为"机制聚合器 + 并行 invariant checker"的设计决策
+priority: HIGH
+last_updated: 2026-05-08
+status: Accepted, Implemented
+related_docs:
+  - ../oracle-mechanism-framework.md
+  - ../../features/canary-oracle.md
+  - ../../invariants/stack-canary.md
+---
+
+# ADR-003: Oracle Multi-Invariant Redesign
+
+> **实施现状 (2026-05-08)**：本 ADR 提出的方向已落地于 commit `268464c refactor(oracle): add invariant-based mechanism checks` 与 follow-up `ee04f48 feat(oracle): detect epilogue canary leaks`。代码位置：
+> - `@/home/yall/project/de-fuzz/internal/oracle/mechanism.go` —— `MechanismOracle` 聚合器；
+> - `@/home/yall/project/de-fuzz/internal/oracle/invariant.go` —— `InvariantChecker` / `InvariantResult` / `Polarity` / `CheckContext`；
+> - `@/home/yall/project/de-fuzz/internal/oracle/inspector.go` —— `BinaryInspector` (基于 `debug/elf` 的纯 Go 实现，未走 nm/objdump shell-out)；
+> - `@/home/yall/project/de-fuzz/internal/oracle/checker_dynamic_buffer.go`、`checker_dynamic_scrub.go`、`checker_static_canary.go` —— 当前已注册的 4 个 checker。
+>
+> 实现态参考请阅 `@/home/yall/project/de-fuzz/docs/tech-docs/architecture/oracle-mechanism-framework.md`；本文保留作为决策动因与设计 trade-off 的历史记录。
+
 # Oracle 多不变量改造的思考
 
-> **配套阅读**：`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md`、`@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md`、`@/home/yall/project/de-fuzz/docs/architecture/multi-cfg-evaluation.md`、`@/home/yall/project/de-fuzz/docs/architecture/gcc-pipeline.md`。
+> **配套阅读**：`@/home/yall/project/de-fuzz/docs/tech-docs/features/canary-oracle.md`、`@/home/yall/project/de-fuzz/docs/tech-docs/invariants/stack-canary.md`、`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/decisions/002-multi-cfg-orchestration.md`、`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/gcc-pipeline.md`。
 >
 > **目标**：在不打散现有 fuzzer 主循环的前提下，把 oracle 从"每个防御机制一个 oracle、给单一 verdict"演化为"每个防御机制一个聚合器、内部并行执行多条不变量断言、汇总成结构化报告"。本文先梳理动机，再评估代价，最后给出推荐架构与迁移路径。
 
