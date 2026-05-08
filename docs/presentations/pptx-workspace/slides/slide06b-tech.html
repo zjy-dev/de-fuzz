@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #ffffff; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #ffffff; font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #1B5E20;
+  padding: 12pt 24pt;
+  display: flex;
+  align-items: center;
+}
+.header h1 {
+  color: #ffffff;
+  font-size: 22pt;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  padding: 20pt 30pt;
+  display: flex;
+  flex-direction: column;
+}
+h2 {
+  color: #1B5E20;
+  font-size: 16pt;
+  margin: 0 0 12pt 14pt;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12pt;
+}
+.title-bar {
+  width: 4pt;
+  height: 16pt;
+  background: #FFC107;
+  margin-right: 10pt;
+}
+.row {
+  display: flex;
+  gap: 16pt;
+  margin-bottom: 12pt;
+}
+.item {
+  flex: 1;
+  background: #F5F5F5;
+  border-radius: 4pt;
+  padding: 12pt;
+}
+.item-title {
+  color: #1B5E20;
+  font-size: 12pt;
+  font-weight: bold;
+  margin: 0 0 6pt 0;
+}
+.item p {
+  color: #333333;
+  font-size: 11pt;
+  margin: 0;
+  line-height: 1.4;
+}
+.highlight-box {
+  background: #E8F5E9;
+  border-radius: 4pt;
+  padding: 12pt;
+  margin-top: auto;
+}
+.highlight-box p {
+  color: #1B5E20;
+  font-size: 11pt;
+  margin: 0;
+  line-height: 1.4;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>3. 技术贡献 - GCC 插桩与静态分析</h1>
+</div>
+<div class="content">
+  <div class="section-title"><div class="title-bar"></div><h2>克服 GCC 静态分析的工程挑战</h2></div>
+  <div class="row">
+    <div class="item">
+      <p class="item-title">覆盖率插桩编译器构建</p>
+      <p>为 GCC 源码添加覆盖率插桩，支持多目标架构（x64/AArch64/LoongArch64）的交叉编译，实现对防御相关代码路径的精确追踪</p>
+    </div>
+    <div class="item">
+      <p class="item-title">CFG 静态提取</p>
+      <p>解析 GCC 中间表示，提取防御机制实现函数的控制流图（CFG），识别未覆盖基本块及其后继关系，指导目标选择</p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="item">
+      <p class="item-title">防御代码定位</p>
+      <p>自动识别编译器中与特定防御策略相关的源文件和函数，如 Stack Canary 的插入点、FORTIFY 的检查逻辑</p>
+    </div>
+    <div class="item">
+      <p class="item-title">覆盖率反馈闭环</p>
+      <p>将运行时覆盖率与静态 CFG 结合，动态更新 Line->Seed 映射，实现覆盖率驱动的模糊测试闭环</p>
+    </div>
+  </div>
+  <div class="highlight-box">
+    <p>技术难点：GCC 代码库超过千万行，防御机制代码分散在多个模块，需精确定位并插桩目标代码路径</p>
+  </div>
+</div>
+</body>
+</html>

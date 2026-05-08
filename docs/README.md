@@ -8,9 +8,18 @@ status: IMPLEMENTED
 
 # docs/
 
-技术文档主体已迁移到 [`tech-docs/`](./tech-docs/README.md)（自 2026-05-08 起）。
+技术文档主体在 [`tech-docs/`](./tech-docs/README.md)（自 2026-05-08 起）；一次性汇报/答辩材料在 [`presentations/`](./presentations/README.md)。
 
-> **快速跳转**：[`docs/tech-docs/README.md`](./tech-docs/README.md)。
+> **快速跳转**：
+> - 技术文档总入口：[`docs/tech-docs/README.md`](./tech-docs/README.md)
+> - 汇报/答辩材料：[`docs/presentations/README.md`](./presentations/README.md)
+
+## 子目录
+
+| 目录 | 内容 |
+| --- | --- |
+| [`tech-docs/`](./tech-docs/README.md) | 项目技术文档主体（架构、特性、guides、reference、invariants survey） |
+| [`presentations/`](./presentations/README.md) | 汇报、答辩、PPT 生成资产；不参与核心方法论文档体系 |
 
 ## 旧路径 → 新路径映射
 
@@ -28,5 +37,6 @@ status: IMPLEMENTED
 | `docs/prompt-architecture.md` | `docs/tech-docs/architecture/prompt-architecture.md` |
 | `docs/invariants/<mechanism>.md` | `docs/tech-docs/invariants/<mechanism>.md` (内容不变) |
 | `docs/gcc-instrumentation/` | `docs/tech-docs/gcc-instrumentation/` |
+| `presentations/` | `docs/presentations/` |
 
 迁移原因与新结构说明：见 `tech-docs/README.md` 顶部"Recent Changes"。

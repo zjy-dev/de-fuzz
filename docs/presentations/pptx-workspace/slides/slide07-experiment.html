@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #ffffff; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #ffffff; font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #1B5E20;
+  padding: 12pt 24pt;
+  display: flex;
+  align-items: center;
+}
+.header h1 {
+  color: #ffffff;
+  font-size: 22pt;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  padding: 20pt 30pt;
+  display: flex;
+  flex-direction: column;
+}
+h2 {
+  color: #1B5E20;
+  font-size: 16pt;
+  margin: 0 0 14pt 14pt;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+}
+.title-bar {
+  width: 4pt;
+  height: 16pt;
+  background: #FFC107;
+  margin-right: 10pt;
+}
+.table-box {
+  margin-bottom: 14pt;
+}
+.table-header {
+  display: flex;
+  background: #1B5E20;
+  border-radius: 4pt 4pt 0 0;
+}
+.table-header p {
+  flex: 1;
+  color: #ffffff;
+  font-size: 11pt;
+  margin: 0;
+  padding: 8pt 10pt;
+  text-align: left;
+}
+.table-row {
+  display: flex;
+  border-bottom: 1pt solid #E0E0E0;
+}
+.table-row-alt {
+  background: #F5F5F5;
+}
+.table-row p {
+  flex: 1;
+  color: #333333;
+  font-size: 11pt;
+  margin: 0;
+  padding: 6pt 10pt;
+}
+.status-found {
+  color: #1B5E20;
+  font-weight: bold;
+}
+.status-progress {
+  color: #E65100;
+}
+.note {
+  background: #E8F5E9;
+  padding: 10pt 14pt;
+  border-radius: 4pt;
+  margin-top: auto;
+}
+.note p {
+  color: #1B5E20;
+  font-size: 11pt;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>3. 初步实验结果 - Canary Oracle 验证</h1>
+</div>
+<div class="content">
+  <div class="section-title"><div class="title-bar"></div><h2>实验配置与结果</h2></div>
+  <div class="table-box">
+    <div class="table-header">
+      <p>目标编译器</p>
+      <p>指令集架构</p>
+      <p>防御策略</p>
+      <p>状态</p>
+    </div>
+    <div class="table-row">
+      <p>GCC v12.2.0</p>
+      <p>AArch64</p>
+      <p>Stack Canary</p>
+      <p class="status-found">已复现 CVE-2023-4039</p>
+    </div>
+    <div class="table-row table-row-alt">
+      <p>GCC v15.2.0</p>
+      <p>AArch64</p>
+      <p>Stack Canary</p>
+      <p class="status-progress">测试中</p>
+    </div>
+    <div class="table-row">
+      <p>GCC v15.2.0</p>
+      <p>x86-64</p>
+      <p>Stack Canary</p>
+      <p class="status-progress">测试中</p>
+    </div>
+    <div class="table-row table-row-alt">
+      <p>GCC v15.2.0</p>
+      <p>LoongArch64</p>
+      <p>Stack Canary</p>
+      <p class="status-progress">测试中</p>
+    </div>
+  </div>
+  <div class="note">
+    <p>以 Stack Canary 为首个验证目标，已成功复现 CVE-2023-4039。后续将扩展至 FORTIFY_SOURCE、SafeStack 等其他防御策略。</p>
+  </div>
+</div>
+</body>
+</html>

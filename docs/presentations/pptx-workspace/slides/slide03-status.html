@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #ffffff; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #ffffff; font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #1B5E20;
+  padding: 12pt 24pt;
+  display: flex;
+  align-items: center;
+}
+.header h1 {
+  color: #ffffff;
+  font-size: 22pt;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  padding: 20pt 30pt;
+  display: flex;
+  gap: 20pt;
+}
+.column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+h2 {
+  color: #1B5E20;
+  font-size: 16pt;
+  margin: 0 0 10pt 0;
+}
+.h2-underline {
+  width: 100%;
+  height: 2pt;
+  background: #FFC107;
+  margin-bottom: 10pt;
+}
+.card {
+  background: #F5F5F5;
+  border-radius: 4pt;
+  padding: 12pt;
+  margin-bottom: 10pt;
+}
+.card-title {
+  color: #1B5E20;
+  font-size: 13pt;
+  font-weight: bold;
+  margin: 0 0 6pt 0;
+}
+.card p {
+  color: #333333;
+  font-size: 11pt;
+  margin: 0;
+  line-height: 1.4;
+}
+ul {
+  color: #333333;
+  font-size: 11pt;
+  margin: 0;
+  padding-left: 16pt;
+  line-height: 1.5;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>1. 研究现状 - LLM驱动的Fuzzer</h1>
+</div>
+<div class="content">
+  <div class="column">
+    <h2>WhiteFox (白盒)</h2>
+    <div class="h2-underline"></div>
+    <div class="card">
+      <p class="card-title">核心思路</p>
+      <p>从编译器源码中用 LLM 总结触发深层逻辑的 Pattern，再基于 Pattern 生成测试输入</p>
+    </div>
+    <div class="card">
+      <p class="card-title">优势与局限</p>
+      <ul>
+        <li>能理解复杂的编译器优化逻辑</li>
+        <li>需要完整源码访问</li>
+        <li>Pattern 提取成本高</li>
+      </ul>
+    </div>
+  </div>
+  <div class="column">
+    <h2>HLPFuzz (约束求解)</h2>
+    <div class="h2-underline"></div>
+    <div class="card">
+      <p class="card-title">核心思路</p>
+      <p>选择有价值的基本块，用 LLM 进行约束求解，渐进式构建上下文</p>
+    </div>
+    <div class="card">
+      <p class="card-title">创新点</p>
+      <ul>
+        <li>解决了 LLM Fuzzer 的上下文粒度问题</li>
+        <li>CFG 引导的目标选择策略</li>
+        <li>发散分析优化变异方向</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</body>
+</html>

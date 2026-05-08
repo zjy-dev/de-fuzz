@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #ffffff; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #ffffff; font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #1B5E20;
+  padding: 12pt 24pt;
+  display: flex;
+  align-items: center;
+}
+.header h1 {
+  color: #ffffff;
+  font-size: 22pt;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  padding: 20pt 30pt;
+  display: flex;
+  flex-direction: column;
+}
+h2 {
+  color: #1B5E20;
+  font-size: 18pt;
+  margin: 0 0 12pt 10pt;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+}
+.title-bar {
+  width: 4pt;
+  height: 18pt;
+  background: #FFC107;
+  margin-right: 10pt;
+}
+.section {
+  margin-bottom: 14pt;
+}
+p {
+  color: #333333;
+  font-size: 13pt;
+  margin: 0 0 8pt 0;
+  line-height: 1.5;
+}
+ul {
+  color: #333333;
+  font-size: 12pt;
+  margin: 0;
+  padding-left: 20pt;
+  line-height: 1.6;
+}
+.highlight {
+  background: #E8F5E9;
+  padding: 10pt 14pt;
+  border-radius: 4pt;
+  margin-top: 8pt;
+}
+.highlight p {
+  color: #1B5E20;
+  font-size: 12pt;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>1. 研究背景</h1>
+</div>
+<div class="content">
+  <div class="section">
+    <div class="section-title"><div class="title-bar"></div><h2>编译器软件防御机制</h2></div>
+    <p>现代编译器实现了多种软件防御机制，用于抵御内存安全漏洞攻击：</p>
+    <ul>
+      <li>Stack Canary：检测栈缓冲区溢出</li>
+      <li>FORTIFY_SOURCE：强化危险函数的边界检查</li>
+      <li>SafeStack：隔离安全栈与不安全栈</li>
+      <li>CFI (Control Flow Integrity)：防止控制流劫持</li>
+    </ul>
+  </div>
+  <div class="section">
+    <div class="section-title"><div class="title-bar"></div><h2>问题：静默的逻辑漏洞</h2></div>
+    <p>这些防御机制本身可能存在实现缺陷，导致防御静默失效：编译器不崩溃、不报错，但防护已失效。</p>
+    <p>传统编译器 Fuzzer 关注崩溃和编译错误，无法检测此类逻辑漏洞。</p>
+  </div>
+  <div class="highlight">
+    <p>典型案例：CVE-2023-4039 - GCC AArch64 Stack Canary 绕过漏洞，影响数十亿设备</p>
+  </div>
+</div>
+</body>
+</html>

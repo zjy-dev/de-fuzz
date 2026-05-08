@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #ffffff; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #ffffff; font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #1B5E20;
+  padding: 12pt 24pt;
+  display: flex;
+  align-items: center;
+}
+.header h1 {
+  color: #ffffff;
+  font-size: 22pt;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  padding: 16pt 20pt;
+  display: flex;
+  flex-direction: column;
+}
+h2 {
+  color: #1B5E20;
+  font-size: 16pt;
+  margin: 0 0 10pt 0;
+  text-align: center;
+}
+.flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6pt;
+  margin-bottom: 12pt;
+}
+.step {
+  background: #1B5E20;
+  border-radius: 4pt;
+  padding: 8pt 10pt;
+  min-width: 70pt;
+}
+.step p {
+  color: #ffffff;
+  font-size: 9pt;
+  margin: 0;
+  text-align: center;
+}
+.arrow {
+  color: #FFC107;
+  font-size: 16pt;
+}
+.details {
+  display: flex;
+  gap: 10pt;
+  flex: 1;
+}
+.detail-card {
+  flex: 1;
+  background: #F5F5F5;
+  border-radius: 4pt;
+  padding: 10pt;
+}
+.detail-top {
+  background: #FFC107;
+  height: 3pt;
+  border-radius: 4pt 4pt 0 0;
+  margin: -10pt -10pt 10pt -10pt;
+}
+.detail-title {
+  color: #1B5E20;
+  font-size: 11pt;
+  font-weight: bold;
+  margin: 0 0 6pt 0;
+}
+ul {
+  color: #333333;
+  font-size: 10pt;
+  margin: 0;
+  padding-left: 14pt;
+  line-height: 1.4;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>3. 研究方案 - 算法流程</h1>
+</div>
+<div class="content">
+  <h2>DeFuzz 约束求解循环</h2>
+  <div class="flow">
+    <div class="step"><p>初始化种子</p></div>
+    <p class="arrow">-></p>
+    <div class="step"><p>建立覆盖映射</p></div>
+    <p class="arrow">-></p>
+    <div class="step"><p>选择目标BB</p></div>
+    <p class="arrow">-></p>
+    <div class="step"><p>构建Prompt</p></div>
+    <p class="arrow">-></p>
+    <div class="step"><p>LLM变异</p></div>
+    <p class="arrow">-></p>
+    <div class="step"><p>编译测试</p></div>
+  </div>
+  <div class="details">
+    <div class="detail-card">
+      <div class="detail-top"></div>
+      <p class="detail-title">目标选择策略</p>
+      <ul>
+        <li>维护 Line -> FirstSeedID 映射</li>
+        <li>选择未覆盖且后继最多的 BB</li>
+        <li>CFG 引导，优先高价值路径</li>
+      </ul>
+    </div>
+    <div class="detail-card">
+      <div class="detail-top"></div>
+      <p class="detail-title">Prompt 构建</p>
+      <ul>
+        <li>目标函数代码 + 覆盖标注</li>
+        <li>覆盖前驱的种子作为示例</li>
+        <li>防御策略相关的约束提示</li>
+      </ul>
+    </div>
+    <div class="detail-card">
+      <div class="detail-top"></div>
+      <p class="detail-title">反馈优化</p>
+      <ul>
+        <li>覆盖成功：更新映射，送入 Oracle</li>
+        <li>覆盖失败：uftrace 发散分析</li>
+        <li>发散信息反馈 LLM 精确变异</li>
+      </ul>
+    </div>
+    <div class="detail-card">
+      <div class="detail-top"></div>
+      <p class="detail-title">Oracle 检测</p>
+      <ul>
+        <li>根据防御策略选择对应 Oracle</li>
+        <li>执行测试用例，分析行为</li>
+        <li>判断防御是否生效或被绕过</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</body>
+</html>

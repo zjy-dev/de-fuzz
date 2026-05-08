@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #ffffff; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #ffffff; font-family: Arial, sans-serif;
+  display: flex; flex-direction: column;
+}
+.header {
+  background: #1B5E20;
+  padding: 12pt 24pt;
+  display: flex;
+  align-items: center;
+}
+.header h1 {
+  color: #ffffff;
+  font-size: 22pt;
+  margin: 0;
+}
+.content {
+  flex: 1;
+  padding: 20pt 30pt;
+  display: flex;
+  gap: 24pt;
+}
+.column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+h2 {
+  color: #1B5E20;
+  font-size: 16pt;
+  margin: 0 0 12pt 0;
+}
+.h2-underline {
+  width: 100%;
+  height: 2pt;
+  background: #FFC107;
+  margin-bottom: 12pt;
+}
+.result-item {
+  background: #E8F5E9;
+  border-radius: 4pt;
+  padding: 12pt;
+  margin-bottom: 10pt;
+  border-left: 4pt solid #1B5E20;
+}
+.result-item p {
+  color: #333333;
+  font-size: 12pt;
+  margin: 0;
+  line-height: 1.4;
+}
+.num {
+  color: #FFC107;
+  font-size: 18pt;
+  font-weight: bold;
+}
+ul {
+  color: #333333;
+  font-size: 12pt;
+  margin: 0;
+  padding-left: 16pt;
+  line-height: 1.6;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>4. 预期成果</h1>
+</div>
+<div class="content">
+  <div class="column">
+    <h2>学术成果</h2>
+    <div class="h2-underline"></div>
+    <div class="result-item">
+      <p><span class="num">1</span> 篇高水平论文</p>
+    </div>
+    <div class="result-item">
+      <p>完整的 DeFuzz 系统实现及开源</p>
+    </div>
+    <div class="result-item">
+      <p>LLM 驱动的编译器防御测试方法论</p>
+    </div>
+  </div>
+  <div class="column">
+    <h2>实践成果</h2>
+    <div class="h2-underline"></div>
+    <ul>
+      <li>发现并报告 GCC 编译器中的防御机制漏洞</li>
+      <li>支持多种防御策略：Stack Canary、FORTIFY_SOURCE 等</li>
+      <li>支持多种架构：x64、AArch64、LoongArch64</li>
+      <li>可扩展的 Oracle 插件体系</li>
+      <li>完整的测试用例集和实验数据</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
