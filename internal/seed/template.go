@@ -131,6 +131,18 @@ func indentCode(code, indent string) string {
 	return strings.Join(lines, "\n")
 }
 
+// EnsureMarkers validates that every string in markers is present in content.
+// Returns an error naming the first missing marker.
+// An empty markers slice is always valid.
+func EnsureMarkers(content string, markers []string) error {
+	for _, m := range markers {
+		if !strings.Contains(content, m) {
+			return fmt.Errorf("merged code is missing required marker %q", m)
+		}
+	}
+	return nil
+}
+
 // ExtractFunctionName extracts the function name from a placeholder line
 // Example: "// FUNCTION_PLACEHOLDER: vulnerable_function" -> "vulnerable_function"
 func ExtractFunctionName(template string) (string, error) {

@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuilder_BuildConstraintSolvingPrompt(t *testing.T) {
-	builder := NewBuilder(3, "")
+	builder := NewBuilder(3, "", nil)
 
 	ctx := &TargetContext{
 		TargetFunction:         "stack_protect_classify_type",
@@ -53,7 +53,7 @@ func TestBuilder_BuildConstraintSolvingPrompt(t *testing.T) {
 }
 
 func TestBuilder_BuildConstraintSolvingPrompt_NoBaseSeed(t *testing.T) {
-	builder := NewBuilder(0, "") // No test cases
+	builder := NewBuilder(0, "", nil) // No test cases
 
 	ctx := &TargetContext{
 		TargetFunction: "test_func",
@@ -80,7 +80,7 @@ func TestBuilder_BuildConstraintSolvingPrompt_NoBaseSeed(t *testing.T) {
 }
 
 func TestBuilder_BuildRefinedPrompt(t *testing.T) {
-	builder := NewBuilder(1, "")
+	builder := NewBuilder(1, "", nil)
 
 	ctx := &TargetContext{
 		TargetFunction:         "stack_protect_decl_phase",
@@ -127,7 +127,7 @@ func TestBuilder_BuildRefinedPrompt(t *testing.T) {
 }
 
 func TestBuilder_BuildRefinedPrompt_NilInputs(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	_, err := builder.BuildRefinedPrompt(nil, &DivergenceInfo{})
 	if err == nil {
@@ -251,7 +251,7 @@ func TestBuilder_GetOutputFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder := NewBuilder(tt.maxTestCases, tt.template)
+			builder := NewBuilder(tt.maxTestCases, tt.template, nil)
 			format := builder.getOutputFormat()
 			if !strings.Contains(format, tt.wantContains) {
 				t.Errorf("getOutputFormat() should contain %q, got: %s", tt.wantContains, format)

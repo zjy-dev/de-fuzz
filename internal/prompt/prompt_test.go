@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 // TestGetSystemPrompt removed - GetSystemPrompt function has been replaced by PromptService\n
 
 func TestReadFileOrDefault(t *testing.T) {
@@ -39,7 +38,7 @@ func TestReadFileOrDefault(t *testing.T) {
 }
 
 func TestBuilder_BuildGeneratePrompt(t *testing.T) {
-	builder := NewBuilder(3, "")
+	builder := NewBuilder(3, "", nil)
 
 	t.Run("should build a valid generate prompt", func(t *testing.T) {
 		prompt, err := builder.BuildGeneratePrompt("nothing")
@@ -51,7 +50,7 @@ func TestBuilder_BuildGeneratePrompt(t *testing.T) {
 }
 
 func TestBuilder_BuildMutatePrompt(t *testing.T) {
-	builder := NewBuilder(3, "")
+	builder := NewBuilder(3, "", nil)
 	testCases := []seed.TestCase{
 		{RunningCommand: "./prog", ExpectedResult: "success"},
 	}
@@ -95,7 +94,7 @@ func TestBuilder_BuildMutatePrompt(t *testing.T) {
 }
 
 func TestBuilder_BuildAnalyzePrompt(t *testing.T) {
-	builder := NewBuilder(3, "")
+	builder := NewBuilder(3, "", nil)
 	testCases := []seed.TestCase{
 		{RunningCommand: "./prog", ExpectedResult: "success"},
 	}
@@ -129,7 +128,7 @@ func TestBuilder_BuildAnalyzePrompt(t *testing.T) {
 
 func TestBuilder_ParseLLMResponse(t *testing.T) {
 	t.Run("should parse standard response with test cases", func(t *testing.T) {
-		builder := NewBuilder(3, "")
+		builder := NewBuilder(3, "", nil)
 		response := `int main() { return 0; }
 // ||||| JSON_TESTCASES_START |||||
 [{"running command": "./prog", "expected result": "success"}]`
@@ -142,7 +141,7 @@ func TestBuilder_ParseLLMResponse(t *testing.T) {
 	})
 
 	t.Run("should parse code-only response when MaxTestCases is 0", func(t *testing.T) {
-		builder := NewBuilder(0, "")
+		builder := NewBuilder(0, "", nil)
 		response := `int main() {
     printf("hello");
     return 0;
@@ -155,7 +154,7 @@ func TestBuilder_ParseLLMResponse(t *testing.T) {
 	})
 
 	t.Run("should strip markdown code blocks", func(t *testing.T) {
-		builder := NewBuilder(0, "")
+		builder := NewBuilder(0, "", nil)
 		response := "```c\nint main() { return 0; }\n```"
 
 		s, err := builder.ParseLLMResponse(response)
@@ -181,7 +180,7 @@ int main() {
 		err = os.WriteFile(templatePath, []byte(templateContent), 0644)
 		require.NoError(t, err)
 
-		builder := NewBuilder(0, templatePath)
+		builder := NewBuilder(0, templatePath, nil)
 		response := `void my_func() {
     printf("Hello from function!\n");
 }`
@@ -199,41 +198,41 @@ int main() {
 
 func TestBuilder_IsFunctionTemplateMode(t *testing.T) {
 	t.Run("returns true when template is set", func(t *testing.T) {
-		builder := NewBuilder(0, "/path/to/template.c")
+		builder := NewBuilder(0, "/path/to/template.c", nil)
 		assert.True(t, builder.IsFunctionTemplateMode())
 	})
 
 	t.Run("returns false when template is empty", func(t *testing.T) {
-		builder := NewBuilder(3, "")
+		builder := NewBuilder(3, "", nil)
 		assert.False(t, builder.IsFunctionTemplateMode())
 	})
 }
 
 func TestBuilder_RequiresTestCases(t *testing.T) {
 	t.Run("returns true when MaxTestCases > 0 and no template", func(t *testing.T) {
-		builder := NewBuilder(3, "")
+		builder := NewBuilder(3, "", nil)
 		assert.True(t, builder.RequiresTestCases())
 	})
 
 	t.Run("returns false when MaxTestCases is 0", func(t *testing.T) {
-		builder := NewBuilder(0, "")
+		builder := NewBuilder(0, "", nil)
 		assert.False(t, builder.RequiresTestCases())
 	})
 
 	t.Run("returns true when template mode is enabled with MaxTestCases > 0", func(t *testing.T) {
 		// Now function template + test cases is supported
-		builder := NewBuilder(3, "/path/to/template.c")
+		builder := NewBuilder(3, "/path/to/template.c", nil)
 		assert.True(t, builder.RequiresTestCases())
 	})
 
 	t.Run("returns false when template mode is enabled with MaxTestCases = 0", func(t *testing.T) {
-		builder := NewBuilder(0, "/path/to/template.c")
+		builder := NewBuilder(0, "/path/to/template.c", nil)
 		assert.False(t, builder.RequiresTestCases())
 	})
 }
 
 func TestBuilder_BuildDivergenceRefinedPrompt(t *testing.T) {
-	builder := NewBuilder(3, "")
+	builder := NewBuilder(3, "", nil)
 
 	baseSeed := &seed.Seed{
 		Content: "int main() { return 1 + 2; }",
@@ -306,7 +305,7 @@ func TestBuilder_BuildDivergenceRefinedPrompt(t *testing.T) {
 		err = os.WriteFile(templatePath, []byte("// FUNCTION_PLACEHOLDER: test_func"), 0644)
 		require.NoError(t, err)
 
-		templateBuilder := NewBuilder(3, templatePath)
+		templateBuilder := NewBuilder(3, templatePath, nil)
 		prompt, err := templateBuilder.BuildDivergenceRefinedPrompt(baseSeed, mutatedSeed, nil)
 		require.NoError(t, err)
 

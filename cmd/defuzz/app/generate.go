@@ -9,6 +9,7 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/config"
 	"github.com/zjy-dev/de-fuzz/internal/llm"
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
+	"github.com/zjy-dev/de-fuzz/internal/prompt/mechanism"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -67,18 +68,31 @@ Examples:
 
 			fmt.Printf("[Generate] Target: %s / %s\n", isa, strategy)
 
-			// 2. Create LLM client
+			// 2. Validate strategy/oracle consistency via mechanism contract.
+			mechanismContract, ok := mechanism.Get(strategy)
+			if !ok {
+				return fmt.Errorf("no mechanism contract registered for strategy %q; register it in internal/prompt/mechanism/", strategy)
+			}
+			if mechanismContract.OracleType() != cfg.Compiler.Oracle.Type {
+				return fmt.Errorf(
+					"strategy/oracle mismatch: strategy %q declares oracle type %q but cfg.Compiler.Oracle.Type is %q",
+					strategy, mechanismContract.OracleType(), cfg.Compiler.Oracle.Type,
+				)
+			}
+
+			// 3. Create LLM client
 			llmClient, err := llm.New(cfg.RemixerConfigPath, cfg.DefaultTemperature)
 			if err != nil {
 				return fmt.Errorf("failed to create LLM client: %w", err)
 			}
 
-			// 3. Create prompt builder with configuration
-			promptBuilder := prompt.NewBuilder(cfg.Compiler.Fuzz.MaxTestCases, cfg.Compiler.Fuzz.FunctionTemplate)
+			// 4. Create prompt builder: template path is derived from the contract.
+			functionTemplate := mechanismContract.FunctionTemplatePath(isa)
+			promptBuilder := prompt.NewBuilder(cfg.Compiler.Fuzz.MaxTestCases, functionTemplate, mechanismContract)
 
 			// Log mode
 			if promptBuilder.IsFunctionTemplateMode() {
-				fmt.Printf("[Generate] Mode: Function Template (template: %s)\n", cfg.Compiler.Fuzz.FunctionTemplate)
+				fmt.Printf("[Generate] Mode: Function Template (template: %s)\n", functionTemplate)
 			} else if promptBuilder.RequiresTestCases() {
 				fmt.Printf("[Generate] Mode: Standard (with test cases, max: %d)\n", cfg.Compiler.Fuzz.MaxTestCases)
 			} else {

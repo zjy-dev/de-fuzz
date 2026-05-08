@@ -240,3 +240,41 @@ func TestIndentCode(t *testing.T) {
 		assert.Equal(t, code, indented)
 	})
 }
+
+func TestEnsureMarkers(t *testing.T) {
+	t.Run("should return nil when all markers are present", func(t *testing.T) {
+		content := `void seed() { printf("SEED_RETURNED\n"); }`
+		err := EnsureMarkers(content, []string{"SEED_RETURNED"})
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return nil for empty markers slice", func(t *testing.T) {
+		err := EnsureMarkers("anything", []string{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return nil for nil markers slice", func(t *testing.T) {
+		err := EnsureMarkers("anything", nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return error when a marker is missing", func(t *testing.T) {
+		content := `void seed() { return; }`
+		err := EnsureMarkers(content, []string{"SEED_RETURNED"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "SEED_RETURNED")
+	})
+
+	t.Run("should name the first missing marker in the error", func(t *testing.T) {
+		content := `void seed() { printf("SEED_RETURNED\n"); }`
+		err := EnsureMarkers(content, []string{"SEED_RETURNED", "MISSING_MARKER"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "MISSING_MARKER")
+	})
+
+	t.Run("should pass when multiple markers are all present", func(t *testing.T) {
+		content := `void seed() { printf("MARKER_A"); printf("MARKER_B"); }`
+		err := EnsureMarkers(content, []string{"MARKER_A", "MARKER_B"})
+		assert.NoError(t, err)
+	})
+}

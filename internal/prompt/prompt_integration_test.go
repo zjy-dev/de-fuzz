@@ -41,7 +41,7 @@ The stack grows downward on this architecture.
 	err = os.WriteFile(filepath.Join(tempDir, "stack_layout.md"), []byte(stackLayout), 0644)
 	require.NoError(t, err)
 
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	prompt, err := builder.BuildUnderstandPrompt("x86_64", "stack_canary", tempDir)
 	require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestBuilder_Integration_BuildUnderstandPrompt_MissingFiles(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	// Should still work, using default message
 	prompt, err := builder.BuildUnderstandPrompt("aarch64", "pac", tempDir)
@@ -75,7 +75,7 @@ func TestBuilder_Integration_BuildUnderstandPrompt_MissingFiles(t *testing.T) {
 
 // TestBuilder_Integration_BuildUnderstandPrompt_EmptyParams tests error handling for empty params.
 func TestBuilder_Integration_BuildUnderstandPrompt_EmptyParams(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	_, err := builder.BuildUnderstandPrompt("", "strategy", "/tmp")
 	assert.Error(t, err)
@@ -103,7 +103,7 @@ Stack pointer: x2/sp
 	require.NoError(t, err)
 
 	// Test with maxTestCases=5 to enable test case generation in prompts
-	builder := NewBuilder(5, "")
+	builder := NewBuilder(5, "", nil)
 
 	prompt, err := builder.BuildGeneratePrompt(tempDir)
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ Stack pointer: x2/sp
 	require.NoError(t, err)
 
 	// maxTestCases=0 disables test case generation
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	prompt, err := builder.BuildGeneratePrompt(tempDir)
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestBuilder_Integration_BuildGeneratePrompt_NoStackLayout(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	prompt, err := builder.BuildGeneratePrompt(tempDir)
 	require.NoError(t, err)
@@ -164,7 +164,7 @@ func TestBuilder_Integration_BuildGeneratePrompt_NoStackLayout(t *testing.T) {
 
 // TestBuilder_Integration_BuildMutatePrompt tests building mutation prompts.
 func TestBuilder_Integration_BuildMutatePrompt(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	testSeed := &seed.Seed{
 		Meta: seed.Metadata{
@@ -202,7 +202,7 @@ int main() {
 
 // TestBuilder_Integration_BuildMutatePrompt_NilSeed tests error handling for nil seed.
 func TestBuilder_Integration_BuildMutatePrompt_NilSeed(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	_, err := builder.BuildMutatePrompt(nil, nil)
 	assert.Error(t, err)
@@ -211,7 +211,7 @@ func TestBuilder_Integration_BuildMutatePrompt_NilSeed(t *testing.T) {
 
 // TestBuilder_Integration_BuildMutatePrompt_EmptyTestCases tests with empty test cases.
 func TestBuilder_Integration_BuildMutatePrompt_EmptyTestCases(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	testSeed := &seed.Seed{
 		Content:   `int main() { return 0; }`,
@@ -228,7 +228,7 @@ func TestBuilder_Integration_BuildMutatePrompt_EmptyTestCases(t *testing.T) {
 
 // TestBuilder_Integration_BuildAnalyzePrompt tests building analysis prompts.
 func TestBuilder_Integration_BuildAnalyzePrompt(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	testSeed := &seed.Seed{
 		Content: `
@@ -264,7 +264,7 @@ Exit code: 134 (SIGABRT)`
 
 // TestBuilder_Integration_BuildAnalyzePrompt_NilSeed tests error handling.
 func TestBuilder_Integration_BuildAnalyzePrompt_NilSeed(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	_, err := builder.BuildAnalyzePrompt(nil, "some feedback")
 	assert.Error(t, err)
@@ -272,7 +272,7 @@ func TestBuilder_Integration_BuildAnalyzePrompt_NilSeed(t *testing.T) {
 
 // TestBuilder_Integration_BuildAnalyzePrompt_EmptyFeedback tests error handling.
 func TestBuilder_Integration_BuildAnalyzePrompt_EmptyFeedback(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	testSeed := &seed.Seed{
 		Content: `int main() { return 0; }`,
@@ -311,7 +311,7 @@ func TestBuilder_Integration_PromptChain(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tempDir, "stack_layout.md"), []byte(stackLayout), 0644)
 	require.NoError(t, err)
 
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	// Step 1: Build understand prompt
 	understandPrompt, err := builder.BuildUnderstandPrompt("aarch64", "pac", tempDir)
@@ -356,7 +356,7 @@ int main() {
 
 // TestBuilder_Integration_SpecialCharacters tests handling of special characters.
 func TestBuilder_Integration_SpecialCharacters(t *testing.T) {
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	testSeed := &seed.Seed{
 		Content: `
@@ -384,7 +384,7 @@ func TestBuilder_Integration_LargePrompt(t *testing.T) {
 		t.Skip("Skipping large prompt test in short mode")
 	}
 
-	builder := NewBuilder(0, "")
+	builder := NewBuilder(0, "", nil)
 
 	// Create a large seed
 	largeContent := "#include <stdio.h>\n"

@@ -128,8 +128,12 @@ This is your starting point. This seed covers line %d, which is close to your ta
 - **DO NOT generate main() function.** The template already provides main().
 - **DO NOT generate #include statements.** The template already has them.
 - **DO NOT generate a complete program.** Only the seed() function.
-- **You CAN add function attributes** like __attribute__((stack_protect)) if needed.
 - Focus on modifying the function to trigger different compiler paths.`
+		if b.Mechanism != nil {
+			if addendum := b.Mechanism.CriticalRulesAddendum(); addendum != "" {
+				criticalRules += "\n" + addendum
+			}
+		}
 	} else {
 		criticalRules = `**CRITICAL RULES:**
 - **DO NOT create a new program from scratch.** You must modify the provided base seed.
@@ -149,40 +153,20 @@ This is your starting point. This seed covers line %d, which is close to your ta
 - Example of CORRECT code: int* ref = &x; or void* func(int x) { return (void*)(intptr_t)x; }`
 	criticalRules += languageConstraints
 
-	// Build output example based on mode - generic, no strategy-specific examples
+	// Build output example based on mode
 	outputExample := ""
 	if b.FunctionTemplate != "" {
-		outputExample = `## CRITICAL OUTPUT REQUIREMENTS
+		if b.Mechanism != nil {
+			outputExample = b.Mechanism.FuzzTimePromptExample()
+		} else {
+			outputExample = `## CRITICAL OUTPUT REQUIREMENTS
 
 **DO NOT include ANY explanations, analysis, or natural language text in your response.**
-**Output ONLY the complete seed() function inside a markdown code block.**
-**You CAN include function attributes like __attribute__((stack_protect)) if needed.**
+**Output ONLY the complete function inside a markdown code block.**
 **NO text before or after the code block.**
 **NO main() function. NO #include statements.**
-
-Example of CORRECT output:
-` + "```c" + `
-void seed(int buf_size, int fill_size) {
-    char buffer[64];
-    memset(buffer, 'A', fill_size);
-    printf("SEED_RETURNED\n");
-    fflush(stdout);
-}
-` + "```" + `
-
-Example with function attribute (for -fstack-protector-explicit):
-` + "```c" + `
-__attribute__((stack_protect)) void seed(int buf_size, int fill_size) {
-    char buffer[64];
-    memset(buffer, 'A', fill_size);
-    printf("SEED_RETURNED\n");
-    fflush(stdout);
-}
-` + "```" + `
-// ||||| CFLAGS_START |||||
--fstack-protector-explicit
-// ||||| CFLAGS_END |||||
 `
+		}
 	} else {
 		outputExample = `## CRITICAL OUTPUT REQUIREMENTS
 
@@ -353,8 +337,12 @@ Create a NEW seed that:
 - Output the COMPLETE seed() function (including declaration and any attributes)
 - NO main() function (template provides it)
 - NO #include statements
-- You CAN add __attribute__((stack_protect)) if using -fstack-protector-explicit
 - Use only C99/C11 standard C code (no C++ features)`
+		if b.Mechanism != nil {
+			if addendum := b.Mechanism.CriticalRulesAddendum(); addendum != "" {
+				criticalRules += "\n" + addendum
+			}
+		}
 	} else {
 		criticalRules = `**RULES:**
 - Modify the base seed, do NOT create a new program
@@ -476,8 +464,12 @@ This seed compiles and runs successfully. Use it as your starting point:
 - Output the COMPLETE seed() function (including declaration and any attributes)
 - NO main() function (template provides it)
 - NO #include statements
-- You CAN add __attribute__((stack_protect)) if using -fstack-protector-explicit
 - Use only C99/C11 standard C code (no C++ features)`
+		if b.Mechanism != nil {
+			if addendum := b.Mechanism.CriticalRulesAddendum(); addendum != "" {
+				criticalRules += "\n" + addendum
+			}
+		}
 	} else {
 		criticalRules = `**RULES:**
 - Output complete, compilable C code

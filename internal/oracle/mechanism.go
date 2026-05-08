@@ -13,8 +13,8 @@ import (
 // `*Bug` for the existing `Oracle.Analyze` contract.
 //
 // One instance corresponds to one row in `docs/invariants/*.md` (canary,
-// fortify, cfi, scs, ...). It is what the legacy mechanism oracles (e.g.,
-// `CanaryOracle`, `FortifyOracle`) delegate to internally.
+// cfi, scs, ...). It is what mechanism oracles (e.g., `CanaryOracle`)
+// delegate to internally.
 //
 // Scheduling is `Enablement → Static → Dynamic`, sequentially. Static
 // checkers can be parallelized later (see

@@ -18,6 +18,7 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/logger"
 	"github.com/zjy-dev/de-fuzz/internal/oracle"
 	"github.com/zjy-dev/de-fuzz/internal/prompt"
+	"github.com/zjy-dev/de-fuzz/internal/prompt/mechanism"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 	"github.com/zjy-dev/de-fuzz/internal/state"
@@ -246,8 +247,21 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		return fmt.Errorf("understanding not found at %s, please run 'defuzz generate' first: %w", basePath, err)
 	}
 
-	// Create prompt builder first
-	promptBuilder := prompt.NewBuilder(cfg.Compiler.Fuzz.MaxTestCases, cfg.Compiler.Fuzz.FunctionTemplate)
+	// Validate strategy/oracle consistency via mechanism contract.
+	mechanismContract, ok := mechanism.Get(cfg.Strategy)
+	if !ok {
+		return fmt.Errorf("no mechanism contract registered for strategy %q; register it in internal/prompt/mechanism/", cfg.Strategy)
+	}
+	if mechanismContract.OracleType() != cfg.Compiler.Oracle.Type {
+		return fmt.Errorf(
+			"strategy/oracle mismatch: strategy %q declares oracle type %q but cfg.Compiler.Oracle.Type is %q",
+			cfg.Strategy, mechanismContract.OracleType(), cfg.Compiler.Oracle.Type,
+		)
+	}
+
+	// Create prompt builder: template path is derived from the contract.
+	functionTemplate := mechanismContract.FunctionTemplatePath(cfg.ISA)
+	promptBuilder := prompt.NewBuilder(cfg.Compiler.Fuzz.MaxTestCases, functionTemplate, mechanismContract)
 
 	// Create prompt service with configuration
 	basePromptDir := cfg.Compiler.Fuzz.BasePromptDir

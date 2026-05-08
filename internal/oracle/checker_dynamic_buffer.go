@@ -9,29 +9,22 @@ import (
 // detected by binary-searching `fill_size` against a binary that takes
 // `<buf_size> <fill_size>` argv.
 //
-// It covers the dynamic invariants of two mechanisms by parameterization:
+// It is parameterized to cover the dynamic invariants of any mechanism that
+// uses the same binary-search protocol:
 //
-//   - Canary (INV-SP-L01 + INV-SP-F01 from
-//     `@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md`):
-//     SIGABRT (134) ⇒ canary held; SIGSEGV (139) / SIGBUS (135) with
-//     sentinel ⇒ return-address overwrite without canary trip ⇒ violation.
+//   - SIGABRT (134) ⇒ in-function guard tripped (e.g. __stack_chk_fail).
+//   - SIGSEGV (139) / SIGBUS (135) with sentinel ⇒ return-address overwrite
+//     without guard trip ⇒ violation.
 //
-//   - Fortify (analogous in
-//     `@/home/yall/project/de-fuzz/docs/invariants/fortify-source.md`):
-//     same exit-code semantics; SIGABRT comes from `__chk_fail` instead of
-//     `__stack_chk_fail`. We compile fortify seeds with
-//     `-fno-stack-protector` so SIGABRT is unambiguous.
-//
-// Reuse rationale: extracting this checker eliminates the ~80-line
-// duplication that previously existed between `canary_oracle.go` and
-// `fortify_oracle.go` (see
-// `docs/architecture/oracle-multi-invariant-redesign.md` §1.1, §3.4).
+// Reuse rationale: extracting this checker centralizes the binary-search
+// logic so each mechanism oracle only needs to supply InvariantID and labels
+// (see `docs/architecture/oracle-multi-invariant-redesign.md` §1.1, §3.4).
 type DynamicBufferSearchChecker struct {
 	// InvariantID is the survey-anchored ID this instance asserts (e.g.,
-	// "INV-SP-L01" for canary, "INV-FORT-L01" for fortify).
+	// "INV-SP-L01" for the stack-canary mechanism).
 	InvariantID string
 	// MechanismLabel is a short human label used in evidence strings
-	// (e.g., "Stack canary", "_FORTIFY_SOURCE").
+	// (e.g., "Stack canary").
 	MechanismLabel string
 	// SourceURL is copied verbatim into the InvariantResult so reports
 	// can backlink to the survey.

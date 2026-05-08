@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/zjy-dev/de-fuzz/internal/prompt/mechanism"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -36,16 +37,23 @@ type Builder struct {
 	// FunctionTemplate contains the C code template where LLM fills in function bodies
 	// If empty, LLM generates complete programs
 	FunctionTemplate string
+
+	// Mechanism is the defense-mechanism contract that drives template validation
+	// and prompt injection. May be nil when not in function-template mode.
+	Mechanism mechanism.Contract
 }
 
 // NewBuilder creates a new prompt builder.
 // maxTestCases specifies the maximum number of test cases to generate per seed.
 // If maxTestCases is 0, test case generation will be disabled in prompts.
 // functionTemplate is optional - if provided, LLM only generates function bodies.
-func NewBuilder(maxTestCases int, functionTemplate string) *Builder {
+// c is the mechanism contract used for template validation and prompt injection;
+// it may be nil when not in function-template mode.
+func NewBuilder(maxTestCases int, functionTemplate string, c mechanism.Contract) *Builder {
 	return &Builder{
 		MaxTestCases:     maxTestCases,
 		FunctionTemplate: functionTemplate,
+		Mechanism:        c,
 	}
 }
 
@@ -377,6 +385,13 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 			return nil, fmt.Errorf("failed to merge function into template: %w", err)
 		}
 
+		// Validate required markers if a contract is present.
+		if b.Mechanism != nil {
+			if err := seed.EnsureMarkers(mergedCode, b.Mechanism.RequiredMarkers()); err != nil {
+				return nil, fmt.Errorf("template merge validation failed: %w", err)
+			}
+		}
+
 		return &seed.Seed{
 			Content:   mergedCode,
 			TestCases: testCases,
@@ -402,6 +417,13 @@ func (b *Builder) ParseLLMResponse(response string) (*seed.Seed, error) {
 		mergedCode, err := seed.MergeTemplate(string(templateContent), functionCode)
 		if err != nil {
 			return nil, fmt.Errorf("failed to merge function into template: %w", err)
+		}
+
+		// Validate required markers if a contract is present.
+		if b.Mechanism != nil {
+			if err := seed.EnsureMarkers(mergedCode, b.Mechanism.RequiredMarkers()); err != nil {
+				return nil, fmt.Errorf("template merge validation failed: %w", err)
+			}
 		}
 
 		return &seed.Seed{
