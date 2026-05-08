@@ -1,6 +1,6 @@
 # Sanitizers (ASan / HWASan / MSan / TSan / UBSan / DFSan) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / GCC libsanitizer / compiler-rt / Linux kernel 中与 **各 sanitizer** 直接相关的 invariants 抽取归类, 作为 DeFuzz sanitizer oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / GCC libsanitizer / compiler-rt / Linux kernel 中与 **各 sanitizer** 直接相关的 invariants 抽取归类, 作为 DeFuzz sanitizer oracle 的形式化依据.
 >
 > 机制简写与 survey: ASan, HWASan, MSan, TSan, UBSan, DFSan. 每 sanitizer 自成一节. KASAN (内核 ASan) 在 ASan 节末单独说明. SanCov 见 `@/home/yall/project/de-fuzz/docs/invariants/sancov.md`.
 

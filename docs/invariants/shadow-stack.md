@@ -1,6 +1,6 @@
 # Intel CET Shadow Stack (SHSTK) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Intel SDM / ELF psABI / glibc / ld.so / Linux kernel 中与 **Intel CET Shadow Stack (SHSTK)** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz CET/SHSTK oracle 的形式化依据. IBT 部分见 `@/home/yall/project/de-fuzz/docs/invariants/endbr-ibt.md`.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Intel SDM / ELF psABI / glibc / ld.so / Linux kernel 中与 **Intel CET Shadow Stack (SHSTK)** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz CET/SHSTK oracle 的形式化依据. IBT 部分见 `@/home/yall/project/de-fuzz/docs/invariants/endbr-ibt.md`.
 >
 > 机制简写与 survey 一致: **CET** = Intel Control-flow Enforcement Technology (IBT + Shadow Stack). 本文只覆盖 **SHSTK 分支**, 即返回地址影子栈相关.
 

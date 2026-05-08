@@ -1,6 +1,6 @@
 # Clang SafeStack Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / compiler-rt / Code-Pointer Integrity (CPI) 论文 中与 **SafeStack** 直接相关的 invariants 抽取归类, 作为 DeFuzz SafeStack oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / compiler-rt / Code-Pointer Integrity (CPI) 论文 中与 **SafeStack** 直接相关的 invariants 抽取归类, 作为 DeFuzz SafeStack oracle 的形式化依据.
 >
 > 机制简写与 survey: **SS** = Clang SafeStack. CPI 论文 (OSDI 2014) 是其理论基础.
 

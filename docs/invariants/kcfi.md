@@ -1,6 +1,6 @@
 # Kernel Control Flow Integrity (KCFI) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / Linux kernel / Arm A-profile FineIBT 等 中与 **KCFI** 直接相关的 invariants 抽取归类, 作为 DeFuzz KCFI oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / Linux kernel / Arm A-profile FineIBT 等 中与 **KCFI** 直接相关的 invariants 抽取归类, 作为 DeFuzz KCFI oracle 的形式化依据.
 >
 > 机制简写与 survey: **KCFI** = `-fsanitize=kcfi`. 内核场景设计的 **无 LTO** 间接调用 CFI. 与 Clang `-fsanitize=cfi` 的关系见 `@/home/yall/project/de-fuzz/docs/invariants/cfi.md`.
 

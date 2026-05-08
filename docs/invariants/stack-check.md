@@ -1,6 +1,6 @@
 # `-fstack-check` (老牌 stack check) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / GNAT (Ada) / Linux kernel 中与 **`-fstack-check`** 直接相关的 invariants 抽取归类. 本机制主要面向 Ada / GNAT, 在 C/C++ 中部分有效但已被 `-fstack-clash-protection` (SCP) 取代.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / GNAT (Ada) / Linux kernel 中与 **`-fstack-check`** 直接相关的 invariants 抽取归类. 本机制主要面向 Ada / GNAT, 在 C/C++ 中部分有效但已被 `-fstack-clash-protection` (SCP) 取代.
 >
 > 机制简写与 survey 一致: **SCK** = `-fstack-check`. 与 SCP 关系见 `@/home/yall/project/de-fuzz/docs/invariants/stack-clash-protection.md`.
 

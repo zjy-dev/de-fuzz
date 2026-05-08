@@ -1,6 +1,6 @@
 # AArch64 / arm64e Pointer Authentication (PAC) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm A-profile ARM / AAPCS64 PAuth-ABI / Apple arm64e ABI / Linux kernel / glibc 中与 **AArch64 Pointer Authentication (PAC)** 直接相关的 invariants 抽取归类, 作为 DeFuzz PAC oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm A-profile ARM / AAPCS64 PAuth-ABI / Apple arm64e ABI / Linux kernel / glibc 中与 **AArch64 Pointer Authentication (PAC)** 直接相关的 invariants 抽取归类, 作为 DeFuzz PAC oracle 的形式化依据.
 >
 > 机制简写与 survey 一致: **PAC** = Pointer Authentication. 与 BTI / SCS 同属 `-mbranch-protection`. Apple `arm64e` ABI 是 PAC 在用户态最完整的部署形态.
 

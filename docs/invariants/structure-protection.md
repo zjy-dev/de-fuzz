@@ -1,6 +1,6 @@
 # Clang Structure Protection (STRP) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang Structure Protection RFC / 设计文档中与 **STRP** 直接相关的 invariants 抽取归类.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang Structure Protection RFC / 设计文档中与 **STRP** 直接相关的 invariants 抽取归类.
 >
 > 机制简写与 survey: **STRP** = Clang Structure Protection. 实验性 UAF / type-safety 缓解, 通过 *字段重排序* + *deactivation symbols* 在堆对象生命周期结束后让攻击者难以通过类型混淆访问字段.
 

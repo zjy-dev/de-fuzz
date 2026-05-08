@@ -1,6 +1,6 @@
 # `-ftrivial-auto-var-init` Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Linux kernel 中与 **`-ftrivial-auto-var-init`** 直接相关的 invariants 抽取归类, 作为 DeFuzz AVI oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Linux kernel 中与 **`-ftrivial-auto-var-init`** 直接相关的 invariants 抽取归类, 作为 DeFuzz AVI oracle 的形式化依据.
 >
 > 机制简写与 survey: **AVI** = `-ftrivial-auto-var-init={zero,pattern,uninitialized}`. 让自动变量在声明时被初始化, 减少未初始化读取漏洞表面.
 

@@ -1,6 +1,6 @@
 # `-fbounds-safety` (Bounds Safety) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / Apple "Bounds Safety" RFC / Checked C / N2778 中与 **`-fbounds-safety`** 直接相关的 invariants 抽取归类.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / Apple "Bounds Safety" RFC / Checked C / N2778 中与 **`-fbounds-safety`** 直接相关的 invariants 抽取归类.
 >
 > 机制简写与 survey: **BS** = `-fbounds-safety`. Apple 主推, LLVM/Clang 实验性, 是 C 语言级别的 bounds-checked 编程模型 (类似 Checked C 但更工程化).
 

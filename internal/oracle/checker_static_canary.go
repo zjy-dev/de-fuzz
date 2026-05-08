@@ -92,7 +92,7 @@ func (c *StackChkSymbolsChecker) Check(ctx *CheckContext) InvariantResult {
 //
 // See `@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md:268-277`.
 //
-// In the Canary oracle template (`docs/canary-oracle.md` §"caller 最大恶意"),
+// In the Canary oracle template (`docs/oracles/canary-oracle.md` §"caller 最大恶意"),
 // `main` is annotated with `NO_CANARY = __attribute__((no_stack_protector))`
 // to guarantee the seed-callee is the only function that can trigger the
 // canary trap. This checker validates that requirement at the binary level:

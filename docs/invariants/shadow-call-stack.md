@@ -1,6 +1,6 @@
 # ShadowCallStack (SCS) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm AAPCS64 / RISC-V psABI / Linux kernel / compiler-rt 中与 **ShadowCallStack (SCS)** 直接相关的 invariants 抽取归类, 作为 DeFuzz SCS oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm AAPCS64 / RISC-V psABI / Linux kernel / compiler-rt 中与 **ShadowCallStack (SCS)** 直接相关的 invariants 抽取归类, 作为 DeFuzz SCS oracle 的形式化依据.
 >
 > 机制简写与 survey 一致: **SCS** = ShadowCallStack. AArch64 主推; RISC-V 软件实现 + 硬件 Zicfiss; x86_64 历史曾支持但 LLVM 9.0 移除. AArch64 GCS 是 SCS 的硬件版, 见 `@/home/yall/project/de-fuzz/docs/invariants/gcs.md`.
 

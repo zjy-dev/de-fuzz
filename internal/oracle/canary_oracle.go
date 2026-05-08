@@ -42,7 +42,7 @@ type CanaryOracle struct {
 	// MaxBufferSize bounds the binary search upper end (fill_size domain).
 	MaxBufferSize int
 	// DefaultBufSize is passed as argv[1] to every probe (the buf_size
-	// parameter in the seed template, see `docs/canary-oracle.md` §"函数模板").
+	// parameter in the seed template, see `docs/oracles/canary-oracle.md` §"函数模板").
 	DefaultBufSize int
 	// NegativeCFlags are seed-level flags whose presence flips the oracle
 	// polarity: when `-fno-stack-protector` (or similar) is applied to the

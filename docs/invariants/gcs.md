@@ -1,6 +1,6 @@
 # AArch64 Guarded Control Stack (GCS) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm A-profile ARM (Armv9.4) / AAPCS64 / Linux kernel / glibc 中与 **AArch64 Guarded Control Stack (GCS)** 直接相关的 invariants 抽取归类, 作为 DeFuzz GCS oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm A-profile ARM (Armv9.4) / AAPCS64 / Linux kernel / glibc 中与 **AArch64 Guarded Control Stack (GCS)** 直接相关的 invariants 抽取归类, 作为 DeFuzz GCS oracle 的形式化依据.
 >
 > 机制简写与 survey: **GCS** = AArch64 v9.4 硬件影子栈 (FEAT_GCS). 是软件 SCS 的硬件版, 也是 x86 SHSTK 的 AArch64 对偶.
 

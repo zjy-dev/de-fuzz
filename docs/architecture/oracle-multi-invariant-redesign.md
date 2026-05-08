@@ -1,6 +1,6 @@
 # Oracle 多不变量改造的思考
 
-> **配套阅读**：`@/home/yall/project/de-fuzz/docs/canary-oracle.md`、`@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md`、`@/home/yall/project/de-fuzz/docs/architecture/multi-cfg-evaluation.md`、`@/home/yall/project/de-fuzz/docs/architecture/gcc-pipeline.md`。
+> **配套阅读**：`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md`、`@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md`、`@/home/yall/project/de-fuzz/docs/architecture/multi-cfg-evaluation.md`、`@/home/yall/project/de-fuzz/docs/architecture/gcc-pipeline.md`。
 >
 > **目标**：在不打散现有 fuzzer 主循环的前提下，把 oracle 从"每个防御机制一个 oracle、给单一 verdict"演化为"每个防御机制一个聚合器、内部并行执行多条不变量断言、汇总成结构化报告"。本文先梳理动机，再评估代价，最后给出推荐架构与迁移路径。
 
@@ -23,7 +23,7 @@ type Oracle interface {
 
 ### 1.2 Canary oracle 的具体行为
 
-`@/home/yall/project/de-fuzz/docs/canary-oracle.md` 把整个 stack canary 防御压缩成一个判定流程：
+`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md` 把整个 stack canary 防御压缩成一个判定流程：
 
 1. 在 `[0, MaxBufferSize]` 上对 `fill_size` 做二分搜索，找最小的崩溃尺寸；
 2. 看 exit code 是 134 (SIGABRT) 还是 139 (SIGSEGV) / 135 (SIGBUS)；
@@ -149,7 +149,7 @@ type Oracle interface {
 
 每条 invariant 的 `oracle_mapping` 字段隐含一个"为了检测它，seed 要长什么样"的要求。例如 INV-SP-H01 (8 字节边界) 要求 seed 有"恰好 7 字节字符数组"或"恰好 8 字节字符数组"两种变体。当前 fuzzer 的 seed 是 LLM 自由生成的，并不保证 invariant 触发条件能被覆盖。
 
-**含义**：oracle 不能完全离开 seed 模板独立改造。要么在 prompt 端为 invariant 设计模板（接近 fortify oracle 已有做法 `@/home/yall/project/de-fuzz/docs/fortify-oracle.md`），要么 oracle 自带"用同一个 binary，但用不同 argv 触发不同 invariant"的能力（INV-SP-L01 已经在用，扩展是可行的）。
+**含义**：oracle 不能完全离开 seed 模板独立改造。要么在 prompt 端为 invariant 设计模板（接近 fortify oracle 已有做法 `@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md`），要么 oracle 自带"用同一个 binary，但用不同 argv 触发不同 invariant"的能力（INV-SP-L01 已经在用，扩展是可行的）。
 
 **风险**：假如 invariant checker 静默"我跑了但 seed 不满足触发条件"，会出现"oracle 全绿 → 实际没测"的盲区。每条 invariant 必须返回三态：`Pass | Fail | NotApplicable(reason)`，aggregator 必须把 "NotApplicable 比例 > 阈值" 当作可见 warning。
 
@@ -280,7 +280,7 @@ Errors (0)
 
 - **多 CFG (`@/home/yall/project/de-fuzz/docs/architecture/multi-cfg-evaluation.md`)**：正交。多 CFG 决定 `SelectTarget` 的候选空间，oracle 改造决定如何评估每次执行。两者唯一交集是"日志诊断"：都建议把"被跳过 / 不适用 的项"显式 warn，CI 可以共用一套日志收敛工具。
 - **GCC pipeline (`@/home/yall/project/de-fuzz/docs/architecture/gcc-pipeline.md`)**：oracle 改造不影响构建期插桩；运行期 invariant checker 可以反过来读 `.gcda` 衍生信息（例如某条 SP 路径是否被覆盖），但这是后期增强，非必需。
-- **Fortify oracle (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md` + `@/home/yall/project/de-fuzz/docs/invariants/fortify-source.md`)**：是这次改造的第二验证场——fortify 与 canary 共享"二分 + sentinel + exit code"模板，第一阶段把这两个机制接入新框架，能马上证伪/证实"机制 → invariant"抽象的复用价值。
+- **Fortify oracle (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md` + `@/home/yall/project/de-fuzz/docs/invariants/fortify-source.md`)**：是这次改造的第二验证场——fortify 与 canary 共享"二分 + sentinel + exit code"模板，第一阶段把这两个机制接入新框架，能马上证伪/证实"机制 → invariant"抽象的复用价值。
 
 ## 6. 结论
 
@@ -297,6 +297,6 @@ Errors (0)
 - 引擎对 oracle 的依赖点：`@/home/yall/project/de-fuzz/internal/fuzz/engine.go:608-622`、`@/home/yall/project/de-fuzz/internal/fuzz/engine.go:811-836`
 - 配置入口：`@/home/yall/project/de-fuzz/cmd/defuzz/app/fuzz.go:266-276`
 - 完整 SP invariant 列表：`@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md`
-- Canary oracle 设计文档：`@/home/yall/project/de-fuzz/docs/canary-oracle.md`
-- Fortify oracle 设计文档：`@/home/yall/project/de-fuzz/docs/fortify-oracle.md`
+- Canary oracle 设计文档：`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md`
+- Fortify oracle 设计文档：`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md`
 - 架构文档风格参考：`@/home/yall/project/de-fuzz/docs/architecture/multi-cfg-evaluation.md`

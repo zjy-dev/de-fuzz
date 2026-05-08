@@ -1,6 +1,6 @@
 # `_FORTIFY_SOURCE` / Object Size Checking Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / glibc / ABI 中与 **`_FORTIFY_SOURCE` (FORT)** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz fortify oracle (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md`) 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / glibc / ABI 中与 **`_FORTIFY_SOURCE` (FORT)** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz fortify oracle (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md`) 的形式化依据.
 >
 > 机制简写与 survey 一致: **FORT** = `_FORTIFY_SOURCE` / Object Size Checking. 涉及的编译器 builtin: `__builtin_object_size` (BOS) 与 `__builtin_dynamic_object_size` (BDOS).
 
@@ -28,7 +28,7 @@
 - **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html ; https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html
 - **evidence_snippet**: glibc manual: "Use of `_FORTIFY_SOURCE` requires that the program is compiled with `gcc 4.1` or later, or another compiler that implements the `__builtin_object_size` function and that the program is compiled with optimization (`-O1` or higher)."
 - **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 编译命令强制 `-O2 -D_FORTIFY_SOURCE=2 -fno-stack-protector` (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md:260-266`); 低于 `-O1` 的配置属 "预期无效", 不报 bug.
+- **oracle_mapping**: DeFuzz fortify oracle 编译命令强制 `-O2 -D_FORTIFY_SOURCE=2 -fno-stack-protector` (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:260-266`); 低于 `-O1` 的配置属 "预期无效", 不报 bug.
 
 ### INV-FORT-E02 — `-fhardened` 隐式启用 level 3
 
@@ -146,7 +146,7 @@
 - **source_url_or_path**: `gcc/tree-object-size.cc` (`compute_builtin_object_size`, `addr_object_size`); Clang `llvm/lib/Analysis/MemoryBuiltins.cpp` (`ObjectSizeOffsetVisitor`)
 - **evidence_snippet**: GCC 手册: "If the expression uses multiple variables or is too complex, `__builtin_object_size` will return `(size_t)-1`."
 - **version_sensitivity**: likely-to-drift (别名分析与 inliner 强度随版本变动)
-- **oracle_mapping**: DeFuzz fortify oracle 模板 3 (alloca/VLA) 本质上就是此条的反例, **不应**将其 "fortify 未拦截" 判定为编译器 bug, 而应报告为"设计限制" (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md:247-255`).
+- **oracle_mapping**: DeFuzz fortify oracle 模板 3 (alloca/VLA) 本质上就是此条的反例, **不应**将其 "fortify 未拦截" 判定为编译器 bug, 而应报告为"设计限制" (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:247-255`).
 
 ### INV-FORT-B04 — BDOS 下降为运行时表达式
 
@@ -192,7 +192,7 @@
 - **source_url_or_path**: https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html ; glibc `string/bits/string_fortified.h`, `libio/bits/stdio2.h`, `posix/bits/unistd.h`, `wcsmbs/bits/wchar2.h`, `socket/bits/socket2.h`, `io/bits/poll2.h`
 - **evidence_snippet**: glibc manual 源码注释: "The fortified versions of the string/IO/net/... functions check for buffer overflows at runtime."
 - **version_sensitivity**: stable (大框架), likely-to-drift (具体函数加入/移除)
-- **oracle_mapping**: DeFuzz 种子必须使用此列表中的函数 (见 `@/home/yall/project/de-fuzz/docs/fortify-oracle.md:67-69`); 手写循环 / 非 libc 函数 (如 `memcpy_s` from Annex K) 不在 fortify 覆盖内, 属预期不拦截.
+- **oracle_mapping**: DeFuzz 种子必须使用此列表中的函数 (见 `@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:67-69`); 手写循环 / 非 libc 函数 (如 `memcpy_s` from Annex K) 不在 fortify 覆盖内, 属预期不拦截.
 
 ### INV-FORT-C02 — 手写循环与 `*_s` (Annex K) 不被 fortify 覆盖
 
@@ -203,7 +203,7 @@
 - **source_kind**: user-doc
 - **source_url_or_path**: 同上; 以及 `_chk` 在 glibc 源码中仅覆盖 libc 函数这一事实
 - **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 模板明令禁止手写循环 (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md:98`).
+- **oracle_mapping**: DeFuzz fortify oracle 模板明令禁止手写循环 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:98`).
 
 ### INV-FORT-C03 — fortify 不拦截读越界 (除少数例外)
 
@@ -237,7 +237,7 @@
 - **source_kind**: runtime
 - **source_url_or_path**: glibc `debug/chk_fail.c`, `debug/fortify_fail.c`
 - **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 以 `exit_code == 134` 作为 "fortify 成功拦截" 的正向信号 (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md:44-49`).
+- **oracle_mapping**: DeFuzz fortify oracle 以 `exit_code == 134` 作为 "fortify 成功拦截" 的正向信号 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:44-49`).
 
 ### INV-FORT-F02 — `__*_chk` 的 runtime 判定表达式
 
@@ -259,7 +259,7 @@
 - **source_kind**: runtime
 - **source_url_or_path**: glibc `misc/sys/cdefs.h` (`__warndecl`, `__errordecl`), `string/bits/string_fortified.h`
 - **version_sensitivity**: stable (API), likely-to-drift (wording)
-- **oracle_mapping**: DeFuzz 的 `fill_size` 必须通过 `atoi(argv)` 进入 (runtime-known), 避免触发编译期 `#error` 导致 seed 无法编译 (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md:61-65`).
+- **oracle_mapping**: DeFuzz 的 `fill_size` 必须通过 `atoi(argv)` 进入 (runtime-known), 避免触发编译期 `#error` 导致 seed 无法编译 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:61-65`).
 
 ### INV-FORT-F04 — `__*_chk` 与 fork/exec 无状态
 
@@ -329,7 +329,7 @@
 - **source_kind**: source + user-doc
 - **source_url_or_path**: `gcc/tree-object-size.cc`; Clang `LanguageExtensions.html` (`__builtin_dynamic_object_size`)
 - **version_sensitivity**: likely-to-drift (BDOS 能下降的 alloca/VLA 场景逐步扩大)
-- **oracle_mapping**: DeFuzz fortify oracle 模板 3 (alloca) 在 level=2 下期望 bypass, level=3 下取决于具体 compiler 版本 — 属于"预期退化"区域 (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md:247-255`).
+- **oracle_mapping**: DeFuzz fortify oracle 模板 3 (alloca) 在 level=2 下期望 bypass, level=3 下取决于具体 compiler 版本 — 属于"预期退化"区域 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:247-255`).
 
 ### INV-FORT-N02 — 复杂指针算术使 BOS 退化
 
@@ -384,9 +384,9 @@
 - **version**: all
 - **target**: generic
 - **source_kind**: user-doc + bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/fortify-oracle.md:53-56`
+- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:53-56`
 - **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 编译命令固定 `-fno-stack-protector` (`@/home/yall/project/de-fuzz/docs/fortify-oracle.md:260-266`).
+- **oracle_mapping**: DeFuzz fortify oracle 编译命令固定 `-fno-stack-protector` (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:260-266`).
 
 ### INV-FORT-X02 — 与 ASan / HWASan 的叠加
 
@@ -448,7 +448,7 @@
 | — | 134 | fortify 生效 — 安全 |
 | — | 0 | 未越界 / 越界量不足触发 |
 
-原理见 `@/home/yall/project/de-fuzz/docs/fortify-oracle.md:204-243`.
+原理见 `@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:204-243`.
 
 ## 11. 开放问题 / 未覆盖 invariants (Follow-ups)
 

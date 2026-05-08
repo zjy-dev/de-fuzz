@@ -1,6 +1,6 @@
 # `endbr32` / `endbr64` (Intel CET IBT) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Intel SDM / ELF psABI / glibc / ld.so / Linux kernel 中与 **Intel CET Indirect Branch Tracking (IBT)** 的 `endbr32` / `endbr64` landing pad 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz CET/IBT oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Intel SDM / ELF psABI / glibc / ld.so / Linux kernel 中与 **Intel CET Indirect Branch Tracking (IBT)** 的 `endbr32` / `endbr64` landing pad 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz CET/IBT oracle 的形式化依据.
 >
 > 机制简写与 survey 一致: **CET** = Intel Control-flow Enforcement Technology (IBT + Shadow Stack). 本文只覆盖 **IBT 分支**, 即 `endbr` 指令相关; SHSTK (shadow stack) 另文.
 
@@ -411,7 +411,7 @@
 - **AMD IBT-equivalent**: AMD Zen4+ 实现了 CET, 行为与 Intel 一致; 但 AMD SDM 措辞与 Intel SDM 有细微差异, 未来若 DeFuzz 支持 AMD-specific 回归需单独核对.
 - **32-bit 用户空间 (endbr32)**: 当前 Linux 发行版几乎不对 i386 用户空间启用 CET; `endbr32` 的 runtime enforcement 实际极少见, 但编译器仍发射. 属于 "代码层 invariant 成立, runtime enforcement 不触发" 的特殊组合.
 - **`NOTRACK` 前缀被攻击者滥用**: 理论上, 攻击者若能控制"带 NOTRACK 的间接分支指令"字节, 可绕过 IBT. GCC / LLVM 对此要求 `NOTRACK` 仅用于已证安全的 jump table; DeFuzz 可构造 "写入 `3E FF` 前缀到可执行内存" 的 seed 测试 W^X 与 CET 的交叉保护.
-- **`endbr` 与 BTI (AArch64) 的等价性**: 两者在思路上完全对称 (landing pad + tracker state); 后续可做跨 ISA 共享的 invariant 抽象. 见 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 中 BTI 行对照.
+- **`endbr` 与 BTI (AArch64) 的等价性**: 两者在思路上完全对称 (landing pad + tracker state); 后续可做跨 ISA 共享的 invariant 抽象. 见 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 中 BTI 行对照.
 
 ## 11. 使用建议
 

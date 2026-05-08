@@ -1,6 +1,6 @@
 # `-fstack-clash-protection` Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / glibc / Linux kernel 中与 **stack clash protection (SCP)** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz SCP oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / glibc / Linux kernel 中与 **stack clash protection (SCP)** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz SCP oracle 的形式化依据.
 >
 > 机制简写与 survey 一致: **SCP** = `-fstack-clash-protection`. 与 `_FORTIFY_SOURCE` (FORT) / stack canary (SP) / `-fstack-check` (SCK) 协同, 但保护面不同 (见 §7).
 

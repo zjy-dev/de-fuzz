@@ -1,6 +1,6 @@
 # `-fhardened` 元 flag Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC 14+ 中 **`-fhardened`** 元 flag 的展开关系与传递性约束统一抽取归类, 作为 DeFuzz 整体硬化 oracle 的索引.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC 14+ 中 **`-fhardened`** 元 flag 的展开关系与传递性约束统一抽取归类, 作为 DeFuzz 整体硬化 oracle 的索引.
 >
 > 机制简写与 survey: **HARD** = `-fhardened`. 是 *打包* 选项, 自身无独立 codegen, 等价于一组其他硬化 flag 的同时启用.
 

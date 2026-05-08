@@ -1,6 +1,6 @@
 # `-fzero-call-used-regs` Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Linux kernel 中与 **`-fzero-call-used-regs`** 直接相关的 invariants 抽取归类, 作为 DeFuzz ZCUR oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Linux kernel 中与 **`-fzero-call-used-regs`** 直接相关的 invariants 抽取归类, 作为 DeFuzz ZCUR oracle 的形式化依据.
 >
 > 机制简写与 survey: **ZCUR** = `-fzero-call-used-regs`. 在函数返回前清零曾被该函数使用过的"调用相关"寄存器, 减少 ROP gadget 与寄存器残留泄漏.
 

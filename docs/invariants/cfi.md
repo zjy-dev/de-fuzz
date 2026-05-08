@@ -1,6 +1,6 @@
 # Clang Control Flow Integrity (CFI) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / Itanium C++ ABI / lld / compiler-rt 中与 **Clang CFI** 直接相关的 invariants 抽取归类, 作为 DeFuzz CFI oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 LLVM/Clang / Itanium C++ ABI / lld / compiler-rt 中与 **Clang CFI** 直接相关的 invariants 抽取归类, 作为 DeFuzz CFI oracle 的形式化依据.
 >
 > 机制简写与 survey: **CFI** = Clang Control Flow Integrity (一组 sanitizer 形式的前向 CFI 检查). 与 KCFI (内核 CFI) 解耦, 见 `@/home/yall/project/de-fuzz/docs/invariants/kcfi.md`. GCC 等价是 `-fvtable-verify` (libvtv), 行为与 Clang CFI 不同.
 

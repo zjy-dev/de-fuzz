@@ -1,6 +1,6 @@
 # `-fharden-control-flow-redundancy` (HCFR) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC `gcc/passes.def` / `libgcc/hardcfr.c` 中与 **HCFR** 直接相关的 invariants 抽取归类.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC `gcc/passes.def` / `libgcc/hardcfr.c` 中与 **HCFR** 直接相关的 invariants 抽取归类.
 >
 > 机制简写与 survey: **HCFR** = `-fharden-control-flow-redundancy`. GCC 13+ 引入的"控制流冗余校验": 在每个 BB 执行时记 bitmap, return 前对比 bitmap 与 CFG 期望集合, 检测控制流被劫持后到达不应到达的 return.
 

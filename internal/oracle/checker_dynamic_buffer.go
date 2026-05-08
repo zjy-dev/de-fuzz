@@ -47,7 +47,7 @@ type DynamicBufferSearchChecker struct {
 	// SentinelMarker is the substring that must appear in stdout to
 	// distinguish "seed() returned then crashed" (true bypass) from
 	// "seed() crashed internally" (likely false positive due to spill
-	// corruption). See `docs/canary-oracle.md` §"假阳性修复".
+	// corruption). See `docs/oracles/canary-oracle.md` §"假阳性修复".
 	SentinelMarker string
 }
 

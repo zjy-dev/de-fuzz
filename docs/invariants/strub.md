@@ -1,6 +1,6 @@
 # `-fstrub` (Stack Scrubbing) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC `gcc/ipa-strub.cc` / `libgcc/strub.c` 中与 **STRUB** 直接相关的 invariants 抽取归类, 作为 DeFuzz STRUB oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC `gcc/ipa-strub.cc` / `libgcc/strub.c` 中与 **STRUB** 直接相关的 invariants 抽取归类, 作为 DeFuzz STRUB oracle 的形式化依据.
 >
 > 机制简写与 survey: **STRUB** = `-fstrub` 栈擦除. GCC 13+ 引入, 用于减少跨调用栈残留泄漏 (类似 ZCUR 但针对栈).
 

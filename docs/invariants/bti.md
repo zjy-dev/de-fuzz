@@ -1,6 +1,6 @@
 # AArch64 Branch Target Identification (BTI) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm A-profile ARM / AAPCS64 PAuth-ABI / Linux kernel / glibc 中与 **AArch64 Branch Target Identification (BTI)** 直接相关的 invariants 抽取归类, 作为 DeFuzz BTI oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / Arm A-profile ARM / AAPCS64 PAuth-ABI / Linux kernel / glibc 中与 **AArch64 Branch Target Identification (BTI)** 直接相关的 invariants 抽取归类, 作为 DeFuzz BTI oracle 的形式化依据.
 >
 > 机制简写与 survey 一致: **BTI** = AArch64 Branch Target Identification. 与 PAC / SCS 同属 `-mbranch-protection`, 但语义独立, 见 `@/home/yall/project/de-fuzz/docs/invariants/pointer-authentication.md` / `@/home/yall/project/de-fuzz/docs/invariants/shadow-call-stack.md`.
 

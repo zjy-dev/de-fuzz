@@ -1,6 +1,6 @@
 # Stack Canary (Stack Protector) Invariants
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / libc / ABI / CVE 中与 **stack canary** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz canary oracle 的形式化依据.
+> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / libc / ABI / CVE 中与 **stack canary** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz canary oracle 的形式化依据.
 >
 > 机制简写与 survey 一致: **SP** = Stack Protector / canary.
 
@@ -49,7 +49,7 @@
 - **source_kind**: user-doc
 - **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html ; https://clang.llvm.org/docs/AttributeReference.html
 - **version_sensitivity**: stable
-- **oracle_mapping**: canary oracle 模板中 `main` 使用 `no_stack_protector` 保证 main 无 canary, 避免 "caller 本身保护" 掩盖 callee 的绕过 (见 `@/home/yall/project/de-fuzz/docs/canary-oracle.md:99-108`).
+- **oracle_mapping**: canary oracle 模板中 `main` 使用 `no_stack_protector` 保证 main 无 canary, 避免 "caller 本身保护" 掩盖 callee 的绕过 (见 `@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:99-108`).
 
 ## 2. 启发式 (Heuristic) — 哪些变量属于 "vulnerable"
 
@@ -85,7 +85,7 @@
 - **source_kind**: user-doc + test
 - **source_url_or_path**: GCC manual Instrumentation Options; `gcc/testsuite/gcc.dg/ssp-*.c`, `fstack-protector-strong.c`
 - **version_sensitivity**: stable
-- **oracle_mapping**: canary oracle 的模板 3 (`alloca`) / 模板 2 (VLA) 专门覆盖此条 (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:181-196`).
+- **oracle_mapping**: canary oracle 的模板 3 (`alloca`) / 模板 2 (VLA) 专门覆盖此条 (`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:181-196`).
 
 ## 3. 栈帧布局 (Frame Layout)
 
@@ -99,7 +99,7 @@
 - **source_url_or_path**: `gcc/cfgexpand.cc` (`add_stack_protection_conflicts`, `expand_stack_vars`); `gcc/config/aarch64/aarch64.cc` 注释; `llvm/lib/CodeGen/StackProtector.cpp` 顶部注释
 - **evidence_snippet**: aarch64.cc: *"When using stack smash protection, make sure that the canary slot comes between the locals and the saved registers. Otherwise, it would be possible for a carefully sized smash attack to change the saved registers (particularly LR and FP) without reaching the canary."*
 - **version_sensitivity**: stable
-- **oracle_mapping**: canary oracle 中 3 者关系分析 (case 3: `canary -> ret -> buf` 是 CVE-2023-4039 的反例, 违反此条; 见 `@/home/yall/project/de-fuzz/docs/canary-oracle.md:33-37`).
+- **oracle_mapping**: canary oracle 中 3 者关系分析 (case 3: `canary -> ret -> buf` 是 CVE-2023-4039 的反例, 违反此条; 见 `@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:33-37`).
 
 ### INV-SP-L02 — AArch64: 启用 SP 时 saved registers 必须置于 locals 之上 (布局 2)
 
@@ -123,7 +123,7 @@
 - **source_url_or_path**: https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html ; https://gcc.gnu.org/pipermail/gcc-patches/2023-September/630054.html ; `gcc/config/aarch64/aarch64.cc`
 - **evidence_snippet**: patch 标题 "[PATCH 00/19] aarch64: Fix -fstack-protector issue" 以及 `aarch64.cc` 栈帧 ASCII 图.
 - **version_sensitivity**: stable since fix
-- **oracle_mapping**: canary oracle case 3 (`canary -> ret -> buf`) 即此条违反形式 (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:33-37`).
+- **oracle_mapping**: canary oracle case 3 (`canary -> ret -> buf`) 即此条违反形式 (`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:33-37`).
 
 ### INV-SP-L04 — Spill area / 参数副本不得落在 canary 保护范围外
 
@@ -134,7 +134,7 @@
 - **source_kind**: internals + calling-convention
 - **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gccint/Stack-and-Calling.html ; `gcc/config/aarch64/aarch64.cc`
 - **version_sensitivity**: likely-to-drift (依赖 RA 策略)
-- **oracle_mapping**: 这是当前 oracle 已知 false positive / hardening bug 边界. 需要 sentinel (`SEED_RETURNED`) 区分 "函数内部间接崩溃 vs 返回时崩溃" (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:245-285`).
+- **oracle_mapping**: 这是当前 oracle 已知 false positive / hardening bug 边界. 需要 sentinel (`SEED_RETURNED`) 区分 "函数内部间接崩溃 vs 返回时崩溃" (`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:245-285`).
 
 ### INV-SP-L05 — 多个 vulnerable 对象共享同一 canary 保护面
 
@@ -145,7 +145,7 @@
 - **source_kind**: source
 - **source_url_or_path**: `gcc/cfgexpand.cc` `add_stack_protection_conflicts`
 - **version_sensitivity**: stable
-- **oracle_mapping**: seed 模板 4 (mixed: fixed + VLA + ...) 覆盖此条 (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:198-205`).
+- **oracle_mapping**: seed 模板 4 (mixed: fixed + VLA + ...) 覆盖此条 (`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:198-205`).
 
 ## 4. 寄存器与调用约定 (Register / Calling Convention)
 
@@ -252,7 +252,7 @@
 - **source_kind**: runtime
 - **source_url_or_path**: https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html ; glibc `debug/stack_chk_fail.c`
 - **version_sensitivity**: stable
-- **oracle_mapping**: canary oracle 以 `exit_code == 134` 作为 "canary 成功拦截" 的正向信号 (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:275-285`).
+- **oracle_mapping**: canary oracle 以 `exit_code == 134` 作为 "canary 成功拦截" 的正向信号 (`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:275-285`).
 
 ### INV-SP-F02 — `__stack_chk_fail_local` 的静态链接 + PIC 要求
 
@@ -298,7 +298,7 @@
 - **source_kind**: user-doc
 - **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html
 - **version_sensitivity**: stable
-- **oracle_mapping**: canary oracle 的 `main` 用 `NO_CANARY` 宏保证 "caller 无 canary, 恶意最大化" (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:99-108`).
+- **oracle_mapping**: canary oracle 的 `main` 用 `NO_CANARY` 宏保证 "caller 无 canary, 恶意最大化" (`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:99-108`).
 
 ### INV-SP-A02 — `stack_protect` 属性在 `-fstack-protector-explicit` 下必生效
 
@@ -355,7 +355,7 @@
 - **target**: aarch64
 - **source_kind**: bug-disclosure
 - **source_url_or_path**: https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html
-- **oracle_mapping**: canary oracle case 3 `canary -> ret -> buf` 即 CVE 的观察形式 (`@/home/yall/project/de-fuzz/docs/canary-oracle.md:33-37`).
+- **oracle_mapping**: canary oracle case 3 `canary -> ret -> buf` 即 CVE 的观察形式 (`@/home/yall/project/de-fuzz/docs/oracles/canary-oracle.md:33-37`).
 
 ## 10. DeFuzz Canary Oracle 与上述 invariants 的映射总表
 
