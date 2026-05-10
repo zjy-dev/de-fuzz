@@ -1,0 +1,130 @@
+# 图 1 — CVE-2023-4039 buggy 栈帧布局（中文版）
+# 渲染：d2 --layout=dagre --pad=24 stack-layout.zh.d2 stack-layout.zh.svg
+# 参照 GCC aarch64 后端注释（aarch64.cc）简化：仅保留与 CVE 相关的核心 slot，
+# 其余部分以普通灰格保留作为上下文。
+
+direction: down
+
+outer: "" {
+  grid-rows: 3
+  grid-columns: 1
+  grid-gap: 12
+  style: { fill: transparent; stroke: transparent }
+
+  hi: "高地址" {
+    width: 412
+    height: 24
+    style: { fill: transparent; stroke: transparent; font-color: "#6B7280"; italic: true }
+  }
+
+  frame: "" {
+    grid-rows: 7
+    grid-columns: 2
+    grid-gap: 12
+    style: { fill: transparent; stroke: transparent }
+
+    incoming: "入栈参数" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#F3F4F6"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#4B5563"; border-radius: 4
+    }
+  }
+  incoming-note: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+
+  canary: "栈金丝雀" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#FDE68A"; stroke: "#D97706"; stroke-width: 3
+      font-color: "#78350F"; border-radius: 4; bold: true
+    }
+  }
+  canary-note: "返回前校验" {
+    width: 180
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#B45309"; italic: true
+    }
+  }
+
+  locals: "局部变量" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#E5E7EB"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#374151"; border-radius: 4
+    }
+  }
+  locals-note: "frame_pointer_rtx" {
+    width: 180
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#6B7280"; italic: true
+    }
+  }
+
+  retaddr: "保存的返回地址 LR'" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#FCA5A5"; stroke: "#DC2626"; stroke-width: 3
+      font-color: "#7F1D1D"; border-radius: 4; bold: true
+    }
+  }
+  retaddr-note: "先于金丝雀被覆写" {
+    width: 180
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#B91C1C"; italic: true
+    }
+  }
+
+  fpsve: "FP' / SVE 寄存器" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#E5E7EB"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#374151"; border-radius: 4
+    }
+  }
+  fpsve-note: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+
+  vla: "VLA 缓冲区" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#CDEBD9"; stroke: "#3F7A5C"; stroke-width: 3
+      font-color: "#064E3B"; border-radius: 4; bold: true
+    }
+  }
+  vla-note: "overflow 起点 ↑" {
+    width: 180
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#1F4D38"; italic: true
+    }
+  }
+
+  outgoing: "出栈参数" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#F3F4F6"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#4B5563"; border-radius: 4
+    }
+  }
+    outgoing-note: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+  }
+
+  lo: "低地址（栈向下生长）" {
+    width: 412
+    height: 24
+    style: { fill: transparent; stroke: transparent; font-color: "#6B7280"; italic: true }
+  }
+}

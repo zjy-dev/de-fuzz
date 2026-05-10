@@ -1,0 +1,69 @@
+# 图 6 — 大模型约束求解主循环（中文版）
+# 渲染：d2 --layout=dagre --pad=24 main-loop.zh.d2 main-loop.zh.svg
+
+direction: down
+
+pick: "选取目标基本块\n（未覆盖 · 后继最多）" {
+  style: {
+    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
+    font-color: "#1E3A8A"; border-radius: 8
+  }
+}
+
+build: "构造提示词\n（函数源码 · 覆盖标注 · 前驱种子）" {
+  style: {
+    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
+    font-color: "#1E3A8A"; border-radius: 8
+  }
+}
+
+llm: "大模型变异\n（生成新种子）" {
+  shape: cloud
+  style: {
+    fill: "#EDE9FE"; stroke: "#7C3AED"; stroke-width: 3
+    font-color: "#4C1D95"; bold: true
+  }
+}
+
+compile: "编译" {
+  shape: diamond
+  style: {
+    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
+    font-color: "#78350F"
+  }
+}
+
+oracle: "预言机判定" {
+  style: {
+    fill: "#DCFCE7"; stroke: "#16A34A"; stroke-width: 2
+    font-color: "#14532D"; border-radius: 8
+  }
+}
+
+decision: "三方决策\n覆盖增量 · 命中目标 · 触发 bug" {
+  shape: diamond
+  style: {
+    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
+    font-color: "#78350F"
+  }
+}
+
+keep: "纳入语料库" {
+  shape: oval
+  style: {
+    fill: "#A7F3D0"; stroke: "#059669"; stroke-width: 3
+    font-color: "#064E3B"; bold: true
+  }
+}
+
+pick -> build: { style: { stroke: "#3B82F6"; stroke-width: 2 } }
+build -> llm:   { style: { stroke: "#7C3AED"; stroke-width: 2 } }
+llm -> compile: { style: { stroke: "#7C3AED"; stroke-width: 2 } }
+compile -> oracle:    "成功" { style: { stroke: "#16A34A"; stroke-width: 2 } }
+oracle -> decision:   { style: { stroke: "#16A34A"; stroke-width: 2 } }
+decision -> keep:     "保留" { style: { stroke: "#059669"; stroke-width: 2 } }
+keep -> pick:         "下一轮" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+
+# 反馈：编译失败 / 未命中目标 → 回到提示词组装
+compile -> build:  "编译错误回喂"  { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }
+decision -> build: "发散点反馈"    { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }

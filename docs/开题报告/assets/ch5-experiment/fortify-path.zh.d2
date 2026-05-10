@@ -1,0 +1,33 @@
+# 图 7 — _FORTIFY_SOURCE 优化路径中的 size 静默放宽（中文版）
+# 渲染：d2 --layout=dagre --pad=24 fortify-path.zh.d2 fortify-path.zh.svg
+
+direction: down
+
+n1: "用户代码\nstrcat(dst, src)" {
+  style: {
+    fill: "#E5E7EB"; stroke: "#6B7280"; stroke-width: 2
+    font-color: "#111827"; border-radius: 8
+  }
+}
+
+n2: "__strcat_chk(dst, src, n)\nn = dst 所在数组大小" {
+  style: {
+    fill: "#FFEDD5"; stroke: "#EA580C"; stroke-width: 3
+    font-color: "#7C2D12"; border-radius: 8; bold: true
+  }
+}
+
+n3: "__stpcpy_chk(dst + strlen(dst), src, n)\n⚠ n 应为 n - strlen(dst)" {
+  style: {
+    fill: "#FEE2E2"; stroke: "#DC2626"; stroke-width: 3
+    font-color: "#7F1D1D"; border-radius: 8; bold: true
+  }
+}
+
+n1 -> n2: "FORTIFY 加固" {
+  style: { stroke: "#EA580C"; stroke-width: 3; font-color: "#7C2D12"; bold: true }
+}
+
+n2 -> n3: "性能改写" {
+  style: { stroke: "#DC2626"; stroke-width: 3; font-color: "#7F1D1D"; bold: true }
+}

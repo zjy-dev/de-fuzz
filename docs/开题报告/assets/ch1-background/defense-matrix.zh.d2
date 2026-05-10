@@ -1,0 +1,86 @@
+# 图 2 — 防御机制 × ISA 二维研究空间矩阵（中文版）
+# 渲染：d2 --layout=dagre --pad=24 defense-matrix.zh.d2 defense-matrix.zh.svg
+
+direction: down
+
+outer: "" {
+  grid-rows: 2
+  grid-columns: 1
+  grid-gap: 12
+  style: { fill: transparent; stroke: transparent }
+
+  matrix: "" {
+  grid-rows: 5
+  grid-columns: 7
+  grid-gap: 6
+  style: { fill: white; stroke: transparent }
+
+  # ===== Row 0: column headers (透明矩形 + 居中文字) =====
+  hdr-corner: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+  hdr-x86:   "x86-64"     { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  hdr-arm:   "AArch64"    { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  hdr-rv:    "RISC-V"     { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  hdr-la:    "LoongArch"  { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  hdr-mips:  "MIPS"       { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  hdr-more1: "…"          { width: 30; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF"; bold: true } }
+
+  # ===== Row 1: Stack Canary =====
+  row1-lbl: "栈金丝雀" { width: 150; height: 48; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  r1c1: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r1c2: "" { width: 90; height: 48; style: { fill: "#FBE5D6"; stroke: white } }
+  r1c3: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r1c4: "" { width: 90; height: 48; style: { fill: "#4A9F65"; stroke: white } }
+  r1c5: "" { width: 90; height: 48; style: { fill: "#4A9F65"; stroke: white } }
+  r1c6: "…"  { width: 30; height: 48; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+
+  # ===== Row 2: _FORTIFY_SOURCE =====
+  row2-lbl: "_FORTIFY_SOURCE" { width: 150; height: 48; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  r2c1: "" { width: 90; height: 48; style: { fill: "#4A9F65"; stroke: white } }
+  r2c2: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r2c3: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r2c4: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r2c5: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r2c6: "…" { width: 30; height: 48; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+
+  # ===== Row 3: IBT · SHSTK =====
+  row3-lbl: "IBT · SHSTK" { width: 150; height: 48; style: { fill: transparent; stroke: transparent; font-color: "#374151"; bold: true } }
+  r3c1: "" { width: 90; height: 48; style: { fill: "#B7E0C2"; stroke: white } }
+  r3c2: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r3c3: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r3c4: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r3c5: "" { width: 90; height: 48; style: { fill: "#E5E7EB"; stroke: white } }
+  r3c6: "…" { width: 30; height: 48; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+
+  # ===== Row 4: ellipsis =====
+  row4-lbl: "…" { width: 150; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF"; bold: true } }
+  r4c1: "…" { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+  r4c2: "…" { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+  r4c3: "…" { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+  r4c4: "…" { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+  r4c5: "…" { width: 90; height: 28; style: { fill: transparent; stroke: transparent; font-color: "#9CA3AF" } }
+  r4c6: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+}
+
+  legend: "" {
+    grid-columns: 4
+    grid-gap: 12
+    style: { fill: white; stroke: transparent }
+
+    l1: "未探索" {
+      width: 150; height: 32
+      style: { fill: "#E5E7EB"; stroke: white; font-color: "#111827" }
+    }
+    l2: "历史 CVE" {
+      width: 150; height: 32
+      style: { fill: "#FBE5D6"; stroke: white; font-color: "#111827" }
+    }
+    l3: "已上报待确认" {
+      width: 150; height: 32
+      style: { fill: "#B7E0C2"; stroke: white; font-color: "#111827" }
+    }
+    l4: "已确认 / 已合入" {
+      width: 150; height: 32
+      style: { fill: "#4A9F65"; stroke: white; font-color: white }
+    }
+  }
+}

@@ -21,15 +21,19 @@ CONTENT_W_EMU = 9638 * 635          # 6_120_130 EMU  ≈ 170 mm
 # Page height = 16838, top+bottom+footer margins = 1134+1134+992 = 3260 twips
 CONTENT_H_EMU = (16838 - 3260) * 635  # 8_621_730 EMU  ≈ 239 mm
 
-# 6 figures: (png stem, rId, caption)
-FIGURES = [
-    ("silent-failure",  "rId21", "图 6  隐式信任链中的 silent failure 概念示意"),
-    ("defense-matrix",  "rId22", "图 1  防御机制 × ISA 二维研究空间矩阵"),
-    ("fortify-path",    "rId23", "图 5  _FORTIFY_SOURCE 优化路径与 size silent gap"),
-    ("architecture",   "rId24", "图 2  DeFuzz 总体架构"),
-    ("oracle-flow",    "rId25", "图 3  防御机制不变量预言机判定流程"),
-    ("main-loop",      "rId26", "图 4  大模型约束求解主循环"),
-]
+# 7 figures keyed by stem; values: (relative png path under ASSETS, rId, caption, docPr id)
+# 编号按章节出现顺序，同步 chapters/*.txt 中的 [[FIG:stem]] 占位。
+FIGURES = {
+    "stack-layout":   ("ch1-background/stack-layout.zh.png",   "rId21", "图 1  CVE-2023-4039 buggy 栈帧布局",                        21),
+    "defense-matrix": ("ch1-background/defense-matrix.zh.png", "rId22", "图 2  防御机制 × ISA 二维研究空间",                       22),
+    "pipeline":       ("ch3-objective/pipeline.zh.png",        "rId23", "图 3  研究内容工作链条",                                   23),
+    "architecture":   ("ch4-route/architecture.zh.png",        "rId24", "图 4  DeFuzz 总体架构",                                  24),
+    "oracle-flow":    ("ch4-route/oracle-flow.zh.png",         "rId25", "图 5  防御机制不变量预言机判定流程",                  25),
+    "main-loop":      ("ch4-route/main-loop.zh.png",           "rId26", "图 6  大模型约束求解主循环",                          26),
+    "fortify-path":   ("ch5-experiment/fortify-path.zh.png",   "rId27", "图 7  _FORTIFY_SOURCE 优化路径与 size 静默放宽",         27),
+}
+
+FIG_PLACEHOLDER_RE = re.compile(r"^\[\[FIG:([a-z0-9-]+)\]\]$")
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -220,6 +224,11 @@ def render_chapter(text: str, *, kind: str = "body") -> list[str]:
             # references: each para is one citation
             blocks.append(p_ref(para))
             continue
+        # Inline figure placeholder, e.g. "[[FIG:stack-layout]]"
+        m = FIG_PLACEHOLDER_RE.match(first)
+        if m:
+            blocks.extend(_fig(m.group(1)))
+            continue
         if first == "参考文献":
             blocks.append(p_main_heading(first))
             continue
@@ -238,12 +247,10 @@ def render_chapter(text: str, *, kind: str = "body") -> list[str]:
 
 def _fig(stem: str) -> list[str]:
     """Return [p_image, p_caption, p_blank] for a named figure."""
-    match = next((f for f in FIGURES if f[0] == stem), None)
-    if match is None:
+    if stem not in FIGURES:
         raise ValueError(f"unknown figure stem: {stem!r}")
-    _, rid, caption = match
-    fig_id = 21 + [f[0] for f in FIGURES].index(stem)  # unique docPr id
-    png_path = ASSETS / f"{stem}.png"
+    rel_png, rid, caption, fig_id = FIGURES[stem]
+    png_path = ASSETS / rel_png
     cx, cy = figure_emu(png_path)
     return [
         p_image(rid, f"{stem}.png", fig_id, cx, cy),
@@ -255,28 +262,22 @@ def _fig(stem: str) -> list[str]:
 def build_body_xml() -> str:
     parts: list[str] = []
 
-    # Chapter 1
+    # Chapter 1 — figures inserted inline via [[FIG:stack-layout]] / [[FIG:defense-matrix]]
     parts += render_chapter((CHAPTERS / "01-background.txt").read_text(encoding="utf-8"))
-    parts += _fig("silent-failure")   # 图 6 放开篇，甧为研究动机示意图
-    parts += _fig("defense-matrix")   # 图 1 第一章末
 
-    # Chapter 2
+    # Chapter 2 — no figures
     parts += render_chapter((CHAPTERS / "02-related-work.txt").read_text(encoding="utf-8"))
     parts.append(p_blank())
 
-    # Chapter 3
+    # Chapter 3 — inline [[FIG:pipeline]]
     parts += render_chapter((CHAPTERS / "03-objective-content.txt").read_text(encoding="utf-8"))
     parts.append(p_blank())
 
-    # Chapter 4
+    # Chapter 4 — inline [[FIG:architecture]] / [[FIG:oracle-flow]] / [[FIG:main-loop]]
     parts += render_chapter((CHAPTERS / "04-technical-route.txt").read_text(encoding="utf-8"))
-    parts += _fig("architecture")     # 图 2 第四章 §1
-    parts += _fig("oracle-flow")      # 图 3 第四章 §2
-    parts += _fig("main-loop")        # 图 4 第四章 §3
 
-    # Chapter 5
+    # Chapter 5 — inline [[FIG:fortify-path]]
     parts += render_chapter((CHAPTERS / "05-preliminary-experiment.txt").read_text(encoding="utf-8"))
-    parts += _fig("fortify-path")     # 图 5 第五章 5.1
 
     # References (the txt file already starts with the "参考文献" heading)
     ref_text = (CHAPTERS / "06-references.txt").read_text(encoding="utf-8")
@@ -408,8 +409,8 @@ def _prepare_images() -> None:
     rels_text = rels_path.read_text(encoding="utf-8")
 
     added: list[str] = []
-    for stem, rid, _ in FIGURES:
-        src = ASSETS / f"{stem}.png"
+    for stem, (rel_png, rid, _caption, _fig_id) in FIGURES.items():
+        src = ASSETS / rel_png
         dst = media_dir / f"{stem}.png"
         shutil.copy2(src, dst)
 

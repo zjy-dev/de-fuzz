@@ -1,0 +1,67 @@
+# Figure 5 — defense invariant oracle decision flow (English)
+# render: d2 --layout=dagre --pad=24 oracle-flow.en.d2 oracle-flow.en.svg
+
+direction: down
+
+start: "seed + binary + flag profile" {
+  shape: oval
+  style: {
+    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
+    font-color: "#111827"
+  }
+}
+
+static: "Static Checker\nELF symbols · inst bytes · .note" {
+  style: {
+    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
+    font-color: "#1E3A8A"; border-radius: 8
+  }
+}
+
+dynamic: "Dynamic Checker\ncontrolled exec · binary search" {
+  style: {
+    fill: "#DCFCE7"; stroke: "#16A34A"; stroke-width: 2
+    font-color: "#14532D"; border-radius: 8
+  }
+}
+
+verdict: "Aggregate Verdict\nPass · Fail · Error" {
+  style: {
+    fill: "#EDE9FE"; stroke: "#7C3AED"; stroke-width: 3
+    font-color: "#4C1D95"; border-radius: 8; bold: true
+  }
+}
+
+bug: "Bug" {
+  shape: oval
+  style: {
+    fill: "#FEE2E2"; stroke: "#DC2626"; stroke-width: 3
+    font-color: "#7F1D1D"; bold: true
+  }
+}
+
+nobug: "OK" {
+  shape: oval
+  style: {
+    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
+    font-color: "#78350F"
+  }
+}
+
+cache: "Per-Seed Cache" {
+  shape: cylinder
+  style: {
+    fill: "#F4F8FB"; stroke: "#9CA3AF"; stroke-width: 2
+    font-color: "#374151"
+  }
+}
+
+start -> static  { style: { stroke: "#3B82F6"; stroke-width: 2 } }
+start -> dynamic { style: { stroke: "#16A34A"; stroke-width: 2 } }
+static  -> verdict { style: { stroke: "#3B82F6"; stroke-width: 2 } }
+dynamic -> verdict { style: { stroke: "#16A34A"; stroke-width: 2 } }
+verdict -> bug:   "any Fail" { style: { stroke: "#DC2626"; stroke-width: 2 } }
+verdict -> nobug: "all Pass" { style: { stroke: "#D97706"; stroke-width: 2 } }
+
+static  -> cache: "reuse" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+dynamic -> cache: "reuse" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }

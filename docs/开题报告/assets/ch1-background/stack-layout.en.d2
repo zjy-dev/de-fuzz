@@ -1,0 +1,130 @@
+# Figure 1 — CVE-2023-4039 buggy stack-frame layout (English)
+# render: d2 --layout=dagre --pad=24 stack-layout.en.d2 stack-layout.en.svg
+# Simplified from the GCC aarch64 backend comment (aarch64.cc): only the slots
+# relevant to the CVE are highlighted; the rest are kept as plain context.
+
+direction: down
+
+outer: "" {
+  grid-rows: 3
+  grid-columns: 1
+  grid-gap: 12
+  style: { fill: transparent; stroke: transparent }
+
+  hi: "high address" {
+    width: 432
+    height: 24
+    style: { fill: transparent; stroke: transparent; font-color: "#6B7280"; italic: true }
+  }
+
+  frame: "" {
+    grid-rows: 7
+    grid-columns: 2
+    grid-gap: 12
+    style: { fill: transparent; stroke: transparent }
+
+    incoming: "incoming stack args" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#F3F4F6"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#4B5563"; border-radius: 4
+    }
+  }
+  incoming-note: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+
+  canary: "stack canary" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#FDE68A"; stroke: "#D97706"; stroke-width: 3
+      font-color: "#78350F"; border-radius: 4; bold: true
+    }
+  }
+  canary-note: "checked at epilogue" {
+    width: 200
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#B45309"; italic: true
+    }
+  }
+
+  locals: "local variables" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#E5E7EB"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#374151"; border-radius: 4
+    }
+  }
+  locals-note: "frame_pointer_rtx" {
+    width: 200
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#6B7280"; italic: true
+    }
+  }
+
+  retaddr: "saved return address LR'" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#FCA5A5"; stroke: "#DC2626"; stroke-width: 3
+      font-color: "#7F1D1D"; border-radius: 4; bold: true
+    }
+  }
+  retaddr-note: "clobbered before canary" {
+    width: 200
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#B91C1C"; italic: true
+    }
+  }
+
+  fpsve: "FP' / SVE registers" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#E5E7EB"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#374151"; border-radius: 4
+    }
+  }
+  fpsve-note: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+
+  vla: "VLA buffer" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#CDEBD9"; stroke: "#3F7A5C"; stroke-width: 3
+      font-color: "#064E3B"; border-radius: 4; bold: true
+    }
+  }
+  vla-note: "overflow origin ↑" {
+    width: 200
+    height: 56
+    style: {
+      fill: transparent; stroke: transparent
+      font-color: "#1F4D38"; italic: true
+    }
+  }
+
+  outgoing: "outgoing stack args" {
+    width: 220
+    height: 56
+    style: {
+      fill: "#F3F4F6"; stroke: "#9CA3AF"; stroke-width: 2
+      font-color: "#4B5563"; border-radius: 4
+    }
+  }
+    outgoing-note: "" { width: 1; height: 1; style: { fill: transparent; stroke: transparent } }
+  }
+
+  lo: "low address (stack grows down)" {
+    width: 432
+    height: 24
+    style: { fill: transparent; stroke: transparent; font-color: "#6B7280"; italic: true }
+  }
+}

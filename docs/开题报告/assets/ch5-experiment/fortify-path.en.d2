@@ -1,0 +1,33 @@
+# Figure 7 — _FORTIFY_SOURCE size silent loosening (English)
+# render: d2 --layout=dagre --pad=24 fortify-path.en.d2 fortify-path.en.svg
+
+direction: down
+
+n1: "user code\nstrcat(dst, src)" {
+  style: {
+    fill: "#E5E7EB"; stroke: "#6B7280"; stroke-width: 2
+    font-color: "#111827"; border-radius: 8
+  }
+}
+
+n2: "__strcat_chk(dst, src, n)\nn = size of dst array" {
+  style: {
+    fill: "#FFEDD5"; stroke: "#EA580C"; stroke-width: 3
+    font-color: "#7C2D12"; border-radius: 8; bold: true
+  }
+}
+
+n3: "__stpcpy_chk(dst + strlen(dst), src, n)\n⚠ n should be n - strlen(dst)" {
+  style: {
+    fill: "#FEE2E2"; stroke: "#DC2626"; stroke-width: 3
+    font-color: "#7F1D1D"; border-radius: 8; bold: true
+  }
+}
+
+n1 -> n2: "FORTIFY hardening" {
+  style: { stroke: "#EA580C"; stroke-width: 3; font-color: "#7C2D12"; bold: true }
+}
+
+n2 -> n3: "performance rewrite" {
+  style: { stroke: "#DC2626"; stroke-width: 3; font-color: "#7F1D1D"; bold: true }
+}
