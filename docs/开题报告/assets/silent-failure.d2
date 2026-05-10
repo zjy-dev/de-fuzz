@@ -1,0 +1,86 @@
+# 图 6 — 隐式信任链中的 silent failure 概念示意（一·研究背景 开篇）
+# 渲染：d2 --layout=dagre --pad=24 -w 1600 silent-failure.d2 silent-failure.png
+
+direction: down
+
+layer1: "User Source Code" {
+  style: {
+    fill: "#E8F1FB"
+    stroke: "#D1D5DB"
+    stroke-width: 2
+    font-color: "#111827"
+    border-radius: 6
+    bold: true
+  }
+}
+
+layer2: "Compiler" {
+  style: {
+    fill: "#F4F8FB"
+    stroke: "#D1D5DB"
+    stroke-width: 2
+    font-color: "#111827"
+    border-radius: 6
+    bold: true
+  }
+  grid-columns: 3
+  grid-gap: 16
+
+  fe: "Frontend" {
+    style: { fill: white; stroke: "#D1D5DB"; stroke-width: 2; font-color: "#374151"; border-radius: 4 }
+  }
+  mid: "Middle-end Passes" {
+    style: { fill: white; stroke: "#D1D5DB"; stroke-width: 2; font-color: "#374151"; border-radius: 4 }
+  }
+  be: "Backend Templates" {
+    style: { fill: white; stroke: "#D1D5DB"; stroke-width: 2; font-color: "#374151"; border-radius: 4 }
+  }
+}
+
+layer3: "Compiled Defenses" {
+  style: {
+    fill: white
+    stroke: "#D1D5DB"
+    stroke-width: 2
+    font-color: "#111827"
+    border-radius: 6
+    bold: true
+  }
+  grid-columns: 4
+  grid-gap: 14
+
+  canary: "stack canary  ✓" {
+    style: { fill: white; stroke: "#4A9F65"; stroke-width: 2; font-color: "#111827"; border-radius: 4 }
+  }
+  fortify: "_FORTIFY_SOURCE\nsilently weakened" {
+    style: {
+      fill: "#E5E7EB"
+      stroke: "#EB5757"
+      stroke-dash: 4
+      stroke-width: 2
+      font-color: "#EB5757"
+      border-radius: 4
+      bold: true
+    }
+  }
+  ibt: "IBT / endbr  ✓" {
+    style: { fill: white; stroke: "#4A9F65"; stroke-width: 2; font-color: "#111827"; border-radius: 4 }
+  }
+  bti: "BTI / shadow stack  ✓" {
+    style: { fill: white; stroke: "#4A9F65"; stroke-width: 2; font-color: "#111827"; border-radius: 4 }
+  }
+}
+
+layer4: "Running Binary" {
+  style: {
+    fill: "#E5E7EB"
+    stroke: "#D1D5DB"
+    stroke-width: 2
+    font-color: "#6B7280"
+    border-radius: 6
+  }
+}
+
+layer1 -> layer2: { style: { stroke: "#9CA3AF"; stroke-width: 2 } }
+layer2 -> layer3: { style: { stroke: "#9CA3AF"; stroke-width: 2 } }
+layer3 -> layer4: { style: { stroke: "#9CA3AF"; stroke-width: 2 } }

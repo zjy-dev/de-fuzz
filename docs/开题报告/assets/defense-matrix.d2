@@ -1,0 +1,126 @@
+# 图 1 — 防御机制 × ISA 二维研究矩阵（一·研究背景 末）
+# 渲染：d2 --layout=dagre --pad=24 defense-matrix.d2 defense-matrix.svg
+
+direction: down
+
+title: "Defense Mechanism × ISA — research space" {
+  shape: text
+  style: { font-color: "#111827"; bold: true; font-size: 28 }
+}
+
+subtitle: "most cells remain unexplored — likely undiscovered silent failures" {
+  shape: text
+  style: { font-color: "#6B7280"; italic: true; font-size: 16 }
+}
+
+matrix: "" {
+  grid-rows: 9
+  grid-columns: 7
+  grid-gap: 6
+  style: { fill: white; stroke: transparent }
+
+  # ===== Row 0: column headers =====
+  hdr-corner: "" { style: { fill: transparent; stroke: transparent } }
+  hdr-x86: "x86-64"     { shape: text; style.font-color: "#374151"; style.bold: true }
+  hdr-arm: "AArch64"    { shape: text; style.font-color: "#374151"; style.bold: true }
+  hdr-rv: "RISC-V"      { shape: text; style.font-color: "#374151"; style.bold: true }
+  hdr-la: "LoongArch"   { shape: text; style.font-color: "#374151"; style.bold: true }
+  hdr-mips: "MIPS"      { shape: text; style.font-color: "#374151"; style.bold: true }
+  hdr-ppc: "PowerPC"    { shape: text; style.font-color: "#374151"; style.bold: true }
+
+  # ===== Row 1: Stack Canary =====
+  row1-lbl: "Stack Canary" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r1c1: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r1c2: "" { style: { fill: "#FBE5D6"; stroke: white } }
+  r1c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r1c4: "" { style: { fill: "#4A9F65"; stroke: white } }
+  r1c5: "" { style: { fill: "#4A9F65"; stroke: white } }
+  r1c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+
+  # ===== Row 2: _FORTIFY_SOURCE =====
+  row2-lbl: "_FORTIFY_SOURCE" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r2c1: "" { style: { fill: "#4A9F65"; stroke: white } }
+  r2c2: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r2c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r2c4: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r2c5: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r2c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+
+  # ===== Row 3: IBT · SHSTK =====
+  row3-lbl: "IBT · SHSTK" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r3c1: "" { style: { fill: "#B7E0C2"; stroke: white } }
+  r3c2: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r3c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r3c4: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r3c5: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r3c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+
+  # ===== Row 4: BTI · PAC =====
+  row4-lbl: "BTI · PAC" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r4c1: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r4c2: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r4c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r4c4: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r4c5: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r4c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+
+  # ===== Row 5: Shadow Stack =====
+  row5-lbl: "Shadow Stack" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r5c1: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r5c2: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r5c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r5c4: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r5c5: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r5c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+
+  # ===== Row 6: SafeStack =====
+  row6-lbl: "SafeStack" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r6c1: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r6c2: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r6c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r6c4: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r6c5: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r6c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+
+  # ===== Row 7: CFI · KCFI =====
+  row7-lbl: "CFI · KCFI" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r7c1: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r7c2: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r7c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r7c4: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r7c5: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r7c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+
+  # ===== Row 8: HCFR =====
+  row8-lbl: "HCFR" { shape: text; style.font-color: "#374151"; style.bold: true }
+  r8c1: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r8c2: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r8c3: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r8c4: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r8c5: "" { style: { fill: "#E5E7EB"; stroke: white } }
+  r8c6: "" { style: { fill: "#E5E7EB"; stroke: white } }
+}
+
+legend: "" {
+  grid-columns: 4
+  grid-gap: 24
+  style: { fill: white; stroke: transparent }
+
+  l1: "Unexplored" {
+    style: { fill: "#E5E7EB"; stroke: white; font-color: "#111827" }
+  }
+  l2: "Historical CVE" {
+    style: { fill: "#FBE5D6"; stroke: white; font-color: "#111827" }
+  }
+  l3: "Reported (pending)" {
+    style: { fill: "#B7E0C2"; stroke: white; font-color: "#111827" }
+  }
+  l4: "Confirmed & merged" {
+    style: { fill: "#4A9F65"; stroke: white; font-color: white }
+  }
+}
+
+# enforce vertical order via invisible edges
+title -> subtitle: { style: { stroke: transparent } }
+subtitle -> matrix: { style: { stroke: transparent } }
+matrix -> legend: { style: { stroke: transparent } }

@@ -1,0 +1,25 @@
+%% 图 1：DeFuzz 总体架构（出现在「四、技术路线 §1 总体架构」）
+%% 渲染：mmdc -i architecture.mmd -o architecture.png -w 1600 -b transparent
+flowchart TB
+    CLI[DeFuzz CLI]
+    Engine[Fuzz Engine 主循环]
+    Prompt[PromptService<br/>基础提示词 + 编译器知识 + 机制契约]
+    LLM[远端大模型]
+    Compiler[Compiler<br/>插桩 GCC + gcov]
+    Cov[Coverage Analyzer<br/>.gcda + CFG 导出]
+    Oracle[MechanismOracle<br/>聚合多个不变量检查器]
+    Inspector[BinaryInspector<br/>跨 ISA ELF 解析]
+    Exec[Executor<br/>原生 / QEMU 用户态]
+    Corpus[Seed Corpus<br/>持久化与家系信息]
+    Flag[FlagScheduler<br/>正控 / 负控 profile]
+
+    CLI --> Engine
+    Engine --> Prompt --> LLM --> Engine
+    Engine --> Compiler --> Cov --> Engine
+    Engine --> Oracle --> Engine
+    Oracle --> Inspector
+    Oracle --> Exec
+    Engine --> Corpus
+    Engine --> Flag
+    Flag -.极性.-> Oracle
+    Flag -.编译选项.-> Compiler

@@ -1,0 +1,29 @@
+%% 图 3：大模型约束求解主循环（出现在「四、技术路线 §3」）
+%% 渲染：mmdc -i main-loop.mmd -o main-loop.png -w 1600 -b transparent
+flowchart TB
+    Start([Engine.Run<br/>载入初始种子 / 覆盖映射])
+    Pick[选取目标基本块<br/>未覆盖且后继最多]
+    Build[构造目标上下文<br/>函数源码 + 行级标注 + 前驱示例]
+    Prompt[组装约束求解提示词<br/>base + understanding + 机制契约]
+    LLM[大模型变异]
+    Compile{编译}
+    Fix[编译错误反馈<br/>错误信息 + 上一版种子]
+    Cov{覆盖分析}
+    HitTarget{命中目标?}
+    Diverge[uftrace 调用追踪<br/>定位首个发散函数]
+    Refine[发散函数源码 →<br/>错题解析提示词]
+    OracleCheck[预言机判定<br/>正控 / 负控]
+    Decision{三方决策<br/>CoveredNew / HitTarget / Bug}
+    KeepIn[(进入语料库 + 覆盖合并)]
+    Drop[(丢弃)]
+    NextIter[下一轮]
+
+    Start --> Pick --> Build --> Prompt --> LLM --> Compile
+    Compile -- 失败 --> Fix --> LLM
+    Compile -- 成功 --> Cov --> HitTarget
+    HitTarget -- 是 --> OracleCheck
+    HitTarget -- 否 --> Diverge --> Refine --> LLM
+    OracleCheck --> Decision
+    Decision -- 满足 --> KeepIn --> NextIter
+    Decision -- 不满足 --> Drop --> NextIter
+    NextIter --> Pick
