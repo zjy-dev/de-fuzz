@@ -27,7 +27,7 @@ FIGURES = [
     ("defense-matrix",  "rId22", "图 1  防御机制 × ISA 二维研究空间矩阵"),
     ("fortify-path",    "rId23", "图 5  _FORTIFY_SOURCE 优化路径与 size silent gap"),
     ("architecture",   "rId24", "图 2  DeFuzz 总体架构"),
-    ("oracle-flow",    "rId25", "图 3  防御机制不变量预言机三阶段调度"),
+    ("oracle-flow",    "rId25", "图 3  防御机制不变量预言机判定流程"),
     ("main-loop",      "rId26", "图 4  大模型约束求解主循环"),
 ]
 

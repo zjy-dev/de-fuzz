@@ -37,7 +37,7 @@ python /home/yall/project/de-fuzz/.windsurf/skills/docx/scripts/office/pack.py \
 | --- | --- | --- | --- | --- |
 | 图 1 | 一·研究背景 末 | `assets/defense-matrix.d2` | `defense-matrix.{svg,png}` | 防御机制 × ISA 二维研究矩阵 |
 | 图 2 | 四·技术路线 §1 末 | `assets/architecture.d2` | `architecture.{svg,png}` | DeFuzz 总体架构 |
-| 图 3 | 四·技术路线 §2 末 | `assets/oracle-flow.d2` | `oracle-flow.{svg,png}` | 预言机三阶段调度 |
+| 图 3 | 四·技术路线 §2 末 | `assets/oracle-flow.d2` | `oracle-flow.{svg,png}` | 预言机判定流程 |
 | 图 4 | 四·技术路线 §3 末 | `assets/main-loop.d2` | `main-loop.{svg,png}` | LLM 约束求解主循环 |
 | 图 5 | 五·初步实验 §1 末 | `assets/fortify-path.d2` | `fortify-path.{svg,png}` | \_FORTIFY\_SOURCE 优化路径 + size silent gap |
 | 图 6 | 一·研究背景 开篇 | `assets/silent-failure.d2` | `silent-failure.{svg,png}` | 隐式信任链中的 silent failure 概念示意 |
