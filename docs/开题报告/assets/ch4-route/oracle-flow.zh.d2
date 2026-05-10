@@ -13,38 +13,38 @@ start: "种子 + 二进制 + flag profile" {
 
 static: "静态检查器\nELF 符号 · 指令字节 · .note" {
   style: {
-    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
-    font-color: "#1E3A8A"; border-radius: 8
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
+    font-color: "#2F557F"; border-radius: 8
   }
 }
 
 dynamic: "动态检查器\n受控执行 · 二分搜索" {
   style: {
-    fill: "#DCFCE7"; stroke: "#16A34A"; stroke-width: 2
-    font-color: "#14532D"; border-radius: 8
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"; border-radius: 8
   }
 }
 
 verdict: "聚合判定\nPass · Fail · Error" {
   style: {
-    fill: "#EDE9FE"; stroke: "#7C3AED"; stroke-width: 3
-    font-color: "#4C1D95"; border-radius: 8; bold: true
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 3
+    font-color: "#7A6F1D"; border-radius: 8; bold: true
   }
 }
 
 bug: "Bug" {
   shape: oval
   style: {
-    fill: "#FEE2E2"; stroke: "#DC2626"; stroke-width: 3
-    font-color: "#7F1D1D"; bold: true
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
+    font-color: "#7F2615"; bold: true
   }
 }
 
 nobug: "正常" {
   shape: oval
   style: {
-    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
-    font-color: "#78350F"
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"
   }
 }
 
@@ -56,12 +56,12 @@ cache: "种子级缓存" {
   }
 }
 
-start -> static  { style: { stroke: "#3B82F6"; stroke-width: 2 } }
-start -> dynamic { style: { stroke: "#16A34A"; stroke-width: 2 } }
-static  -> verdict { style: { stroke: "#3B82F6"; stroke-width: 2 } }
-dynamic -> verdict { style: { stroke: "#16A34A"; stroke-width: 2 } }
-verdict -> bug:   "任一 Fail" { style: { stroke: "#DC2626"; stroke-width: 2 } }
-verdict -> nobug: "全部 Pass" { style: { stroke: "#D97706"; stroke-width: 2 } }
+start -> static  { style: { stroke: "#4477AA"; stroke-width: 2 } }
+start -> dynamic { style: { stroke: "#228833"; stroke-width: 2 } }
+static  -> verdict { style: { stroke: "#4477AA"; stroke-width: 2 } }
+dynamic -> verdict { style: { stroke: "#228833"; stroke-width: 2 } }
+verdict -> bug:   "任一 Fail" { style: { stroke: "#CC3311"; stroke-width: 2 } }
+verdict -> nobug: "全部 Pass" { style: { stroke: "#228833"; stroke-width: 2 } }
 
 static  -> cache: "复用" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
 dynamic -> cache: "复用" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }

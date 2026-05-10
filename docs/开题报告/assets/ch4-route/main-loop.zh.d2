@@ -5,65 +5,65 @@ direction: down
 
 pick: "选取目标基本块\n（未覆盖 · 后继最多）" {
   style: {
-    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
-    font-color: "#1E3A8A"; border-radius: 8
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
+    font-color: "#2F557F"; border-radius: 8
   }
 }
 
 build: "构造提示词\n（函数源码 · 覆盖标注 · 前驱种子）" {
   style: {
-    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
-    font-color: "#1E3A8A"; border-radius: 8
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
+    font-color: "#2F557F"; border-radius: 8
   }
 }
 
 llm: "大模型变异\n（生成新种子）" {
   shape: cloud
   style: {
-    fill: "#EDE9FE"; stroke: "#7C3AED"; stroke-width: 3
-    font-color: "#4C1D95"; bold: true
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
+    font-color: "#2F557F"; bold: true
   }
 }
 
 compile: "编译" {
   shape: diamond
   style: {
-    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
-    font-color: "#78350F"
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
+    font-color: "#7A6F1D"
   }
 }
 
 oracle: "预言机判定" {
   style: {
-    fill: "#DCFCE7"; stroke: "#16A34A"; stroke-width: 2
-    font-color: "#14532D"; border-radius: 8
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"; border-radius: 8
   }
 }
 
 decision: "三方决策\n覆盖增量 · 命中目标 · 触发 bug" {
   shape: diamond
   style: {
-    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
-    font-color: "#78350F"
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
+    font-color: "#7A6F1D"
   }
 }
 
 keep: "纳入语料库" {
   shape: oval
   style: {
-    fill: "#A7F3D0"; stroke: "#059669"; stroke-width: 3
-    font-color: "#064E3B"; bold: true
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
+    font-color: "#195C24"; bold: true
   }
 }
 
-pick -> build: { style: { stroke: "#3B82F6"; stroke-width: 2 } }
-build -> llm:   { style: { stroke: "#7C3AED"; stroke-width: 2 } }
-llm -> compile: { style: { stroke: "#7C3AED"; stroke-width: 2 } }
-compile -> oracle:    "成功" { style: { stroke: "#16A34A"; stroke-width: 2 } }
-oracle -> decision:   { style: { stroke: "#16A34A"; stroke-width: 2 } }
-decision -> keep:     "保留" { style: { stroke: "#059669"; stroke-width: 2 } }
+pick -> build: { style: { stroke: "#4477AA"; stroke-width: 2 } }
+build -> llm:   { style: { stroke: "#4477AA"; stroke-width: 2 } }
+llm -> compile: { style: { stroke: "#4477AA"; stroke-width: 2 } }
+compile -> oracle:    "成功" { style: { stroke: "#228833"; stroke-width: 2 } }
+oracle -> decision:   { style: { stroke: "#228833"; stroke-width: 2 } }
+decision -> keep:     "保留" { style: { stroke: "#228833"; stroke-width: 2 } }
 keep -> pick:         "下一轮" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
 
 # 反馈：编译失败 / 未命中目标 → 回到提示词组装
-compile -> build:  "编译错误回喂"  { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }
-decision -> build: "发散点反馈"    { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }
+compile -> build:  "编译错误回喂"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615" } }
+decision -> build: "发散点反馈"    { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5; font-color: "#7A6F1D" } }

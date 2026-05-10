@@ -5,64 +5,64 @@ direction: down
 
 pick: "Pick Target BB\n(uncovered · max successors)" {
   style: {
-    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
-    font-color: "#1E3A8A"; border-radius: 8
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
+    font-color: "#2F557F"; border-radius: 8
   }
 }
 
 build: "Build Prompt\n(fn source · cov marks · predecessor seeds)" {
   style: {
-    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 2
-    font-color: "#1E3A8A"; border-radius: 8
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
+    font-color: "#2F557F"; border-radius: 8
   }
 }
 
 llm: "LLM Mutation\n(emit new C seed)" {
   shape: cloud
   style: {
-    fill: "#EDE9FE"; stroke: "#7C3AED"; stroke-width: 3
-    font-color: "#4C1D95"; bold: true
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
+    font-color: "#2F557F"; bold: true
   }
 }
 
 compile: "Compile" {
   shape: diamond
   style: {
-    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
-    font-color: "#78350F"
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
+    font-color: "#7A6F1D"
   }
 }
 
 oracle: "Oracle Verdict" {
   style: {
-    fill: "#DCFCE7"; stroke: "#16A34A"; stroke-width: 2
-    font-color: "#14532D"; border-radius: 8
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"; border-radius: 8
   }
 }
 
 decision: "Three-way Decision\ncov gain · hit target · trigger bug" {
   shape: diamond
   style: {
-    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
-    font-color: "#78350F"
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
+    font-color: "#7A6F1D"
   }
 }
 
 keep: "Keep in Corpus" {
   shape: oval
   style: {
-    fill: "#A7F3D0"; stroke: "#059669"; stroke-width: 3
-    font-color: "#064E3B"; bold: true
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
+    font-color: "#195C24"; bold: true
   }
 }
 
-pick -> build: { style: { stroke: "#3B82F6"; stroke-width: 2 } }
-build -> llm:   { style: { stroke: "#7C3AED"; stroke-width: 2 } }
-llm -> compile: { style: { stroke: "#7C3AED"; stroke-width: 2 } }
-compile -> oracle:    "ok" { style: { stroke: "#16A34A"; stroke-width: 2 } }
-oracle -> decision:   { style: { stroke: "#16A34A"; stroke-width: 2 } }
-decision -> keep:     "keep" { style: { stroke: "#059669"; stroke-width: 2 } }
+pick -> build: { style: { stroke: "#4477AA"; stroke-width: 2 } }
+build -> llm:   { style: { stroke: "#4477AA"; stroke-width: 2 } }
+llm -> compile: { style: { stroke: "#4477AA"; stroke-width: 2 } }
+compile -> oracle:    "ok" { style: { stroke: "#228833"; stroke-width: 2 } }
+oracle -> decision:   { style: { stroke: "#228833"; stroke-width: 2 } }
+decision -> keep:     "keep" { style: { stroke: "#228833"; stroke-width: 2 } }
 keep -> pick:         "next iter" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
 
-compile -> build:  "compile-error feedback"  { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }
-decision -> build: "divergence refinement"   { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }
+compile -> build:  "compile-error feedback"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615" } }
+decision -> build: "divergence refinement"   { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5; font-color: "#7A6F1D" } }

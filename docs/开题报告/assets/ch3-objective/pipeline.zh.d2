@@ -8,22 +8,22 @@ step1: "" {
   grid-rows: 4
   grid-gap: 8
   style: {
-    fill: "#FEE2E2"; stroke: "#DC2626"; stroke-width: 3
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
     border-radius: 12
   }
 
   title: "防御机制不变量" {
     shape: text
-    style: { font-color: "#991B1B"; bold: true }
+    style: { font-color: "#7F2615"; bold: true }
   }
   s1: "官方文档" {
-    style: { fill: white; stroke: "#DC2626"; stroke-width: 2; font-color: "#991B1B"; border-radius: 6 }
+    style: { fill: white; stroke: "#CC3311"; stroke-width: 2; font-color: "#7F2615"; border-radius: 6 }
   }
   s2: "源码注释" {
-    style: { fill: white; stroke: "#DC2626"; stroke-width: 2; font-color: "#991B1B"; border-radius: 6 }
+    style: { fill: white; stroke: "#CC3311"; stroke-width: 2; font-color: "#7F2615"; border-radius: 6 }
   }
   s3: "历史 bug" {
-    style: { fill: white; stroke: "#DC2626"; stroke-width: 2; font-color: "#991B1B"; border-radius: 6 }
+    style: { fill: white; stroke: "#CC3311"; stroke-width: 2; font-color: "#7F2615"; border-radius: 6 }
   }
 }
 
@@ -31,22 +31,22 @@ step2: "" {
   grid-rows: 4
   grid-gap: 8
   style: {
-    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 3
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 3
     border-radius: 12
   }
 
   title: "程序化预言机" {
     shape: text
-    style: { font-color: "#92400E"; bold: true }
+    style: { font-color: "#7A6F1D"; bold: true }
   }
   s1: "静态检查器" {
-    style: { fill: white; stroke: "#D97706"; stroke-width: 2; font-color: "#92400E"; border-radius: 6 }
+    style: { fill: white; stroke: "#CCBB44"; stroke-width: 2; font-color: "#7A6F1D"; border-radius: 6 }
   }
   s2: "动态检查器" {
-    style: { fill: white; stroke: "#D97706"; stroke-width: 2; font-color: "#92400E"; border-radius: 6 }
+    style: { fill: white; stroke: "#CCBB44"; stroke-width: 2; font-color: "#7A6F1D"; border-radius: 6 }
   }
   s3: "聚合判定" {
-    style: { fill: white; stroke: "#FCD34D"; stroke-width: 2; font-color: "#B45309"; border-radius: 6 }
+    style: { fill: white; stroke: "#CCBB44"; stroke-width: 2; font-color: "#7A6F1D"; border-radius: 6 }
   }
 }
 
@@ -54,22 +54,22 @@ step3: "" {
   grid-rows: 4
   grid-gap: 8
   style: {
-    fill: "#DBEAFE"; stroke: "#2563EB"; stroke-width: 3
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
     border-radius: 12
   }
 
   title: "LLM × 覆盖率主循环" {
     shape: text
-    style: { font-color: "#1D4ED8"; bold: true }
+    style: { font-color: "#2F557F"; bold: true }
   }
   s1: "筛防御机制相关代码" {
-    style: { fill: white; stroke: "#2563EB"; stroke-width: 2; font-color: "#1D4ED8"; border-radius: 6 }
+    style: { fill: white; stroke: "#4477AA"; stroke-width: 2; font-color: "#2F557F"; border-radius: 6 }
   }
   s2: "选目标基本块" {
-    style: { fill: white; stroke: "#2563EB"; stroke-width: 2; font-color: "#1D4ED8"; border-radius: 6 }
+    style: { fill: white; stroke: "#4477AA"; stroke-width: 2; font-color: "#2F557F"; border-radius: 6 }
   }
   s3: "LLM 约束求解(变异)" {
-    style: { fill: white; stroke: "#2563EB"; stroke-width: 2; font-color: "#1D4ED8"; border-radius: 6 }
+    style: { fill: white; stroke: "#4477AA"; stroke-width: 2; font-color: "#2F557F"; border-radius: 6 }
   }
 }
 
@@ -77,28 +77,28 @@ step4: "" {
   grid-rows: 3
   grid-gap: 8
   style: {
-    fill: "#DCFCE7"; stroke: "#16A34A"; stroke-width: 3
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
     border-radius: 12
   }
 
   title: "防御机制 bug" {
     shape: text
-    style: { font-color: "#166534"; bold: true }
+    style: { font-color: "#195C24"; bold: true }
   }
   s1: "上报上游" {
-    style: { fill: white; stroke: "#16A34A"; stroke-width: 2; font-color: "#166534"; border-radius: 6 }
+    style: { fill: white; stroke: "#228833"; stroke-width: 2; font-color: "#195C24"; border-radius: 6 }
   }
   s2: "确认 / patch" {
-    style: { fill: white; stroke: "#16A34A"; stroke-width: 2; font-color: "#166534"; border-radius: 6 }
+    style: { fill: white; stroke: "#228833"; stroke-width: 2; font-color: "#195C24"; border-radius: 6 }
   }
 }
 
 step1 -> step2: "提供\n安全契约" {
-  style: { stroke: "#DC2626"; stroke-width: 3; font-color: "#991B1B"; bold: true }
+  style: { stroke: "#CC3311"; stroke-width: 3; font-color: "#7F2615"; bold: true }
 }
 step2 -> step3: "提供\n判定接口" {
-  style: { stroke: "#D97706"; stroke-width: 3; font-color: "#92400E"; bold: true }
+  style: { stroke: "#CCBB44"; stroke-width: 3; font-color: "#7A6F1D"; bold: true }
 }
 step3 -> step4: "推进至\n失效路径" {
-  style: { stroke: "#2563EB"; stroke-width: 3; font-color: "#1D4ED8"; bold: true }
+  style: { stroke: "#4477AA"; stroke-width: 3; font-color: "#2F557F"; bold: true }
 }

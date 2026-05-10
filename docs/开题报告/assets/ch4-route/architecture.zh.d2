@@ -6,30 +6,30 @@ direction: right
 
 engine: "Fuzz 引擎\n（主循环 · 提示词组装）" {
   style: {
-    fill: "#DBEAFE"; stroke: "#3B82F6"; stroke-width: 3
-    font-color: "#1E3A8A"; border-radius: 8; bold: true
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
+    font-color: "#2F557F"; border-radius: 8; bold: true
   }
 }
 
 llm: "大模型" {
   shape: cloud
   style: {
-    fill: "#EDE9FE"; stroke: "#7C3AED"; stroke-width: 2
-    font-color: "#4C1D95"; bold: true
+    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
+    font-color: "#2F557F"; bold: true
   }
 }
 
 compiler: "编译器子系统\n（GCC / LLVM · 覆盖率插桩）" {
   style: {
-    fill: "#DCFCE7"; stroke: "#16A34A"; stroke-width: 2
-    font-color: "#14532D"; border-radius: 8
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"; border-radius: 8
   }
 }
 
 oracle: "预言机子系统\n（静态 · 动态 · 聚合）" {
   style: {
-    fill: "#FEF3C7"; stroke: "#D97706"; stroke-width: 2
-    font-color: "#78350F"; border-radius: 8
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
+    font-color: "#7A6F1D"; border-radius: 8
   }
 }
 
@@ -43,21 +43,21 @@ corpus: "种子语料库" {
 
 scheduler: "策略调度器\n（架构 · 编译选项 · flag profile）" {
   style: {
-    fill: "#FFEDD5"; stroke: "#EA580C"; stroke-width: 2
-    font-color: "#7C2D12"; border-radius: 8
+    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
+    font-color: "#7A6F1D"; border-radius: 8
   }
 }
 
-engine -> llm: "提示词" { style: { stroke: "#7C3AED"; stroke-width: 2 } }
-llm -> engine: "新种子" { style: { stroke: "#7C3AED"; stroke-width: 2 } }
+engine -> llm: "提示词" { style: { stroke: "#4477AA"; stroke-width: 2 } }
+llm -> engine: "新种子" { style: { stroke: "#4477AA"; stroke-width: 2 } }
 
-engine -> compiler: "编译 + 覆盖率" { style: { stroke: "#16A34A"; stroke-width: 2 } }
-compiler -> engine: "覆盖率反馈" { style: { stroke: "#16A34A"; stroke-width: 2; stroke-dash: 4 } }
+engine -> compiler: "编译 + 覆盖率" { style: { stroke: "#228833"; stroke-width: 2 } }
+compiler -> engine: "覆盖率反馈" { style: { stroke: "#228833"; stroke-width: 2; stroke-dash: 4 } }
 
-engine -> oracle: "二进制 + flag profile" { style: { stroke: "#D97706"; stroke-width: 2 } }
-oracle -> engine: "判定结果" { style: { stroke: "#D97706"; stroke-width: 2; stroke-dash: 4 } }
+engine -> oracle: "二进制 + flag profile" { style: { stroke: "#CCBB44"; stroke-width: 2 } }
+oracle -> engine: "判定结果" { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 4 } }
 
 engine -> corpus: "持久化" { style: { stroke: "#6B7280"; stroke-width: 2 } }
 
-scheduler -> compiler: "工具链 / flag" { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }
-scheduler -> oracle: "flag 配置" { style: { stroke: "#EA580C"; stroke-width: 2; stroke-dash: 5 } }
+scheduler -> compiler: "工具链 / flag" { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5 } }
+scheduler -> oracle: "flag 配置" { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5 } }

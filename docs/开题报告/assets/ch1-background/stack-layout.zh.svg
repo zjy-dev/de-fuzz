@@ -1,9 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" data-d2-version="v0.7.1-HEAD" preserveAspectRatio="xMinYMin meet" viewBox="0 0 510 634"><svg class="d2-6856592 d2-svg" width="510" height="634" viewBox="-25 -25 510 634"><rect x="-25.000000" y="-25.000000" width="510.000000" height="634.000000" rx="0.000000" fill="#FFFFFF" class=" fill-N7" stroke-width="0" /><style type="text/css"><![CDATA[
-.d2-6856592 .text-bold {
-	font-family: "d2-6856592-font-bold";
+<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" data-d2-version="v0.7.1-HEAD" preserveAspectRatio="xMinYMin meet" viewBox="0 0 510 634"><svg class="d2-923623441 d2-svg" width="510" height="634" viewBox="-25 -25 510 634"><rect x="-25.000000" y="-25.000000" width="510.000000" height="634.000000" rx="0.000000" fill="#FFFFFF" class=" fill-N7" stroke-width="0" /><style type="text/css"><![CDATA[
+.d2-923623441 .text-bold {
+	font-family: "d2-923623441-font-bold";
 }
 @font-face {
-	font-family: d2-6856592-font-bold;
+	font-family: d2-923623441-font-bold;
 	src: url("data:application/font-woff;base64,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");
 }]]></style><style type="text/css"><![CDATA[.shape {
   shape-rendering: geometricPrecision;
@@ -18,78 +18,78 @@
   opacity: 0.5;
 }
 
-		.d2-6856592 .fill-N1{fill:#0A0F25;}
-		.d2-6856592 .fill-N2{fill:#676C7E;}
-		.d2-6856592 .fill-N3{fill:#9499AB;}
-		.d2-6856592 .fill-N4{fill:#CFD2DD;}
-		.d2-6856592 .fill-N5{fill:#DEE1EB;}
-		.d2-6856592 .fill-N6{fill:#EEF1F8;}
-		.d2-6856592 .fill-N7{fill:#FFFFFF;}
-		.d2-6856592 .fill-B1{fill:#0D32B2;}
-		.d2-6856592 .fill-B2{fill:#0D32B2;}
-		.d2-6856592 .fill-B3{fill:#E3E9FD;}
-		.d2-6856592 .fill-B4{fill:#E3E9FD;}
-		.d2-6856592 .fill-B5{fill:#EDF0FD;}
-		.d2-6856592 .fill-B6{fill:#F7F8FE;}
-		.d2-6856592 .fill-AA2{fill:#4A6FF3;}
-		.d2-6856592 .fill-AA4{fill:#EDF0FD;}
-		.d2-6856592 .fill-AA5{fill:#F7F8FE;}
-		.d2-6856592 .fill-AB4{fill:#EDF0FD;}
-		.d2-6856592 .fill-AB5{fill:#F7F8FE;}
-		.d2-6856592 .stroke-N1{stroke:#0A0F25;}
-		.d2-6856592 .stroke-N2{stroke:#676C7E;}
-		.d2-6856592 .stroke-N3{stroke:#9499AB;}
-		.d2-6856592 .stroke-N4{stroke:#CFD2DD;}
-		.d2-6856592 .stroke-N5{stroke:#DEE1EB;}
-		.d2-6856592 .stroke-N6{stroke:#EEF1F8;}
-		.d2-6856592 .stroke-N7{stroke:#FFFFFF;}
-		.d2-6856592 .stroke-B1{stroke:#0D32B2;}
-		.d2-6856592 .stroke-B2{stroke:#0D32B2;}
-		.d2-6856592 .stroke-B3{stroke:#E3E9FD;}
-		.d2-6856592 .stroke-B4{stroke:#E3E9FD;}
-		.d2-6856592 .stroke-B5{stroke:#EDF0FD;}
-		.d2-6856592 .stroke-B6{stroke:#F7F8FE;}
-		.d2-6856592 .stroke-AA2{stroke:#4A6FF3;}
-		.d2-6856592 .stroke-AA4{stroke:#EDF0FD;}
-		.d2-6856592 .stroke-AA5{stroke:#F7F8FE;}
-		.d2-6856592 .stroke-AB4{stroke:#EDF0FD;}
-		.d2-6856592 .stroke-AB5{stroke:#F7F8FE;}
-		.d2-6856592 .background-color-N1{background-color:#0A0F25;}
-		.d2-6856592 .background-color-N2{background-color:#676C7E;}
-		.d2-6856592 .background-color-N3{background-color:#9499AB;}
-		.d2-6856592 .background-color-N4{background-color:#CFD2DD;}
-		.d2-6856592 .background-color-N5{background-color:#DEE1EB;}
-		.d2-6856592 .background-color-N6{background-color:#EEF1F8;}
-		.d2-6856592 .background-color-N7{background-color:#FFFFFF;}
-		.d2-6856592 .background-color-B1{background-color:#0D32B2;}
-		.d2-6856592 .background-color-B2{background-color:#0D32B2;}
-		.d2-6856592 .background-color-B3{background-color:#E3E9FD;}
-		.d2-6856592 .background-color-B4{background-color:#E3E9FD;}
-		.d2-6856592 .background-color-B5{background-color:#EDF0FD;}
-		.d2-6856592 .background-color-B6{background-color:#F7F8FE;}
-		.d2-6856592 .background-color-AA2{background-color:#4A6FF3;}
-		.d2-6856592 .background-color-AA4{background-color:#EDF0FD;}
-		.d2-6856592 .background-color-AA5{background-color:#F7F8FE;}
-		.d2-6856592 .background-color-AB4{background-color:#EDF0FD;}
-		.d2-6856592 .background-color-AB5{background-color:#F7F8FE;}
-		.d2-6856592 .color-N1{color:#0A0F25;}
-		.d2-6856592 .color-N2{color:#676C7E;}
-		.d2-6856592 .color-N3{color:#9499AB;}
-		.d2-6856592 .color-N4{color:#CFD2DD;}
-		.d2-6856592 .color-N5{color:#DEE1EB;}
-		.d2-6856592 .color-N6{color:#EEF1F8;}
-		.d2-6856592 .color-N7{color:#FFFFFF;}
-		.d2-6856592 .color-B1{color:#0D32B2;}
-		.d2-6856592 .color-B2{color:#0D32B2;}
-		.d2-6856592 .color-B3{color:#E3E9FD;}
-		.d2-6856592 .color-B4{color:#E3E9FD;}
-		.d2-6856592 .color-B5{color:#EDF0FD;}
-		.d2-6856592 .color-B6{color:#F7F8FE;}
-		.d2-6856592 .color-AA2{color:#4A6FF3;}
-		.d2-6856592 .color-AA4{color:#EDF0FD;}
-		.d2-6856592 .color-AA5{color:#F7F8FE;}
-		.d2-6856592 .color-AB4{color:#EDF0FD;}
-		.d2-6856592 .color-AB5{color:#F7F8FE;}.appendix text.text{fill:#0A0F25}.md{--color-fg-default:#0A0F25;--color-fg-muted:#676C7E;--color-fg-subtle:#9499AB;--color-canvas-default:#FFFFFF;--color-canvas-subtle:#EEF1F8;--color-border-default:#0D32B2;--color-border-muted:#0D32B2;--color-neutral-muted:#EEF1F8;--color-accent-fg:#0D32B2;--color-accent-emphasis:#0D32B2;--color-attention-subtle:#676C7E;--color-danger-fg:red;}.sketch-overlay-B1{fill:url(#streaks-darker-d2-6856592);mix-blend-mode:lighten}.sketch-overlay-B2{fill:url(#streaks-darker-d2-6856592);mix-blend-mode:lighten}.sketch-overlay-B3{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-B4{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-B5{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-B6{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-AA2{fill:url(#streaks-dark-d2-6856592);mix-blend-mode:overlay}.sketch-overlay-AA4{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-AA5{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-AB4{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-AB5{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-N1{fill:url(#streaks-darker-d2-6856592);mix-blend-mode:lighten}.sketch-overlay-N2{fill:url(#streaks-dark-d2-6856592);mix-blend-mode:overlay}.sketch-overlay-N3{fill:url(#streaks-normal-d2-6856592);mix-blend-mode:color-burn}.sketch-overlay-N4{fill:url(#streaks-normal-d2-6856592);mix-blend-mode:color-burn}.sketch-overlay-N5{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-N6{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.sketch-overlay-N7{fill:url(#streaks-bright-d2-6856592);mix-blend-mode:darken}.light-code{display: block}.dark-code{display: none}]]></style><g class="b3V0ZXI="><g class="shape" ><rect x="0.000000" y="0.000000" width="460.000000" height="584.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIuaGk="><g class="shape" ><rect x="12.000000" y="12.000000" width="436.000000" height="24.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="230.000000" y="29.500000" fill="#6B7280" class="text-bold" style="text-anchor:middle;font-size:16px">高地址</text></g><g class="b3V0ZXIuZnJhbWU="><g class="shape" ><rect x="12.000000" y="48.000000" width="436.000000" height="488.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIubG8="><g class="shape" ><rect x="12.000000" y="548.000000" width="436.000000" height="24.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="230.000000" y="565.500000" fill="#6B7280" class="text-bold" style="text-anchor:middle;font-size:16px">低地址（栈向下生长）</text></g><g class="b3V0ZXIuZnJhbWUuaW5jb21pbmc="><g class="shape" ><rect x="24.000000" y="60.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#F3F4F6" style="stroke-width:2;" /></g><text x="134.000000" y="93.500000" fill="#4B5563" class="text-bold" style="text-anchor:middle;font-size:16px">入栈参数</text></g><g class="b3V0ZXIuZnJhbWUuaW5jb21pbmctbm90ZQ=="><g class="shape" ><rect x="256.000000" y="60.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIuZnJhbWUuY2FuYXJ5"><g class="shape" ><rect x="24.000000" y="128.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#D97706" fill="#FDE68A" style="stroke-width:3;" /></g><text x="134.000000" y="161.500000" fill="#78350F" class="text-bold" style="text-anchor:middle;font-size:16px">栈金丝雀</text></g><g class="b3V0ZXIuZnJhbWUuY2FuYXJ5LW5vdGU="><g class="shape" ><rect x="256.000000" y="128.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="161.500000" fill="#B45309" class="text-bold" style="text-anchor:middle;font-size:16px">返回前校验</text></g><g class="b3V0ZXIuZnJhbWUubG9jYWxz"><g class="shape" ><rect x="24.000000" y="196.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#E5E7EB" style="stroke-width:2;" /></g><text x="134.000000" y="229.500000" fill="#374151" class="text-bold" style="text-anchor:middle;font-size:16px">局部变量</text></g><g class="b3V0ZXIuZnJhbWUubG9jYWxzLW5vdGU="><g class="shape" ><rect x="256.000000" y="196.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="229.500000" fill="#6B7280" class="text-bold" style="text-anchor:middle;font-size:16px">frame_pointer_rtx</text></g><g class="b3V0ZXIuZnJhbWUucmV0YWRkcg=="><g class="shape" ><rect x="24.000000" y="264.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#DC2626" fill="#FCA5A5" style="stroke-width:3;" /></g><text x="134.000000" y="297.500000" fill="#7F1D1D" class="text-bold" style="text-anchor:middle;font-size:16px">保存的返回地址 LR&#39;</text></g><g class="b3V0ZXIuZnJhbWUucmV0YWRkci1ub3Rl"><g class="shape" ><rect x="256.000000" y="264.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="297.500000" fill="#B91C1C" class="text-bold" style="text-anchor:middle;font-size:16px">先于金丝雀被覆写</text></g><g class="b3V0ZXIuZnJhbWUuZnBzdmU="><g class="shape" ><rect x="24.000000" y="332.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#E5E7EB" style="stroke-width:2;" /></g><text x="134.000000" y="365.500000" fill="#374151" class="text-bold" style="text-anchor:middle;font-size:16px">FP&#39; / SVE 寄存器</text></g><g class="b3V0ZXIuZnJhbWUuZnBzdmUtbm90ZQ=="><g class="shape" ><rect x="256.000000" y="332.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIuZnJhbWUudmxh"><g class="shape" ><rect x="24.000000" y="400.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#3F7A5C" fill="#CDEBD9" style="stroke-width:3;" /></g><text x="134.000000" y="433.500000" fill="#064E3B" class="text-bold" style="text-anchor:middle;font-size:16px">VLA 缓冲区</text></g><g class="b3V0ZXIuZnJhbWUudmxhLW5vdGU="><g class="shape" ><rect x="256.000000" y="400.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="433.500000" fill="#1F4D38" class="text-bold" style="text-anchor:middle;font-size:16px">overflow 起点 ↑</text></g><g class="b3V0ZXIuZnJhbWUub3V0Z29pbmc="><g class="shape" ><rect x="24.000000" y="468.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#F3F4F6" style="stroke-width:2;" /></g><text x="134.000000" y="501.500000" fill="#4B5563" class="text-bold" style="text-anchor:middle;font-size:16px">出栈参数</text></g><g class="b3V0ZXIuZnJhbWUub3V0Z29pbmctbm90ZQ=="><g class="shape" ><rect x="256.000000" y="468.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><mask id="d2-6856592" maskUnits="userSpaceOnUse" x="-25" y="-25" width="510" height="634">
+		.d2-923623441 .fill-N1{fill:#0A0F25;}
+		.d2-923623441 .fill-N2{fill:#676C7E;}
+		.d2-923623441 .fill-N3{fill:#9499AB;}
+		.d2-923623441 .fill-N4{fill:#CFD2DD;}
+		.d2-923623441 .fill-N5{fill:#DEE1EB;}
+		.d2-923623441 .fill-N6{fill:#EEF1F8;}
+		.d2-923623441 .fill-N7{fill:#FFFFFF;}
+		.d2-923623441 .fill-B1{fill:#0D32B2;}
+		.d2-923623441 .fill-B2{fill:#0D32B2;}
+		.d2-923623441 .fill-B3{fill:#E3E9FD;}
+		.d2-923623441 .fill-B4{fill:#E3E9FD;}
+		.d2-923623441 .fill-B5{fill:#EDF0FD;}
+		.d2-923623441 .fill-B6{fill:#F7F8FE;}
+		.d2-923623441 .fill-AA2{fill:#4A6FF3;}
+		.d2-923623441 .fill-AA4{fill:#EDF0FD;}
+		.d2-923623441 .fill-AA5{fill:#F7F8FE;}
+		.d2-923623441 .fill-AB4{fill:#EDF0FD;}
+		.d2-923623441 .fill-AB5{fill:#F7F8FE;}
+		.d2-923623441 .stroke-N1{stroke:#0A0F25;}
+		.d2-923623441 .stroke-N2{stroke:#676C7E;}
+		.d2-923623441 .stroke-N3{stroke:#9499AB;}
+		.d2-923623441 .stroke-N4{stroke:#CFD2DD;}
+		.d2-923623441 .stroke-N5{stroke:#DEE1EB;}
+		.d2-923623441 .stroke-N6{stroke:#EEF1F8;}
+		.d2-923623441 .stroke-N7{stroke:#FFFFFF;}
+		.d2-923623441 .stroke-B1{stroke:#0D32B2;}
+		.d2-923623441 .stroke-B2{stroke:#0D32B2;}
+		.d2-923623441 .stroke-B3{stroke:#E3E9FD;}
+		.d2-923623441 .stroke-B4{stroke:#E3E9FD;}
+		.d2-923623441 .stroke-B5{stroke:#EDF0FD;}
+		.d2-923623441 .stroke-B6{stroke:#F7F8FE;}
+		.d2-923623441 .stroke-AA2{stroke:#4A6FF3;}
+		.d2-923623441 .stroke-AA4{stroke:#EDF0FD;}
+		.d2-923623441 .stroke-AA5{stroke:#F7F8FE;}
+		.d2-923623441 .stroke-AB4{stroke:#EDF0FD;}
+		.d2-923623441 .stroke-AB5{stroke:#F7F8FE;}
+		.d2-923623441 .background-color-N1{background-color:#0A0F25;}
+		.d2-923623441 .background-color-N2{background-color:#676C7E;}
+		.d2-923623441 .background-color-N3{background-color:#9499AB;}
+		.d2-923623441 .background-color-N4{background-color:#CFD2DD;}
+		.d2-923623441 .background-color-N5{background-color:#DEE1EB;}
+		.d2-923623441 .background-color-N6{background-color:#EEF1F8;}
+		.d2-923623441 .background-color-N7{background-color:#FFFFFF;}
+		.d2-923623441 .background-color-B1{background-color:#0D32B2;}
+		.d2-923623441 .background-color-B2{background-color:#0D32B2;}
+		.d2-923623441 .background-color-B3{background-color:#E3E9FD;}
+		.d2-923623441 .background-color-B4{background-color:#E3E9FD;}
+		.d2-923623441 .background-color-B5{background-color:#EDF0FD;}
+		.d2-923623441 .background-color-B6{background-color:#F7F8FE;}
+		.d2-923623441 .background-color-AA2{background-color:#4A6FF3;}
+		.d2-923623441 .background-color-AA4{background-color:#EDF0FD;}
+		.d2-923623441 .background-color-AA5{background-color:#F7F8FE;}
+		.d2-923623441 .background-color-AB4{background-color:#EDF0FD;}
+		.d2-923623441 .background-color-AB5{background-color:#F7F8FE;}
+		.d2-923623441 .color-N1{color:#0A0F25;}
+		.d2-923623441 .color-N2{color:#676C7E;}
+		.d2-923623441 .color-N3{color:#9499AB;}
+		.d2-923623441 .color-N4{color:#CFD2DD;}
+		.d2-923623441 .color-N5{color:#DEE1EB;}
+		.d2-923623441 .color-N6{color:#EEF1F8;}
+		.d2-923623441 .color-N7{color:#FFFFFF;}
+		.d2-923623441 .color-B1{color:#0D32B2;}
+		.d2-923623441 .color-B2{color:#0D32B2;}
+		.d2-923623441 .color-B3{color:#E3E9FD;}
+		.d2-923623441 .color-B4{color:#E3E9FD;}
+		.d2-923623441 .color-B5{color:#EDF0FD;}
+		.d2-923623441 .color-B6{color:#F7F8FE;}
+		.d2-923623441 .color-AA2{color:#4A6FF3;}
+		.d2-923623441 .color-AA4{color:#EDF0FD;}
+		.d2-923623441 .color-AA5{color:#F7F8FE;}
+		.d2-923623441 .color-AB4{color:#EDF0FD;}
+		.d2-923623441 .color-AB5{color:#F7F8FE;}.appendix text.text{fill:#0A0F25}.md{--color-fg-default:#0A0F25;--color-fg-muted:#676C7E;--color-fg-subtle:#9499AB;--color-canvas-default:#FFFFFF;--color-canvas-subtle:#EEF1F8;--color-border-default:#0D32B2;--color-border-muted:#0D32B2;--color-neutral-muted:#EEF1F8;--color-accent-fg:#0D32B2;--color-accent-emphasis:#0D32B2;--color-attention-subtle:#676C7E;--color-danger-fg:red;}.sketch-overlay-B1{fill:url(#streaks-darker-d2-923623441);mix-blend-mode:lighten}.sketch-overlay-B2{fill:url(#streaks-darker-d2-923623441);mix-blend-mode:lighten}.sketch-overlay-B3{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-B4{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-B5{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-B6{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-AA2{fill:url(#streaks-dark-d2-923623441);mix-blend-mode:overlay}.sketch-overlay-AA4{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-AA5{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-AB4{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-AB5{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-N1{fill:url(#streaks-darker-d2-923623441);mix-blend-mode:lighten}.sketch-overlay-N2{fill:url(#streaks-dark-d2-923623441);mix-blend-mode:overlay}.sketch-overlay-N3{fill:url(#streaks-normal-d2-923623441);mix-blend-mode:color-burn}.sketch-overlay-N4{fill:url(#streaks-normal-d2-923623441);mix-blend-mode:color-burn}.sketch-overlay-N5{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-N6{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.sketch-overlay-N7{fill:url(#streaks-bright-d2-923623441);mix-blend-mode:darken}.light-code{display: block}.dark-code{display: none}]]></style><g class="b3V0ZXI="><g class="shape" ><rect x="0.000000" y="0.000000" width="460.000000" height="584.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIuaGk="><g class="shape" ><rect x="12.000000" y="12.000000" width="436.000000" height="24.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="230.000000" y="29.500000" fill="#6B7280" class="text-bold" style="text-anchor:middle;font-size:16px">高地址</text></g><g class="b3V0ZXIuZnJhbWU="><g class="shape" ><rect x="12.000000" y="48.000000" width="436.000000" height="488.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIubG8="><g class="shape" ><rect x="12.000000" y="548.000000" width="436.000000" height="24.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="230.000000" y="565.500000" fill="#6B7280" class="text-bold" style="text-anchor:middle;font-size:16px">低地址（栈向下生长）</text></g><g class="b3V0ZXIuZnJhbWUuaW5jb21pbmc="><g class="shape" ><rect x="24.000000" y="60.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#F3F4F6" style="stroke-width:2;" /></g><text x="134.000000" y="93.500000" fill="#4B5563" class="text-bold" style="text-anchor:middle;font-size:16px">入栈参数</text></g><g class="b3V0ZXIuZnJhbWUuaW5jb21pbmctbm90ZQ=="><g class="shape" ><rect x="256.000000" y="60.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIuZnJhbWUuY2FuYXJ5"><g class="shape" ><rect x="24.000000" y="128.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#CCBB44" fill="#F6F1D8" style="stroke-width:3;" /></g><text x="134.000000" y="161.500000" fill="#7A6F1D" class="text-bold" style="text-anchor:middle;font-size:16px">栈金丝雀</text></g><g class="b3V0ZXIuZnJhbWUuY2FuYXJ5LW5vdGU="><g class="shape" ><rect x="256.000000" y="128.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="161.500000" fill="#7A6F1D" class="text-bold" style="text-anchor:middle;font-size:16px">返回前校验</text></g><g class="b3V0ZXIuZnJhbWUubG9jYWxz"><g class="shape" ><rect x="24.000000" y="196.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#E5E7EB" style="stroke-width:2;" /></g><text x="134.000000" y="229.500000" fill="#374151" class="text-bold" style="text-anchor:middle;font-size:16px">局部变量</text></g><g class="b3V0ZXIuZnJhbWUubG9jYWxzLW5vdGU="><g class="shape" ><rect x="256.000000" y="196.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="229.500000" fill="#6B7280" class="text-bold" style="text-anchor:middle;font-size:16px">frame_pointer_rtx</text></g><g class="b3V0ZXIuZnJhbWUucmV0YWRkcg=="><g class="shape" ><rect x="24.000000" y="264.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#CC3311" fill="#F4DFD8" style="stroke-width:3;" /></g><text x="134.000000" y="297.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">保存的返回地址 LR&#39;</text></g><g class="b3V0ZXIuZnJhbWUucmV0YWRkci1ub3Rl"><g class="shape" ><rect x="256.000000" y="264.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="297.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">先于金丝雀被覆写</text></g><g class="b3V0ZXIuZnJhbWUuZnBzdmU="><g class="shape" ><rect x="24.000000" y="332.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#E5E7EB" style="stroke-width:2;" /></g><text x="134.000000" y="365.500000" fill="#374151" class="text-bold" style="text-anchor:middle;font-size:16px">FP&#39; / SVE 寄存器</text></g><g class="b3V0ZXIuZnJhbWUuZnBzdmUtbm90ZQ=="><g class="shape" ><rect x="256.000000" y="332.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><g class="b3V0ZXIuZnJhbWUudmxh"><g class="shape" ><rect x="24.000000" y="400.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#228833" fill="#E3F1E7" style="stroke-width:3;" /></g><text x="134.000000" y="433.500000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">VLA 缓冲区</text></g><g class="b3V0ZXIuZnJhbWUudmxhLW5vdGU="><g class="shape" ><rect x="256.000000" y="400.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g><text x="346.000000" y="433.500000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">overflow 起点 ↑</text></g><g class="b3V0ZXIuZnJhbWUub3V0Z29pbmc="><g class="shape" ><rect x="24.000000" y="468.000000" width="220.000000" height="56.000000" rx="4.000000" stroke="#9CA3AF" fill="#F3F4F6" style="stroke-width:2;" /></g><text x="134.000000" y="501.500000" fill="#4B5563" class="text-bold" style="text-anchor:middle;font-size:16px">出栈参数</text></g><g class="b3V0ZXIuZnJhbWUub3V0Z29pbmctbm90ZQ=="><g class="shape" ><rect x="256.000000" y="468.000000" width="180.000000" height="56.000000" stroke="transparent" fill="transparent" style="stroke-width:2;" /></g></g><mask id="d2-923623441" maskUnits="userSpaceOnUse" x="-25" y="-25" width="510" height="634">
 <rect x="-25" y="-25" width="510" height="634" fill="white"></rect>
 
 </mask></svg></svg>
