@@ -51,6 +51,7 @@ GEMINI.md
 claude/
 claude.md
 .cursor/
+.windsurf/
 copilot/
 ollama/
 
@@ -60,6 +61,7 @@ ollama/
 .cache/
 tmp/
 .venv/
+__pycache__/
 docs/presentations/pptx-workspace/.venv/
 docs/presentations/pptx-workspace/node_modules/
 
