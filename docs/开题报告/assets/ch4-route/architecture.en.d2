@@ -3,6 +3,13 @@
 
 direction: right
 
+scheduler: "Strategy Scheduler\n(ISA · compiler options)" {
+  style: {
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"; border-radius: 8
+  }
+}
+
 engine: "Fuzz Engine\n(main loop · prompt assembly)" {
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
@@ -10,25 +17,32 @@ engine: "Fuzz Engine\n(main loop · prompt assembly)" {
   }
 }
 
-llm: "LLM Mutation Subsystem" {
-  shape: cloud
+subsystems: "Subsystems" {
   style: {
-    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-    font-color: "#0D47A1"; bold: true
+    fill: "#FAFAFA"; stroke: "#9CA3AF"; stroke-width: 1
+    stroke-dash: 3; font-color: "#6B7280"; border-radius: 12
   }
-}
 
-compiler: "Compiler Subsystem\n(GCC / LLVM · cov instr.)" {
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"; border-radius: 8
+  llm: "LLM Mutation Subsystem" {
+    shape: cloud
+    style: {
+      fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+      font-color: "#0D47A1"; bold: true
+    }
   }
-}
 
-oracle: "Oracle Subsystem\n(static · dynamic · aggregate)" {
-  style: {
-    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
-    font-color: "#7D4E00"; border-radius: 8
+  compiler: "Compiler Subsystem\n(GCC / LLVM · cov instr.)" {
+    style: {
+      fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+      font-color: "#195C24"; border-radius: 8
+    }
+  }
+
+  oracle: "Oracle Subsystem\n(static · dynamic · aggregate)" {
+    style: {
+      fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
+      font-color: "#7D4E00"; border-radius: 8
+    }
   }
 }
 
@@ -40,23 +54,26 @@ corpus: "Seed Corpus" {
   }
 }
 
-scheduler: "Strategy Scheduler\n(ISA · compiler options)" {
-  style: {
-    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
-    font-color: "#7F2615"; border-radius: 8
-  }
+# Main data plane: engine exchanges with each subsystem
+engine <-> subsystems.llm: "prompt / new seed" {
+  style: { stroke: "#1976D2"; stroke-width: 2 }
+}
+engine <-> subsystems.compiler: "seed / cov feedback" {
+  style: { stroke: "#228833"; stroke-width: 2 }
+}
+engine <-> subsystems.oracle: "binary / verdict" {
+  style: { stroke: "#F5A623"; stroke-width: 2 }
 }
 
-engine -> llm: "prompt" { style: { stroke: "#1976D2"; stroke-width: 2 } }
-llm -> engine: "new seed" { style: { stroke: "#1976D2"; stroke-width: 2 } }
+# Persistence
+engine -> corpus: "persist" {
+  style: { stroke: "#6B7280"; stroke-width: 2 }
+}
 
-engine -> compiler: "compile + cov" { style: { stroke: "#228833"; stroke-width: 2 } }
-compiler -> engine: "cov feedback" { style: { stroke: "#228833"; stroke-width: 2; stroke-dash: 4 } }
-
-engine -> oracle: "binary + compiler options" { style: { stroke: "#F5A623"; stroke-width: 2 } }
-oracle -> engine: "verdict" { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 4 } }
-
-engine -> corpus: "persist" { style: { stroke: "#6B7280"; stroke-width: 2 } }
-
-scheduler -> compiler: "toolchain / flag" { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 } }
-scheduler -> oracle: "flag profile cfg" { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 } }
+# Control plane (dashed): scheduler injects config
+scheduler -> subsystems.compiler: "toolchain / flag" {
+  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
+}
+scheduler -> subsystems.oracle: "flag profile cfg" {
+  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
+}
