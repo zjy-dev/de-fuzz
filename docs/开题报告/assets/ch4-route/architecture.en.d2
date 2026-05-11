@@ -10,7 +10,7 @@ engine: "Fuzz Engine\n(main loop · prompt assembly)" {
   }
 }
 
-llm: "LLM" {
+llm: "LLM Mutation Subsystem" {
   shape: cloud
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
@@ -40,7 +40,7 @@ corpus: "Seed Corpus" {
   }
 }
 
-scheduler: "Strategy Scheduler\n(ISA · flags · profile)" {
+scheduler: "Strategy Scheduler\n(ISA · compiler options)" {
   style: {
     fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
     font-color: "#7F2615"; border-radius: 8
@@ -53,7 +53,7 @@ llm -> engine: "new seed" { style: { stroke: "#1976D2"; stroke-width: 2 } }
 engine -> compiler: "compile + cov" { style: { stroke: "#228833"; stroke-width: 2 } }
 compiler -> engine: "cov feedback" { style: { stroke: "#228833"; stroke-width: 2; stroke-dash: 4 } }
 
-engine -> oracle: "binary + flag profile" { style: { stroke: "#F5A623"; stroke-width: 2 } }
+engine -> oracle: "binary + compiler options" { style: { stroke: "#F5A623"; stroke-width: 2 } }
 oracle -> engine: "verdict" { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 4 } }
 
 engine -> corpus: "persist" { style: { stroke: "#6B7280"; stroke-width: 2 } }

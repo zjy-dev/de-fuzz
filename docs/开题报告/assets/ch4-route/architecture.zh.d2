@@ -11,7 +11,7 @@ engine: "Fuzz 引擎\n（主循环 · 提示词组装）" {
   }
 }
 
-llm: "大模型" {
+llm: "LLM 变异子系统" {
   shape: cloud
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
@@ -41,7 +41,7 @@ corpus: "种子语料库" {
   }
 }
 
-scheduler: "策略调度器\n（架构 · 编译选项 · flag profile）" {
+scheduler: "策略调度器\n（isa · 编译选项）" {
   style: {
     fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
     font-color: "#7F2615"; border-radius: 8
@@ -54,7 +54,7 @@ llm -> engine: "新种子" { style: { stroke: "#1976D2"; stroke-width: 2 } }
 engine -> compiler: "编译 + 覆盖率" { style: { stroke: "#228833"; stroke-width: 2 } }
 compiler -> engine: "覆盖率反馈" { style: { stroke: "#228833"; stroke-width: 2; stroke-dash: 4 } }
 
-engine -> oracle: "二进制 + flag profile" { style: { stroke: "#F5A623"; stroke-width: 2 } }
+engine -> oracle: "二进制 + 编译选项" { style: { stroke: "#F5A623"; stroke-width: 2 } }
 oracle -> engine: "判定结果" { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 4 } }
 
 engine -> corpus: "持久化" { style: { stroke: "#6B7280"; stroke-width: 2 } }
