@@ -3,7 +3,7 @@
 
 direction: down
 
-start: "seed + binary + flag profile" {
+start: "seed (source/asm/binary)" {
   shape: oval
   style: {
     fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
@@ -11,14 +11,14 @@ start: "seed + binary + flag profile" {
   }
 }
 
-static: "Static Checker\nELF symbols · inst bytes · .note" {
+static: "Static Checker\n(assembly analysis · byte checks)" {
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
     font-color: "#0D47A1"; border-radius: 8
   }
 }
 
-dynamic: "Dynamic Checker\ncontrolled exec · binary search" {
+dynamic: "Dynamic Checker\n(instrumentation checks · binary search)" {
   style: {
     fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
     font-color: "#195C24"; border-radius: 8
@@ -48,7 +48,7 @@ nobug: "OK" {
   }
 }
 
-cache: "Per-Seed Cache" {
+cache: "Metadata Cache" {
   shape: cylinder
   style: {
     fill: "#F4F8FB"; stroke: "#9CA3AF"; stroke-width: 2

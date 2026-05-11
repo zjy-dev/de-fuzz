@@ -3,7 +3,7 @@
 
 direction: down
 
-pick: "Pick Target BB\n(uncovered · max successors)" {
+pick: "Pick Target BB\n(uncovered · high relevance)" {
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
     font-color: "#0D47A1"; border-radius: 8
@@ -40,7 +40,7 @@ oracle: "Oracle Verdict" {
   }
 }
 
-decision: "Three-way Decision\ncov gain · hit target · trigger bug" {
+decision: "Result Analysis\ncov gain · bug trigger check" {
   shape: diamond
   style: {
     fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
@@ -65,4 +65,4 @@ decision -> keep:     "keep" { style: { stroke: "#228833"; stroke-width: 2 } }
 keep -> pick:         "next iter" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
 
 compile -> build:  "compile-error feedback"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615" } }
-decision -> build: "divergence refinement"   { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00" } }
+decision -> build: "divergence feedback"     { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00" } }

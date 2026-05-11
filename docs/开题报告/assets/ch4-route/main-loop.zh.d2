@@ -3,7 +3,7 @@
 
 direction: down
 
-pick: "选取目标基本块\n（未覆盖 · 后继最多）" {
+pick: "选取目标基本块\n（未覆盖 · 相关性高）" {
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
     font-color: "#0D47A1"; border-radius: 8
@@ -40,7 +40,7 @@ oracle: "预言机判定" {
   }
 }
 
-decision: "三方决策\n覆盖增量 · 命中目标 · 触发 bug" {
+decision: "结果分析\n覆盖增量 · bug 触发检查" {
   shape: diamond
   style: {
     fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
@@ -66,4 +66,4 @@ keep -> pick:         "下一轮" { style: { stroke: "#9CA3AF"; stroke-width: 2;
 
 # 反馈：编译失败 / 未命中目标 → 回到提示词组装
 compile -> build:  "编译错误回喂"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615" } }
-decision -> build: "发散点反馈"    { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00" } }
+decision -> build: "发散反馈"    { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00" } }

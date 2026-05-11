@@ -3,7 +3,7 @@
 
 direction: down
 
-start: "种子 + 二进制 + flag profile" {
+start: "种子(源码/汇编/二进制)" {
   shape: oval
   style: {
     fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
@@ -11,14 +11,14 @@ start: "种子 + 二进制 + flag profile" {
   }
 }
 
-static: "静态检查器\nELF 符号 · 指令字节 · .note" {
+static: "静态检查器\n(汇编分析 · 字节检查)" {
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
     font-color: "#0D47A1"; border-radius: 8
   }
 }
 
-dynamic: "动态检查器\n受控执行 · 二分搜索" {
+dynamic: "动态检查器\n(插桩检测 · 二分搜索)" {
   style: {
     fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
     font-color: "#195C24"; border-radius: 8
@@ -48,7 +48,7 @@ nobug: "正常" {
   }
 }
 
-cache: "种子级缓存" {
+cache: "元信息缓存" {
   shape: cylinder
   style: {
     fill: "#F4F8FB"; stroke: "#9CA3AF"; stroke-width: 2
