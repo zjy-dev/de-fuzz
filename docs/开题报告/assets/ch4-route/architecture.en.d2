@@ -71,9 +71,9 @@ engine -> corpus: "persist" {
 }
 
 # Control plane (dashed): scheduler injects config
-scheduler -> subsystems.compiler: "toolchain / flag" {
+scheduler -> subsystems.compiler: "toolchain (compiler) / flag" {
   style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
 }
-scheduler -> subsystems.oracle: "flag profile cfg" {
+scheduler -> subsystems.oracle: "toolchain (qemu)" {
   style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
 }

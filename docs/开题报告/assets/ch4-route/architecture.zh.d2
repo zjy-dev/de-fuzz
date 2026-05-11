@@ -72,9 +72,9 @@ engine -> corpus: "持久化" {
 }
 
 # 配置注入（控制平面，虚线区分）
-scheduler -> subsystems.compiler: "工具链 / flag" {
+scheduler -> subsystems.compiler: "工具链(compiler) / flag" {
   style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
 }
-scheduler -> subsystems.oracle: "flag 配置" {
+scheduler -> subsystems.oracle: "工具链(qemu)" {
   style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
 }
