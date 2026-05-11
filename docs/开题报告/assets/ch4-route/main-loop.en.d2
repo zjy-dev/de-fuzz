@@ -5,31 +5,31 @@ direction: down
 
 pick: "Pick Target BB\n(uncovered · max successors)" {
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
-    font-color: "#2F557F"; border-radius: 8
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+    font-color: "#0D47A1"; border-radius: 8
   }
 }
 
 build: "Build Prompt\n(fn source · cov marks · predecessor seeds)" {
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
-    font-color: "#2F557F"; border-radius: 8
+    fill: "#EDE7F6"; stroke: "#5E35B1"; stroke-width: 2
+    font-color: "#311B92"; border-radius: 8
   }
 }
 
 llm: "LLM Mutation\n(emit new C seed)" {
   shape: cloud
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
-    font-color: "#2F557F"; bold: true
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
+    font-color: "#0D47A1"; bold: true
   }
 }
 
 compile: "Compile" {
   shape: diamond
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
-    font-color: "#7A6F1D"
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"
   }
 }
 
@@ -43,8 +43,8 @@ oracle: "Oracle Verdict" {
 decision: "Three-way Decision\ncov gain · hit target · trigger bug" {
   shape: diamond
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
-    font-color: "#7A6F1D"
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
+    font-color: "#7D4E00"
   }
 }
 
@@ -56,13 +56,13 @@ keep: "Keep in Corpus" {
   }
 }
 
-pick -> build: { style: { stroke: "#4477AA"; stroke-width: 2 } }
-build -> llm:   { style: { stroke: "#4477AA"; stroke-width: 2 } }
-llm -> compile: { style: { stroke: "#4477AA"; stroke-width: 2 } }
+pick -> build: { style: { stroke: "#1976D2"; stroke-width: 2 } }
+build -> llm:   { style: { stroke: "#1976D2"; stroke-width: 2 } }
+llm -> compile: { style: { stroke: "#1976D2"; stroke-width: 2 } }
 compile -> oracle:    "ok" { style: { stroke: "#228833"; stroke-width: 2 } }
 oracle -> decision:   { style: { stroke: "#228833"; stroke-width: 2 } }
 decision -> keep:     "keep" { style: { stroke: "#228833"; stroke-width: 2 } }
 keep -> pick:         "next iter" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
 
 compile -> build:  "compile-error feedback"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615" } }
-decision -> build: "divergence refinement"   { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5; font-color: "#7A6F1D" } }
+decision -> build: "divergence refinement"   { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00" } }

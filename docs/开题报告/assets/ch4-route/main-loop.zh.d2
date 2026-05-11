@@ -5,31 +5,31 @@ direction: down
 
 pick: "选取目标基本块\n（未覆盖 · 后继最多）" {
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
-    font-color: "#2F557F"; border-radius: 8
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+    font-color: "#0D47A1"; border-radius: 8
   }
 }
 
 build: "构造提示词\n（函数源码 · 覆盖标注 · 前驱种子）" {
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
-    font-color: "#2F557F"; border-radius: 8
+    fill: "#EDE7F6"; stroke: "#5E35B1"; stroke-width: 2
+    font-color: "#311B92"; border-radius: 8
   }
 }
 
 llm: "大模型变异\n（生成新种子）" {
   shape: cloud
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
-    font-color: "#2F557F"; bold: true
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
+    font-color: "#0D47A1"; bold: true
   }
 }
 
 compile: "编译" {
   shape: diamond
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
-    font-color: "#7A6F1D"
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"
   }
 }
 
@@ -43,8 +43,8 @@ oracle: "预言机判定" {
 decision: "三方决策\n覆盖增量 · 命中目标 · 触发 bug" {
   shape: diamond
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
-    font-color: "#7A6F1D"
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
+    font-color: "#7D4E00"
   }
 }
 
@@ -56,9 +56,9 @@ keep: "纳入语料库" {
   }
 }
 
-pick -> build: { style: { stroke: "#4477AA"; stroke-width: 2 } }
-build -> llm:   { style: { stroke: "#4477AA"; stroke-width: 2 } }
-llm -> compile: { style: { stroke: "#4477AA"; stroke-width: 2 } }
+pick -> build: { style: { stroke: "#1976D2"; stroke-width: 2 } }
+build -> llm:   { style: { stroke: "#1976D2"; stroke-width: 2 } }
+llm -> compile: { style: { stroke: "#1976D2"; stroke-width: 2 } }
 compile -> oracle:    "成功" { style: { stroke: "#228833"; stroke-width: 2 } }
 oracle -> decision:   { style: { stroke: "#228833"; stroke-width: 2 } }
 decision -> keep:     "保留" { style: { stroke: "#228833"; stroke-width: 2 } }
@@ -66,4 +66,4 @@ keep -> pick:         "下一轮" { style: { stroke: "#9CA3AF"; stroke-width: 2;
 
 # 反馈：编译失败 / 未命中目标 → 回到提示词组装
 compile -> build:  "编译错误回喂"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615" } }
-decision -> build: "发散点反馈"    { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5; font-color: "#7A6F1D" } }
+decision -> build: "发散点反馈"    { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00" } }

@@ -5,16 +5,16 @@ direction: right
 
 engine: "Fuzz Engine\n(main loop · prompt assembly)" {
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
-    font-color: "#2F557F"; border-radius: 8; bold: true
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
+    font-color: "#0D47A1"; border-radius: 8; bold: true
   }
 }
 
 llm: "LLM" {
   shape: cloud
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
-    font-color: "#2F557F"; bold: true
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+    font-color: "#0D47A1"; bold: true
   }
 }
 
@@ -27,8 +27,8 @@ compiler: "Compiler Subsystem\n(GCC / LLVM · cov instr.)" {
 
 oracle: "Oracle Subsystem\n(static · dynamic · aggregate)" {
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
-    font-color: "#7A6F1D"; border-radius: 8
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
+    font-color: "#7D4E00"; border-radius: 8
   }
 }
 
@@ -42,21 +42,21 @@ corpus: "Seed Corpus" {
 
 scheduler: "Strategy Scheduler\n(ISA · flags · profile)" {
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 2
-    font-color: "#7A6F1D"; border-radius: 8
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"; border-radius: 8
   }
 }
 
-engine -> llm: "prompt" { style: { stroke: "#4477AA"; stroke-width: 2 } }
-llm -> engine: "new seed" { style: { stroke: "#4477AA"; stroke-width: 2 } }
+engine -> llm: "prompt" { style: { stroke: "#1976D2"; stroke-width: 2 } }
+llm -> engine: "new seed" { style: { stroke: "#1976D2"; stroke-width: 2 } }
 
 engine -> compiler: "compile + cov" { style: { stroke: "#228833"; stroke-width: 2 } }
 compiler -> engine: "cov feedback" { style: { stroke: "#228833"; stroke-width: 2; stroke-dash: 4 } }
 
-engine -> oracle: "binary + flag profile" { style: { stroke: "#CCBB44"; stroke-width: 2 } }
-oracle -> engine: "verdict" { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 4 } }
+engine -> oracle: "binary + flag profile" { style: { stroke: "#F5A623"; stroke-width: 2 } }
+oracle -> engine: "verdict" { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 4 } }
 
 engine -> corpus: "persist" { style: { stroke: "#6B7280"; stroke-width: 2 } }
 
-scheduler -> compiler: "toolchain / flag" { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5 } }
-scheduler -> oracle: "flag profile cfg" { style: { stroke: "#CCBB44"; stroke-width: 2; stroke-dash: 5 } }
+scheduler -> compiler: "toolchain / flag" { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 } }
+scheduler -> oracle: "flag profile cfg" { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 } }

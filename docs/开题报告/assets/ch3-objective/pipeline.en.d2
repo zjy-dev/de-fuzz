@@ -30,22 +30,22 @@ step2: "" {
   grid-rows: 4
   grid-gap: 8
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 3
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
     border-radius: 12
   }
 
   title: "Programmatic Oracle" {
     shape: text
-    style: { font-color: "#7A6F1D"; bold: true }
+    style: { font-color: "#7D4E00"; bold: true }
   }
   s1: "Static checkers" {
-    style: { fill: white; stroke: "#CCBB44"; stroke-width: 2; font-color: "#7A6F1D"; border-radius: 6 }
+    style: { fill: white; stroke: "#F5A623"; stroke-width: 2; font-color: "#7D4E00"; border-radius: 6 }
   }
   s2: "Dynamic checkers" {
-    style: { fill: white; stroke: "#CCBB44"; stroke-width: 2; font-color: "#7A6F1D"; border-radius: 6 }
+    style: { fill: white; stroke: "#F5A623"; stroke-width: 2; font-color: "#7D4E00"; border-radius: 6 }
   }
   s3: "Aggregate verdict" {
-    style: { fill: white; stroke: "#CCBB44"; stroke-width: 2; font-color: "#7A6F1D"; border-radius: 6 }
+    style: { fill: white; stroke: "#F5A623"; stroke-width: 2; font-color: "#7D4E00"; border-radius: 6 }
   }
 }
 
@@ -53,22 +53,22 @@ step3: "" {
   grid-rows: 4
   grid-gap: 8
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 3
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
     border-radius: 12
   }
 
   title: "LLM × Coverage Loop" {
     shape: text
-    style: { font-color: "#2F557F"; bold: true }
+    style: { font-color: "#0D47A1"; bold: true }
   }
   s1: "Filter defense-related code" {
-    style: { fill: white; stroke: "#4477AA"; stroke-width: 2; font-color: "#2F557F"; border-radius: 6 }
+    style: { fill: white; stroke: "#1976D2"; stroke-width: 2; font-color: "#0D47A1"; border-radius: 6 }
   }
   s2: "Pick target basic block" {
-    style: { fill: white; stroke: "#4477AA"; stroke-width: 2; font-color: "#2F557F"; border-radius: 6 }
+    style: { fill: white; stroke: "#1976D2"; stroke-width: 2; font-color: "#0D47A1"; border-radius: 6 }
   }
   s3: "LLM constraint solving (mutation)" {
-    style: { fill: white; stroke: "#4477AA"; stroke-width: 2; font-color: "#2F557F"; border-radius: 6 }
+    style: { fill: white; stroke: "#1976D2"; stroke-width: 2; font-color: "#0D47A1"; border-radius: 6 }
   }
 }
 
@@ -96,8 +96,8 @@ step1 -> step2: "supplies\nsafety contract" {
   style: { stroke: "#CC3311"; stroke-width: 3; font-color: "#7F2615"; bold: true }
 }
 step2 -> step3: "supplies\nverdict API" {
-  style: { stroke: "#CCBB44"; stroke-width: 3; font-color: "#7A6F1D"; bold: true }
+  style: { stroke: "#F5A623"; stroke-width: 3; font-color: "#7D4E00"; bold: true }
 }
 step3 -> step4: "drives to\nfailure path" {
-  style: { stroke: "#4477AA"; stroke-width: 3; font-color: "#2F557F"; bold: true }
+  style: { stroke: "#1976D2"; stroke-width: 3; font-color: "#0D47A1"; bold: true }
 }

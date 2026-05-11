@@ -13,8 +13,8 @@ start: "种子 + 二进制 + flag profile" {
 
 static: "静态检查器\nELF 符号 · 指令字节 · .note" {
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
-    font-color: "#2F557F"; border-radius: 8
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+    font-color: "#0D47A1"; border-radius: 8
   }
 }
 
@@ -27,8 +27,8 @@ dynamic: "动态检查器\n受控执行 · 二分搜索" {
 
 verdict: "聚合判定\nPass · Fail · Error" {
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 3
-    font-color: "#7A6F1D"; border-radius: 8; bold: true
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    font-color: "#7D4E00"; border-radius: 8; bold: true
   }
 }
 
@@ -56,9 +56,9 @@ cache: "种子级缓存" {
   }
 }
 
-start -> static  { style: { stroke: "#4477AA"; stroke-width: 2 } }
+start -> static  { style: { stroke: "#1976D2"; stroke-width: 2 } }
 start -> dynamic { style: { stroke: "#228833"; stroke-width: 2 } }
-static  -> verdict { style: { stroke: "#4477AA"; stroke-width: 2 } }
+static  -> verdict { style: { stroke: "#1976D2"; stroke-width: 2 } }
 dynamic -> verdict { style: { stroke: "#228833"; stroke-width: 2 } }
 verdict -> bug:   "任一 Fail" { style: { stroke: "#CC3311"; stroke-width: 2 } }
 verdict -> nobug: "全部 Pass" { style: { stroke: "#228833"; stroke-width: 2 } }

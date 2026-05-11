@@ -13,8 +13,8 @@ start: "seed + binary + flag profile" {
 
 static: "Static Checker\nELF symbols · inst bytes · .note" {
   style: {
-    fill: "#E6EDF5"; stroke: "#4477AA"; stroke-width: 2
-    font-color: "#2F557F"; border-radius: 8
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+    font-color: "#0D47A1"; border-radius: 8
   }
 }
 
@@ -27,8 +27,8 @@ dynamic: "Dynamic Checker\ncontrolled exec · binary search" {
 
 verdict: "Aggregate Verdict\nPass · Fail · Error" {
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 3
-    font-color: "#7A6F1D"; border-radius: 8; bold: true
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    font-color: "#7D4E00"; border-radius: 8; bold: true
   }
 }
 
@@ -56,9 +56,9 @@ cache: "Per-Seed Cache" {
   }
 }
 
-start -> static  { style: { stroke: "#4477AA"; stroke-width: 2 } }
+start -> static  { style: { stroke: "#1976D2"; stroke-width: 2 } }
 start -> dynamic { style: { stroke: "#228833"; stroke-width: 2 } }
-static  -> verdict { style: { stroke: "#4477AA"; stroke-width: 2 } }
+static  -> verdict { style: { stroke: "#1976D2"; stroke-width: 2 } }
 dynamic -> verdict { style: { stroke: "#228833"; stroke-width: 2 } }
 verdict -> bug:   "any Fail" { style: { stroke: "#CC3311"; stroke-width: 2 } }
 verdict -> nobug: "all Pass" { style: { stroke: "#228833"; stroke-width: 2 } }

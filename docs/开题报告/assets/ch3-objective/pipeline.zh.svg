@@ -1,9 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" data-d2-version="v0.7.1-HEAD" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1358 311"><svg class="d2-193818167 d2-svg" width="1358" height="311" viewBox="-26 -26 1358 311"><rect x="-26.000000" y="-26.000000" width="1358.000000" height="311.000000" rx="0.000000" fill="#FFFFFF" class=" fill-N7" stroke-width="0" /><style type="text/css"><![CDATA[
-.d2-193818167 .text-bold {
-	font-family: "d2-193818167-font-bold";
+<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" data-d2-version="v0.7.1-HEAD" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1358 311"><svg class="d2-1898774476 d2-svg" width="1358" height="311" viewBox="-26 -26 1358 311"><rect x="-26.000000" y="-26.000000" width="1358.000000" height="311.000000" rx="0.000000" fill="#FFFFFF" class=" fill-N7" stroke-width="0" /><style type="text/css"><![CDATA[
+.d2-1898774476 .text-bold {
+	font-family: "d2-1898774476-font-bold";
 }
 @font-face {
-	font-family: d2-193818167-font-bold;
+	font-family: d2-1898774476-font-bold;
 	src: url("data:application/font-woff;base64,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");
 }]]></style><style type="text/css"><![CDATA[.shape {
   shape-rendering: geometricPrecision;
@@ -18,78 +18,78 @@
   opacity: 0.5;
 }
 
-		.d2-193818167 .fill-N1{fill:#0A0F25;}
-		.d2-193818167 .fill-N2{fill:#676C7E;}
-		.d2-193818167 .fill-N3{fill:#9499AB;}
-		.d2-193818167 .fill-N4{fill:#CFD2DD;}
-		.d2-193818167 .fill-N5{fill:#DEE1EB;}
-		.d2-193818167 .fill-N6{fill:#EEF1F8;}
-		.d2-193818167 .fill-N7{fill:#FFFFFF;}
-		.d2-193818167 .fill-B1{fill:#0D32B2;}
-		.d2-193818167 .fill-B2{fill:#0D32B2;}
-		.d2-193818167 .fill-B3{fill:#E3E9FD;}
-		.d2-193818167 .fill-B4{fill:#E3E9FD;}
-		.d2-193818167 .fill-B5{fill:#EDF0FD;}
-		.d2-193818167 .fill-B6{fill:#F7F8FE;}
-		.d2-193818167 .fill-AA2{fill:#4A6FF3;}
-		.d2-193818167 .fill-AA4{fill:#EDF0FD;}
-		.d2-193818167 .fill-AA5{fill:#F7F8FE;}
-		.d2-193818167 .fill-AB4{fill:#EDF0FD;}
-		.d2-193818167 .fill-AB5{fill:#F7F8FE;}
-		.d2-193818167 .stroke-N1{stroke:#0A0F25;}
-		.d2-193818167 .stroke-N2{stroke:#676C7E;}
-		.d2-193818167 .stroke-N3{stroke:#9499AB;}
-		.d2-193818167 .stroke-N4{stroke:#CFD2DD;}
-		.d2-193818167 .stroke-N5{stroke:#DEE1EB;}
-		.d2-193818167 .stroke-N6{stroke:#EEF1F8;}
-		.d2-193818167 .stroke-N7{stroke:#FFFFFF;}
-		.d2-193818167 .stroke-B1{stroke:#0D32B2;}
-		.d2-193818167 .stroke-B2{stroke:#0D32B2;}
-		.d2-193818167 .stroke-B3{stroke:#E3E9FD;}
-		.d2-193818167 .stroke-B4{stroke:#E3E9FD;}
-		.d2-193818167 .stroke-B5{stroke:#EDF0FD;}
-		.d2-193818167 .stroke-B6{stroke:#F7F8FE;}
-		.d2-193818167 .stroke-AA2{stroke:#4A6FF3;}
-		.d2-193818167 .stroke-AA4{stroke:#EDF0FD;}
-		.d2-193818167 .stroke-AA5{stroke:#F7F8FE;}
-		.d2-193818167 .stroke-AB4{stroke:#EDF0FD;}
-		.d2-193818167 .stroke-AB5{stroke:#F7F8FE;}
-		.d2-193818167 .background-color-N1{background-color:#0A0F25;}
-		.d2-193818167 .background-color-N2{background-color:#676C7E;}
-		.d2-193818167 .background-color-N3{background-color:#9499AB;}
-		.d2-193818167 .background-color-N4{background-color:#CFD2DD;}
-		.d2-193818167 .background-color-N5{background-color:#DEE1EB;}
-		.d2-193818167 .background-color-N6{background-color:#EEF1F8;}
-		.d2-193818167 .background-color-N7{background-color:#FFFFFF;}
-		.d2-193818167 .background-color-B1{background-color:#0D32B2;}
-		.d2-193818167 .background-color-B2{background-color:#0D32B2;}
-		.d2-193818167 .background-color-B3{background-color:#E3E9FD;}
-		.d2-193818167 .background-color-B4{background-color:#E3E9FD;}
-		.d2-193818167 .background-color-B5{background-color:#EDF0FD;}
-		.d2-193818167 .background-color-B6{background-color:#F7F8FE;}
-		.d2-193818167 .background-color-AA2{background-color:#4A6FF3;}
-		.d2-193818167 .background-color-AA4{background-color:#EDF0FD;}
-		.d2-193818167 .background-color-AA5{background-color:#F7F8FE;}
-		.d2-193818167 .background-color-AB4{background-color:#EDF0FD;}
-		.d2-193818167 .background-color-AB5{background-color:#F7F8FE;}
-		.d2-193818167 .color-N1{color:#0A0F25;}
-		.d2-193818167 .color-N2{color:#676C7E;}
-		.d2-193818167 .color-N3{color:#9499AB;}
-		.d2-193818167 .color-N4{color:#CFD2DD;}
-		.d2-193818167 .color-N5{color:#DEE1EB;}
-		.d2-193818167 .color-N6{color:#EEF1F8;}
-		.d2-193818167 .color-N7{color:#FFFFFF;}
-		.d2-193818167 .color-B1{color:#0D32B2;}
-		.d2-193818167 .color-B2{color:#0D32B2;}
-		.d2-193818167 .color-B3{color:#E3E9FD;}
-		.d2-193818167 .color-B4{color:#E3E9FD;}
-		.d2-193818167 .color-B5{color:#EDF0FD;}
-		.d2-193818167 .color-B6{color:#F7F8FE;}
-		.d2-193818167 .color-AA2{color:#4A6FF3;}
-		.d2-193818167 .color-AA4{color:#EDF0FD;}
-		.d2-193818167 .color-AA5{color:#F7F8FE;}
-		.d2-193818167 .color-AB4{color:#EDF0FD;}
-		.d2-193818167 .color-AB5{color:#F7F8FE;}.appendix text.text{fill:#0A0F25}.md{--color-fg-default:#0A0F25;--color-fg-muted:#676C7E;--color-fg-subtle:#9499AB;--color-canvas-default:#FFFFFF;--color-canvas-subtle:#EEF1F8;--color-border-default:#0D32B2;--color-border-muted:#0D32B2;--color-neutral-muted:#EEF1F8;--color-accent-fg:#0D32B2;--color-accent-emphasis:#0D32B2;--color-attention-subtle:#676C7E;--color-danger-fg:red;}.sketch-overlay-B1{fill:url(#streaks-darker-d2-193818167);mix-blend-mode:lighten}.sketch-overlay-B2{fill:url(#streaks-darker-d2-193818167);mix-blend-mode:lighten}.sketch-overlay-B3{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-B4{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-B5{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-B6{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-AA2{fill:url(#streaks-dark-d2-193818167);mix-blend-mode:overlay}.sketch-overlay-AA4{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-AA5{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-AB4{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-AB5{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-N1{fill:url(#streaks-darker-d2-193818167);mix-blend-mode:lighten}.sketch-overlay-N2{fill:url(#streaks-dark-d2-193818167);mix-blend-mode:overlay}.sketch-overlay-N3{fill:url(#streaks-normal-d2-193818167);mix-blend-mode:color-burn}.sketch-overlay-N4{fill:url(#streaks-normal-d2-193818167);mix-blend-mode:color-burn}.sketch-overlay-N5{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-N6{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.sketch-overlay-N7{fill:url(#streaks-bright-d2-193818167);mix-blend-mode:darken}.light-code{display: block}.dark-code{display: none}]]></style><g class="c3RlcDE="><g class="shape" ><rect x="0.000000" y="0.000000" width="156.000000" height="259.000000" rx="12.000000" stroke="#CC3311" fill="#F4DFD8" style="stroke-width:3;" /></g></g><g class="c3RlcDI="><g class="shape" ><rect x="354.000000" y="0.000000" width="161.000000" height="259.000000" rx="12.000000" stroke="#CCBB44" fill="#F6F1D8" style="stroke-width:3;" /></g></g><g class="c3RlcDM="><g class="shape" ><rect x="713.000000" y="0.000000" width="242.000000" height="259.000000" rx="12.000000" stroke="#4477AA" fill="#E6EDF5" style="stroke-width:3;" /></g></g><g class="c3RlcDQ="><g class="shape" ><rect x="1153.000000" y="37.000000" width="153.000000" height="185.000000" rx="12.000000" stroke="#228833" fill="#E3F1E7" style="stroke-width:3;" /></g></g><g class="c3RlcDEudGl0bGU="><g class="shape" ></g><text x="78.000000" y="24.000000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">防御机制不变量</text></g><g class="c3RlcDEuczE="><g class="shape" ><rect x="8.000000" y="37.000000" width="140.000000" height="66.000000" rx="6.000000" stroke="#CC3311" fill="white" style="stroke-width:2;" /></g><text x="78.000000" y="75.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">官方文档</text></g><g class="c3RlcDEuczI="><g class="shape" ><rect x="8.000000" y="111.000000" width="140.000000" height="66.000000" rx="6.000000" stroke="#CC3311" fill="white" style="stroke-width:2;" /></g><text x="78.000000" y="149.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">源码注释</text></g><g class="c3RlcDEuczM="><g class="shape" ><rect x="8.000000" y="185.000000" width="140.000000" height="66.000000" rx="6.000000" stroke="#CC3311" fill="white" style="stroke-width:2;" /></g><text x="78.000000" y="223.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">历史 bug</text></g><g class="c3RlcDIudGl0bGU="><g class="shape" ></g><text x="422.000000" y="24.000000" fill="#7A6F1D" class="text-bold" style="text-anchor:middle;font-size:16px">程序化预言机</text></g><g class="c3RlcDIuczE="><g class="shape" ><rect x="362.000000" y="37.000000" width="145.000000" height="66.000000" rx="6.000000" stroke="#CCBB44" fill="white" style="stroke-width:2;" /></g><text x="434.500000" y="75.500000" fill="#7A6F1D" class="text-bold" style="text-anchor:middle;font-size:16px">静态检查器</text></g><g class="c3RlcDIuczI="><g class="shape" ><rect x="362.000000" y="111.000000" width="145.000000" height="66.000000" rx="6.000000" stroke="#CCBB44" fill="white" style="stroke-width:2;" /></g><text x="434.500000" y="149.500000" fill="#7A6F1D" class="text-bold" style="text-anchor:middle;font-size:16px">动态检查器</text></g><g class="c3RlcDIuczM="><g class="shape" ><rect x="362.000000" y="185.000000" width="145.000000" height="66.000000" rx="6.000000" stroke="#CCBB44" fill="white" style="stroke-width:2;" /></g><text x="434.500000" y="223.500000" fill="#7A6F1D" class="text-bold" style="text-anchor:middle;font-size:16px">聚合判定</text></g><g class="c3RlcDMudGl0bGU="><g class="shape" ></g><text x="802.500000" y="24.000000" fill="#2F557F" class="text-bold" style="text-anchor:middle;font-size:16px">LLM × 覆盖率主循环</text></g><g class="c3RlcDMuczE="><g class="shape" ><rect x="721.000000" y="37.000000" width="226.000000" height="66.000000" rx="6.000000" stroke="#4477AA" fill="white" style="stroke-width:2;" /></g><text x="834.000000" y="75.500000" fill="#2F557F" class="text-bold" style="text-anchor:middle;font-size:16px">筛防御机制相关代码</text></g><g class="c3RlcDMuczI="><g class="shape" ><rect x="721.000000" y="111.000000" width="226.000000" height="66.000000" rx="6.000000" stroke="#4477AA" fill="white" style="stroke-width:2;" /></g><text x="834.000000" y="149.500000" fill="#2F557F" class="text-bold" style="text-anchor:middle;font-size:16px">选目标基本块</text></g><g class="c3RlcDMuczM="><g class="shape" ><rect x="721.000000" y="185.000000" width="226.000000" height="66.000000" rx="6.000000" stroke="#4477AA" fill="white" style="stroke-width:2;" /></g><text x="834.000000" y="223.500000" fill="#2F557F" class="text-bold" style="text-anchor:middle;font-size:16px">LLM 约束求解(变异)</text></g><g class="c3RlcDQudGl0bGU="><g class="shape" ></g><text x="1216.500000" y="61.000000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">防御机制 bug</text></g><g class="c3RlcDQuczE="><g class="shape" ><rect x="1161.000000" y="74.000000" width="137.000000" height="66.000000" rx="6.000000" stroke="#228833" fill="white" style="stroke-width:2;" /></g><text x="1229.500000" y="112.500000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">上报上游</text></g><g class="c3RlcDQuczI="><g class="shape" ><rect x="1161.000000" y="148.000000" width="137.000000" height="66.000000" rx="6.000000" stroke="#228833" fill="white" style="stroke-width:2;" /></g><text x="1229.500000" y="186.500000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">确认 / patch</text></g><g class="KHN0ZXAxIC0mZ3Q7IHN0ZXAyKVswXQ=="><marker id="mk-d2-193818167-2357435599" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#CC3311" class="connection" stroke-width="3" /> </marker><path d="M 159.000000 129.500000 C 235.199997 129.500000 274.799988 129.500000 348.000000 129.500000" stroke="#CC3311" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-193818167-2357435599)" mask="url(#d2-193818167)" /><text x="255.500000" y="127.000000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px"><tspan x="255.500000" dy="0.000000">提供</tspan><tspan x="255.500000" dy="18.500000">安全契约</tspan></text></g><g class="KHN0ZXAyIC0mZ3Q7IHN0ZXAzKVswXQ=="><marker id="mk-d2-193818167-611039231" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#CCBB44" class="connection" stroke-width="3" /> </marker><path d="M 518.000000 129.500000 C 594.200012 129.500000 633.799988 129.500000 707.000000 129.500000" stroke="#CCBB44" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-193818167-611039231)" mask="url(#d2-193818167)" /><text x="614.500000" y="127.000000" fill="#7A6F1D" class="text-bold" style="text-anchor:middle;font-size:16px"><tspan x="614.500000" dy="0.000000">提供</tspan><tspan x="614.500000" dy="18.500000">判定接口</tspan></text></g><g class="KHN0ZXAzIC0mZ3Q7IHN0ZXA0KVswXQ=="><marker id="mk-d2-193818167-644990625" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#4477AA" class="connection" stroke-width="3" /> </marker><path d="M 958.000000 129.500000 C 1034.199951 129.500000 1073.800049 129.500000 1147.000000 129.500000" stroke="#4477AA" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-193818167-644990625)" mask="url(#d2-193818167)" /><text x="1054.500000" y="127.000000" fill="#2F557F" class="text-bold" style="text-anchor:middle;font-size:16px"><tspan x="1054.500000" dy="0.000000">推进至</tspan><tspan x="1054.500000" dy="18.500000">失效路径</tspan></text></g><mask id="d2-193818167" maskUnits="userSpaceOnUse" x="-26" y="-26" width="1358" height="311">
+		.d2-1898774476 .fill-N1{fill:#0A0F25;}
+		.d2-1898774476 .fill-N2{fill:#676C7E;}
+		.d2-1898774476 .fill-N3{fill:#9499AB;}
+		.d2-1898774476 .fill-N4{fill:#CFD2DD;}
+		.d2-1898774476 .fill-N5{fill:#DEE1EB;}
+		.d2-1898774476 .fill-N6{fill:#EEF1F8;}
+		.d2-1898774476 .fill-N7{fill:#FFFFFF;}
+		.d2-1898774476 .fill-B1{fill:#0D32B2;}
+		.d2-1898774476 .fill-B2{fill:#0D32B2;}
+		.d2-1898774476 .fill-B3{fill:#E3E9FD;}
+		.d2-1898774476 .fill-B4{fill:#E3E9FD;}
+		.d2-1898774476 .fill-B5{fill:#EDF0FD;}
+		.d2-1898774476 .fill-B6{fill:#F7F8FE;}
+		.d2-1898774476 .fill-AA2{fill:#4A6FF3;}
+		.d2-1898774476 .fill-AA4{fill:#EDF0FD;}
+		.d2-1898774476 .fill-AA5{fill:#F7F8FE;}
+		.d2-1898774476 .fill-AB4{fill:#EDF0FD;}
+		.d2-1898774476 .fill-AB5{fill:#F7F8FE;}
+		.d2-1898774476 .stroke-N1{stroke:#0A0F25;}
+		.d2-1898774476 .stroke-N2{stroke:#676C7E;}
+		.d2-1898774476 .stroke-N3{stroke:#9499AB;}
+		.d2-1898774476 .stroke-N4{stroke:#CFD2DD;}
+		.d2-1898774476 .stroke-N5{stroke:#DEE1EB;}
+		.d2-1898774476 .stroke-N6{stroke:#EEF1F8;}
+		.d2-1898774476 .stroke-N7{stroke:#FFFFFF;}
+		.d2-1898774476 .stroke-B1{stroke:#0D32B2;}
+		.d2-1898774476 .stroke-B2{stroke:#0D32B2;}
+		.d2-1898774476 .stroke-B3{stroke:#E3E9FD;}
+		.d2-1898774476 .stroke-B4{stroke:#E3E9FD;}
+		.d2-1898774476 .stroke-B5{stroke:#EDF0FD;}
+		.d2-1898774476 .stroke-B6{stroke:#F7F8FE;}
+		.d2-1898774476 .stroke-AA2{stroke:#4A6FF3;}
+		.d2-1898774476 .stroke-AA4{stroke:#EDF0FD;}
+		.d2-1898774476 .stroke-AA5{stroke:#F7F8FE;}
+		.d2-1898774476 .stroke-AB4{stroke:#EDF0FD;}
+		.d2-1898774476 .stroke-AB5{stroke:#F7F8FE;}
+		.d2-1898774476 .background-color-N1{background-color:#0A0F25;}
+		.d2-1898774476 .background-color-N2{background-color:#676C7E;}
+		.d2-1898774476 .background-color-N3{background-color:#9499AB;}
+		.d2-1898774476 .background-color-N4{background-color:#CFD2DD;}
+		.d2-1898774476 .background-color-N5{background-color:#DEE1EB;}
+		.d2-1898774476 .background-color-N6{background-color:#EEF1F8;}
+		.d2-1898774476 .background-color-N7{background-color:#FFFFFF;}
+		.d2-1898774476 .background-color-B1{background-color:#0D32B2;}
+		.d2-1898774476 .background-color-B2{background-color:#0D32B2;}
+		.d2-1898774476 .background-color-B3{background-color:#E3E9FD;}
+		.d2-1898774476 .background-color-B4{background-color:#E3E9FD;}
+		.d2-1898774476 .background-color-B5{background-color:#EDF0FD;}
+		.d2-1898774476 .background-color-B6{background-color:#F7F8FE;}
+		.d2-1898774476 .background-color-AA2{background-color:#4A6FF3;}
+		.d2-1898774476 .background-color-AA4{background-color:#EDF0FD;}
+		.d2-1898774476 .background-color-AA5{background-color:#F7F8FE;}
+		.d2-1898774476 .background-color-AB4{background-color:#EDF0FD;}
+		.d2-1898774476 .background-color-AB5{background-color:#F7F8FE;}
+		.d2-1898774476 .color-N1{color:#0A0F25;}
+		.d2-1898774476 .color-N2{color:#676C7E;}
+		.d2-1898774476 .color-N3{color:#9499AB;}
+		.d2-1898774476 .color-N4{color:#CFD2DD;}
+		.d2-1898774476 .color-N5{color:#DEE1EB;}
+		.d2-1898774476 .color-N6{color:#EEF1F8;}
+		.d2-1898774476 .color-N7{color:#FFFFFF;}
+		.d2-1898774476 .color-B1{color:#0D32B2;}
+		.d2-1898774476 .color-B2{color:#0D32B2;}
+		.d2-1898774476 .color-B3{color:#E3E9FD;}
+		.d2-1898774476 .color-B4{color:#E3E9FD;}
+		.d2-1898774476 .color-B5{color:#EDF0FD;}
+		.d2-1898774476 .color-B6{color:#F7F8FE;}
+		.d2-1898774476 .color-AA2{color:#4A6FF3;}
+		.d2-1898774476 .color-AA4{color:#EDF0FD;}
+		.d2-1898774476 .color-AA5{color:#F7F8FE;}
+		.d2-1898774476 .color-AB4{color:#EDF0FD;}
+		.d2-1898774476 .color-AB5{color:#F7F8FE;}.appendix text.text{fill:#0A0F25}.md{--color-fg-default:#0A0F25;--color-fg-muted:#676C7E;--color-fg-subtle:#9499AB;--color-canvas-default:#FFFFFF;--color-canvas-subtle:#EEF1F8;--color-border-default:#0D32B2;--color-border-muted:#0D32B2;--color-neutral-muted:#EEF1F8;--color-accent-fg:#0D32B2;--color-accent-emphasis:#0D32B2;--color-attention-subtle:#676C7E;--color-danger-fg:red;}.sketch-overlay-B1{fill:url(#streaks-darker-d2-1898774476);mix-blend-mode:lighten}.sketch-overlay-B2{fill:url(#streaks-darker-d2-1898774476);mix-blend-mode:lighten}.sketch-overlay-B3{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-B4{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-B5{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-B6{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-AA2{fill:url(#streaks-dark-d2-1898774476);mix-blend-mode:overlay}.sketch-overlay-AA4{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-AA5{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-AB4{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-AB5{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-N1{fill:url(#streaks-darker-d2-1898774476);mix-blend-mode:lighten}.sketch-overlay-N2{fill:url(#streaks-dark-d2-1898774476);mix-blend-mode:overlay}.sketch-overlay-N3{fill:url(#streaks-normal-d2-1898774476);mix-blend-mode:color-burn}.sketch-overlay-N4{fill:url(#streaks-normal-d2-1898774476);mix-blend-mode:color-burn}.sketch-overlay-N5{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-N6{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.sketch-overlay-N7{fill:url(#streaks-bright-d2-1898774476);mix-blend-mode:darken}.light-code{display: block}.dark-code{display: none}]]></style><g class="c3RlcDE="><g class="shape" ><rect x="0.000000" y="0.000000" width="156.000000" height="259.000000" rx="12.000000" stroke="#CC3311" fill="#F4DFD8" style="stroke-width:3;" /></g></g><g class="c3RlcDI="><g class="shape" ><rect x="354.000000" y="0.000000" width="161.000000" height="259.000000" rx="12.000000" stroke="#F5A623" fill="#FFF8E1" style="stroke-width:3;" /></g></g><g class="c3RlcDM="><g class="shape" ><rect x="713.000000" y="0.000000" width="242.000000" height="259.000000" rx="12.000000" stroke="#1976D2" fill="#E3F2FD" style="stroke-width:3;" /></g></g><g class="c3RlcDQ="><g class="shape" ><rect x="1153.000000" y="37.000000" width="153.000000" height="185.000000" rx="12.000000" stroke="#228833" fill="#E3F1E7" style="stroke-width:3;" /></g></g><g class="c3RlcDEudGl0bGU="><g class="shape" ></g><text x="78.000000" y="24.000000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">防御机制不变量</text></g><g class="c3RlcDEuczE="><g class="shape" ><rect x="8.000000" y="37.000000" width="140.000000" height="66.000000" rx="6.000000" stroke="#CC3311" fill="white" style="stroke-width:2;" /></g><text x="78.000000" y="75.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">官方文档</text></g><g class="c3RlcDEuczI="><g class="shape" ><rect x="8.000000" y="111.000000" width="140.000000" height="66.000000" rx="6.000000" stroke="#CC3311" fill="white" style="stroke-width:2;" /></g><text x="78.000000" y="149.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">源码注释</text></g><g class="c3RlcDEuczM="><g class="shape" ><rect x="8.000000" y="185.000000" width="140.000000" height="66.000000" rx="6.000000" stroke="#CC3311" fill="white" style="stroke-width:2;" /></g><text x="78.000000" y="223.500000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px">历史 bug</text></g><g class="c3RlcDIudGl0bGU="><g class="shape" ></g><text x="422.000000" y="24.000000" fill="#7D4E00" class="text-bold" style="text-anchor:middle;font-size:16px">程序化预言机</text></g><g class="c3RlcDIuczE="><g class="shape" ><rect x="362.000000" y="37.000000" width="145.000000" height="66.000000" rx="6.000000" stroke="#F5A623" fill="white" style="stroke-width:2;" /></g><text x="434.500000" y="75.500000" fill="#7D4E00" class="text-bold" style="text-anchor:middle;font-size:16px">静态检查器</text></g><g class="c3RlcDIuczI="><g class="shape" ><rect x="362.000000" y="111.000000" width="145.000000" height="66.000000" rx="6.000000" stroke="#F5A623" fill="white" style="stroke-width:2;" /></g><text x="434.500000" y="149.500000" fill="#7D4E00" class="text-bold" style="text-anchor:middle;font-size:16px">动态检查器</text></g><g class="c3RlcDIuczM="><g class="shape" ><rect x="362.000000" y="185.000000" width="145.000000" height="66.000000" rx="6.000000" stroke="#F5A623" fill="white" style="stroke-width:2;" /></g><text x="434.500000" y="223.500000" fill="#7D4E00" class="text-bold" style="text-anchor:middle;font-size:16px">聚合判定</text></g><g class="c3RlcDMudGl0bGU="><g class="shape" ></g><text x="802.500000" y="24.000000" fill="#0D47A1" class="text-bold" style="text-anchor:middle;font-size:16px">LLM × 覆盖率主循环</text></g><g class="c3RlcDMuczE="><g class="shape" ><rect x="721.000000" y="37.000000" width="226.000000" height="66.000000" rx="6.000000" stroke="#1976D2" fill="white" style="stroke-width:2;" /></g><text x="834.000000" y="75.500000" fill="#0D47A1" class="text-bold" style="text-anchor:middle;font-size:16px">筛防御机制相关代码</text></g><g class="c3RlcDMuczI="><g class="shape" ><rect x="721.000000" y="111.000000" width="226.000000" height="66.000000" rx="6.000000" stroke="#1976D2" fill="white" style="stroke-width:2;" /></g><text x="834.000000" y="149.500000" fill="#0D47A1" class="text-bold" style="text-anchor:middle;font-size:16px">选目标基本块</text></g><g class="c3RlcDMuczM="><g class="shape" ><rect x="721.000000" y="185.000000" width="226.000000" height="66.000000" rx="6.000000" stroke="#1976D2" fill="white" style="stroke-width:2;" /></g><text x="834.000000" y="223.500000" fill="#0D47A1" class="text-bold" style="text-anchor:middle;font-size:16px">LLM 约束求解(变异)</text></g><g class="c3RlcDQudGl0bGU="><g class="shape" ></g><text x="1216.500000" y="61.000000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">防御机制 bug</text></g><g class="c3RlcDQuczE="><g class="shape" ><rect x="1161.000000" y="74.000000" width="137.000000" height="66.000000" rx="6.000000" stroke="#228833" fill="white" style="stroke-width:2;" /></g><text x="1229.500000" y="112.500000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">上报上游</text></g><g class="c3RlcDQuczI="><g class="shape" ><rect x="1161.000000" y="148.000000" width="137.000000" height="66.000000" rx="6.000000" stroke="#228833" fill="white" style="stroke-width:2;" /></g><text x="1229.500000" y="186.500000" fill="#195C24" class="text-bold" style="text-anchor:middle;font-size:16px">确认 / patch</text></g><g class="KHN0ZXAxIC0mZ3Q7IHN0ZXAyKVswXQ=="><marker id="mk-d2-1898774476-2357435599" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#CC3311" class="connection" stroke-width="3" /> </marker><path d="M 159.000000 129.500000 C 235.199997 129.500000 274.799988 129.500000 348.000000 129.500000" stroke="#CC3311" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-1898774476-2357435599)" mask="url(#d2-1898774476)" /><text x="255.500000" y="127.000000" fill="#7F2615" class="text-bold" style="text-anchor:middle;font-size:16px"><tspan x="255.500000" dy="0.000000">提供</tspan><tspan x="255.500000" dy="18.500000">安全契约</tspan></text></g><g class="KHN0ZXAyIC0mZ3Q7IHN0ZXAzKVswXQ=="><marker id="mk-d2-1898774476-3382256158" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#F5A623" class="connection" stroke-width="3" /> </marker><path d="M 518.000000 129.500000 C 594.200012 129.500000 633.799988 129.500000 707.000000 129.500000" stroke="#F5A623" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-1898774476-3382256158)" mask="url(#d2-1898774476)" /><text x="614.500000" y="127.000000" fill="#7D4E00" class="text-bold" style="text-anchor:middle;font-size:16px"><tspan x="614.500000" dy="0.000000">提供</tspan><tspan x="614.500000" dy="18.500000">判定接口</tspan></text></g><g class="KHN0ZXAzIC0mZ3Q7IHN0ZXA0KVswXQ=="><marker id="mk-d2-1898774476-2314603778" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#1976D2" class="connection" stroke-width="3" /> </marker><path d="M 958.000000 129.500000 C 1034.199951 129.500000 1073.800049 129.500000 1147.000000 129.500000" stroke="#1976D2" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-1898774476-2314603778)" mask="url(#d2-1898774476)" /><text x="1054.500000" y="127.000000" fill="#0D47A1" class="text-bold" style="text-anchor:middle;font-size:16px"><tspan x="1054.500000" dy="0.000000">推进至</tspan><tspan x="1054.500000" dy="18.500000">失效路径</tspan></text></g><mask id="d2-1898774476" maskUnits="userSpaceOnUse" x="-26" y="-26" width="1358" height="311">
 <rect x="-26" y="-26" width="1358" height="311" fill="white"></rect>
 <rect x="214.000000" y="111.000000" width="83" height="37" fill="black"></rect>
 <rect x="573.000000" y="111.000000" width="83" height="37" fill="black"></rect>

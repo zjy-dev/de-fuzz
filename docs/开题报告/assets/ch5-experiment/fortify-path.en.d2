@@ -12,8 +12,8 @@ n1: "user code\nstrcat(dst, src)" {
 
 n2: "__strcat_chk(dst, src, n)\nn = size of dst array" {
   style: {
-    fill: "#F6F1D8"; stroke: "#CCBB44"; stroke-width: 3
-    font-color: "#7A6F1D"; border-radius: 8; bold: true
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    font-color: "#7D4E00"; border-radius: 8; bold: true
   }
 }
 
@@ -25,7 +25,7 @@ n3: "__stpcpy_chk(dst + strlen(dst), src, n)\n⚠ n should be n - strlen(dst)" {
 }
 
 n1 -> n2: "FORTIFY hardening" {
-  style: { stroke: "#CCBB44"; stroke-width: 3; font-color: "#7A6F1D"; bold: true }
+  style: { stroke: "#F5A623"; stroke-width: 3; font-color: "#7D4E00"; bold: true }
 }
 
 n2 -> n3: "performance rewrite" {
