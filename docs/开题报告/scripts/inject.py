@@ -112,11 +112,14 @@ def p_body(text: str) -> str:
 
 
 def p_ref(text: str) -> str:
-    """reference list item: no first-line indent, hanging style"""
+    """reference list item: left-aligned (avoid wide justify gaps around URLs)
+    and keep-lines-together (avoid URL being orphaned on a new page)."""
     return (
         '<w:p>'
         '<w:pPr><w:pStyle w:val="Normal"/>'
+        '<w:keepLines/>'
         '<w:spacing w:lineRule="auto" w:line="360"/>'
+        '<w:jc w:val="start"/>'
         '<w:rPr><w:kern w:val="0"/><w:sz w:val="24"/></w:rPr></w:pPr>'
         '<w:r><w:rPr><w:kern w:val="0"/><w:sz w:val="24"/></w:rPr>'
         f'<w:t xml:space="preserve">{xml_escape(text)}</w:t></w:r></w:p>'
@@ -265,23 +268,27 @@ def build_body_xml() -> str:
     # Chapter 1 — figures inserted inline via [[FIG:stack-layout]] / [[FIG:defense-matrix]]
     parts += render_chapter((CHAPTERS / "01-background.txt").read_text(encoding="utf-8"))
 
+    # One blank line above every subsequent top-level (一、二、…、参考文献) heading.
     # Chapter 2 — no figures
-    parts += render_chapter((CHAPTERS / "02-related-work.txt").read_text(encoding="utf-8"))
     parts.append(p_blank())
+    parts += render_chapter((CHAPTERS / "02-related-work.txt").read_text(encoding="utf-8"))
 
     # Chapter 3 — inline [[FIG:pipeline]]
-    parts += render_chapter((CHAPTERS / "03-objective-content.txt").read_text(encoding="utf-8"))
     parts.append(p_blank())
+    parts += render_chapter((CHAPTERS / "03-objective-content.txt").read_text(encoding="utf-8"))
 
     # Chapter 4 — inline [[FIG:architecture]] / [[FIG:oracle-flow]] / [[FIG:main-loop]]
+    parts.append(p_blank())
     parts += render_chapter((CHAPTERS / "04-technical-route.txt").read_text(encoding="utf-8"))
 
     # Chapter 5 — inline [[FIG:fortify-path]]
+    parts.append(p_blank())
     parts += render_chapter((CHAPTERS / "05-preliminary-experiment.txt").read_text(encoding="utf-8"))
 
     # References (the txt file already starts with the "参考文献" heading)
-    ref_text = (CHAPTERS / "06-references.txt").read_text(encoding="utf-8")
+    parts.append(p_blank())
     parts.append(p_main_heading("参考文献"))
+    ref_text = (CHAPTERS / "06-references.txt").read_text(encoding="utf-8")
     # strip the leading "参考文献" line from the txt before rendering refs
     ref_body = re.sub(r"^\s*参考文献\s*\n+", "", ref_text)
     parts += render_chapter(ref_body, kind="ref")
@@ -293,13 +300,13 @@ def build_body_xml() -> str:
 # ---------------------------------------------------------------------------
 
 SCHEDULE = [
-    ("2026.02-2026.03", "完成防御机制不变量调研，建立统一记录格式"),
-    ("2026.03-2026.04", "扩展预言机框架到 _FORTIFY_SOURCE 与 IBT，完善大模型提示词流水线"),
-    ("2026.04-2026.05", "跨架构 flag profile 实验框架定型，在 GCC 上完成全机制端到端实验"),
-    ("2026.04-2026.05", "把编译器子系统与覆盖率适配层扩展到 LLVM 工具链"),
-    ("2026.05-2026.06", "在 LLVM 上复用预言机框架开展对照实验，形成缺陷上报闭环"),
-    ("2026.05-2026.06", "撰写学位论文，整理实验数据与图表，准备投稿"),
-    ("2026.06", "学位论文答辩"),
+    ("2026.05-2026.07", "扩展不变量集合到 BTI / PAC、Shadow Stack、CFI 等机制，丰富预言机框架的静态与动态检查器"),
+    ("2026.07-2026.09", "把编译器子系统、覆盖率适配层、flag profile 扩展到 LLVM 工具链，对齐跨架构 / 跨编译器实验框架"),
+    ("2026.09-2026.12", "在 GCC 与 LLVM 多版本、多 ISA 上完成全机制端到端实验，持续推进上游缺陷上报闭环"),
+    ("2026.12-2027.02", "与 Csmith、YARPGen、GrayC、HLPFuzz 等基线方法做对照评测，量化覆盖率推进与缺陷发现上的相对优势"),
+    ("2027.02-2027.04", "整理实验数据与图表，完成学位论文初稿，准备会议 / 期刊投稿"),
+    ("2027.04-2027.06", "学位论文修订、外审反馈处理、答辩材料准备"),
+    ("2027.06", "学位论文答辩"),
 ]
 
 

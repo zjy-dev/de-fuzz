@@ -3,6 +3,7 @@
 .vscode/
 *.swp
 *.swo
+node_modules/
 
 # Go
 vendor/
@@ -46,6 +47,11 @@ Thumbs.db
 # Planning and draft documents
 *plan*.md
 GEMINI.md
+**/unpacked_docx/
+**/_archieve/unpacked_docx/
+.~*.docx
+*.docx.bak
+
 
 # AI assistant and vibe-coding artifacts
 claude/
@@ -54,6 +60,10 @@ claude.md
 .windsurf/
 copilot/
 ollama/
+.agents/
+.gemini/
+.opencode/
+.claude/
 
 # Temporary and cache files
 *.tmp

@@ -10,11 +10,11 @@
 
 [5] Yang C, Deng Y, Lu R, et al. WhiteFox: White-box compiler fuzzing empowered by large language models[C]//Proceedings of the ACM on Programming Languages (OOPSLA). 2024.
 
-[6] GNU Project. GCC Bugzilla PR 87672 — tree-ssa-strlen: __strcat_chk to __stpcpy_chk drops bound subtract[EB/OL]. (2018)[2026-02-15]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=87672.
+[6] GNU Project. GCC Bugzilla PR 87672 — [9 regression] 81512c36 causes ICE in bootstrap stage 3 using "-D_FORTIFY_SOURCE=2"[EB/OL]. (2018)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=87672.
 
-[7] GNU Project. GCC Bugzilla PR 96191 — stack-protector leaves canary in caller-saved register on AArch64/ARM[EB/OL]. (2020)[2026-02-15]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96191.
+[7] GNU Project. GCC Bugzilla PR 96191 — aarch64 stack_protect_test canary leak[EB/OL]. (2020)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96191.
 
-[8] GNU Project. GCC Bugzilla PR 96350 — i386: reject ENDBR pattern in immediate operands under -fcf-protection=branch[EB/OL]. (2020)[2026-02-15]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96350.
+[8] GNU Project. GCC Bugzilla PR 96350 — [cet] For ENDBR immediate, the binary would include a gadget that starts with a fake ENDBR64 opcode[EB/OL]. (2020)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96350.
 
 [9] Intel Corporation. Control-flow Enforcement Technology Specification[R/OL]. (2019)[2026-02-15]. https://www.intel.com/content/www/us/en/developer/articles/technical/technical-look-control-flow-enforcement-technology.html.
 
@@ -31,3 +31,11 @@
 [15] Yang Y, Zhang H, Ren Z, et al. Hybrid language processor fuzzing via LLM-based constraint solving[C]//Proceedings of the 34th USENIX Security Symposium (USENIX Security). 2025.
 
 [16] Meta Security. CVE-2023-4039: GCC's -fstack-protector fails to guard dynamic stack allocations on AArch64[EB/OL]. (2023)[2026-02-15]. https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html.
+
+[17] GNU Project. GCC Bugzilla PR 125079 — [13/14/15 Regression] tree-ssa-strlen get_string_length: __strcat_chk -> __stpcpy_chk drops bound subtract[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125079.
+
+[18] GNU Project. GCC Bugzilla PR 125084 — [target/i386] ix86_endbr_immediate_operand misses ENDBR pattern when upper bytes nonzero[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125084.
+
+[19] GNU Project. GCC Bugzilla PR 125045 — [meta-bug] SSP fallback leaves canary in live GPR on many targets[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045.
+
+[20] GNU Project. GCC Bugzilla PR 125049 — [loongarch] SSP fallback leaves __stack_chk_guard live in $r12 at `jr $r1`[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125049.
