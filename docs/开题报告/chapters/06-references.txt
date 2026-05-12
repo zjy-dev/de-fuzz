@@ -39,3 +39,5 @@
 [19] GNU Project. GCC Bugzilla PR 125045 — [meta-bug] SSP fallback leaves canary in live GPR on many targets[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045.
 
 [20] GNU Project. GCC Bugzilla PR 125049 — [loongarch] SSP fallback leaves __stack_chk_guard live in $r12 at `jr $r1`[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125049.
+
+[21] CVE Program. CVE Metrics — published vulnerabilities trend[EB/OL]. (2026)[2026-05-12]. https://www.cve.org/about/Metrics.

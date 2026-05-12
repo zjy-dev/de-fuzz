@@ -29,7 +29,7 @@ FIGURES = {
     "pipeline":       ("ch3-objective/pipeline.zh.png",        "rId23", "图 3  研究内容工作链条",                                   23),
     "architecture":   ("ch4-route/architecture.zh.png",        "rId24", "图 4  DeFuzz 总体架构",                                  24),
     "oracle-flow":    ("ch4-route/oracle-flow.zh.png",         "rId25", "图 5  防御机制不变量预言机判定流程",                  25),
-    "main-loop":      ("ch4-route/main-loop.zh.png",           "rId26", "图 6  大模型约束求解主循环",                          26),
+    "main-loop":      ("ch4-route/main-loop.zh.png",           "rId26", "图 6  大语言模型驱动的种子变异主循环",                26),
     "fortify-path":   ("ch5-experiment/fortify-path.zh.png",   "rId27", "图 7  _FORTIFY_SOURCE 优化路径与 size 静默放宽",         27),
 }
 
@@ -180,16 +180,18 @@ def p_image(rid: str, img_name: str, fig_id: int, cx: int, cy: int) -> str:
 
 
 def p_caption(text: str) -> str:
-    """Centered, small-italic caption line below a figure."""
+    """Centered caption line below a figure. Sized to 五号(sz=22≈11pt) so the
+    caption is legible alongside the 小四(sz=24≈12pt) body, addressing the
+    r1 reviewer note that the original sz=20 caption was too small."""
     return (
         '<w:p>'
         '<w:pPr><w:pStyle w:val="Normal"/>'
-        '<w:spacing w:lineRule="auto" w:line="300"/>'
+        '<w:spacing w:lineRule="auto" w:line="360"/>'
         '<w:jc w:val="center"/>'
         '<w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体"/>'
-        '<w:i/><w:sz w:val="20"/></w:rPr></w:pPr>'
+        '<w:b/><w:bCs/><w:sz w:val="22"/></w:rPr></w:pPr>'
         '<w:r><w:rPr><w:rFonts w:ascii="宋体" w:hAnsi="宋体" w:eastAsia="宋体"/>'
-        '<w:i/><w:sz w:val="20"/></w:rPr>'
+        '<w:b/><w:bCs/><w:sz w:val="22"/></w:rPr>'
         f'<w:t>{xml_escape(text)}</w:t></w:r></w:p>'
     )
 
@@ -314,8 +316,21 @@ SCHEDULE = [
 # Main injection
 # ---------------------------------------------------------------------------
 
+THESIS_TITLE = "基于大语言模型的编译器防御机制脆弱性分析方法研究"
+LEGACY_TITLES = (
+    "基于 LLM 约束求解的编译器防御机制模糊测试方法研究",
+)
+
+
 def main() -> None:
     text = DOC.read_text(encoding="utf-8")
+
+    # 0. Refresh the thesis title on the cover so it stays in sync with the
+    # current chapters/00-meta.txt value without manually re-editing
+    # template.docx. The title only appears once in the cover header table.
+    for legacy in LEGACY_TITLES:
+        if legacy in text:
+            text = text.replace(legacy, THESIS_TITLE)
 
     # 1. Body content replacement.
     # The first page (cover) is preserved verbatim from template.docx, which
