@@ -41,3 +41,7 @@
 [20] GNU Project. GCC Bugzilla PR 125049 — [loongarch] SSP fallback leaves __stack_chk_guard live in $r12 at `jr $r1`[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125049.
 
 [21] CVE Program. CVE Metrics — published vulnerabilities trend[EB/OL]. (2026)[2026-05-12]. https://www.cve.org/about/Metrics.
+
+[22] Microsoft Security Response Center. Microsoft Security Response Center Blog[EB/OL]. (2023)[2026-05-13]. https://www.microsoft.com/en-us/msrc/blog.
+
+[23] Google Security Blog. Memory Safe Languages in Android 13[EB/OL]. (2022-12)[2026-05-13]. https://security.googleblog.com/2022/12/memory-safe-languages-in-android-13.html.
