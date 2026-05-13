@@ -1,47 +1,47 @@
 参考文献
 
-[1] Yang X, Chen Y, Eide E, et al. Finding and understanding bugs in C compilers[C]//Proceedings of the 32nd ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI). 2011: 283-294.
+[1] CVE Program. CVE Metrics — published vulnerabilities trend[EB/OL]. (2026)[2026-05-12]. https://www.cve.org/about/Metrics.
 
-[2] Livinskii V, Babokin D, Regehr J. Random testing for C and C++ compilers with YARPGen[C]//Proceedings of the ACM on Programming Languages (OOPSLA). 2020, 4: 1-25.
+[2] Microsoft Security Response Center. Microsoft Security Response Center Blog[EB/OL]. (2023)[2026-05-13]. https://www.microsoft.com/en-us/msrc/blog.
 
-[3] Zalewski M. American Fuzzy Lop (AFL)[EB/OL]. (2014)[2026-02-15]. https://lcamtuf.coredump.cx/afl/.
+[3] Google Security Blog. Memory Safe Languages in Android 13[EB/OL]. (2022-12)[2026-05-13]. https://security.googleblog.com/2022/12/memory-safe-languages-in-android-13.html.
 
-[4] Serebryany K. Continuous fuzzing with libFuzzer and AddressSanitizer[C]//IEEE Cybersecurity Development (SecDev). 2016: 157.
+[4] Meta Security. CVE-2023-4039: GCC's -fstack-protector fails to guard dynamic stack allocations on AArch64[EB/OL]. (2023)[2026-02-15]. https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html.
 
-[5] Yang C, Deng Y, Lu R, et al. WhiteFox: White-box compiler fuzzing empowered by large language models[C]//Proceedings of the ACM on Programming Languages (OOPSLA). 2024.
+[5] GNU Project. GCC Bugzilla PR 96191 — aarch64 stack_protect_test canary leak[EB/OL]. (2020)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96191.
 
-[6] GNU Project. GCC Bugzilla PR 87672 — [9 regression] 81512c36 causes ICE in bootstrap stage 3 using "-D_FORTIFY_SOURCE=2"[EB/OL]. (2018)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=87672.
+[6] GNU Project. GCC Bugzilla PR 125079 — [13/14/15 Regression] tree-ssa-strlen get_string_length: __strcat_chk -> __stpcpy_chk drops bound subtract[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125079.
 
-[7] GNU Project. GCC Bugzilla PR 96191 — aarch64 stack_protect_test canary leak[EB/OL]. (2020)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96191.
+[7] GNU Project. GCC Bugzilla PR 125084 — [target/i386] ix86_endbr_immediate_operand misses ENDBR pattern when upper bytes nonzero[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125084.
 
-[8] GNU Project. GCC Bugzilla PR 96350 — [cet] For ENDBR immediate, the binary would include a gadget that starts with a fake ENDBR64 opcode[EB/OL]. (2020)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96350.
+[8] GNU Project. GCC Bugzilla PR 125045 — [meta-bug] SSP fallback leaves canary in live GPR on many targets[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045.
 
-[9] Intel Corporation. Control-flow Enforcement Technology Specification[R/OL]. (2019)[2026-02-15]. https://www.intel.com/content/www/us/en/developer/articles/technical/technical-look-control-flow-enforcement-technology.html.
+[9] GNU Project. GCC Bugzilla PR 125049 — [loongarch] SSP fallback leaves __stack_chk_guard live in $r12 at `jr $r1`[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125049.
 
-[10] Free Software Foundation. The GNU C Library Reference Manual: Source Fortification[EB/OL]. (2024)[2026-02-15]. https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html.
+[10] Yang X, Chen Y, Eide E, et al. Finding and understanding bugs in C compilers[C]//Proceedings of the 32nd ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI). 2011: 283-294.
 
-[11] Le V, Afshari M, Su Z. Compiler validation via equivalence modulo inputs[C]//Proceedings of the 35th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI). 2014: 216-226.
+[11] Livinskii V, Babokin D, Regehr J. Random testing for C and C++ compilers with YARPGen[C]//Proceedings of the ACM on Programming Languages (OOPSLA). 2020, 4: 1-25.
 
-[12] Li S, Su Z. UBfuzz: Finding bugs in sanitizer implementations[C]//Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS). 2024.
+[12] Zalewski M. American Fuzzy Lop (AFL)[EB/OL]. (2014)[2026-02-15]. https://lcamtuf.coredump.cx/afl/.
 
-[13] Ma H, Shen Q, Tian Y, et al. Fuzzing deep learning compilers with HirGen[C]//Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA). 2023.
+[13] Serebryany K. Continuous fuzzing with libFuzzer and AddressSanitizer[C]//IEEE Cybersecurity Development (SecDev). 2016: 157.
 
 [14] Even-Mendoza K, Sharma A, Donaldson A F, et al. GrayC: Greybox fuzzing of compilers and analysers for C[C]//Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA). 2023: 1219-1231.
 
-[15] Yang Y, Zhang H, Ren Z, et al. Hybrid language processor fuzzing via LLM-based constraint solving[C]//Proceedings of the 34th USENIX Security Symposium (USENIX Security). 2025.
+[15] Le V, Afshari M, Su Z. Compiler validation via equivalence modulo inputs[C]//Proceedings of the 35th ACM SIGPLAN Conference on Programming Language Design and Implementation (PLDI). 2014: 216-226.
 
-[16] Meta Security. CVE-2023-4039: GCC's -fstack-protector fails to guard dynamic stack allocations on AArch64[EB/OL]. (2023)[2026-02-15]. https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html.
+[16] Yang C, Deng Y, Lu R, et al. WhiteFox: White-box compiler fuzzing empowered by large language models[C]//Proceedings of the ACM on Programming Languages (OOPSLA). 2024.
 
-[17] GNU Project. GCC Bugzilla PR 125079 — [13/14/15 Regression] tree-ssa-strlen get_string_length: __strcat_chk -> __stpcpy_chk drops bound subtract[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125079.
+[17] Yang Y, Zhang H, Ren Z, et al. Hybrid language processor fuzzing via LLM-based constraint solving[C]//Proceedings of the 34th USENIX Security Symposium (USENIX Security). 2025.
 
-[18] GNU Project. GCC Bugzilla PR 125084 — [target/i386] ix86_endbr_immediate_operand misses ENDBR pattern when upper bytes nonzero[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125084.
+[18] Li S, Su Z. UBfuzz: Finding bugs in sanitizer implementations[C]//Proceedings of the 29th ACM International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS). 2024.
 
-[19] GNU Project. GCC Bugzilla PR 125045 — [meta-bug] SSP fallback leaves canary in live GPR on many targets[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045.
+[19] Ma H, Shen Q, Tian Y, et al. Fuzzing deep learning compilers with HirGen[C]//Proceedings of the 32nd ACM SIGSOFT International Symposium on Software Testing and Analysis (ISSTA). 2023.
 
-[20] GNU Project. GCC Bugzilla PR 125049 — [loongarch] SSP fallback leaves __stack_chk_guard live in $r12 at `jr $r1`[EB/OL]. (2026)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125049.
+[20] Free Software Foundation. The GNU C Library Reference Manual: Source Fortification[EB/OL]. (2024)[2026-02-15]. https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html.
 
-[21] CVE Program. CVE Metrics — published vulnerabilities trend[EB/OL]. (2026)[2026-05-12]. https://www.cve.org/about/Metrics.
+[21] GNU Project. GCC Bugzilla PR 87672 — [9 regression] 81512c36 causes ICE in bootstrap stage 3 using "-D_FORTIFY_SOURCE=2"[EB/OL]. (2018)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=87672.
 
-[22] Microsoft Security Response Center. Microsoft Security Response Center Blog[EB/OL]. (2023)[2026-05-13]. https://www.microsoft.com/en-us/msrc/blog.
+[22] Intel Corporation. Control-flow Enforcement Technology Specification[R/OL]. (2019)[2026-02-15]. https://www.intel.com/content/www/us/en/developer/articles/technical/technical-look-control-flow-enforcement-technology.html.
 
-[23] Google Security Blog. Memory Safe Languages in Android 13[EB/OL]. (2022-12)[2026-05-13]. https://security.googleblog.com/2022/12/memory-safe-languages-in-android-13.html.
+[23] GNU Project. GCC Bugzilla PR 96350 — [cet] For ENDBR immediate, the binary would include a gadget that starts with a fake ENDBR64 opcode[EB/OL]. (2020)[2026-05-11]. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96350.
