@@ -7,42 +7,42 @@ direction: right
 scheduler: "配置模块\n（防御机制 · ISA · flag）" {
   style: {
     fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
-    font-color: "#7F2615"; border-radius: 8
+    font-color: "#7F2615"; border-radius: 8; font-size: 24
   }
 }
 
 engine: "Fuzz 引擎\n（主循环 · 提示词组装）" {
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
-    font-color: "#0D47A1"; border-radius: 8; bold: true
+    font-color: "#0D47A1"; border-radius: 8; bold: true; font-size: 24
   }
 }
 
 subsystems: "子系统" {
   style: {
     fill: "#FAFAFA"; stroke: "#9CA3AF"; stroke-width: 1
-    stroke-dash: 3; font-color: "#6B7280"; border-radius: 12
+    stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 24
   }
 
   llm: "LLM 变异子系统" {
     shape: cloud
     style: {
       fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-      font-color: "#0D47A1"; bold: true
+      font-color: "#0D47A1"; bold: true; font-size: 24
     }
   }
 
   compiler: "编译器子系统\n（GCC / LLVM · 覆盖率插桩）" {
     style: {
       fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-      font-color: "#195C24"; border-radius: 8
+      font-color: "#195C24"; border-radius: 8; font-size: 24
     }
   }
 
   oracle: "预言机子系统\n（静态 · 动态 · 聚合）" {
     style: {
       fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
-      font-color: "#7D4E00"; border-radius: 8
+      font-color: "#7D4E00"; border-radius: 8; font-size: 24
     }
   }
 }
@@ -51,30 +51,30 @@ corpus: "种子语料库" {
   shape: cylinder
   style: {
     fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
-    font-color: "#374151"; bold: true
+    font-color: "#374151"; bold: true; font-size: 24
   }
 }
 
 # 主数据流：引擎与三大子系统双向交互
-engine <-> subsystems.llm: "提示词 / 新种子" {
-  style: { stroke: "#1976D2"; stroke-width: 2 }
+engine <-> subsystems.llm: "提示词/种子" {
+  style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 }
 }
-engine <-> subsystems.compiler: "种子 / 覆盖率反馈" {
-  style: { stroke: "#228833"; stroke-width: 2 }
+engine <-> subsystems.compiler: "种子/覆盖率" {
+  style: { stroke: "#228833"; stroke-width: 2; font-size: 24 }
 }
-engine <-> subsystems.oracle: "二进制 / 判定结果" {
-  style: { stroke: "#F5A623"; stroke-width: 2 }
+engine <-> subsystems.oracle: "二进制/判定" {
+  style: { stroke: "#F5A623"; stroke-width: 2; font-size: 24 }
 }
 
 # 持久化
 engine -> corpus: "持久化" {
-  style: { stroke: "#6B7280"; stroke-width: 2 }
+  style: { stroke: "#6B7280"; stroke-width: 2; font-size: 24 }
 }
 
 # 配置注入（控制平面，虚线区分）
-scheduler -> subsystems.compiler: "工具链(compiler) / flag" {
-  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
+scheduler -> subsystems.compiler: "compiler/flag" {
+  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-size: 24 }
 }
-scheduler -> subsystems.oracle: "工具链(qemu)" {
-  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
+scheduler -> subsystems.oracle: "qemu" {
+  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-size: 24 }
 }

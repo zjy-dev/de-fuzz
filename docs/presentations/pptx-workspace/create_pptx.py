@@ -11,7 +11,7 @@ from __future__ import annotations
 from pptx import Presentation
 
 from builders import ALL_SLIDES
-from theme import OUTPUT_PATH, SLIDE_H, SLIDE_W
+from theme import OUTPUT_PATH, SLIDE_H, SLIDE_W, PageCounter
 
 
 def build() -> None:
@@ -22,11 +22,12 @@ def build() -> None:
     pres.core_properties.author = "DeFuzz"
     pres.core_properties.subject = "硕士学位论文开题答辩"
 
+    pc = PageCounter()
     for builder in ALL_SLIDES:
-        builder(pres)
+        builder(pres, pc)
 
     pres.save(str(OUTPUT_PATH))
-    print(f"[OK] wrote {OUTPUT_PATH} ({len(ALL_SLIDES)} slides)")
+    print(f"[OK] wrote {OUTPUT_PATH} ({len(ALL_SLIDES)} slides, {pc.n} numbered pages)")
 
 
 if __name__ == "__main__":

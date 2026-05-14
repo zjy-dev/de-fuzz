@@ -55,14 +55,28 @@ CONTENT_TOP = HEADER_H + CONTENT_PAD_Y
 CONTENT_W = SLIDE_W - 2 * CONTENT_PAD_X
 CONTENT_H = SLIDE_H - HEADER_H - FOOTER_H - 2 * CONTENT_PAD_Y
 
-# Fonts (let PowerPoint fall back for CJK)
-LATIN_FONT = "Arial"
+# Fonts — 全 deck 统一使用微软雅黑 (中英文同字体, 便于跨平台一致渲染)
+LATIN_FONT = "Microsoft YaHei"
 EA_FONT = "Microsoft YaHei"
 
 # Workspace paths
 WORKSPACE = Path(__file__).resolve().parent
 LOGO_PATH = WORKSPACE / "seu-logo.png"
 OUTPUT_PATH = WORKSPACE / "开题答辩-DeFuzz.pptx"
+
+
+# ─────────────────────────────────────────────────────────────
+# Page counter (扉页不占页码, 内容页 next() 递增)
+# ─────────────────────────────────────────────────────────────
+class PageCounter:
+    """页码计数器: 扉页 builder 不调用, 内容 builder 调 next() 取页号."""
+
+    def __init__(self) -> None:
+        self.n = 0
+
+    def next(self) -> int:
+        self.n += 1
+        return self.n
 
 
 # ─────────────────────────────────────────────────────────────
@@ -285,6 +299,7 @@ __all__ = [
     "LOGO_PATH", "OUTPUT_PATH",
     "MSO_SHAPE", "PP_ALIGN", "MSO_ANCHOR",
     "Inches", "Pt", "Emu",
+    "PageCounter",
     "add_rect", "add_line", "add_text", "add_page_frame", "add_section_title",
     "add_arrow",
 ]
