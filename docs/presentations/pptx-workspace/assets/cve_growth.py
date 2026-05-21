@@ -69,6 +69,15 @@ def main() -> None:
         offset = 1400 if i < len(YEARS) - 2 else 2100
         color = GREEN_DARK if i < len(YEARS) - 2 else "#B7791F"
         weight = "normal" if i < len(YEARS) - 2 else "bold"
+        # 2023 的标签会与 2023→2024 的陡升线段重叠, 向左下偏移避让
+        if y == 2023:
+            ax.annotate(
+                f"{c:,}",
+                xy=(y, c), xytext=(y + 0.05, c - 1700),
+                ha="left", va="top",
+                fontsize=9.5, color=color, weight=weight,
+            )
+            continue
         ax.annotate(
             f"{c:,}",
             xy=(y, c), xytext=(y, c + offset),

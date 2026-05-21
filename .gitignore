@@ -80,3 +80,4 @@ scripts/assets/*deepseek*.png
 
 fuzz_out*/
 compiler-audit/
+temp_unpacked/
