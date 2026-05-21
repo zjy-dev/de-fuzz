@@ -85,7 +85,7 @@ func TestMechanism_AllPass(t *testing.T) {
 }
 
 // TestMechanism_OneFailReportsBug asserts OR aggregation: a single Fail in
-// any non-enablement phase produces a bug containing the violation ID.
+// any phase produces a bug containing the violation ID.
 func TestMechanism_OneFailReportsBug(t *testing.T) {
 	m := &MechanismOracle{
 		Name: "test-mech",
@@ -109,25 +109,6 @@ func TestMechanism_OneFailReportsBug(t *testing.T) {
 	}
 	if !strings.Contains(bug.Description, "INV-A") {
 		t.Errorf("description should list passed invariants too, got: %s", bug.Description)
-	}
-}
-
-// TestMechanism_EnablementBlocks asserts a Fail in the enablement phase
-// short-circuits as "no bug" (mechanism is off, not a vulnerability).
-func TestMechanism_EnablementBlocks(t *testing.T) {
-	m := &MechanismOracle{
-		Name: "test",
-		Checkers: []InvariantChecker{
-			&stubChecker{id: "INV-E", category: CategoryEnablement, verdict: VerdictFail, evidence: "mechanism off"},
-			&stubChecker{id: "INV-D", category: CategoryDynamic, verdict: VerdictFail, evidence: "this should not matter"},
-		},
-	}
-	bug, err := m.Analyze(&seed.Seed{}, &AnalyzeContext{}, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if bug != nil {
-		t.Fatalf("enablement Fail must short-circuit to nil bug, got %+v", bug)
 	}
 }
 

@@ -48,22 +48,29 @@ func (v InvariantVerdict) String() string {
 	}
 }
 
-// InvariantCategory is the scheduling phase of a checker.
+// InvariantCategory classifies a checker by *what kind of evidence it
+// inspects*, mirroring story_line.md §4 — every safety invariant is encoded
+// either as a static property (assembly / binary feature) or a dynamic
+// property (runtime behavior). The category also doubles as a scheduling
+// phase inside `MechanismOracle`: cheap static checks run before expensive
+// dynamic ones.
 //
-// Phase ordering inside `MechanismOracle`:
-//  1. CategoryEnablement — gating; a Fail short-circuits as "mechanism not
-//     active", which is NOT a bug (it's a config issue).
-//  2. CategoryStatic — pure binary inspection (symbols, sections, disasm).
+//   - CategoryStatic — pure binary inspection (symbols, sections, disasm).
 //     No execution, safe to run unconditionally; cheap (ms scale).
-//  3. CategoryDynamic — requires running the binary (binary search, sentinel,
+//   - CategoryDynamic — requires running the binary (binary search, sentinel,
 //     differential exec). Expensive; checkers in this phase share a
 //     dynamic-result cache via `CheckContext.Cache` to avoid duplicating work.
+//
+// "Mechanism not active" is NOT a separate category; checkers whose
+// pre-conditions are not met must return `VerdictNotApplicable` with a
+// descriptive Reason (e.g. `StackChkSymbolsChecker` returns NA when the
+// binary doesn't import `__stack_chk_fail`). The aggregator never treats
+// NA as a bug, so configuration mismatches never produce false positives.
 type InvariantCategory string
 
 const (
-	CategoryEnablement InvariantCategory = "enablement"
-	CategoryStatic     InvariantCategory = "static"
-	CategoryDynamic    InvariantCategory = "dynamic"
+	CategoryStatic  InvariantCategory = "static"
+	CategoryDynamic InvariantCategory = "dynamic"
 )
 
 // Polarity captures how to interpret a `Fail` for the current seed.
@@ -97,7 +104,7 @@ func (p Polarity) String() string {
 type InvariantResult struct {
 	// ID is the survey-anchored invariant ID, e.g. "INV-SP-L01".
 	ID string
-	// Category is the scheduling phase (enablement / static / dynamic).
+	// Category is the scheduling phase (static / dynamic).
 	Category InvariantCategory
 	// Verdict is the per-invariant outcome.
 	Verdict InvariantVerdict

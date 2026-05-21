@@ -16,20 +16,24 @@ import (
 // cfi, scs, ...). It is what mechanism oracles (e.g., `CanaryOracle`)
 // delegate to internally.
 //
-// Scheduling is `Enablement → Static → Dynamic`, sequentially. Static
-// checkers can be parallelized later (see
-// `docs/architecture/oracle-multi-invariant-redesign.md` §3.2); we keep them
-// sequential here because:
+// Scheduling is `Static → Dynamic`, sequentially. Static checkers can be
+// parallelized later (see ADR-003 §3.2); we keep them sequential here
+// because:
 //   - a single Analyze rarely runs more than ~5 static checkers;
 //   - the dynamic checker (binary search via QEMU) dominates wall-clock time;
 //   - parallel inspection would require synchronizing the BinaryInspector,
 //     which is currently single-reader by design.
 //
-// The aggregation policy is "OR with enablement gating":
-//   - any Enablement Fail (with PolarityPositive) → return nil bug, log
-//     diagnostics (mechanism is off, not a vulnerability);
+// The aggregation policy is plain OR over verdicts:
 //   - any Static / Dynamic Fail (after polarity application) → bug;
 //   - all others (Pass / NotApplicable / Error) → no bug.
+//
+// "Mechanism not active" is intentionally not a separate scheduling phase;
+// when a static checker detects that the mechanism is off (e.g. the binary
+// has no `__stack_chk_fail` import), it returns `VerdictNotApplicable` with
+// a descriptive Reason. NA never produces a bug, so misconfiguration never
+// turns into a false positive — and the diagnostic still surfaces in the
+// rendered description.
 type MechanismOracle struct {
 	// Name is a human-readable mechanism label, used in bug descriptions
 	// and logs (e.g., "stack canary", "_FORTIFY_SOURCE"). Should match the
@@ -79,24 +83,13 @@ func (m *MechanismOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []R
 		cctx.Inspector = NewBinaryInspector(ctx.BinaryPath)
 	}
 
-	// Phase 1: Enablement (BLOCKING).
-	enablement := m.runPhase(cctx, CategoryEnablement)
-	if blocked, blockReason := isEnablementBlocking(enablement, polarity); blocked {
-		// Mechanism is off (or expected to be off). This is NOT a bug; we
-		// surface diagnostics through the structured path but return nil.
-		// Aggregator could later decide to log NA-rate metrics here.
-		_ = blockReason // reserved for future logger.Warn integration
-		return nil, nil
-	}
-
-	// Phase 2: Static.
+	// Phase 1: Static.
 	static := m.runPhase(cctx, CategoryStatic)
 
-	// Phase 3: Dynamic.
+	// Phase 2: Dynamic.
 	dynamic := m.runPhase(cctx, CategoryDynamic)
 
-	all := make([]InvariantResult, 0, len(enablement)+len(static)+len(dynamic))
-	all = append(all, enablement...)
+	all := make([]InvariantResult, 0, len(static)+len(dynamic))
 	all = append(all, static...)
 	all = append(all, dynamic...)
 
@@ -181,20 +174,6 @@ func applyPolarity(r InvariantResult, polarity Polarity) InvariantResult {
 		}
 	}
 	return r
-}
-
-// isEnablementBlocking reports whether the enablement phase failed in a way
-// that should short-circuit the rest of the pipeline.
-//
-// Today: any VerdictFail in the enablement phase (under positive polarity)
-// blocks. Under inverted polarity, Fail is expected → does not block.
-func isEnablementBlocking(results []InvariantResult, polarity Polarity) (bool, string) {
-	for _, r := range results {
-		if r.Verdict == VerdictFail && polarity == PolarityPositive {
-			return true, fmt.Sprintf("%s: %s", r.ID, r.Evidence)
-		}
-	}
-	return false, ""
 }
 
 // filterByVerdict returns only those results whose Verdict matches.

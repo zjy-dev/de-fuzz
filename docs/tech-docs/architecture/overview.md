@@ -79,7 +79,7 @@ Engine.Run
   │     6. coverage.MeasureCompiled                 # gcovr → JSON
   │     7. analyzer.RecordCoverage / CheckNewCoverage
   │     8. oracle.Analyze(seed, ctx, results)       # MechanismOracle 调度
-  │           └─ Enablement → Static → Dynamic
+  │           └─ Static → Dynamic                    # 故事线 §4 的二分类
   │     9. corpus.Add (qualified: covered_new || hit_target || found_bug)
   │     10. (非命中) divergence.Analyze + GetRefinedPrompt → goto 5
   └─ (target 全覆盖时, 可选)

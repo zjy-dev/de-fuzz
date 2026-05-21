@@ -36,20 +36,22 @@ related_docs:
 按 `checker_dynamic_buffer.go` / `checker_static_canary.go` 模板写：
 
 ```go
-type FooEnablementChecker struct{ /* params */ }
+type FooStaticChecker struct{ /* params */ }
 
-func (c *FooEnablementChecker) ID() string                   { return "INV-FOO-E01" }
-func (c *FooEnablementChecker) Category() oracle.InvariantCategory { return oracle.CategoryEnablement }
-func (c *FooEnablementChecker) Check(ctx *oracle.CheckContext) oracle.InvariantResult {
-    r := oracle.InvariantResult{ID: c.ID(), Category: oracle.CategoryEnablement, SourceURL: "...", Sensitivity: "stable"}
+func (c *FooStaticChecker) ID() string                       { return "INV-FOO-S01" }
+func (c *FooStaticChecker) Category() oracle.InvariantCategory { return oracle.CategoryStatic }
+func (c *FooStaticChecker) Check(ctx *oracle.CheckContext) oracle.InvariantResult {
+    r := oracle.InvariantResult{ID: c.ID(), Category: oracle.CategoryStatic, SourceURL: "...", Sensitivity: "stable"}
     // ... 设置 Verdict / Evidence / Detail / Reason
+    // 若机制未启用（例如缺少必需符号），返回 VerdictNotApplicable + Reason="mechanism not active"
     return r
 }
 ```
 
 约束：
 
-- 不要在 `Check` 里 panic；缺前置条件返回 `VerdictNotApplicable + Reason`。
+- Category 只在 `CategoryStatic` / `CategoryDynamic` 之间二选一，对应故事线 §4 的"静态属性 / 动态属性"分类。
+- 不要在 `Check` 里 panic；缺前置条件返回 `VerdictNotApplicable + Reason`。**机制未启用也走这条路径**——绝不应返回 `Fail`（那是漏洞），而是用 NA 让聚合器自然跳过。
 - 复用 `BinaryInspector` (`ctx.Inspector`) 而不是自己 shell 出 `nm` / `objdump`。
 - 共享 dynamic search 结果通过 `ctx.CacheGet` / `CacheSet`，命名空间 `oracle.<purpose>`。
 - 如果 verdict 在 polarity 翻转下应改变，加 `r.Detail["polarity_sensitive"] = true`。
@@ -84,9 +86,8 @@ func (o *FooOracle) mechanism() *MechanismOracle {
     return &MechanismOracle{
         Name: "foo defense",
         Checkers: []InvariantChecker{
-            &FooEnablementChecker{},   // Phase 1
-            &FooStaticChecker{},       // Phase 2
-            &FooDynamicChecker{},      // Phase 3
+            &FooStaticChecker{},       // Phase 1: 静态属性（汇编 / 二进制特征）
+            &FooDynamicChecker{},      // Phase 2: 动态属性（运行时行为）
         },
         Polarizer: PolarizerFunc(o.polarityFor),
     }

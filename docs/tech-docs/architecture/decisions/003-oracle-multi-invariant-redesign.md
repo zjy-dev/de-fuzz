@@ -12,6 +12,13 @@ related_docs:
 
 # ADR-003: Oracle Multi-Invariant Redesign
 
+> **Addendum (2026-05-21)**：本 ADR §3.2 中提出的 "Phase 1: Enablement (BLOCKING)" 已在 2026-05-21 后被回收。`InvariantCategory` 简化为 `Static / Dynamic` 两类，对齐 `@/home/yall/project/de-fuzz/docs/story_line.md` §4 的"静态属性 / 动态属性"二分类，原因：
+> - Enablement 自项目落地以来从未注册过 checker，是事实上的死代码；
+> - 它把"机制是否启用"建模为独立调度阶段，与"以何种证据验证不变量"这条 Category 主轴正交，分类不纯；
+> - "机制未启用"的语义现在统一由 checker 层返回 `VerdictNotApplicable + Reason` 表达——NA 不会被聚合器视为 bug，因此配置错误不再可能造成假阳性，原 BLOCKING gating 的目标自然达成。
+>
+> 本节后文（包括 §3.2 的 Phase 1 描述、§5 末段对应的 BLOCKING 阐述）保留为历史记录，不要按它去修代码；以 `@/home/yall/project/de-fuzz/docs/tech-docs/architecture/oracle-mechanism-framework.md` 为现行实现态参考。
+
 > **实施现状 (2026-05-08)**：本 ADR 提出的方向已落地于 commit `268464c refactor(oracle): add invariant-based mechanism checks` 与 follow-up `ee04f48 feat(oracle): detect epilogue canary leaks`。代码位置：
 > - `@/home/yall/project/de-fuzz/internal/oracle/mechanism.go` —— `MechanismOracle` 聚合器；
 > - `@/home/yall/project/de-fuzz/internal/oracle/invariant.go` —— `InvariantChecker` / `InvariantResult` / `Polarity` / `CheckContext`；

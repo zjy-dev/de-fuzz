@@ -302,7 +302,7 @@ void seed(int buf_size, int fill_size) {
 | `INV-SP-L01` | Dynamic | `DynamicBufferSearchChecker` (`checker_dynamic_buffer.go:22-241`) | 二分 `fill_size`：SIGABRT/134 → Pass；SIGSEGV/139 + 哨兵 → Fail；其它 → NA |
 | `INV-SP-R03` | Dynamic | `EpilogueCanaryScrubChecker` (`checker_dynamic_scrub.go:46-167`) | 以 `<binary> scrub` argv 调用，stdout `GUARD_LEAKED` → Fail；`CANARY_SCRUB_OK` → Pass；`CANARY_SCRUB_NA` → NA |
 
-阶段调度由 `MechanismOracle.Analyze`（`mechanism.go:61-114`）按 Enablement → Static → Dynamic 顺序执行；当前 canary 暂未注册 enablement checker，等价于"机制总是认为已启用"，由配置层（cflags）保证 `-fstack-protector*`。
+阶段调度由 `MechanismOracle.Analyze`（`mechanism.go`）按 Static → Dynamic 顺序执行；当机制未启用（例如 binary 缺少 `__stack_chk_fail` 导入），`StackChkSymbolsChecker` 返回 `VerdictNotApplicable`，从而自然降级为"无 bug"——无需独立的 enablement 阶段。配置层（cflags）保证 `-fstack-protector*` 已被启用。
 
 **Polarity（负控）**：`CanaryOracle.polarityFor`（`canary_oracle.go:161-194`）读取 `seed.FlagProfile.IsNegativeControl` 或匹配配置中的 `negative_cflags`（默认含 `-fno-stack-protector`）；命中即翻成 `PolarityInverted`。`DynamicBufferSearchChecker` 标记 `polarity_sensitive: true`，在负控下 SIGSEGV 反而成为期望（被聚合器降级为 Pass）；`EpilogueCanaryScrubChecker` 与两个 static checker **polarity-insensitive**，无 canary 时仍期望"无泄漏 + 无 main canary 槽"。
 
