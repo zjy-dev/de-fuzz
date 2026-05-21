@@ -14,7 +14,7 @@
 
 每条 invariant 字段同前.
 
-## 1. 启用条件 (Enablement)
+## 1. 静态前提 (Static Preconditions)
 
 ### INV-KCFI-E01 — `-fsanitize=kcfi` 在 Clang 16+
 

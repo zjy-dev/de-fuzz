@@ -16,7 +16,7 @@
 
 每条 invariant 采用 survey 推荐字段: `ID / statement / compiler / version / target / source_kind / source_url_or_path / evidence_snippet / version_sensitivity / oracle_mapping`.
 
-## 1. 启用条件 (Enablement)
+## 1. 静态前提 (Static Preconditions)
 
 ### INV-FORT-E01 — 需要预处理宏 + 优化等级
 

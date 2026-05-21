@@ -20,7 +20,7 @@
 
 每条 invariant 字段同前.
 
-## 1. 启用条件 (Enablement)
+## 1. 静态前提 (Static Preconditions)
 
 ### INV-SCS-E01 — Clang `-fsanitize=shadow-call-stack`
 

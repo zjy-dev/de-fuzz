@@ -16,7 +16,7 @@
 
 每条 invariant 字段同前.
 
-## 1. 启用条件 (Enablement)
+## 1. 静态前提 (Static Preconditions)
 
 ### INV-GCS-E01 — `-mbranch-protection=gcs` 编译期 opt-in
 

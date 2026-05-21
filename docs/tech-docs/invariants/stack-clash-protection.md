@@ -16,7 +16,7 @@
 
 每条 invariant 字段: `ID / statement / compiler / version / target / source_kind / source_url_or_path / evidence_snippet / version_sensitivity / oracle_mapping`.
 
-## 1. 启用条件 (Enablement)
+## 1. 静态前提 (Static Preconditions)
 
 ### INV-SCP-E01 — `-fstack-clash-protection` 启用每页 probe
 

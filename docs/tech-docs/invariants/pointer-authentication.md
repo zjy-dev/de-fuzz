@@ -16,7 +16,7 @@
 
 每条 invariant 字段同前.
 
-## 1. 启用条件 (Enablement)
+## 1. 静态前提 (Static Preconditions)
 
 ### INV-PAC-E01 — `-mbranch-protection=pac-ret[+leaf][+b-key]`
 

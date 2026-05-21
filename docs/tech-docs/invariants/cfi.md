@@ -23,7 +23,7 @@
 
 每条 invariant 字段同前.
 
-## 1. 启用条件 (Enablement)
+## 1. 静态前提 (Static Preconditions)
 
 ### INV-CFI-E01 — `-fsanitize=cfi` 全家启用
 
