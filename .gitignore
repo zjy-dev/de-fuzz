@@ -14,6 +14,16 @@ vendor/
 *.dll
 *.so
 *.dylib
+*.o
+a.out
+canary-repro
+
+# Repro build artifacts
+repro/**/*.o
+repro/**/a.out
+repro/**/canary_leak
+repro/**/*.elf
+repro/**/*.bin
 
 # Test and coverage
 *.out
