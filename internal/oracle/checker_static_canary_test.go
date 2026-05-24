@@ -1,6 +1,7 @@
 package oracle
 
 import (
+	"debug/elf"
 	"strings"
 	"testing"
 )
@@ -13,6 +14,10 @@ type fakeInspector struct {
 	isELF   bool
 	syms    []string
 	imports []string
+	funcs   []FunctionSymbol
+	execs   []ExecSection
+	machine elf.Machine
+	class   elf.Class
 	err     error
 }
 
@@ -46,6 +51,34 @@ func (f *fakeInspector) ImportedFunctions() ([]string, error) {
 	out := make([]string, len(f.imports))
 	copy(out, f.imports)
 	return out, nil
+}
+func (f *fakeInspector) FunctionSymbols() ([]FunctionSymbol, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]FunctionSymbol, len(f.funcs))
+	copy(out, f.funcs)
+	return out, nil
+}
+func (f *fakeInspector) ExecutableSections() ([]ExecSection, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]ExecSection, len(f.execs))
+	copy(out, f.execs)
+	return out, nil
+}
+func (f *fakeInspector) Machine() (elf.Machine, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.machine, nil
+}
+func (f *fakeInspector) Class() (elf.Class, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.class, nil
 }
 
 // TestStackChkSymbolsChecker_Pass: __stack_chk_fail import present → Pass.

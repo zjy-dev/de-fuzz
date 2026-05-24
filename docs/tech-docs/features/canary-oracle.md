@@ -2,7 +2,7 @@
 title: Stack Canary Oracle
 description: 跨 ISA 的 stack canary 检测方案，含设计动机、二分搜索算法、哨兵机制与当前已注册的 invariant checker
 priority: HIGH
-last_updated: 2026-05-08
+last_updated: 2026-05-24
 status: IMPLEMENTED
 related_docs:
   - ../architecture/oracle-mechanism-framework.md

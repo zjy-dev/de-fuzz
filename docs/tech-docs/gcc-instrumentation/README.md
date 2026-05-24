@@ -1,110 +1,101 @@
 ---
 title: GCC Instrumentation
-description: 为编译器模糊测试构建带插桩 GCC 所需的补丁、脚本与平台分支说明
+description: de-fuzz 中带插桩 GCC 的产物布局与运行期使用约定
 priority: HIGH
-last_updated: 2026-05-08
+last_updated: 2026-05-24
 status: IMPLEMENTED
 related_docs:
   - ../guides/building-instrumented-gcc.md
   - ../architecture/gcc-pipeline.md
 ---
 
-# GCC Instrumentation Documentation
+# GCC Instrumentation
 
-本目录包含为编译器模糊测试构建带插桩 GCC 的文档和脚本。
+本文档只说明 de-fuzz 当前采用的产物布局和运行期约定。各 ISA 的具体构建步骤见本目录下对应的 `BUILD-GUIDE.md`。
 
-## 目录结构
+## 当前方案
 
-```
-doc/gcc-instrumentation/
-├── README.md                    # 本文件
-├── Makefile.in.patch            # Makefile.in 修改说明
-├── x64/                         # x86_64 原生编译器
-│   ├── BUILD-GUIDE.md           # 构建指南
-│   └── build-gcc-instrumented.sh
-└── aarch64/                     # AArch64 交叉编译器
-    ├── BUILD-GUIDE.md           # 构建指南
-    └── build-gcc-instrumented.sh
-```
+- `build dir` 存放被测编译器本体和插桩产物
+- `install dir` 存放 sysroot、目标运行库、安装后的交叉工具链
+- fuzz 运行时实际调用的是 `build dir` 里的 `xgcc`
+- `cfg`、`gcno`、`gcda` 都按 `build dir` 布局组织
 
-## 插桩说明
+推荐约定如下：
 
-我们对 GCC 进行**选择性插桩**，只为 `cfgexpand.cc` 添加：
+- `compiler.path` -> `<build>/.../gcc/xgcc`
+- `--sysroot` / `qemu_sysroot` -> `<install>/.../libc`
+- `cfg` / `gcno` / `gcda` -> `<build>/.../gcc/`
 
-1. **覆盖率插桩** (`-fprofile-arcs -ftest-coverage`)
-   - 生成 `.gcno` 和 `.gcda` 文件
-   - 用于测量编译器代码覆盖率
+## 目录职责
 
-2. **CFG dump** (`-fdump-tree-cfg-lineno`)
-   - 生成 `.cfg` 文件
-   - 包含控制流图信息，用于 CFG-guided fuzzing
+### build dir
 
-### 为什么选择性插桩？
+用于存放：
 
-- **减少开销**：只插桩关键路径 (cfgexpand.cc)，避免全量插桩的性能损失
-- **聚焦测试**：cfgexpand.cc 是 GIMPLE → RTL 转换的核心，是编译器 bug 的高发区域
-- **简化分析**：更小的 CFG 文件便于分析和约束求解
+- `xgcc`
+- `cc1` 等编译器内部组件
+- `.cfg`
+- `.gcno`
+- `.gcda`
 
-## 快速开始
+典型路径：
 
-### x86_64 原生编译器
+- x64: `<build>/gcc/xgcc`
+- cross: `<build>/gcc-final-build/gcc/xgcc`
 
-```bash
-# 1. 下载 GCC 源码
-wget https://github.com/gcc-mirror/gcc/archive/refs/tags/releases/gcc-12.2.0.tar.gz
-tar xzf gcc-12.2.0.tar.gz
+### install dir
 
-# 2. 应用补丁（参考 Makefile.in.patch）
-# 编辑 gcc-releases-gcc-12.2.0/gcc/Makefile.in
+用于存放：
 
-# 3. 构建
-cd doc/gcc-instrumentation/x64
-./build-gcc-instrumented.sh /path/to/gcc-source /path/to/build
-```
+- `<triplet>-gcc`
+- sysroot
+- `libgcc.a`
+- 目标架构运行库
+- QEMU `-L` 需要的根目录
 
-### AArch64 交叉编译器
+典型路径：
 
-```bash
-# 1. 下载 ARM GNU Toolchain 源码
-wget https://developer.arm.com/.../arm-gnu-toolchain-src-snapshot-12.2.rel1.tar.xz
-tar xf arm-gnu-toolchain-src-snapshot-12.2.rel1.tar.xz
+- `<install>/bin/<triplet>-gcc`
+- `<install>/<triplet>/libc/`
 
-# 2. 应用补丁
-# 编辑 .../arm-gnu-toolchain-src-snapshot-12.2.rel1/gcc/Makefile.in
+## 运行期推荐
 
-# 3. 构建
-cd doc/gcc-instrumentation/aarch64
-./build-gcc-instrumented.sh /path/to/source /path/to/build /path/to/install
-```
+当前不建议把 `install dir` 里的 `<triplet>-gcc` 作为 de-fuzz 的主入口。推荐继续使用：
 
-## 与 de-fuzz 集成
+- `build dir` 里的 `xgcc` 作为 `compiler.path`
+- `install dir` 里的 sysroot 和 runtime libraries 作为辅助依赖
 
-de-fuzz 项目使用这些插桩编译器进行模糊测试：
+交叉编译常见配置：
 
-1. 编译器在编译测试用例时生成 `.gcda` 覆盖率数据
-2. de-fuzz 读取覆盖率数据计算覆盖率增量
-3. CFG 文件用于 CFG-guided seed 生成
+- `compiler.path = <build>/gcc-final-build/gcc/xgcc`
+- `--sysroot = <install>/<triplet>/libc`
+- `-B<build>/gcc-final-build/gcc`
+- `-B<install>/lib/gcc/<triplet>/<version>`
+- `qemu_sysroot = <install>/<triplet>/libc`
 
-配置示例 (`configs/gcc-v12.2.0-x64.yaml`):
+## 文件位置
 
-```yaml
-compiler:
-  path: /path/to/gcc-build/gcc/xgcc
-  args: ["-B/path/to/gcc-build/gcc/"]
-  
-coverage:
-  gcno_dir: /path/to/gcc-build/gcc/
-  gcda_dir: /path/to/gcc-build/gcc/
-  source_file: cfgexpand.cc
-```
+- `.cfg` 是构建期 dump，默认位于 `build dir`
+- `.gcno` 是构建期产物，默认位于 `build dir`
+- `.gcda` 是运行期产物，当前项目也按 `build dir` 收集
 
-## 支持的 GCC 版本
+典型路径：
 
-- GCC 12.2.0 (已测试)
-- 其他 GCC 12.x 版本应该也可以工作
+- x64: `<build>/gcc/cfgexpand.cc.015t.cfg`, `<build>/gcc/cfgexpand.gcno`, `<build>/gcc/cfgexpand.gcda`
+- cross: `<build>/gcc-final-build/gcc/cfgexpand.cc.015t.cfg`, `<build>/gcc-final-build/gcc/cfgexpand.gcno`, `<build>/gcc-final-build/gcc/cfgexpand.gcda`
 
-## 参考资料
+## 路径能否调整
 
-- [GCC Internals](https://gcc.gnu.org/onlinedocs/gccint/)
-- [Gcov Documentation](https://gcc.gnu.org/onlinedocs/gcc/Gcov.html)
-- [ARM GNU Toolchain](https://developer.arm.com/Tools%20and%20Software/GNU%20Toolchain)
+项目读取路径可以通过配置修改：
+
+- `compiler.path`
+- `gcovr_exec_path`
+- `fuzz.cfg_file_path`
+- `fuzz.cfg_file_paths`
+- `qemu_sysroot`
+
+但 `cfg`、`gcno`、`gcda` 的生成位置默认仍受 GCC build tree 影响。当前最稳妥的做法是：
+
+- 让 GCC 继续在 `build dir` 生成这些文件
+- de-fuzz 通过配置读取它们
+- 如果需要统一目录，再额外复制或建立链接

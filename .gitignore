@@ -16,14 +16,17 @@ vendor/
 *.dylib
 *.o
 a.out
-canary-repro
+/canary-repro
+/ibt-repro
 
 # Repro build artifacts
 repro/**/*.o
 repro/**/a.out
-repro/**/canary_leak
 repro/**/*.elf
 repro/**/*.bin
+# Allow repro docs and source to be tracked
+!repro/**/README.md
+!repro/**/source.c
 
 # Test and coverage
 *.out

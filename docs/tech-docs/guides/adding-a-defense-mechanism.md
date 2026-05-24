@@ -189,6 +189,18 @@ targets:
 
 ## 8. 端到端冒烟
 
+### 8.1 快速直达测试（推荐先跑）
+
+在启动完整 fuzz loop 之前，先写一个绕过 fuzz-loop 的直达 repro，验证 Oracle wiring 与后端行为：
+
+```bash
+go run ./cmd/foo-repro
+```
+
+通用写法参考 `@/home/yall/project/de-fuzz/docs/tech-docs/guides/oracle-e2e-testing.md` §"通用模板"与 §"验证清单"。
+
+### 8.2 完整 fuzz loop
+
 ```bash
 # 1) 单元 + 集成测试
 go test ./...
@@ -209,6 +221,8 @@ cat fuzz_out/<isa>/foo/state/coverage_mapping.json | jq '.line_to_seeds | length
 - 启动期看到 `Target: <isa> / foo` 与 `Oracle using QEMU executor` 日志；
 - 主循环至少完成 1 轮 `solveConstraint`，无 `strategy/oracle mismatch` 错误；
 - 若 oracle 报 bug，`corpus.Add` 日志含 `reason: bug` + `BugDescription` 多行结构化内容。
+
+> **注意**：直达 repro（§8.1）与 fuzz loop（§8.2）是互补的。repro 聚焦 Oracle 逻辑本身，fuzz loop 验证 prompt / contract / seed template / coverage 的集成。两者缺一不可。
 
 ## 9. 扩展现有机制（只加 invariant，不新增机制）
 

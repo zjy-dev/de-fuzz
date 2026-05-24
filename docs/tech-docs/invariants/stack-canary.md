@@ -194,6 +194,7 @@
   不选静态反汇编路径的原因: 受影响 ISA 含 xtensa / csky / 多数长尾 backend, Capstone / `golang.org/x/arch` 覆盖不全, 等价于必须 shell-out `objdump` 文本解析, pattern 表跨 GCC peephole 易碎. 运行时方案直接观测安全契约 ("guard 是否残留进 caller-saved 寄存器"), 64-bit 随机 guard 偶然碰撞概率 ~2⁻⁶⁴, FP 可忽略.
   此条**不能**通过现有 `DynamicBufferSearchChecker` 间接覆盖 — 违反此条时 overflow 路径上 `__stack_chk_fail` 仍正确触发, 退出码仍为 134 (SIGABRT), 二分搜索会判 PASS, 形成 false-negative; 必须由独立的 dynamic checker 配合 seed 模板的 scrub mode 来发现.
 - **implementation**: `@/home/yall/project/de-fuzz/internal/oracle/checker_dynamic_scrub.go` (`EpilogueCanaryScrubChecker`, 注册于 `(*CanaryOracle).mechanism()` 的 dynamic phase). seed 模板 scrub helper 见 `@/home/yall/project/de-fuzz/initial_seeds/x64/canary/function_template.c` `run_scrub_probe` (其余三个 ISA 同名函数). 触发方式: 同一份编译产物用 argv `scrub` 单独跑一次, 与 INV-SP-L01 的 `<buf_size> <fill_size>` 共用 binary. x86_64 用 `mov %fs:0x28` 直接读 TLS canary; aarch64 / riscv64 / loongarch64 通过弱声明的 `__stack_chk_guard` 全局符号读取 (sysreg 模式下符号缺失则发 `CANARY_SCRUB_NA reason=no_guard_symbol` → NA). Polarity-insensitive: `-fno-stack-protector` 下无 canary 加载即无可泄露, "无泄露" 仍是正确结论.
+- **end-to-end repro**: 仓库提供可直接运行的 LoongArch64 复现: `@/home/yall/project/de-fuzz/cmd/canary-repro/main.go` + `@/home/yall/project/de-fuzz/repro/loongarch64/canary_leak/source.c`，详见 `@/home/yall/project/de-fuzz/docs/tech-docs/features/canary-oracle.md` §"端到端复现：LoongArch64 canary leak (INV-SP-R03)"。运行 `go run ./cmd/canary-repro` 即可验证 `EpilogueCanaryScrubChecker` 在真实后端上的检出能力。
 
 ## 5. Guard 值来源 (Guard Source)
 

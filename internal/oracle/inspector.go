@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -36,6 +37,49 @@ type BinaryInspector interface {
 	// Distinguishes "this binary calls __stack_chk_fail" from
 	// "this binary defines __stack_chk_fail".
 	ImportedFunctions() ([]string, error)
+	// FunctionSymbols returns all defined STT_FUNC entries with non-zero
+	// size from `.symtab` (preferred) merged with `.dynsym`. Used by
+	// static checkers that need precise function address ranges
+	// (e.g., scanning `.text` for unintended ENDBR landing pads inside
+	// function bodies — INV-IBT-B03).
+	FunctionSymbols() ([]FunctionSymbol, error)
+	// ExecutableSections returns the raw bytes plus base address of every
+	// SHF_ALLOC | SHF_EXECINSTR section. For relocatable objects (`.o`)
+	// sh_addr is usually 0, so addresses are section-relative and the
+	// caller must reconcile with FunctionSymbol.Addr which uses the same
+	// reference frame.
+	ExecutableSections() ([]ExecSection, error)
+	// Machine returns the ELF e_machine value (EM_386, EM_X86_64, ...).
+	Machine() (elf.Machine, error)
+	// Class returns the ELF EI_CLASS (ELFCLASS32 / ELFCLASS64).
+	Class() (elf.Class, error)
+}
+
+// FunctionSymbol describes a defined function symbol with its absolute (or
+// section-relative for relocatable objects) start address and byte size.
+//
+// Only symbols with STT_FUNC and Size > 0 are returned by
+// `BinaryInspector.FunctionSymbols`. Aliases (multiple symbols at the same
+// address with the same size) are deduplicated by `(Addr, Size)` with the
+// first encountered name kept; this is OK for the current consumers which
+// only need address ranges, not name multiplicity.
+type FunctionSymbol struct {
+	Name string
+	Addr uint64
+	Size uint64
+	// SectionIdx is the ELF section index (0 == SHN_UNDEF; sane symbols
+	// have idx > 0). Useful for cross-checking against ExecSection ordering.
+	SectionIdx int
+}
+
+// ExecSection is a snapshot of an executable section's bytes plus the
+// address its first byte occupies. For ET_REL objects (relocatable `.o`)
+// Addr is usually 0; for ET_EXEC / ET_DYN it is the virtual address.
+type ExecSection struct {
+	Name       string
+	Addr       uint64
+	Data       []byte
+	SectionIdx int
 }
 
 // ErrBinaryMissing is returned by inspector methods when the binary path
@@ -65,11 +109,15 @@ func NewBinaryInspector(path string) BinaryInspector {
 type elfInspector struct {
 	path string
 
-	once   sync.Once
-	exists bool
-	isELF  bool
-	syms   []string
-	imps   []string
+	once     sync.Once
+	exists   bool
+	isELF    bool
+	syms     []string
+	imps     []string
+	funcs    []FunctionSymbol
+	execs    []ExecSection
+	machine  elf.Machine
+	class    elf.Class
 	parseErr error
 }
 
@@ -131,6 +179,63 @@ func (e *elfInspector) ImportedFunctions() ([]string, error) {
 	return out, nil
 }
 
+func (e *elfInspector) FunctionSymbols() ([]FunctionSymbol, error) {
+	e.parseOnce()
+	if !e.exists {
+		return nil, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return nil, ErrNotELF
+	}
+	if e.parseErr != nil {
+		return nil, e.parseErr
+	}
+	out := make([]FunctionSymbol, len(e.funcs))
+	copy(out, e.funcs)
+	return out, nil
+}
+
+func (e *elfInspector) ExecutableSections() ([]ExecSection, error) {
+	e.parseOnce()
+	if !e.exists {
+		return nil, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return nil, ErrNotELF
+	}
+	if e.parseErr != nil {
+		return nil, e.parseErr
+	}
+	// Defensive copy of the slice header; the underlying byte buffers are
+	// shared (immutable in practice — debug/elf returned freshly-allocated
+	// slices in parseOnce, and callers must treat them as read-only).
+	out := make([]ExecSection, len(e.execs))
+	copy(out, e.execs)
+	return out, nil
+}
+
+func (e *elfInspector) Machine() (elf.Machine, error) {
+	e.parseOnce()
+	if !e.exists {
+		return 0, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return 0, ErrNotELF
+	}
+	return e.machine, nil
+}
+
+func (e *elfInspector) Class() (elf.Class, error) {
+	e.parseOnce()
+	if !e.exists {
+		return 0, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return 0, ErrNotELF
+	}
+	return e.class, nil
+}
+
 // parseOnce loads the ELF symbol tables exactly once per inspector instance.
 // All errors are stored on the receiver and surfaced via the typed methods;
 // this keeps the BinaryInspector interface clean of "init / lazy" knobs.
@@ -154,14 +259,43 @@ func (e *elfInspector) parseOnce() {
 		}
 		defer f.Close()
 		e.isELF = true
+		e.machine = f.Machine
+		e.class = f.Class
+
+		// Collect SHF_EXECINSTR sections (typically `.text`, `.plt`, `.init`,
+		// `.fini`). We snapshot the raw bytes here so callers don't need to
+		// re-open the ELF; sections are usually small relative to the binary.
+		for i, sec := range f.Sections {
+			if sec.Type != elf.SHT_PROGBITS {
+				continue
+			}
+			if sec.Flags&elf.SHF_EXECINSTR == 0 {
+				continue
+			}
+			data, derr := sec.Data()
+			if derr != nil {
+				if e.parseErr == nil {
+					e.parseErr = fmt.Errorf("read section %q: %w", sec.Name, derr)
+				}
+				continue
+			}
+			e.execs = append(e.execs, ExecSection{
+				Name:       sec.Name,
+				Addr:       sec.Addr,
+				Data:       data,
+				SectionIdx: i,
+			})
+		}
 
 		symSet := make(map[string]struct{})
+		funcSet := make(map[uint64]FunctionSymbol)
 		// Static symbols: may be absent in stripped binaries.
 		if syms, err := f.Symbols(); err == nil {
 			for _, s := range syms {
 				if s.Name != "" {
 					symSet[s.Name] = struct{}{}
 				}
+				collectFunctionSymbol(funcSet, s)
 			}
 		} else if !errors.Is(err, elf.ErrNoSymbols) {
 			e.parseErr = fmt.Errorf("read .symtab: %w", err)
@@ -178,6 +312,7 @@ func (e *elfInspector) parseOnce() {
 				if s.Section == elf.SHN_UNDEF && elf.ST_TYPE(s.Info) == elf.STT_FUNC {
 					e.imps = append(e.imps, s.Name)
 				}
+				collectFunctionSymbol(funcSet, s)
 			}
 		} else if !errors.Is(err, elf.ErrNoSymbols) && e.parseErr == nil {
 			e.parseErr = fmt.Errorf("read .dynsym: %w", err)
@@ -187,7 +322,46 @@ func (e *elfInspector) parseOnce() {
 		for s := range symSet {
 			e.syms = append(e.syms, s)
 		}
+
+		e.funcs = make([]FunctionSymbol, 0, len(funcSet))
+		for _, fs := range funcSet {
+			e.funcs = append(e.funcs, fs)
+		}
+		sort.Slice(e.funcs, func(i, j int) bool {
+			if e.funcs[i].Addr != e.funcs[j].Addr {
+				return e.funcs[i].Addr < e.funcs[j].Addr
+			}
+			return e.funcs[i].Size < e.funcs[j].Size
+		})
 	})
+}
+
+// collectFunctionSymbol records a defined STT_FUNC symbol with non-zero
+// size. Aliases (same Addr+Size) are deduplicated by keeping the first
+// encountered name; this matches the consumer contract of returning
+// address ranges, not name multiplicity.
+//
+// Symbols with section index SHN_UNDEF (imports) and Size == 0 are
+// rejected because they don't bound an actual function body.
+func collectFunctionSymbol(set map[uint64]FunctionSymbol, s elf.Symbol) {
+	if elf.ST_TYPE(s.Info) != elf.STT_FUNC {
+		return
+	}
+	if s.Section == elf.SHN_UNDEF {
+		return
+	}
+	if s.Size == 0 {
+		return
+	}
+	if _, exists := set[s.Value]; exists {
+		return
+	}
+	set[s.Value] = FunctionSymbol{
+		Name:       s.Name,
+		Addr:       s.Value,
+		Size:       s.Size,
+		SectionIdx: int(s.Section),
+	}
 }
 
 // hasAnyPrefix is a tiny helper used by checkers to match a family of

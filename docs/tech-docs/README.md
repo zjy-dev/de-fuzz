@@ -40,6 +40,7 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 | 文档 | 实现状态 |
 | --- | --- |
 | [features/canary-oracle.md](./features/canary-oracle.md) | ✅ 已实现 (4 个 invariant checker) |
+| [features/ibt-oracle.md](./features/ibt-oracle.md) | ✅ 已实现 (INV-IBT-B03; DREV-2026-004) |
 | [features/flag-scheduler.md](./features/flag-scheduler.md) | ✅ 已实现 (仅 aarch64) |
 | [features/random-mutation-phase.md](./features/random-mutation-phase.md) | ✅ 已实现 (默认关闭) |
 | [features/mechanism-contract.md](./features/mechanism-contract.md) | ✅ 已实现 (canary 已注册) |
@@ -52,6 +53,7 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 | [guides/adding-a-defense-mechanism.md](./guides/adding-a-defense-mechanism.md) | 想加新防御机制（端到端 8 步 checklist） |
 | [guides/building-instrumented-gcc.md](./guides/building-instrumented-gcc.md) | 想搭起被测目标（GCC 插桩） |
 | [guides/cflags-configuration.md](./guides/cflags-configuration.md) | 配 `cflags`、理解 LLM 动态 cflags 边界 |
+| [guides/oracle-e2e-testing.md](./guides/oracle-e2e-testing.md) | 绕过 fuzz-loop 直达测试 Oracle（通用模板 + 验证清单） |
 
 ## Reference (MEDIUM priority)
 
@@ -80,6 +82,7 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 | --- | --- | --- |
 | `268464c` | refactor(oracle): add invariant-based mechanism checks | architecture/decisions/003 + architecture/oracle-mechanism-framework + features/canary-oracle |
 | `ee04f48` | feat(oracle): detect epilogue canary leaks (`INV-SP-R03`) | features/canary-oracle |
+| — | docs(guides): add oracle end-to-end testing guide | guides/oracle-e2e-testing + features/canary-oracle + guides/adding-a-defense-mechanism |
 | `a7307b6` | refactor(prompt): bind strategies to mechanism contracts；删除 fortify oracle | features/mechanism-contract + architecture/prompt-architecture + _archive/oracles/fortify-oracle |
 | `7bed9d9` | docs: remove generated presentation workspace | (无影响) |
 | `489ed60` | docs: move oracle references under docs/oracles | 进一步迁到 features/ |
