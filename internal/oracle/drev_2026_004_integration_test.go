@@ -26,7 +26,7 @@ unsigned long long gadget(void) {
 
 // TestDREV2026004_IBTOracle_DetectsBug compiles the DREV-2026-004 trigger
 // with a host x86_64 GCC that has -fcf-protection=branch and verifies that
-// the IBT oracle surfaces exactly one INV-IBT-B03 violation.
+// the IBT oracle surfaces exactly one INV-IBT-B01 violation.
 //
 // The test is skipped when:
 //   - /usr/bin/gcc is absent (no host GCC installed), or

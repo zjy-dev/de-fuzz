@@ -40,7 +40,7 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 | 文档 | 实现状态 |
 | --- | --- |
 | [features/canary-oracle.md](./features/canary-oracle.md) | ✅ 已实现 (4 个 invariant checker) |
-| [features/ibt-oracle.md](./features/ibt-oracle.md) | ✅ 已实现 (INV-IBT-B03; DREV-2026-004) |
+| [features/ibt-oracle.md](./features/ibt-oracle.md) | ✅ 已实现 (10 个 invariant checker; DREV-2026-004) |
 | [features/flag-scheduler.md](./features/flag-scheduler.md) | ✅ 已实现 (仅 aarch64) |
 | [features/random-mutation-phase.md](./features/random-mutation-phase.md) | ✅ 已实现 (默认关闭) |
 | [features/mechanism-contract.md](./features/mechanism-contract.md) | ✅ 已实现 (canary 已注册) |
