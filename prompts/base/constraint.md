@@ -26,3 +26,8 @@ To specify flags, add a CFLAGS section after your code:
 
 Note: Your flags will be appended AFTER the default config flags,
 so they will override conflicting options (GCC uses last occurrence).
+
+**IMPORTANT: Keep defense mechanisms ENABLED.**
+Do NOT emit flags that disable them (e.g. `-fno-stack-protector*`,
+`-fcf-protection=none`, `-fno-cf-protection`, `-fno-hardened`).
+The fuzzer only studies cases where the defense is on but silently misbehaves.

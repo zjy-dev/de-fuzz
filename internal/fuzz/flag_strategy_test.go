@@ -5,7 +5,6 @@ import (
 
 	"github.com/zjy-dev/de-fuzz/internal/config"
 	"github.com/zjy-dev/de-fuzz/internal/coverage"
-	"github.com/zjy-dev/de-fuzz/internal/prompt"
 )
 
 func TestNewFlagScheduler_DefaultProfileOrder(t *testing.T) {
@@ -51,54 +50,12 @@ func TestFlagScheduler_SkipsExplicitProfileWithoutAttribute(t *testing.T) {
 	}
 }
 
-func TestFlagScheduler_InsertsNegativeControlPeriodically(t *testing.T) {
-	scheduler, err := NewFlagScheduler("aarch64", testFlagStrategyConfig())
-	if err != nil {
-		t.Fatalf("failed to create scheduler: %v", err)
-	}
-
-	var target *coverage.TargetInfo
-	for idx := 1; idx <= negativeControlInterval; idx++ {
-		target = &coverage.TargetInfo{Function: "expand_used_vars", BBID: idx}
-		scheduler.BeginTarget(target)
-	}
-
-	profile := scheduler.NextProfileForTarget(target, "void seed(void) { char buf[16]; }")
-	if profile == nil {
-		t.Fatal("expected profile")
-	}
-	if !profile.IsNegativeControl {
-		t.Fatalf("expected negative control profile, got %q", profile.Name)
-	}
-}
-
-func TestClonePromptProfile_PreservesNegativeControl(t *testing.T) {
-	ctx := &prompt.TargetContext{
-		ActiveFlagProfileName:   "negative-control__fno-stack-protector",
-		ActiveFlagProfileFlags:  []string{"-fno-stack-protector"},
-		ActiveFlagProfileAxes:   map[string]string{"policy": "negative_control"},
-		ActiveIsNegativeControl: true,
-	}
-
-	profile := clonePromptProfile(ctx)
-	if profile == nil {
-		t.Fatal("expected profile")
-	}
-	if !profile.IsNegativeControl {
-		t.Fatal("expected negative control flag to be preserved")
-	}
-}
-
 func testFlagStrategyConfig() config.FlagStrategyConfig {
 	return config.FlagStrategyConfig{
-		Enabled:                 true,
-		Mode:                    "matrix",
-		AllowLLMCFlags:          false,
-		IncludeNegativeControls: true,
-		SelectionOrder:          "deterministic",
-		NegativeControls: [][]string{
-			{"-fno-stack-protector"},
-		},
+		Enabled:        true,
+		Mode:           "matrix",
+		AllowLLMCFlags: false,
+		SelectionOrder: "deterministic",
 		Axes: config.FlagStrategyAxesConfig{
 			Common: map[string][][]string{
 				"policy": {

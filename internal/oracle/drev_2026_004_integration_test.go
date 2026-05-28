@@ -60,7 +60,7 @@ func TestDREV2026004_IBTOracle_DetectsBug(t *testing.T) {
 		t.Fatalf("compilation failed: %v\n%s", err, out)
 	}
 
-	o := &IBTOracle{NegativeCFlags: DefaultIBTNegativeCFlags}
+	o := &IBTOracle{}
 	ctx := &AnalyzeContext{BinaryPath: objPath}
 	s := &seed.Seed{
 		Meta:    seed.Metadata{ID: 1, FilePath: srcPath, ContentPath: srcPath},
@@ -81,54 +81,4 @@ func TestDREV2026004_IBTOracle_DetectsBug(t *testing.T) {
 	if bug.Description == "" {
 		t.Error("Bug.Description must not be empty")
 	}
-}
-
-// TestDREV2026004_IBTOracle_NegativeControl verifies that compiling the same
-// trigger with -fcf-protection=none produces NO bug report (polarity-inverted
-// seeds are not flagged).
-func TestDREV2026004_IBTOracle_NegativeControl(t *testing.T) {
-	gcc := "/usr/bin/gcc"
-	if _, err := os.Stat(gcc); err != nil {
-		if path, err2 := exec.LookPath("gcc"); err2 == nil {
-			gcc = path
-		} else {
-			t.Skip("host gcc not found; skipping DREV-2026-004 negative-control test")
-		}
-	}
-
-	tempDir, err := os.MkdirTemp("", "drev2026004_neg_")
-	if err != nil {
-		t.Fatalf("MkdirTemp: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	srcPath := filepath.Join(tempDir, "trigger.c")
-	objPath := filepath.Join(tempDir, "trigger.o")
-
-	if err := os.WriteFile(srcPath, []byte(drev2026004TriggerC), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	cmd := exec.Command(gcc, "-O2", "-fcf-protection=none", "-c", "-o", objPath, srcPath)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("compilation failed: %v\n%s", err, out)
-	}
-
-	o := &IBTOracle{NegativeCFlags: DefaultIBTNegativeCFlags}
-	ctx := &AnalyzeContext{BinaryPath: objPath}
-	s := &seed.Seed{
-		Meta:             seed.Metadata{ID: 2, FilePath: srcPath, ContentPath: srcPath},
-		Content:          drev2026004TriggerC,
-		AppliedLLMCFlags: []string{"-fcf-protection=none"},
-		LLMCFlagsApplied: true,
-	}
-
-	bug, err := o.Analyze(s, ctx, nil)
-	if err != nil {
-		t.Fatalf("IBTOracle.Analyze: %v", err)
-	}
-	if bug != nil {
-		t.Errorf("negative-control seed must not produce a bug, got:\n%s", bug.Description)
-	}
-	t.Log("negative-control correctly produced no bug report")
 }

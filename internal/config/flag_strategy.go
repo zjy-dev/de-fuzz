@@ -2,14 +2,12 @@ package config
 
 // FlagStrategyConfig models a rule-driven compiler flag scheduler used during fuzzing.
 type FlagStrategyConfig struct {
-	Enabled                 bool                                   `mapstructure:"enabled"`
-	Mode                    string                                 `mapstructure:"mode"`
-	AllowLLMCFlags          bool                                   `mapstructure:"allow_llm_cflags"`
-	IncludeNegativeControls bool                                   `mapstructure:"include_negative_controls"`
-	SelectionOrder          string                                 `mapstructure:"selection_order"`
-	NegativeControls        [][]string                             `mapstructure:"negative_controls"`
-	Axes                    FlagStrategyAxesConfig                 `mapstructure:"axes"`
-	ISAOptions              map[string]FlagStrategyISAOptionConfig `mapstructure:"isa_options"`
+	Enabled        bool                                   `mapstructure:"enabled"`
+	Mode           string                                 `mapstructure:"mode"`
+	AllowLLMCFlags bool                                   `mapstructure:"allow_llm_cflags"`
+	SelectionOrder string                                 `mapstructure:"selection_order"`
+	Axes           FlagStrategyAxesConfig                 `mapstructure:"axes"`
+	ISAOptions     map[string]FlagStrategyISAOptionConfig `mapstructure:"isa_options"`
 }
 
 // FlagStrategyAxesConfig defines common and ISA-specific flag axes.

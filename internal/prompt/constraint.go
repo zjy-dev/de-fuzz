@@ -33,12 +33,11 @@ type TargetContext struct {
 	SourceFile string // Path to the source file
 
 	// Active compiler profile for this attempt.
-	ActiveFlagProfileName   string
-	ActiveFlagProfileFlags  []string
-	ActiveFlagProfileAxes   map[string]string
-	ActiveIsNegativeControl bool
-	AllowLLMCFlags          bool
-	BlockedLLMFlagFamilies  []string
+	ActiveFlagProfileName  string
+	ActiveFlagProfileFlags []string
+	ActiveFlagProfileAxes  map[string]string
+	AllowLLMCFlags         bool
+	BlockedLLMFlagFamilies []string
 }
 
 // DivergenceInfo holds divergence analysis results.
@@ -513,7 +512,11 @@ If you need to change compiler flags to reach the target, add after your code:
 
 Note: Your flags are appended AFTER the default config/profile flags.
 Strategy-controlled conflicts may be filtered out before compilation, so do not rely on
-overriding stack-protector or backend guard options from the CFLAGS section.`
+overriding stack-protector or backend guard options from the CFLAGS section.
+
+**RULE: Keep defense mechanisms ENABLED.** Do NOT emit flags that disable them
+(e.g. ` + "`-fno-stack-protector*`" + `, ` + "`-fcf-protection=none`" + `, ` + "`-fno-cf-protection`" + `, ` + "`-fno-hardened`" + `).
+Seeds that disable a defense mechanism are rejected; you MUST keep the defense on.`
 
 	if b.FunctionTemplate != "" && b.MaxTestCases > 0 {
 		return fmt.Sprintf(`## Output Format

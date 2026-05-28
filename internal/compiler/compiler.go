@@ -14,24 +14,23 @@ import (
 
 // CompileResult holds the outcome of a compilation.
 type CompileResult struct {
-	BinaryPath        string            // Path to the compiled binary
-	Success           bool              // Whether compilation succeeded
-	Stdout            string            // Compiler stdout
-	Stderr            string            // Compiler stderr (warnings, errors)
-	Command           string            // Shell-safe command string for reproduction
-	CompilerPath      string            // Compiler executable path
-	Args              []string          // Complete argv excluding argv[0]
-	PrefixFlags       []string          // Automatically injected flags (e.g. -B prefix)
-	ConfigCFlags      []string          // Flags from compiler config
-	ProfileName       string            // Selected deterministic flag profile name
-	ProfileFlags      []string          // Flags from the selected profile
-	ProfileAxes       map[string]string // Axis/value mapping for the selected profile
-	IsNegativeControl bool              // Whether the selected profile is a negative control
-	SeedCFlags        []string          // Flags requested by the seed/LLM
-	AppliedLLMCFlags  []string          // LLM flags that survived conflict filtering
-	DroppedLLMCFlags  []string          // LLM flags dropped due to profile conflicts
-	LLMCFlagsApplied  bool              // Whether seed-provided flags were applied
-	EffectiveFlags    []string          // Full flag list excluding source file and output path
+	BinaryPath       string            // Path to the compiled binary
+	Success          bool              // Whether compilation succeeded
+	Stdout           string            // Compiler stdout
+	Stderr           string            // Compiler stderr (warnings, errors)
+	Command          string            // Shell-safe command string for reproduction
+	CompilerPath     string            // Compiler executable path
+	Args             []string          // Complete argv excluding argv[0]
+	PrefixFlags      []string          // Automatically injected flags (e.g. -B prefix)
+	ConfigCFlags     []string          // Flags from compiler config
+	ProfileName      string            // Selected deterministic flag profile name
+	ProfileFlags     []string          // Flags from the selected profile
+	ProfileAxes      map[string]string // Axis/value mapping for the selected profile
+	SeedCFlags       []string          // Flags requested by the seed/LLM
+	AppliedLLMCFlags []string          // LLM flags that survived conflict filtering
+	DroppedLLMCFlags []string          // LLM flags dropped due to profile conflicts
+	LLMCFlagsApplied bool              // Whether seed-provided flags were applied
+	EffectiveFlags   []string          // Full flag list excluding source file and output path
 }
 
 // Compiler defines the interface for compiling C code.
@@ -116,48 +115,46 @@ func (c *GCCCompiler) compile(s *seed.Seed) (*CompileResult, error) {
 	result, err := c.executor.Run(command, args...)
 	if err != nil {
 		return &CompileResult{
-			BinaryPath:        binaryPath,
-			Success:           false,
-			Stdout:            "",
-			Stderr:            fmt.Sprintf("failed to run compiler: %v", err),
-			Command:           commandString,
-			CompilerPath:      command,
-			Args:              append([]string(nil), args...),
-			PrefixFlags:       append([]string(nil), prefixFlags...),
-			ConfigCFlags:      append([]string(nil), c.cflags...),
-			ProfileName:       profileName(s.FlagProfile),
-			ProfileFlags:      profileFlags(s.FlagProfile),
-			ProfileAxes:       profileAxes(s.FlagProfile),
-			IsNegativeControl: isNegativeProfile(s.FlagProfile),
-			SeedCFlags:        append([]string(nil), s.CFlags...),
-			AppliedLLMCFlags:  append([]string(nil), appliedLLMCFlags...),
-			DroppedLLMCFlags:  append([]string(nil), droppedLLMCFlags...),
-			LLMCFlagsApplied:  s.LLMCFlagsApplied,
-			EffectiveFlags:    append([]string(nil), effectiveFlags...),
+			BinaryPath:       binaryPath,
+			Success:          false,
+			Stdout:           "",
+			Stderr:           fmt.Sprintf("failed to run compiler: %v", err),
+			Command:          commandString,
+			CompilerPath:     command,
+			Args:             append([]string(nil), args...),
+			PrefixFlags:      append([]string(nil), prefixFlags...),
+			ConfigCFlags:     append([]string(nil), c.cflags...),
+			ProfileName:      profileName(s.FlagProfile),
+			ProfileFlags:     profileFlags(s.FlagProfile),
+			ProfileAxes:      profileAxes(s.FlagProfile),
+			SeedCFlags:       append([]string(nil), s.CFlags...),
+			AppliedLLMCFlags: append([]string(nil), appliedLLMCFlags...),
+			DroppedLLMCFlags: append([]string(nil), droppedLLMCFlags...),
+			LLMCFlagsApplied: s.LLMCFlagsApplied,
+			EffectiveFlags:   append([]string(nil), effectiveFlags...),
 		}, nil
 	}
 
 	success := result.ExitCode == 0
 
 	return &CompileResult{
-		BinaryPath:        binaryPath,
-		Success:           success,
-		Stdout:            result.Stdout,
-		Stderr:            result.Stderr,
-		Command:           commandString,
-		CompilerPath:      command,
-		Args:              append([]string(nil), args...),
-		PrefixFlags:       append([]string(nil), prefixFlags...),
-		ConfigCFlags:      append([]string(nil), c.cflags...),
-		ProfileName:       profileName(s.FlagProfile),
-		ProfileFlags:      profileFlags(s.FlagProfile),
-		ProfileAxes:       profileAxes(s.FlagProfile),
-		IsNegativeControl: isNegativeProfile(s.FlagProfile),
-		SeedCFlags:        append([]string(nil), s.CFlags...),
-		AppliedLLMCFlags:  append([]string(nil), appliedLLMCFlags...),
-		DroppedLLMCFlags:  append([]string(nil), droppedLLMCFlags...),
-		LLMCFlagsApplied:  s.LLMCFlagsApplied,
-		EffectiveFlags:    append([]string(nil), effectiveFlags...),
+		BinaryPath:       binaryPath,
+		Success:          success,
+		Stdout:           result.Stdout,
+		Stderr:           result.Stderr,
+		Command:          commandString,
+		CompilerPath:     command,
+		Args:             append([]string(nil), args...),
+		PrefixFlags:      append([]string(nil), prefixFlags...),
+		ConfigCFlags:     append([]string(nil), c.cflags...),
+		ProfileName:      profileName(s.FlagProfile),
+		ProfileFlags:     profileFlags(s.FlagProfile),
+		ProfileAxes:      profileAxes(s.FlagProfile),
+		SeedCFlags:       append([]string(nil), s.CFlags...),
+		AppliedLLMCFlags: append([]string(nil), appliedLLMCFlags...),
+		DroppedLLMCFlags: append([]string(nil), droppedLLMCFlags...),
+		LLMCFlagsApplied: s.LLMCFlagsApplied,
+		EffectiveFlags:   append([]string(nil), effectiveFlags...),
 	}, nil
 }
 
@@ -206,28 +203,27 @@ func (r *CompileResult) ToCompilationRecord(seedID uint64, sourcePath string) *s
 	}
 
 	return &seed.CompilationRecord{
-		SeedID:            seedID,
-		RecordedAt:        time.Now(),
-		SourcePath:        sourcePath,
-		BinaryPath:        r.BinaryPath,
-		Success:           r.Success,
-		CompilerPath:      r.CompilerPath,
-		Command:           r.Command,
-		Args:              append([]string(nil), r.Args...),
-		PrefixFlags:       append([]string(nil), r.PrefixFlags...),
-		ConfigCFlags:      append([]string(nil), r.ConfigCFlags...),
-		ProfileName:       r.ProfileName,
-		ProfileFlags:      append([]string(nil), r.ProfileFlags...),
-		ProfileAxes:       cloneAxes(r.ProfileAxes),
-		IsNegativeControl: r.IsNegativeControl,
-		SeedCFlags:        append([]string(nil), r.SeedCFlags...),
-		AppliedLLMCFlags:  append([]string(nil), r.AppliedLLMCFlags...),
-		DroppedLLMCFlags:  append([]string(nil), r.DroppedLLMCFlags...),
-		LLMCFlags:         append([]string(nil), r.SeedCFlags...),
-		LLMCFlagsApplied:  r.LLMCFlagsApplied,
-		EffectiveFlags:    append([]string(nil), r.EffectiveFlags...),
-		Stdout:            r.Stdout,
-		Stderr:            r.Stderr,
+		SeedID:           seedID,
+		RecordedAt:       time.Now(),
+		SourcePath:       sourcePath,
+		BinaryPath:       r.BinaryPath,
+		Success:          r.Success,
+		CompilerPath:     r.CompilerPath,
+		Command:          r.Command,
+		Args:             append([]string(nil), r.Args...),
+		PrefixFlags:      append([]string(nil), r.PrefixFlags...),
+		ConfigCFlags:     append([]string(nil), r.ConfigCFlags...),
+		ProfileName:      r.ProfileName,
+		ProfileFlags:     append([]string(nil), r.ProfileFlags...),
+		ProfileAxes:      cloneAxes(r.ProfileAxes),
+		SeedCFlags:       append([]string(nil), r.SeedCFlags...),
+		AppliedLLMCFlags: append([]string(nil), r.AppliedLLMCFlags...),
+		DroppedLLMCFlags: append([]string(nil), r.DroppedLLMCFlags...),
+		LLMCFlags:        append([]string(nil), r.SeedCFlags...),
+		LLMCFlagsApplied: r.LLMCFlagsApplied,
+		EffectiveFlags:   append([]string(nil), r.EffectiveFlags...),
+		Stdout:           r.Stdout,
+		Stderr:           r.Stderr,
 	}
 }
 
@@ -254,10 +250,6 @@ func profileAxes(profile *seed.FlagProfile) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
-}
-
-func isNegativeProfile(profile *seed.FlagProfile) bool {
-	return profile != nil && profile.IsNegativeControl
 }
 
 func cloneAxes(axes map[string]string) map[string]string {

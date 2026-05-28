@@ -62,6 +62,46 @@ config:
 	assert.Equal(t, "configs/remixer.yaml", loadedCfg.RemixerConfigPath)
 }
 
+func TestLoad_UnknownStructField_ReturnsError(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// 'completely_unknown_field' is not in the Config struct — strict loader must reject it.
+	configContent := `
+config:
+  isa: "x64"
+  strategy: "canary"
+  completely_unknown_field: "should_fail"
+`
+	configFile := filepath.Join(actualConfigPath, "strict_test.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	var loadedCfg Config
+	err = Load("strict_test", &loadedCfg)
+	assert.Error(t, err, "Load must error when an unknown struct-level key is present")
+}
+
+func TestLoad_UnknownTopLevelKey_ReturnsError(t *testing.T) {
+	actualConfigPath, cleanup := setupTestConfigs(t)
+	defer cleanup()
+
+	// 'foo' at the top level of a CompilerConfig YAML is not in the allowed set.
+	configContent := `
+compiler:
+  name: "gcc"
+  version: "12.2.0"
+foo: "should_fail"
+`
+	configFile := filepath.Join(actualConfigPath, "unknown_toplevel.yaml")
+	err := os.WriteFile(configFile, []byte(configContent), 0644)
+	assert.NoError(t, err)
+
+	var compCfg CompilerConfig
+	err = Load("unknown_toplevel", &compCfg)
+	assert.Error(t, err, "Load must error when an unknown top-level key is present in a compiler YAML")
+}
+
 func TestLoad_FileNotExists(t *testing.T) {
 	_, cleanup := setupTestConfigs(t)
 	defer cleanup()

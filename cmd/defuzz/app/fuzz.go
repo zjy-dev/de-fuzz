@@ -410,6 +410,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		Compiler:       gccCompiler,
 		Coverage:       coverageTracker,
 		Oracle:         oracleInstance,
+		OracleType:     cfg.Compiler.Oracle.Type,
 		OracleExecutor: oracleExecutor,
 		LLM:            llmClient,
 		Flags:          flagScheduler,

@@ -53,7 +53,6 @@ func main() {
 		outDir       = flag.String("out", "", "Output dir for the compiled .o (defaults to a temp dir)")
 		keep         = flag.Bool("keep", false, "Keep the compiled object on exit")
 		extraCFlags  arrayFlag
-		negativeMode = flag.Bool("negative", false, "Compile with -fcf-protection=none to confirm polarity-inverted behavior")
 	)
 	flag.Var(&extraCFlags, "cflag", "Extra compiler flag (repeatable)")
 	flag.Parse()
@@ -72,14 +71,6 @@ func main() {
 	objPath := filepath.Join(objDir, "ibt_repro.o")
 
 	flags := append([]string(nil), reproCFlags...)
-	if *negativeMode {
-		// Replace `-fcf-protection=branch` with `-fcf-protection=none`.
-		for i, f := range flags {
-			if f == "-fcf-protection=branch" {
-				flags[i] = "-fcf-protection=none"
-			}
-		}
-	}
 	flags = append(flags, extraCFlags...)
 	flags = append(flags, "-o", objPath, src)
 
@@ -92,19 +83,13 @@ func main() {
 	}
 	fmt.Printf("compiled %s -> %s\n", src, objPath)
 
-	// Construct the seed; in negative-mode, mark the cflags so the
-	// oracle's polarity logic flips Verdict.Fail to Pass.
 	content, _ := os.ReadFile(src)
 	s := &seed.Seed{
 		Meta:    seed.Metadata{ID: 1, FilePath: src, ContentPath: src},
 		Content: string(content),
 	}
-	if *negativeMode {
-		s.AppliedLLMCFlags = []string{"-fcf-protection=none"}
-		s.LLMCFlagsApplied = true
-	}
 
-	o := &oracle.IBTOracle{NegativeCFlags: oracle.DefaultIBTNegativeCFlags}
+	o := &oracle.IBTOracle{}
 	ctx := &oracle.AnalyzeContext{BinaryPath: objPath}
 
 	fmt.Println("\n=== oracle: IBTOracle.Analyze ===")

@@ -47,6 +47,10 @@ type Config struct {
 	CoverageTimeout int           // Coverage measurement timeout in seconds
 	MappingPath     string        // Path to save/load coverage mapping
 
+	// OracleType is the oracle type name (e.g. "canary", "ibt") used to select
+	// the defense-flag denylist when checking LLM-emitted CFlags.
+	OracleType string
+
 	// Oracle executor for cross-architecture execution (e.g., QEMU)
 	// If nil, uses OracleExecutorAdapter with local execution
 	OracleExecutor oracle.Executor
@@ -525,7 +529,17 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	e.assignTargetProfile(target, s)
-	isNegativeProfile := s.FlagProfile != nil && s.FlagProfile.IsNegativeControl
+
+	// Reject seeds that explicitly disable the active defense mechanism.
+	if violating := seed.FindDefenseDisablingFlags(e.cfg.OracleType, s.CFlags); len(violating) > 0 {
+		result.CompileFailed = true
+		result.CompileError = fmt.Sprintf(
+			"seed violated rule: defense-disabling flag(s) %v were emitted; "+
+				"you MUST keep the defense enabled — do not emit %v or similar flags",
+			violating, violating)
+		logger.Debug("Seed %d rejected: defense-disabling flags %v", s.Meta.ID, violating)
+		return result, nil
+	}
 
 	// Save seed path for divergence analysis
 	stateDir := ""
@@ -582,7 +596,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	coveredLines := e.extractCoveredLines(report)
 
 	// Check if target was hit
-	if !isNegativeProfile && target != nil {
+	if target != nil {
 		for _, line := range coveredLines {
 			for _, targetLine := range target.Lines {
 				if line == fmt.Sprintf("%s:%d", target.File, targetLine) {
@@ -601,9 +615,6 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 
 	// Check if this seed would cover any new lines (without recording yet)
 	hasNewCoverage := e.cfg.Analyzer.CheckNewCoverage(coveredLines)
-	if isNegativeProfile {
-		hasNewCoverage = false
-	}
 
 	// Run oracle for ALL mutated seeds (need to know bug status before deciding to record)
 	foundBug := false
@@ -648,7 +659,7 @@ func (e *Engine) tryMutatedSeed(s *seed.Seed, target *coverage.TargetInfo) (*see
 	}
 
 	// Add to corpus if: covered new lines, hit target, OR found bug
-	if !isNegativeProfile && (result.CoveredNew || result.HitTarget || foundBug) {
+	if result.CoveredNew || result.HitTarget || foundBug {
 		s.Meta.Depth = 1
 		if err := e.cfg.Corpus.Add(s); err != nil {
 			logger.Warn("Failed to add seed to corpus: %v", err)
@@ -708,7 +719,6 @@ func (e *Engine) attachPromptProfile(target *coverage.TargetInfo, ctx *prompt.Ta
 	ctx.ActiveFlagProfileName = profile.Name
 	ctx.ActiveFlagProfileFlags = append([]string(nil), profile.Flags...)
 	ctx.ActiveFlagProfileAxes = cloneProfileAxes(profile.AxisValues)
-	ctx.ActiveIsNegativeControl = profile.IsNegativeControl
 	ctx.AllowLLMCFlags = e.cfg.Flags.AllowLLMCFlags()
 	ctx.BlockedLLMFlagFamilies = e.cfg.Flags.BlockedLLMFlagFamilies()
 }
@@ -719,10 +729,9 @@ func clonePromptProfile(ctx *prompt.TargetContext) *seed.FlagProfile {
 	}
 
 	return &seed.FlagProfile{
-		Name:              ctx.ActiveFlagProfileName,
-		AxisValues:        cloneProfileAxes(ctx.ActiveFlagProfileAxes),
-		Flags:             append([]string(nil), ctx.ActiveFlagProfileFlags...),
-		IsNegativeControl: ctx.ActiveIsNegativeControl,
+		Name:       ctx.ActiveFlagProfileName,
+		AxisValues: cloneProfileAxes(ctx.ActiveFlagProfileAxes),
+		Flags:      append([]string(nil), ctx.ActiveFlagProfileFlags...),
 	}
 }
 

@@ -22,9 +22,8 @@ const (
 	// VerdictFail means the invariant was violated; this is a bug candidate.
 	VerdictFail
 	// VerdictNotApplicable means the checker correctly skipped because its
-	// preconditions were not met (e.g., binary path missing, wrong arch,
-	// negative-control polarity removes the assertion). NA must NOT be reported
-	// as bug; aggregators may surface NA ratios as a quality signal.
+	// preconditions were not met (e.g., binary path missing, wrong arch).
+	// NA must NOT be reported as bug; aggregators may surface NA ratios as a quality signal.
 	VerdictNotApplicable
 	// VerdictError means the checker tried to run but encountered an
 	// infrastructure error (executor failed, ELF parse failed, etc.). Treated
@@ -73,30 +72,6 @@ const (
 	CategoryDynamic InvariantCategory = "dynamic"
 )
 
-// Polarity captures how to interpret a `Fail` for the current seed.
-//
-//   - PolarityPositive: a Fail means a real bug (mechanism is supposed to
-//     hold, but didn't).
-//   - PolarityInverted: a Fail is expected (negative-control seed, e.g.
-//     `-fno-stack-protector`); it should be downgraded to Pass / NA in the
-//     aggregator. Polarity is per-mechanism (a defense gets disabled), not
-//     per-invariant — but individual checkers may opt out by declaring they
-//     are polarity-insensitive (e.g., INV-SP-A01 "main has no canary slot"
-//     stays positive even when SP is globally off).
-type Polarity int
-
-const (
-	PolarityPositive Polarity = iota
-	PolarityInverted
-)
-
-func (p Polarity) String() string {
-	if p == PolarityInverted {
-		return "inverted"
-	}
-	return "positive"
-}
-
 // InvariantResult is what a single `InvariantChecker` returns.
 //
 // The schema is deliberately close to the `oracle_mapping` rows in
@@ -121,9 +96,6 @@ type InvariantResult struct {
 	// "stable" / "likely-to-drift". Aggregator may use this to weight
 	// reports.
 	Sensitivity string
-	// PolarityApplied is the polarity under which Verdict was computed
-	// (used for diagnostics; the aggregator does NOT re-invert).
-	PolarityApplied Polarity
 	// Reason is a free-form explanation populated for NotApplicable / Error
 	// verdicts. Empty for Pass / Fail (use Evidence instead).
 	Reason string
@@ -131,9 +103,9 @@ type InvariantResult struct {
 
 // CheckContext is the per-Analyze input handed to every InvariantChecker.
 //
-// It extends `AnalyzeContext` with mechanism-level fields (CFlags, polarity)
-// and a shared mutable Cache so that dynamic checkers can reuse the result of
-// expensive operations (e.g., binary search) within a single Analyze call.
+// It carries the seed, binary path, executor, inspector, and a shared mutable
+// Cache so that dynamic checkers can reuse the result of expensive operations
+// (e.g., binary search) within a single Analyze call.
 //
 // The Cache is NOT cross-seed; each Analyze creates a fresh CheckContext.
 type CheckContext struct {
@@ -147,10 +119,6 @@ type CheckContext struct {
 	// Inspector is a cached binary inspector; may be nil if no static
 	// checker is active. Lazy: file is opened on first method call.
 	Inspector BinaryInspector
-	// Polarity is the per-seed polarity decided by the mechanism oracle
-	// (positive vs inverted). Checkers that are polarity-sensitive should
-	// branch on this; polarity-insensitive checkers can ignore it.
-	Polarity Polarity
 	// Cache is shared mutable storage for cross-checker memoization. Keys
 	// should be namespaced (e.g., "dynamic_buffer_search.result"). Values
 	// are typed assertions at the consumer's risk.

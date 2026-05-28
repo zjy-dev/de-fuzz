@@ -43,8 +43,6 @@ compiler:
         options:
             max_buffer_size: 1024
             default_buf_size: 64
-            negative_cflags:
-                - "-fno-stack-protector"
 
 # Stack Canary (Stack Protector) related core functions for RISC-V 64
 # RISC-V 使用 targhooks.cc 的默认实现（与 MIPS 类似），无架构特定函数

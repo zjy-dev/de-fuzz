@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 )
 
@@ -116,6 +117,12 @@ type TargetFunction struct {
 // Note: The compiler config file may contain additional top-level fields (like 'targets')
 // that are used by external tools (e.g., gcovr-json-util) and are not parsed here.
 type CompilerConfig struct {
+	// Name and Version identify the compiler in the main config.yaml.
+	// They are only populated when loading from the main config, not from
+	// compiler-specific YAML files.
+	Name    string `mapstructure:"name"`
+	Version string `mapstructure:"version"`
+
 	// Path is the path to the compiler executable (e.g., /path/to/gcc)
 	Path string `mapstructure:"path"`
 
@@ -273,6 +280,29 @@ func LoadEnvFromDotEnvRecursive(startDir string) error {
 	return nil
 }
 
+// strictDecodeOption returns a viper DecoderConfigOption that causes UnmarshalKey/Unmarshal
+// to error on any YAML key that does not map to a known struct field.
+func strictDecodeOption() viper.DecoderConfigOption {
+	return func(dc *mapstructure.DecoderConfig) {
+		dc.ErrorUnused = true
+	}
+}
+
+// checkAllowedTopLevelKeys errors if the YAML file (already read by v) contains
+// top-level keys not in the allowed set.
+func checkAllowedTopLevelKeys(v *viper.Viper, allowed []string) error {
+	allowedSet := make(map[string]struct{}, len(allowed))
+	for _, k := range allowed {
+		allowedSet[k] = struct{}{}
+	}
+	for k := range v.AllSettings() {
+		if _, ok := allowedSet[k]; !ok {
+			return fmt.Errorf("unknown config key %q: remove it or check for typos", k)
+		}
+	}
+	return nil
+}
+
 // applyEnvResolution recursively applies environment variable resolution to a struct.
 // Only string fields with mapstructure tags are processed.
 func applyEnvResolution(v *viper.Viper) {
@@ -340,12 +370,12 @@ func Load(configFileName string, result interface{}) error {
 	// For Config struct, unmarshal from 'config' top-level object
 	if cfg, ok := result.(*Config); ok {
 		if v.IsSet("config") {
-			if err := v.UnmarshalKey("config", cfg); err != nil {
+			if err := v.UnmarshalKey("config", cfg, strictDecodeOption()); err != nil {
 				return fmt.Errorf("failed to unmarshal config data: %w", err)
 			}
 		} else {
 			// Fallback: try to unmarshal the whole file (for backwards compatibility)
-			if err := v.Unmarshal(cfg); err != nil {
+			if err := v.Unmarshal(cfg, strictDecodeOption()); err != nil {
 				return fmt.Errorf("failed to unmarshal config data: %w", err)
 			}
 		}
@@ -354,13 +384,16 @@ func Load(configFileName string, result interface{}) error {
 
 	// For CompilerConfig struct, unmarshal from 'compiler' top-level object
 	if compCfg, ok := result.(*CompilerConfig); ok {
+		if err := checkAllowedTopLevelKeys(v, []string{"compiler", "targets"}); err != nil {
+			return err
+		}
 		if v.IsSet("compiler") {
-			if err := v.UnmarshalKey("compiler", compCfg); err != nil {
+			if err := v.UnmarshalKey("compiler", compCfg, strictDecodeOption()); err != nil {
 				return fmt.Errorf("failed to unmarshal compiler config: %w", err)
 			}
 		} else {
 			// Fallback: try to unmarshal the whole file
-			if err := v.Unmarshal(compCfg); err != nil {
+			if err := v.Unmarshal(compCfg, strictDecodeOption()); err != nil {
 				return fmt.Errorf("failed to unmarshal compiler config: %w", err)
 			}
 		}
@@ -368,7 +401,7 @@ func Load(configFileName string, result interface{}) error {
 		// The 'targets' field specifies which source files and functions to focus on
 		if v.IsSet("targets") {
 			var targets []TargetFunction
-			if err := v.UnmarshalKey("targets", &targets); err != nil {
+			if err := v.UnmarshalKey("targets", &targets, strictDecodeOption()); err != nil {
 				return fmt.Errorf("failed to unmarshal targets config: %w", err)
 			}
 			compCfg.Targets = targets
@@ -377,7 +410,7 @@ func Load(configFileName string, result interface{}) error {
 	}
 
 	// For other types, unmarshal the whole file
-	if err := v.Unmarshal(result); err != nil {
+	if err := v.Unmarshal(result, strictDecodeOption()); err != nil {
 		return fmt.Errorf("failed to unmarshal config data: %w", err)
 	}
 
@@ -450,7 +483,11 @@ func LoadConfig() (*Config, error) {
 
 	// Only unmarshal the 'compiler' top-level object
 	// Other top-level objects (like 'targets') are ignored as they're for external tools
-	if err := compilerViper.UnmarshalKey("compiler", &cfg.Compiler); err != nil {
+	if err := checkAllowedTopLevelKeys(compilerViper, []string{"compiler", "targets"}); err != nil {
+		return nil, fmt.Errorf("compiler config %s: %w", compilerConfigName, err)
+	}
+
+	if err := compilerViper.UnmarshalKey("compiler", &cfg.Compiler, strictDecodeOption()); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal compiler config: %w", err)
 	}
 
@@ -458,7 +495,7 @@ func LoadConfig() (*Config, error) {
 	// The 'targets' field specifies which source files and functions to focus on
 	if compilerViper.IsSet("targets") {
 		var targets []TargetFunction
-		if err := compilerViper.UnmarshalKey("targets", &targets); err != nil {
+		if err := compilerViper.UnmarshalKey("targets", &targets, strictDecodeOption()); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal targets config: %w", err)
 		}
 		cfg.Compiler.Targets = targets

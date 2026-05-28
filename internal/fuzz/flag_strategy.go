@@ -11,8 +11,6 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
-const negativeControlInterval = 20
-
 var canaryLLMBlockedFlagFamilies = []string{
 	"-fstack-protector*",
 	"-fno-stack-protector*",
@@ -24,13 +22,10 @@ var canaryLLMBlockedFlagFamilies = []string{
 
 // FlagScheduler deterministically rotates compiler flag profiles during fuzzing.
 type FlagScheduler struct {
-	allowLLMCFlags  bool
-	mainProfiles    []*seed.FlagProfile
-	defaultProfile  *seed.FlagProfile
-	negative        *seed.FlagProfile
-	targetCursor    map[string]int
-	pendingNegative map[string]bool
-	targetCount     int
+	allowLLMCFlags bool
+	mainProfiles   []*seed.FlagProfile
+	defaultProfile *seed.FlagProfile
+	targetCursor   map[string]int
 }
 
 // NewFlagScheduler builds a canary-specific flag scheduler from configuration.
@@ -50,19 +45,12 @@ func NewFlagScheduler(isa string, cfg config.FlagStrategyConfig) (*FlagScheduler
 		return nil, fmt.Errorf("no flag profiles available for ISA %s", isa)
 	}
 
-	scheduler := &FlagScheduler{
-		allowLLMCFlags:  cfg.AllowLLMCFlags,
-		mainProfiles:    profiles,
-		defaultProfile:  defaultProfile,
-		targetCursor:    make(map[string]int),
-		pendingNegative: make(map[string]bool),
-	}
-
-	if cfg.IncludeNegativeControls {
-		scheduler.negative = buildNegativeProfile(cfg.NegativeControls)
-	}
-
-	return scheduler, nil
+	return &FlagScheduler{
+		allowLLMCFlags: cfg.AllowLLMCFlags,
+		mainProfiles:   profiles,
+		defaultProfile: defaultProfile,
+		targetCursor:   make(map[string]int),
+	}, nil
 }
 
 // AllowLLMCFlags reports whether LLM-suggested flags should affect the compiler argv.
@@ -102,10 +90,6 @@ func (s *FlagScheduler) BeginTarget(target *coverage.TargetInfo) {
 	if s == nil || target == nil {
 		return
 	}
-	s.targetCount++
-	if s.negative != nil && s.targetCount%negativeControlInterval == 0 {
-		s.pendingNegative[targetKey(target)] = true
-	}
 }
 
 // NextProfileForTarget returns the next applicable profile for the given target and source.
@@ -115,11 +99,6 @@ func (s *FlagScheduler) NextProfileForTarget(target *coverage.TargetInfo, source
 	}
 
 	key := targetKey(target)
-	if s.pendingNegative[key] && s.negative != nil {
-		delete(s.pendingNegative, key)
-		return s.negative.Clone()
-	}
-
 	start := s.targetCursor[key]
 	for offset := 0; offset < len(s.mainProfiles); offset++ {
 		idx := (start + offset) % len(s.mainProfiles)
@@ -392,24 +371,6 @@ func hasGuardOffset(profile *seed.FlagProfile, want string) bool {
 		}
 	}
 	return false
-}
-
-func buildNegativeProfile(controls [][]string) *seed.FlagProfile {
-	flags := []string{"-fno-stack-protector"}
-	if len(controls) > 0 && len(controls[0]) > 0 {
-		flags = append([]string(nil), controls[0]...)
-	}
-	return &seed.FlagProfile{
-		Name: "negative-control__fno-stack-protector",
-		AxisValues: map[string]string{
-			"policy":     "negative_control",
-			"threshold":  "default",
-			"pic_mode":   "default",
-			"guard_mode": "default",
-		},
-		Flags:             flags,
-		IsNegativeControl: true,
-	}
 }
 
 func isProfileApplicable(profile *seed.FlagProfile, source string, allowLLMCFlags bool) bool {

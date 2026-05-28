@@ -31,25 +31,15 @@ func init() {
 
 // CanaryOracle is the public façade for the stack-canary mechanism oracle.
 //
-// Internally it now delegates to a `MechanismOracle` composed of one or more
+// Internally it delegates to a `MechanismOracle` composed of one or more
 // `InvariantChecker`s, one per row in
-// `@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md`. The legacy
-// fields (`MaxBufferSize`, `DefaultBufSize`, `NegativeCFlags`) are preserved
-// so existing tests and config files keep working unchanged; see
-// `@/home/yall/project/de-fuzz/docs/architecture/oracle-multi-invariant-redesign.md`
-// §3.4 for the migration plan.
+// `docs/invariants/stack-canary.md`.
 type CanaryOracle struct {
 	// MaxBufferSize bounds the binary search upper end (fill_size domain).
 	MaxBufferSize int
 	// DefaultBufSize is passed as argv[1] to every probe (the buf_size
 	// parameter in the seed template, see `docs/oracles/canary-oracle.md` §"函数模板").
 	DefaultBufSize int
-	// NegativeCFlags are seed-level flags whose presence flips the oracle
-	// polarity: when `-fno-stack-protector` (or similar) is applied to the
-	// seed, SIGSEGV is the EXPECTED outcome and not a bug. Polarity-sensitive
-	// invariants get inverted; polarity-insensitive ones (like INV-SP-A01)
-	// stay positive.
-	NegativeCFlags []string
 }
 
 // NewCanaryOracle creates a new canary-detection oracle from a YAML options
@@ -57,11 +47,9 @@ type CanaryOracle struct {
 //
 //	max_buffer_size:  int  (default DefaultMaxBufferSize)
 //	default_buf_size: int  (default 64)
-//	negative_cflags:  []string (default empty)
 func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt.Builder, context string) (Oracle, error) {
 	maxSize := DefaultMaxBufferSize
 	bufSize := 64
-	var negativeCFlags []string
 
 	if options != nil {
 		if v, ok := options["max_buffer_size"]; ok {
@@ -80,24 +68,11 @@ func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt
 				bufSize = int(val)
 			}
 		}
-		if v, ok := options["negative_cflags"]; ok {
-			switch val := v.(type) {
-			case []interface{}:
-				for _, item := range val {
-					if s, ok := item.(string); ok {
-						negativeCFlags = append(negativeCFlags, s)
-					}
-				}
-			case []string:
-				negativeCFlags = val
-			}
-		}
 	}
 
 	return &CanaryOracle{
 		MaxBufferSize:  maxSize,
 		DefaultBufSize: bufSize,
-		NegativeCFlags: negativeCFlags,
 	}, nil
 }
 
@@ -143,54 +118,14 @@ func (o *CanaryOracle) mechanism() *MechanismOracle {
 			// INV-SP-R03: epilogue must clobber registers that transiently
 			// held the guard. Detects the leak channel observed in
 			// DREV-2026-001 on long-tail backends (loongarch64, riscv64,
-			// mips, csky, xtensa, ...). Polarity-insensitive; absence of
-			// leak is correct under both -fstack-protector* and -fno-*.
+			// mips, csky, xtensa, ...).
 			&EpilogueCanaryScrubChecker{
 				InvariantID: "INV-SP-R03",
 				SourceURL:   "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045",
 				Sensitivity: "likely-to-drift",
 			},
 		},
-		Polarizer: PolarizerFunc(o.polarityFor),
 	}
-}
-
-// polarityFor maps a seed to its canary-mechanism polarity. Wraps the
-// legacy `isNegativeCase` heuristic so the rest of the framework is
-// polarity-aware without leaking canary-specific knowledge.
-func (o *CanaryOracle) polarityFor(s *seed.Seed) Polarity {
-	if o.isNegativeCase(s) {
-		return PolarityInverted
-	}
-	return PolarityPositive
-}
-
-// isNegativeCase checks if the seed's CFlags or flag profile mark it as a
-// negative-control case (canary protection deliberately disabled). When
-// true, SIGSEGV / SIGBUS at the dynamic phase is expected behavior and the
-// aggregator inverts the polarity-sensitive checkers.
-//
-// Kept on the public type for backward compatibility with
-// `TestCanaryOracle_isNegativeCase`.
-func (o *CanaryOracle) isNegativeCase(s *seed.Seed) bool {
-	if s == nil {
-		return false
-	}
-	if s.FlagProfile != nil && s.FlagProfile.IsNegativeControl {
-		return true
-	}
-	if !s.LLMCFlagsApplied || len(o.NegativeCFlags) == 0 {
-		return false
-	}
-
-	for _, seedFlag := range s.AppliedLLMCFlags {
-		for _, negativeFlag := range o.NegativeCFlags {
-			if seedFlag == negativeFlag {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // binarySearchCrash is preserved as a thin wrapper over the

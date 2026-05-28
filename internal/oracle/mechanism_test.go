@@ -14,9 +14,6 @@ type stubChecker struct {
 	verdict  InvariantVerdict
 	evidence string
 	reason   string
-	// polaritySensitive marks the produced result as polarity-sensitive,
-	// matching how DynamicBufferSearchChecker tags itself.
-	polaritySensitive bool
 	// callCount is incremented every Check() call, for cache tests.
 	callCount *int
 }
@@ -27,18 +24,13 @@ func (s *stubChecker) Check(ctx *CheckContext) InvariantResult {
 	if s.callCount != nil {
 		*s.callCount++
 	}
-	r := InvariantResult{
+	return InvariantResult{
 		ID:       s.id,
 		Category: s.category,
 		Verdict:  s.verdict,
 		Evidence: s.evidence,
 		Reason:   s.reason,
-		Detail:   map[string]any{},
 	}
-	if s.polaritySensitive {
-		r.Detail["polarity_sensitive"] = true
-	}
-	return r
 }
 
 // TestMechanism_NoCheckers asserts the aggregator returns nil bug when there
@@ -109,57 +101,6 @@ func TestMechanism_OneFailReportsBug(t *testing.T) {
 	}
 	if !strings.Contains(bug.Description, "INV-A") {
 		t.Errorf("description should list passed invariants too, got: %s", bug.Description)
-	}
-}
-
-// TestMechanism_PolarityInvertsSensitive asserts that polarity-inverted runs
-// flip Fail→Pass for polarity-sensitive checkers, leaving polarity-insensitive
-// ones untouched.
-func TestMechanism_PolarityInvertsSensitive(t *testing.T) {
-	m := &MechanismOracle{
-		Name: "test",
-		Checkers: []InvariantChecker{
-			&stubChecker{
-				id: "INV-SENSITIVE", category: CategoryDynamic,
-				verdict: VerdictFail, evidence: "would be a bug under positive polarity",
-				polaritySensitive: true,
-			},
-			&stubChecker{
-				id: "INV-INSENSITIVE", category: CategoryStatic,
-				verdict: VerdictPass,
-			},
-		},
-		Polarizer: PolarizerFunc(func(*seed.Seed) Polarity { return PolarityInverted }),
-	}
-	bug, err := m.Analyze(&seed.Seed{}, &AnalyzeContext{}, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if bug != nil {
-		t.Fatalf("expected nil bug under inverted polarity, got: %s", bug.Description)
-	}
-}
-
-// TestMechanism_PolarityIgnoredWhenInsensitive asserts that polarity DOES NOT
-// flip results when the checker hasn't opted in.
-func TestMechanism_PolarityIgnoredWhenInsensitive(t *testing.T) {
-	m := &MechanismOracle{
-		Name: "test",
-		Checkers: []InvariantChecker{
-			&stubChecker{
-				id: "INV-INSENSITIVE", category: CategoryDynamic,
-				verdict: VerdictFail, evidence: "still a bug",
-				polaritySensitive: false,
-			},
-		},
-		Polarizer: PolarizerFunc(func(*seed.Seed) Polarity { return PolarityInverted }),
-	}
-	bug, err := m.Analyze(&seed.Seed{}, &AnalyzeContext{}, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if bug == nil {
-		t.Fatal("expected bug (polarity-insensitive Fail must survive inversion)")
 	}
 }
 

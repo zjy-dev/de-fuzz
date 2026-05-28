@@ -55,5 +55,8 @@ __attribute__((stack_protect)) void seed(int buf_size, int fill_size) {
 }
 
 func (c *canaryContract) CriticalRulesAddendum() string {
-	return "- **You CAN add function attributes** like __attribute__((stack_protect)) if needed."
+	return `- **You CAN add function attributes** like __attribute__((stack_protect)) if needed.
+- **Keep stack-canary protection ENABLED.** Do NOT emit ` + "`-fno-stack-protector`" + `, ` + "`-fno-stack-protector-all`" + `, ` + "`-fno-stack-protector-strong`" + `,
+  ` + "`--param=ssp-buffer-size=0`" + `, or any other flag that disables stack-protector.
+  Seeds with such flags are rejected outright — the fuzzer studies silent failures, not disabled protections.`
 }

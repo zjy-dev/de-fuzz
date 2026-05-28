@@ -25,7 +25,7 @@ import (
 //     which is currently single-reader by design.
 //
 // The aggregation policy is plain OR over verdicts:
-//   - any Static / Dynamic Fail (after polarity application) → bug;
+//   - any Static / Dynamic Fail → bug;
 //   - all others (Pass / NotApplicable / Error) → no bug.
 //
 // "Mechanism not active" is intentionally not a separate scheduling phase;
@@ -42,22 +42,7 @@ type MechanismOracle struct {
 	// Checkers is the ordered list of invariant checkers. Order within a
 	// category is preserved (so determinism is in the operator's hands).
 	Checkers []InvariantChecker
-	// Polarizer decides per-seed polarity. May be nil; nil means
-	// PolarityPositive for every seed (no negative-control awareness).
-	Polarizer Polarizer
 }
-
-// Polarizer maps a seed to a per-seed polarity. Centralizes the negative
-// control decision so individual mechanism oracles don't replicate flag
-// scanning. Pure function: depends only on the seed, not on results.
-type Polarizer interface {
-	Polarity(s *seed.Seed) Polarity
-}
-
-// PolarizerFunc is the function-shaped adapter for Polarizer.
-type PolarizerFunc func(s *seed.Seed) Polarity
-
-func (f PolarizerFunc) Polarity(s *seed.Seed) Polarity { return f(s) }
 
 // Analyze implements the `Oracle` contract. The implementation is fully
 // generic over mechanism — the only mechanism-specific knowledge is in
@@ -67,16 +52,10 @@ func (m *MechanismOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []R
 		return nil, fmt.Errorf("%s mechanism oracle requires AnalyzeContext", m.Name)
 	}
 
-	polarity := PolarityPositive
-	if m.Polarizer != nil {
-		polarity = m.Polarizer.Polarity(s)
-	}
-
 	cctx := &CheckContext{
 		Seed:       s,
 		BinaryPath: ctx.BinaryPath,
 		Executor:   ctx.Executor,
-		Polarity:   polarity,
 		Cache:      make(map[string]any),
 	}
 	if ctx.BinaryPath != "" {
@@ -102,13 +81,12 @@ func (m *MechanismOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []R
 	return &Bug{
 		Seed:        s,
 		Results:     results,
-		Description: m.formatDescription(all, violations, polarity),
+		Description: m.formatDescription(all, violations),
 	}, nil
 }
 
 // runPhase executes every checker whose Category matches `category`, in
-// declaration order. Each checker's Verdict is normalized through
-// applyPolarity before being returned.
+// declaration order.
 func (m *MechanismOracle) runPhase(ctx *CheckContext, category InvariantCategory) []InvariantResult {
 	var out []InvariantResult
 	for _, c := range m.Checkers {
@@ -124,56 +102,9 @@ func (m *MechanismOracle) runPhase(ctx *CheckContext, category InvariantCategory
 		if r.Category == "" {
 			r.Category = category
 		}
-		r = applyPolarity(r, ctx.Polarity)
 		out = append(out, r)
 	}
 	return out
-}
-
-// applyPolarity inverts a Pass/Fail verdict when polarity is inverted.
-// NotApplicable and Error pass through unchanged because they describe the
-// checker's *capability* to assert anything, not the assertion's truth.
-//
-// Polarity inversion only applies to checkers that are polarity-sensitive,
-// signaled by the Detail entry "polarity_sensitive: true". Checkers that
-// don't set that field are treated as polarity-INsensitive (e.g.,
-// "main has no canary slot" stays Pass-on-no-slot regardless of -fno-stack-protector).
-//
-// The default is "polarity-insensitive" so adding a new checker without
-// thinking about polarity is the safer default (matches the survey's
-// position that most invariants are absolute, not relative to the seed flag).
-func applyPolarity(r InvariantResult, polarity Polarity) InvariantResult {
-	r.PolarityApplied = polarity
-	if polarity == PolarityPositive {
-		return r
-	}
-	sensitive := false
-	if v, ok := r.Detail["polarity_sensitive"]; ok {
-		if b, isBool := v.(bool); isBool {
-			sensitive = b
-		}
-	}
-	if !sensitive {
-		return r
-	}
-	switch r.Verdict {
-	case VerdictPass:
-		// Under inverted polarity, "the mechanism held" is itself the
-		// surprise — but we don't auto-promote to Fail because that makes
-		// negative controls noisy. Downgrade to NA with a clear Reason.
-		r.Verdict = VerdictNotApplicable
-		if r.Reason == "" {
-			r.Reason = "polarity inverted: assertion expected to fail in negative control, but held"
-		}
-	case VerdictFail:
-		// "Mechanism failed" is the expected behavior under negative
-		// polarity → it's a Pass.
-		r.Verdict = VerdictPass
-		if r.Evidence == "" {
-			r.Evidence = "expected failure observed under negative-control polarity"
-		}
-	}
-	return r
 }
 
 // filterByVerdict returns only those results whose Verdict matches.
@@ -191,10 +122,10 @@ func filterByVerdict(rs []InvariantResult, want InvariantVerdict) []InvariantRes
 // downstream metadata (`Seed.Metadata.BugDescription`). Format is stable so
 // tests / log parsers can rely on it; see the canonical sample in
 // `docs/architecture/oracle-multi-invariant-redesign.md` §3.3.
-func (m *MechanismOracle) formatDescription(all, violations []InvariantResult, polarity Polarity) string {
+func (m *MechanismOracle) formatDescription(all, violations []InvariantResult) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "[%s] %d invariant violation(s) detected (polarity=%s).\n",
-		m.Name, len(violations), polarity)
+	fmt.Fprintf(&b, "[%s] %d invariant violation(s) detected.\n",
+		m.Name, len(violations))
 
 	// Violations: full detail.
 	b.WriteString("\nViolations:\n")
