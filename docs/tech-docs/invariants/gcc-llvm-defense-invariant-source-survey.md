@@ -1,20 +1,23 @@
-# GCC / LLVM 防御机制 Invariant 信息源调研
+# GCC / LLVM 防御机制 Invariant 信息源调研 — Silent-Bypass 视角
 
 ## 目标与边界
 
-本文回答一个问题: **如果要系统抽取 GCC 与 LLVM/Clang 中各类软件防御机制的 invariants, 应该到哪些一手信息源里看, 它们分别能回答什么.**
+本文回答一个问题: **如果要系统抽取 GCC 与 LLVM/Clang 中各类软件防御机制的 silent-bypass 相关 invariants, 应该到哪些一手信息源里看, 它们分别能回答什么.**
 
-这里的 invariant 不只是"打开某个 flag 启用某个机制"这种显式语义, 还包括很容易漏掉的隐式约束:
+威胁模型 (与 [`stack-canary.md`](./stack-canary.md) 对齐): 攻击者构造的覆写或控制流劫持发生后, 机制看起来仍在运行 — 没有 trap、没有 abort、没有链接期/编译期错误 — 实际却没有阻止 control-data 被改写或被预测. 形如"`-fno-X` 是否生效"、"libssp 是否被链入"、"`no_X` 属性是否被尊重"等问题, 后果或为机制更强、或为编译/链接失败, 不在本文档范围.
 
-- 栈帧布局约束 (canary / 返回地址 / saved register / VLA / spill area / dynamic alloc 之间的相对顺序).
-- 不能跨调用驻留在 caller-saved 寄存器中的值 (canary 自身, 跨调用使用的参数副本).
-- 某机制依赖的专用寄存器必须被保留 (SCS x18 / x3 / ssp, BTI/PAC keys).
-- LTO / visibility / 跨 DSO / 异常处理 / unwind / setjmp / longjmp 等成立条件.
-- `_FORTIFY_SOURCE` 依赖 `__builtin_object_size` / `__builtin_dynamic_object_size` 的退化条件.
-- 编译器与 libc / runtime / linker / loader 之间的契约 (符号、节区、dynamic tag).
-- ISA / ABI / 字节序列层面的约束 (例如 IBT `endbr` 字节模式不能出现在普通指令立即数中).
+这里的 invariant 不只是"打开某个 flag 启用某个机制"这种显式语义, 而是关注容易让机制**静默失效或被静默削弱**的隐式约束:
 
-机制覆盖范围: stack canary, `_FORTIFY_SOURCE` / object size, `-fstack-clash-protection`, `-fstack-check`, `-fcf-protection` (Intel CET IBT/SHSTK), AArch64 BTI, AArch64 / arm64e Pointer Authentication, ShadowCallStack, CFI / KCFI, SafeStack, Sanitizers (ASan/HWASan/MSan/TSan/UBSan/DFSan/KASAN), `SanitizerCoverage`, `-fhardened`, `-fzero-call-used-regs`, `-fharden-control-flow-redundancy`, `-fstrub` 系列, `-ftrivial-auto-var-init`, Bounds Safety (`-fbounds-safety`), Structure Protection, RISC-V Zicfilp / Zicfiss.
+- 栈帧布局约束 (canary / 返回地址 / saved register / VLA / spill area / dynamic alloc 之间的相对顺序), 错位即 silent bypass.
+- 校验逻辑本身的正确性 (epilogue 比较的是 guard 值还是 guard 地址; `__stack_chk_fail` 是否 `noreturn`).
+- 秘密 (canary, PAC key 派生材料, SCS pointer) 不得 spill / 残留到攻击者可观测位置.
+- 某机制依赖的专用寄存器必须被保留 (SCS x18 / x3 / ssp, BTI/PAC keys), 否则机制等价于关闭却不报错.
+- LTO / visibility / 跨 DSO / 异常处理 / unwind / setjmp / longjmp 路径上的覆盖空洞 (例如 cross-DSO CFI shadow 缺失即 silent 失效).
+- `_FORTIFY_SOURCE` 依赖 `__builtin_object_size` / `__builtin_dynamic_object_size` 的退化条件 (退化为非 `_chk` 时静默失保护).
+- 编译器与 libc / runtime / linker / loader 之间的契约 (符号、节区、dynamic tag) 缺一即 loader 静默降级 (例如 CET ELF GNU note 缺失).
+- ISA / ABI / 字节序列层面的约束 (例如 IBT `endbr` 字节模式不能出现在普通指令立即数中, 否则攻击者可构造伪 landing pad).
+
+机制覆盖范围: stack canary, `_FORTIFY_SOURCE` / object size, `-fstack-clash-protection`, `-fstack-check`, `-fcf-protection` (Intel CET IBT/SHSTK), AArch64 BTI, AArch64 / arm64e Pointer Authentication, ShadowCallStack, CFI / KCFI, SafeStack, Sanitizers (ASan/HWASan/MSan/TSan/UBSan/DFSan/KASAN), `SanitizerCoverage`, `-fhardened`, `-fzero-call-used-regs`, `-fharden-control-flow-redundancy`, `-fstrub` 系列, `-ftrivial-auto-var-init`, Bounds Safety (`-fbounds-safety`), Structure Protection, RISC-V Zicfilp / Zicfiss. 每个机制的 silent-bypass 路径独立于"机制是否被启用"这一显式语义, 由本文档表格中的源、注释、bug 披露共同界定.
 
 ## 表格列定义
 
@@ -130,51 +133,59 @@
 | Necula 等 (Deputy / SafeC) + N2778 | paper + standard | https://people.eecs.berkeley.edu/~necula/Papers/deputy-esop07.pdf, https://open-std.org/jtc1/sc22/wg14/www/docs/n2778.pdf | 早期 C bounds-safety 设计与 ISO C 标准提案 | BS | flexible array / `[N]` 数组 / `__counted_by` 的语义来源; ISO C 提案中 `[[counted_by]]` 形式 |
 | Pewny 等: "Pointer Authentication on ARMv8.3" (S&P 2019) 等 PAC 评测 | paper | https://arxiv.org/abs/2104.12188 等 | PAC 安全模型分析 | PAC | 截断 hash 的暴力空间; substitution / oracle 攻击的实测可行性; 用于校验 Clang PAC 文档中的攻击模型描述 |
 
-## 验证: 已知锚点 invariant 与本表的覆盖关系
+## 验证: 已知 silent-bypass 锚点与本表的覆盖关系
 
-| 已知 invariant | 主证据来源 (本表行) | 备注 |
+下表列出已公开披露的 silent-bypass 案例 (机制看似生效、攻击实际通过), 用于交叉验证本文档信息源的覆盖度. 对应不变量的详细形式见各机制专题文档 (例如 [`stack-canary.md` §5](./stack-canary.md#5-已知-silent-bypass-案例)).
+
+| 已知 silent-bypass 案例 | 主证据来源 (本表行) | 备注 |
 |---|---|---|
-| AArch64 stack canary slot 必须在 locals 与 saved registers 之间, 否则 carefully sized smash 可绕过 | `gcc/config/aarch64/aarch64.cc` (canary 布局注释) + `gcc/cfgexpand.cc` + `gcc-patches` 邮件列表 + GCC Bugzilla + CVE-2023-4039 公开分析 | 注释原文已在 GCC 源码内核对; 补丁系列 [PATCH 00/19] 是历史动机来源 |
-| `_FORTIFY_SOURCE` 在 `__builtin_object_size` 返回 `(size_t)-1` 时退化为非 `_chk` 调用 | GCC: Object Size Checking + `gcc/builtins.cc`/`gcc/tree-object-size.cc`; LLVM: Clang Language Extensions; libc: GLIBC Source Fortification + `bits/string_fortified.h` | 跨编译器 + libc 三方一致 |
-| canary 不应跨调用驻留在 caller-saved 寄存器中, 跨调用使用的参数副本应避开会被相邻 buffer 覆盖的栈槽 | GCC: Stack and Calling internals + `gcc/cfgexpand.cc` + AArch64 backend + `gcc-patches`; LLVM: `llvm/lib/CodeGen/StackProtector.cpp` + AArch64/X86 backend | 实际是 calling convention + spill slot 选择共同决定的 invariant 簇 |
-| Intel IBT 启用时, `endbr64`/`endbr32` 字节序列不能出现在普通指令的立即数中 (否则可被构造为伪 landing pad) | `gcc/config/i386/predicates.md` (`ix86_endbr_immediate_operand`) + `gcc/config/i386/i386.cc` 引用点 + `gcc/testsuite/gcc.target/i386/cet-pr124366.c`; Intel CET specification; Linux `objtool` | 字节模式 `0xfa1e0ff3`/`0xfb1e0ff3` 在源码内可定位; 字节级移位匹配是 GCC 该谓词的关键细节 |
-| ShadowCallStack 必须保留专用寄存器 (AArch64 `x18` / RISC-V `gp` / `ssp`); 不能被未声明 reserved 的代码触碰 | Clang docs: ShadowCallStack + AAPCS64 + RISC-V Zicfilp/Zicfiss + GCC AArch64 backend (`-fsanitize=shadow-call-stack` 强制 `-ffixed-x18`) | 前端文档与 ABI 规范一致, backend 在编译期对违反者直接报错 |
-| Clang CFI 除 `kcfi` 外都需要 `-flto` 与 `-fvisibility=hidden`, 否则隐式失效 | Clang docs: Control Flow Integrity + LTO Visibility + `llvm/lib/Transforms/Instrumentation/{KCFI,CFGuard}.cpp` + Itanium C++ ABI | 文档已显式写出, 实现层在 link 时由 metadata 强制 |
+| CVE-2023-4039: AArch64 GCC ≤13.2 在含 VLA/`alloca` 的函数中把 saved regs 排在 locals 之下, 动态分配溢出可越过 canary 直达 LR | `gcc/config/aarch64/aarch64.cc` (canary 布局注释) + `gcc/cfgexpand.cc` + `gcc-patches` 邮件列表 + GCC Bugzilla + CVE-2023-4039 公开分析 | 注释原文已在 GCC 源码内核对; 补丁系列 [PATCH 00/19] 是修复后的 invariant 描述; 早于 GCC 14 的所有此类函数均落入 silent bypass |
+| CERT VU#129209 / LLVM D64759: Arm backend 在 `LocalStackSlotAllocation` 之后重新分配 protector slot, 同时 protector 指针可 spill 到栈 | `llvm/lib/Target/AArch64/`, `llvm/lib/CodeGen/StackProtector.cpp` + LLVM GitHub Issues / Phabricator 历史 + AAPCS64 + bug-disclosure (https://kb.cert.org/vuls/id/129209/, https://reviews.llvm.org/D64759) | 受影响 toolchain: Arm Compiler 6.12, ACfL 19.0–19.2, LLVM Arm 9.x; D64759 把 protector frame access 锁在 frame-index, PEI 直接解析 |
+| GCC PR 85434 (ARM PIC): `stack_protect_set/check` 之间 guard 地址 (GOT 计算结果) 可 spill 到栈, 攻击者可改写 spill 后篡改校验源 | GCC Bugzilla + `gcc-patches` 邮件列表 + GCC: Stack Smashing Protection internals | 修复点是显式加 scheduler barrier + volatile MEM, 阻止 RA spill |
+| GCC PR 96191 + meta-bug 125045: epilogue 校验完到 `ret` 之间不 clobber 持有过 guard 的 GPR, 函数返回后 caller 上下文寄存器中残留 guard | `gcc/cfgexpand.cc::stack_protect_prologue` + `gcc/function.cc::stack_protect_epilogue` + `gcc/config/aarch64/aarch64.md` `stack_protect_test_<mode>` + GCC Bugzilla | 影响所有未提供 `targetm.have_stack_protect_test` 的 backend (mips/loongarch64/xtensa/csky/or1k/m68k/alpha/arc/nds32/microblaze ...) |
+| GCC 9 Cortex-M4 codegen: epilogue 比较两个 `__stack_chk_guard` 链接期常量地址而非其内容, canary 永远 pass | GCC Bugzilla + bug-disclosure (https://www.systemonchips.com/...) + `gcc/doc/tm.texi` (Stack Smashing Protection hooks) | 与 PR 85434 邻域问题; arm-none-eabi `--specs=nano.specs` 路径 |
+| `_FORTIFY_SOURCE` 在 `__builtin_object_size` 返回 `(size_t)-1` 时退化为非 `_chk` 调用 (silent: 编译期消除检查、无诊断) | GCC: Object Size Checking + `gcc/builtins.cc`/`gcc/tree-object-size.cc`; LLVM: Clang Language Extensions; libc: GLIBC Source Fortification + `bits/string_fortified.h` | 跨编译器 + libc 三方一致; 退化是设计内允许行为, 但调用者通常不知 |
+| Intel IBT 启用时 `endbr64`/`endbr32` 字节序列若出现在普通指令立即数, 攻击者可构造伪 landing pad 绕过 IBT | `gcc/config/i386/predicates.md` (`ix86_endbr_immediate_operand`) + `gcc/config/i386/i386.cc` 引用点 + `gcc/testsuite/gcc.target/i386/cet-pr124366.c`; Intel CET specification; Linux `objtool` | 字节模式 `0xfa1e0ff3`/`0xfb1e0ff3` 在源码内可定位; 字节级移位匹配是 GCC 该谓词的关键细节; 缺失即 silent bypass |
+| CET 输出对象缺失 `GNU_PROPERTY_X86_FEATURE_1_IBT/_SHSTK` ELF note ⇒ loader 静默不启用 IBT/SHSTK, 整个映像降级 | `gcc/config/i386/cet.h` + Intel CET specification + x86_64 psABI + Linux kernel `Documentation/x86/cet.rst` | 任意一个未带 note 的对象进入链接, 整映像静默降级 |
+| ShadowCallStack 在 x86_64 已被 LLVM 移除 (但 Clang 仍接受 flag 不报错), 在该 target 上 SCS 永远 silent 失效 | Clang docs: ShadowCallStack + LLVM GitHub Issues / PRs (移除 commit) | flag 接受但实际无效, 是典型 target 例外型 silent failure |
+| Clang CFI 除 `kcfi` 外缺 `-flto` 与 `-fvisibility=hidden` 之一即 silently 失效 (无诊断或仅 warning) | Clang docs: Control Flow Integrity + LTO Visibility + `llvm/lib/Transforms/Instrumentation/{KCFI,CFGuard}.cpp` + Itanium C++ ABI | 文档已显式写出但工程上极易漏配 |
 
-## 给 DeFuzz 的使用建议
+## 使用建议 (silent-bypass 视角)
 
-### 抽 invariant 时优先级
+### 抽 silent-bypass invariant 时的优先级
 
-1. 先在用户文档 (Clang docs / GCC online manual / gccint) 建立机制名、flag、属性命名空间.
-2. 用 backend / pass 源码 (本表"source"行) 找到 target-specific 的真实约束, 以注释和判定逻辑为准.
-3. 用 testsuite / lit tests (本表"test"行) 把 intent 落到"当前版本不能回退"的具体 codegen pattern.
-4. 用 RFC / mailing-list / Bugzilla / CVE 分析 (本表"mailing-list" / "RFC" / "bug-disclosure"行) 拿到设计动机和历史动因.
-5. 用 ABI / 论文 / libc (跨编译器表) 校验 invariant 的"为什么必须这样", 并发现编译器侧未文档化的隐式契约.
+1. 先在用户文档 (Clang docs / GCC online manual / gccint) 建立机制名、flag、属性命名空间, 但**仅作命名锚点**: 用户文档基本不会主动写出 silent-bypass 路径.
+2. 用 backend / pass 源码 (本表"source"行) 找到 target-specific 的真实约束: 注释里写的"否则可被 carefully sized smash 绕过"才是 silent-bypass invariant 的强证据.
+3. 用 bug-disclosure / Bugzilla / CERT / CVE 分析 (本表"mailing-list" / "bug-disclosure"行) 反向得到 silent-bypass 路径: 一个公开 CVE/PR 描述的"机制为什么没拦下来", 即等同于一条不变量的违反样本.
+4. 用 testsuite / lit tests 验证当前版本是否仍持有该 invariant; testsuite 里直接断言 codegen pattern 的回归用例可作为 invariant 的"现在还在生效"证据.
+5. 用 ABI / 论文 / libc (跨编译器表) 校验 invariant 的"为什么必须这样", 并发现编译器侧未文档化的隐式契约 (例如 CET ELF note 必须存在、AArch64 PAC key 复用导致 substitution).
 
-### 每条 invariant 推荐保存的字段
+### 每条 silent-bypass invariant 推荐保存的字段
 
-- `compiler` (GCC / LLVM / 共用 ABI)
+来自 [`README.md` §2 字段约定](./README.md#2-survey-字段约定):
+
+- `compiler` (GCC / LLVM / 共用 ABI / runtime)
 - `version` (例: GCC 17.x trunk / LLVM 23 trunk / glibc 2.39)
 - `mechanism` (用上面的简写)
 - `target` (x86_64 / aarch64 / riscv64 / generic)
-- `statement` (一句话表述)
+- `statement` (一句话表述, 必须能直接对应到一条 silent-bypass 路径)
 - `source_kind` (来自本表"类型"列)
 - `source_url_or_path` (来自"入口"列)
-- `evidence_snippet` (源码注释 / 文档原文 / patch hunk)
+- `evidence_snippet` (源码注释 / 文档原文 / patch hunk; 偏向 bug 披露与注释中明确说明"否则可被绕过"的那一段)
 - `version_sensitivity` (stable / target-specific / likely-to-drift)
-- `oracle_mapping` (在 DeFuzz 里如果违反这条 invariant, 应该被哪个 oracle 抓到)
+- `observation` (二进制层或运行期可观测的现象, 用于区分 invariant 满足与违反)
 
 ### 哪些场景必须下钻到源码 / ABI / testsuite, 用户文档不够
 
-- 需要"栈帧布局"或"哪个寄存器在哪个位置".
-- 需要"caller-saved / callee-saved 寄存器在该 target 上的精确分类".
-- 需要"跨 DSO / LTO / exception / unwind / setjmp / longjmp"的成立条件.
-- 需要"runtime 是否必须存在、由谁提供、失败如何 trap".
-- 需要"某 target 是否例外", 例如 SCS 在 x86_64 已被 LLVM 移除.
-- 需要"某 bug 修复后新增了什么隐含约束", 例如 CVE-2023-4039 之后的 AArch64 canary 布局.
+- 需要"栈帧布局"或"哪个寄存器在哪个位置" — silent-bypass 中 90% 的布局类不变量都不在用户文档.
+- 需要"caller-saved / callee-saved 寄存器在该 target 上的精确分类" — 用以判定 guard / canary / SCS pointer 是否能跨调用安全留存.
+- 需要"跨 DSO / LTO / exception / unwind / setjmp / longjmp"的成立条件 — 这些是 CFI / SafeStack / SP 的 silent-failure 高发路径.
+- 需要"runtime 是否必须存在、由谁提供、失败如何 trap" — `__stack_chk_fail`、`__cfi_check`、`__asan_handle_*` 实现错误本身即 silent bypass.
+- 需要"某 target 是否例外", 例如 SCS 在 x86_64 已被 LLVM 移除, 在该 target 上 SCS 永远 silent 失效.
+- 需要"某 bug 修复后新增了什么隐含约束", 例如 CVE-2023-4039 之后的 AArch64 canary 布局、CERT VU#129209 之后 LLVM Arm protector frame access 必须保持 frame-index.
 
 ### 一句话总结
 
-- 对 GCC, 关键证据在 **backend 注释 + cfgexpand/explow + testsuite + `gcc-patches` + Bugzilla**.
-- 对 LLVM/Clang, 关键证据在 **专门设计文档 + Transforms/Target pass + lit tests + Discourse RFC**.
-- 跨编译器 invariant 的最终仲裁通常在 **Itanium C++ ABI / AAPCS64 PAuth / Intel CET / RISC-V CFI / glibc fortify** 这类外部规范.
+- 对 GCC, silent-bypass 类不变量的关键证据在 **backend 注释 (尤其 aarch64.cc / i386.cc) + cfgexpand/explow + testsuite + `gcc-patches` 安全相关 patch + Bugzilla 安全条目**.
+- 对 LLVM/Clang, 关键证据在 **专门设计文档 (CFI / SafeStack / SCS / PAC / BoundsSafety) + StackProtector/Instrumentation pass + Target backend (AArch64FrameLowering, X86IndirectBranchTracking) + lit tests + Phabricator/Discourse 上的安全 review**.
+- 跨编译器 invariant 的最终仲裁通常在 **Itanium C++ ABI / AAPCS64 PAuth / Intel CET / RISC-V CFI / glibc fortify** 这类外部规范, 它们规定了"违反该约定即 loader/runtime 静默降级"的硬契约.
