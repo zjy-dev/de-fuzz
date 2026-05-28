@@ -1,468 +1,186 @@
-# `_FORTIFY_SOURCE` / Object Size Checking Invariants
+# `_FORTIFY_SOURCE` / Object Size Checking Invariants — Silent-Bypass 视角
 
-> 本文依据 `@/home/yall/project/de-fuzz/docs/invariants/gcc-llvm-defense-invariant-source-survey.md` 列出的一手信息源, 将 GCC / LLVM/Clang / glibc / ABI 中与 **`_FORTIFY_SOURCE` (FORT)** 直接相关的 invariants 统一抽取、归类, 作为 DeFuzz fortify oracle (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md`) 的形式化依据.
+> 本文只关心**会让 `_FORTIFY_SOURCE` 静默失效或被静默削弱**的不变量, 即"`-D_FORTIFY_SOURCE≥1` 已生效, 优化等级达标, libc 提供 `__*_chk` 实体, glibc 头文件的 `__fortify_function` wrapper 已替换原始符号, 但攻击者构造的越界写仍能完成而 `__chk_fail` / `__fortify_fail` 不被调用". 形如"`-O0` 下 wrapper 是否退化"、"宏未定义是否真不发 `_chk`"、"musl/newlib 是否提供 `__*_chk`"、"`#warning` 是否被发出"等问题, 后果或是机制更强、或是配置/链接/编译失败, 不在本文档范围内.
 >
-> 机制简写与 survey 一致: **FORT** = `_FORTIFY_SOURCE` / Object Size Checking. 涉及的编译器 builtin: `__builtin_object_size` (BOS) 与 `__builtin_dynamic_object_size` (BDOS).
+> 机制简写: **FORT** = `_FORTIFY_SOURCE` / Object Size Checking. 涉及编译器 builtin: `__builtin_object_size` (BOS) 与 `__builtin_dynamic_object_size` (BDOS).
+>
+> 来源覆盖: GCC 主线, LLVM/Clang 主线, glibc, Linux kernel hardening, GCC Bugzilla / LLVM PR / Red Hat Bugzilla / sourceware, CVE-2012-0864, hxp CTF 2017 实战 PoC, MaskRay FORTIFY 综述.
 
 ## 0. 术语与坐标
 
-- **level**: `-D_FORTIFY_SOURCE=N`, `N ∈ {0, 1, 2, 3}`. level=0 等于关闭; level=1/2 用 `__builtin_object_size`; level=3 (GCC 12+/Clang 9+) 用 `__builtin_dynamic_object_size`.
-- **object size**: `__builtin_object_size(ptr, type)`, `type ∈ {0,1,2,3}`. bit0=0 取最大对象 (包住整个包含结构), bit0=1 取最小对象 (sub-object, 仅字段自身); bit1 控制"未知时返回 -1 vs 0".
-- **`_chk` 变体**: libc 针对每个被 fortify 的函数提供的 `__<name>_chk` 实体, 接受一个额外的 `dstlen`/`objsize` 参数; 由头文件的 `static __inline__` wrapper 转发.
-- **wrapper**: glibc `bits/string_fortified.h` / `bits/stdio2.h` 等中的 `__fortify_function` 定义, 在调用点把原函数重写成 `__<name>_chk(...)` 或 `__<name>_chk_warn(...)`.
-- **BOS/BDOS**: 上述两个 builtin 的简写. BOS 只在编译期可证的场景返回有效值; BDOS 可下降为运行时计算 (可与 `__counted_by` 配合).
-- **退化 (fall back)**: 当 BOS 返回 `(size_t)-1` (type 0/1) 或 `0` (type 2/3) 时, wrapper 改为调用原始 libc 函数, fortify 运行时检查被消除.
-- **`__chk_fail`**: glibc 发现 `dstlen < len` 时调用的 `noreturn` 失败处理函数, 打印 "buffer overflow detected" 后 `abort()`, 进程退出码 134.
+- **level**: `-D_FORTIFY_SOURCE=N`, `N ∈ {1, 2, 3}`. level 1/2 用 BOS; level 3 (GCC 12+ / Clang 9+ + glibc 2.34+) 用 BDOS.
+- **wrapper**: glibc `bits/string_fortified.h` / `bits/stdio2.h` / `bits/wchar2.h` / `bits/socket2.h` / `bits/poll2.h` / `bits/unistd.h` 等头文件中的 `__fortify_function` 内联定义, 在调用点把原 libc 函数重写为 `__<name>_chk(...)`.
+- **`_chk` 实体**: libc 提供的 `__<name>_chk(..., dstlen)` 真函数, 内部判定 `if (__glibc_unlikely(dstlen < len)) __chk_fail();`.
+- **`__chk_fail` / `__fortify_fail`**: glibc 中 `noreturn` 的失败处理函数, 输出 "buffer overflow detected" 后 `abort()`.
+- **退化 (fall back)**: BOS 返回 `(size_t)-1` (type 0/1) 或 `0` (type 2/3) 时, 比较 `dstlen < len` 在 `-1` 路径下因 `(size_t)-1` 是 SIZE_MAX 而恒不成立 ⇒ wrapper 在 IR 层折叠为原函数调用. 退化属于 fortify 的设计行为, **不是** silent bypass.
+- **silent bypass**: 攻击者构造的越界写发生时, BOS/BDOS 给出的 `dstlen` 仍 *声称* 写入合法, 或 wrapper 整条路径 *在编译产物中不存在*, 或 runtime check 路径在攻击者可控前提下静默放行; `__chk_fail` 不被调用, 进程不被 `abort()`, 写入完成. 这是本文所有不变量的统一威胁模型.
 
-每条 invariant 采用 survey 推荐字段: `ID / statement / compiler / version / target / source_kind / source_url_or_path / evidence_snippet / version_sensitivity / oracle_mapping`.
+每条不变量按 [`README.md` §2](./README.md#2-survey-字段约定) 的字段记录: `ID / statement / compiler / version / target / source_kind / source_url_or_path / evidence_snippet / version_sensitivity / observation`.
 
-## 1. 静态前提 (Static Preconditions)
+## 1. BOS / BDOS 的对象大小估计不得超过实际对象
 
-### INV-FORT-E01 — 需要预处理宏 + 优化等级
+估计类不变量的共同威胁: 编译器对某指针 `p` 给出的 `__builtin_object_size(p, …)` / `__builtin_dynamic_object_size(p, …)` 返回值大于 `p` 实际可访问字节数, wrapper 把虚高的 `dstlen` 喂给 `__*_chk`, runtime 比较 `dstlen < len` 不成立 ⇒ chk 路径不调 `__chk_fail`, 越界写完成.
 
-- **statement**: `_FORTIFY_SOURCE` 在用户侧由宏 `-D_FORTIFY_SOURCE=N` 启用, 实际生效需要满足: (a) `N ≥ 1`; (b) 优化等级 `≥ -O1` (GCC 手册明确说 `-O0` 下 wrapper 不发挥作用, glibc 头文件的 `__fortify_function` 内联路径对未优化代码基本无效); (c) 编译器实现了 `__builtin_object_size` 且 libc 提供 `__*_chk` 实体 (或链接 `libssp`).
+### INV-FORT-O01 — BOS 不得对结构体最后成员数组返回 `(size_t)-1`
+
+- **statement**: 当数组是结构体最后一个成员 (无论是否真的是 flexible array), `__builtin_object_size(p->arr, 1)` 必须返回该字段在静态布局上的字节数; 不得退化为 `(size_t)-1`. 一旦返回 `-1`, 任何 `__memcpy_chk(p->arr, src, len, -1)` / `__strcpy_chk(p->arr, src, -1)` 比较 `(size_t)-1 < len` 永远为假, fortify 整条 wrapper 退化, 该字段任意越界写不被拦截.
 - **compiler**: GCC, LLVM/Clang
-- **version**: GCC 4.0+ (level 1/2), GCC 12+ (level 3); Clang 5+ (level 1/2), Clang 9+ (level 3)
-- **target**: generic (需 glibc 或 musl/bionic/newlib 提供 `__*_chk`)
-- **source_kind**: user-doc + runtime
-- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html ; https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html
-- **evidence_snippet**: glibc manual: "Use of `_FORTIFY_SOURCE` requires that the program is compiled with `gcc 4.1` or later, or another compiler that implements the `__builtin_object_size` function and that the program is compiled with optimization (`-O1` or higher)."
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 编译命令强制 `-O2 -D_FORTIFY_SOURCE=2 -fno-stack-protector` (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:260-266`); 低于 `-O1` 的配置属 "预期无效", 不报 bug.
+- **version**: GCC 长期存在 (PR 101836 至今状态 NEW), Clang 等价路径需独立验证
+- **target**: generic
+- **source_kind**: bug-disclosure + source
+- **source_url_or_path**: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=101836 ; https://maskray.me/blog/2022-11-06-fortify-source (FORTIFY 综述, 明确指出 "prone to return -1 and defeat `_FORTIFY_SOURCE`")
+- **evidence_snippet**: PR 101836: *"`__builtin_object_size(P->M, 1)` where M is an array and the last member of a struct fails"* — 实际 backing storage 大小已知, BOS 仍返回 unknown.
+- **version_sensitivity**: likely-to-drift (与 `-fstrict-flex-arrays` 行为耦合, 行为随主线漂移)
+- **observation**: `__memcpy_chk` 等 `_chk` 符号仍被链接保留, 但 `dstlen` 实参始终为 `(size_t)-1` (即 `0xFFFFFFFFFFFFFFFF`); 越界写完成后 `__chk_fail` 未被调用 ⇒ 不变量被违反 (silent bypass).
 
-### INV-FORT-E02 — `-fhardened` 隐式启用 level 3
+### INV-FORT-O02 — BDOS 在 `__counted_by` 路径上必须返回 = `count * sizeof(elem)`
 
-- **statement**: GCC `-fhardened` (Linux 用户空间默认 profile) 隐式开启 `-D_FORTIFY_SOURCE=3`, 同时叠加 `-fstack-protector-strong -fstack-clash-protection -fcf-protection=full -ftrivial-auto-var-init=zero -fPIE -pie -Wl,-z,relro,-z,now`.
+- **statement**: 当结构体声明 `struct S { int n; T arr[] __attribute__((counted_by(n))); }`, 对 `p->arr` 的 BDOS 必须返回 `p->n * sizeof(T)`. 已知两类实现错误: (a) 嵌套指针访问 (`outer->inner->arr`) 时 Clang < 19.1.2 把 `MemberExpr` 当指针处理, BDOS 返回 0, 配合 `if (size > 0) check` 短路使 wrapper 退化; (b) 整 struct 形式 `__bdos(p, 0)` 在 Clang < 19.1.3 误算为 `sizeof(struct) + count*sizeof(T)` 而非 `offsetof(struct, arr) + count*sizeof(T)`, 偏差精确 4 字节, 攻击者可在偏差范围内静默越界写而不触发 `__chk_fail`. 对应 kernel 直接拒绝 `__counted_by` < 修复版本的 Clang.
+- **compiler**: LLVM/Clang
+- **version**: Clang ≤ 19.1.2 (PR #110497), Clang ≤ 19.1.3 (PR #112636); 修复后 kernel 进一步要求 ≥ 20.1.0
+- **target**: generic
+- **source_kind**: bug-disclosure + source
+- **source_url_or_path**: https://github.com/llvm/llvm-project/pull/110497 ; https://github.com/llvm/llvm-project/pull/112636 ; https://www.mail-archive.com/linux-hardening@vger.kernel.org/msg06358.html (kernel disable for clang < 19.1.3) ; https://www.mail-archive.com/linux-hardening@vger.kernel.org/msg10369.html (require clang 20.1.0)
+- **evidence_snippet**: PR #110497: *"Fix 'counted_by' for nested struct pointers"* — 嵌套场景下 BDOS 返回 0; kernel patch: *"disable `__counted_by` for clang < 19.1.3"*.
+- **version_sensitivity**: target-specific (修复后稳定)
+- **observation**: 含 `counted_by` 的结构体在 `_FORTIFY_SOURCE=3` 下编译, 对嵌套指针成员或整 struct BDOS 路径写入超过 `count * sizeof(elem)` 字节, `__chk_fail` 未被调用 ⇒ 不变量被违反.
+
+### INV-FORT-O03 — BDOS 对被本地重赋值过的尺寸变量必须重读最新值
+
+- **statement**: BDOS 在生成运行时计算时, 若引用了某个尺寸变量 (例如来自 `argc` 或前驱 BB 写入的 local), 必须读其在 BDOS 计算点的最新 SSA 值, 不得使用前驱 BB 中已被覆盖的旧值. GCC PR 113514 报告: 对 `f.bar[argc][40]` 类成员调用 `__bdos`, 当 `argc` 在调用前被本地重新赋值, GCC 14 错误地用一个比实际尺寸大 8 字节的值, 使得对 `f.bar` 的越界写在 fortify 比较中合法.
 - **compiler**: GCC
-- **version**: GCC 14+
-- **target**: generic (Linux)
-- **source_kind**: user-doc
-- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html
-- **version_sensitivity**: stable
-- **oracle_mapping**: 在 CFLAGS 变种里 `-fhardened` 作为一个配置; fortify oracle 期望其与显式 `-D_FORTIFY_SOURCE=3 -O2` 行为等价.
-
-### INV-FORT-E03 — 级别向下覆盖规则
-
-- **statement**: 同一 TU 内多次定义 `_FORTIFY_SOURCE` 时, 以最后一次 `#define` 为准; `-U_FORTIFY_SOURCE` 强制关闭; glibc 的 `features.h` 在 `_FORTIFY_SOURCE` 未显式定义或 optimization 等级 `< 1` 时会 `#undef _FORTIFY_SOURCE` 并发出 `#warning` (取决于版本).
-- **compiler + runtime**: GCC/Clang + glibc
-- **version**: glibc 2.3.4+
+- **version**: GCC 14.0 (PR 113514, P3, UNCONFIRMED 时被报告)
 - **target**: generic
-- **source_kind**: runtime
-- **source_url_or_path**: glibc `include/features.h` (`_FORTIFY_SOURCE` 处理块)
-- **version_sensitivity**: stable (warning 文案会漂移)
-- **oracle_mapping**: 构建时捕获 `#warning _FORTIFY_SOURCE requires compiling with optimization (-O)` 作为 "fortify 实际未启用" 的早期信号.
-
-### INV-FORT-E04 — 第三方 libc 必须提供 `__*_chk`
-
-- **statement**: 若 target libc 不提供 `__strcpy_chk` / `__memcpy_chk` / `__snprintf_chk` / ... 等实体, 链接器必须将 GCC 的 `libssp.a` / `libssp_nonshared.a` 链入, 否则 `-D_FORTIFY_SOURCE ≥ 1` 的对象文件出现未定义引用. glibc ≥ 2.3.4, musl ≥ 1.2.5, bionic 均内建 `__*_chk`; newlib / 老版本 musl / 裸 libc 需要 `libssp`.
-- **compiler + runtime**: GCC + libssp / libc
-- **version**: all
-- **target**: generic (主要影响嵌入式 / 非 glibc 场景)
-- **source_kind**: runtime
-- **source_url_or_path**: https://github.com/gcc-mirror/gcc/tree/master/libssp
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz 在 musl/newlib target 上跑 fortify oracle 前需校验 `__stack_chk_fail` / `__memcpy_chk` 符号可解析, 否则属配置级 bug 而非 fortify 绕过.
-
-## 2. 级别语义 (Level Semantics)
-
-### INV-FORT-L01 — level 1 仅覆盖"编译期可证"越界
-
-- **statement**: `-D_FORTIFY_SOURCE=1` 仅阻止"理论上可由编译期常量判定越界"的调用 (例如 `char b[4]; strcpy(b, "12345");`). 该级别下 `__bos(dst, 0)` (maximum object size) 为唯一来源, 不覆盖 sub-object.
-- **compiler + runtime**: GCC/Clang + glibc
-- **version**: glibc 2.3.4+
-- **target**: generic
-- **source_kind**: user-doc
-- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html ; https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html
-- **evidence_snippet**: GCC manual: "object size checking at levels of checking larger than 1".
-- **version_sensitivity**: stable
-- **oracle_mapping**: 若 DeFuzz 用 level=1 跑 sub-object 模板 (INV-FORT-B02), 期望不拦截; oracle 不应将此结果判定为 bug.
-
-### INV-FORT-L02 — level 2 覆盖 sub-object
-
-- **statement**: `-D_FORTIFY_SOURCE=2` 额外使用 `__bos(dst, 1)` (minimum / sub-object size), 可在 `struct { char a[4]; char b[4]; }` 中将 `strcpy(s.a, ...)` 的边界限制为 4 字节, 而不是整个 struct 的 8 字节. **代价**: 部分合法的 C 代码 (如 flexible array / "struct hack") 可能被错误拦截或报警.
-- **compiler + runtime**: GCC/Clang + glibc
-- **version**: glibc 2.3.4+, GCC 4.0+, Clang 5+
-- **target**: generic
-- **source_kind**: user-doc
-- **source_url_or_path**: 同上
-- **evidence_snippet**: glibc manual: "`_FORTIFY_SOURCE` set to 2 ... adds the following additional security checks. ... array bounds in the presence of sub-objects".
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 模板 2 (`struct wrapper { char buf[64]; int x; }`) 在 level=2 下期望触发 `__chk_fail`; 在 level=1 下期望退化.
-
-### INV-FORT-L03 — level 3 允许运行时已知对象大小
-
-- **statement**: `-D_FORTIFY_SOURCE=3` (GCC 12+, Clang 9+) 使用 `__builtin_dynamic_object_size`, 可在对象大小只在运行时可知 (例如 `malloc(n)` 返回值, `__counted_by` 关联的柔性数组, `sizeof(*p) * n` 表达式) 时也生成有效的 fortify check. 此级别要求 libc 的 `__*_chk` 变体能接受运行时大小参数 (glibc 2.34+).
-- **compiler + runtime**: GCC 12+ / Clang 9+ + glibc 2.34+
-- **target**: generic
-- **source_kind**: user-doc + source
-- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html ; https://clang.llvm.org/docs/LanguageExtensions.html ; `gcc/tree-object-size.cc`
-- **evidence_snippet**: GCC manual: "`__builtin_dynamic_object_size` ... may return a non-constant value".
-- **version_sensitivity**: stable (新引入, 但接口已冻结)
-- **oracle_mapping**: DeFuzz level=3 的 seed 应包含 `malloc(n) + memcpy(p, src, fill)` 模式; level=2 下期望退化, level=3 下期望拦截.
-
-### INV-FORT-L04 — 各级别包含关系
-
-- **statement**: 对任意合法 fortify 可拦截的违例集合 `S_N`, 有 `S_0 = ∅ ⊂ S_1 ⊆ S_2 ⊆ S_3`. 即提升级别不会让之前能拦截的 case 退化为不拦截 (实现保证); 反之若在高级别不拦截, 在低级别也一定不拦截.
-- **compiler + runtime**: GCC + glibc, Clang + glibc
-- **version**: all
-- **target**: generic
-- **source_kind**: user-doc + test
-- **source_url_or_path**: glibc `debug/tst-chk*.c` (覆盖矩阵)
-- **version_sensitivity**: stable (semver 契约)
-- **oracle_mapping**: DeFuzz 可以在同一 seed 上跨级别跑 diff, 出现 "level=3 不拦截但 level=2 拦截" 立即视为回归 bug.
-
-## 3. `__builtin_object_size` 与 `__builtin_dynamic_object_size` (BOS / BDOS)
-
-### INV-FORT-B01 — `type` 参数的四象限语义
-
-- **statement**: `__builtin_object_size(ptr, type)` 的 `type` 为 2-bit 掩码. bit0 选择 max (0) / min (1) object size; bit1 选择未知时返回 `(size_t)-1` (0) / `0` (1). 即: type=0 = "保守取最大, 未知返回 -1"; type=1 = "子对象, 未知返回 -1"; type=2 = "保守取最大, 未知返回 0"; type=3 = "子对象, 未知返回 0".
-- **compiler**: GCC, LLVM/Clang
-- **version**: GCC 4.0+, Clang 3.1+
-- **target**: generic
-- **source_kind**: user-doc + source
-- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html ; `gcc/tree-object-size.cc` (`BOS_OBJECT_SIZE_TYPE`) ; https://clang.llvm.org/docs/LanguageExtensions.html
-- **evidence_snippet**: GCC manual: "If `type` is 0 or 1, the `__builtin_object_size` returns the number of bytes ... If `type` is 2 or 3, it returns 0 when it cannot determine ..."
-- **version_sensitivity**: stable (外部 ABI 级别)
-- **oracle_mapping**: DeFuzz 可直接用 `__builtin_object_size(p, 0)` 在种子代码里断言某指针的静态已知大小, 作为"fortify 应当拦截"的前置条件.
-
-### INV-FORT-B02 — BOS 对 sub-object 的收紧由 type bit0 控制
-
-- **statement**: 对 `struct S { char a[4]; char b[4]; }; struct S s;`, `__builtin_object_size(s.a, 0) == 8` (整个 struct), `__builtin_object_size(s.a, 1) == 4` (仅字段 `a`). Fortify level 2 使用 `type=1/3`, 因此在 sub-object 上比 level 1 更严格.
-- **compiler**: GCC, LLVM/Clang
-- **version**: GCC 4.0+, Clang 3.1+
-- **target**: generic
-- **source_kind**: user-doc + source + test
-- **source_url_or_path**: GCC Object Size Checking 手册; glibc `debug/tst-chk1.c` 的 struct 用例
-- **version_sensitivity**: stable
-- **oracle_mapping**: fortify oracle 模板 2 (`struct wrapper { char buf[64]; int x; }`) 在 level=2 下的期望行为由此条决定.
-
-### INV-FORT-B03 — BOS 在不可证场景退化为 -1 或 0
-
-- **statement**: 下列任一情况会使 BOS 返回"未知": (a) 指针来自外部函数返回值且无 `alloc_size` 属性; (b) 指针经过复杂别名 (union / 强制类型转换 / `memcpy` 来源); (c) 变长数组 (VLA); (d) `alloca()` / `__builtin_alloca()` 返回的指针; (e) `malloc/calloc/realloc` 返回值 (在 level ≤ 2 下, 因为 BOS 不看 `alloc_size`; level 3 的 BDOS 可下降); (f) 指针是多个可能来源的 φ 节点而无法确定最小值.
-- **compiler**: GCC, LLVM/Clang
-- **version**: all
-- **target**: generic
-- **source_kind**: source + user-doc
-- **source_url_or_path**: `gcc/tree-object-size.cc` (`compute_builtin_object_size`, `addr_object_size`); Clang `llvm/lib/Analysis/MemoryBuiltins.cpp` (`ObjectSizeOffsetVisitor`)
-- **evidence_snippet**: GCC 手册: "If the expression uses multiple variables or is too complex, `__builtin_object_size` will return `(size_t)-1`."
-- **version_sensitivity**: likely-to-drift (别名分析与 inliner 强度随版本变动)
-- **oracle_mapping**: DeFuzz fortify oracle 模板 3 (alloca/VLA) 本质上就是此条的反例, **不应**将其 "fortify 未拦截" 判定为编译器 bug, 而应报告为"设计限制" (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:247-255`).
-
-### INV-FORT-B04 — BDOS 下降为运行时表达式
-
-- **statement**: `__builtin_dynamic_object_size(ptr, type)` 在 BOS 无法静态求解时会生成运行时计算, 例如读 `malloc` 的 size 参数 (经 `alloc_size` 属性或 IR metadata), 或从 `__counted_by` 关联字段读取长度. 生成的表达式必须是 side-effect free 且 `ptr` 的定义 dominator 可达.
-- **compiler**: GCC 12+, LLVM/Clang 9+
-- **target**: generic
-- **source_kind**: source + user-doc
-- **source_url_or_path**: `gcc/tree-object-size.cc` (dynamic codepath); `llvm/lib/Analysis/MemoryBuiltins.cpp` (`ObjectSizeOffsetEvaluator`)
-- **version_sensitivity**: likely-to-drift (能成功下降的 pattern 随优化 pass 扩展)
-- **oracle_mapping**: level=3 的 seed 中 `malloc(n)` 路径需依赖此条; 若 BDOS 不下降, level=3 退化为 level ≤ 2 的效果.
-
-### INV-FORT-B05 — `alloc_size` 属性是 BOS/BDOS 可见性的入口
-
-- **statement**: 用户自定义分配器若标注 `__attribute__((alloc_size(n)))` 或 `alloc_size(n, m)`, 其返回值可被 BOS (level 3 的 BDOS) 识别为 "size = 参数 n" 或 "size = n * m"; 否则外部函数返回值一律按未知处理.
-- **compiler**: GCC, LLVM/Clang
-- **version**: GCC 4.3+, Clang 4+
-- **target**: generic
-- **source_kind**: user-doc
-- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz 若构造"自定义 allocator + fortify"的 seed, 必须显式加 `alloc_size`, 否则 fortify 退化为无保护.
-
-### INV-FORT-B06 — `__counted_by` / `pass_object_size` 为 BDOS 提供字段绑定
-
-- **statement**: Clang 的 `__counted_by(field)` / `__sized_by(field)` 属性 (以及 `pass_object_size(n)` 函数参数修饰符) 把指针与同级字段/参数绑定, 使 BDOS 能在结构体成员上返回精确大小. 生效要求: paired assignment (指针与 count 同语句更新, 中间无 side-effect); ABI-visible 指针必须声明为 `__single` 或等价.
-- **compiler**: Clang
-- **version**: Clang 17+ (`__counted_by` 稳定), Clang 19+ (`-fbounds-safety`)
-- **target**: generic
-- **source_kind**: user-doc + source
-- **source_url_or_path**: https://clang.llvm.org/docs/AttributeReference.html ; https://clang.llvm.org/docs/BoundsSafety.html ; `clang/lib/Sema/SemaBoundsSafety*.cpp`
-- **version_sensitivity**: likely-to-drift (语言扩展仍在演进)
-- **oracle_mapping**: level=3 的柔性数组 + `__counted_by` seed 依赖此条; GCC 侧的对应支持 (`gcc/c-family/c-attribs.cc` 的 `counted_by`) 在 GCC 15+ 引入, 语义相近但实现独立.
-
-## 4. 被 fortify 覆盖的函数集 (Covered Functions)
-
-### INV-FORT-C01 — 只有 libc 头文件 wrapper 的函数被覆盖
-
-- **statement**: fortify 不对任意用户函数生效, 仅对 glibc / musl / bionic 提供 `__fortify_function` wrapper 的特定 libc 函数有效. 典型列表 (glibc): string (`memcpy/memmove/mempcpy/memset/strcpy/stpcpy/strncpy/stpncpy/strcat/strncat`), stdio (`sprintf/snprintf/vsprintf/vsnprintf/printf/fprintf/gets/fgets/fread/fread_unlocked`), unistd (`read/pread/readlink/getcwd/confstr`), wchar (`wmemcpy/wcscpy/...`), socket (`recv/recvfrom`), poll/select (`poll/FD_SET`), mbs (`mbsnrtowcs/...`). 每个 libc 版本列表略有差异.
-- **runtime**: glibc (reference), musl, bionic
-- **version**: glibc 2.3.4+
-- **target**: generic
-- **source_kind**: runtime + user-doc
-- **source_url_or_path**: https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html ; glibc `string/bits/string_fortified.h`, `libio/bits/stdio2.h`, `posix/bits/unistd.h`, `wcsmbs/bits/wchar2.h`, `socket/bits/socket2.h`, `io/bits/poll2.h`
-- **evidence_snippet**: glibc manual 源码注释: "The fortified versions of the string/IO/net/... functions check for buffer overflows at runtime."
-- **version_sensitivity**: stable (大框架), likely-to-drift (具体函数加入/移除)
-- **oracle_mapping**: DeFuzz 种子必须使用此列表中的函数 (见 `@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:67-69`); 手写循环 / 非 libc 函数 (如 `memcpy_s` from Annex K) 不在 fortify 覆盖内, 属预期不拦截.
-
-### INV-FORT-C02 — 手写循环与 `*_s` (Annex K) 不被 fortify 覆盖
-
-- **statement**: 形如 `for (i=0; i<n; i++) dst[i] = src[i];` 的纯语言级拷贝, 以及 `memcpy_s` / `strcpy_s` 等 C11 Annex K 函数, **不**由 `_FORTIFY_SOURCE` 保护. 这些路径独立依赖编译器的 `BoundsChecking` / ASan / `-fbounds-safety` 等其他机制.
-- **compiler + runtime**: GCC + glibc, Clang + glibc
-- **version**: all
-- **target**: generic
-- **source_kind**: user-doc
-- **source_url_or_path**: 同上; 以及 `_chk` 在 glibc 源码中仅覆盖 libc 函数这一事实
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 模板明令禁止手写循环 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:98`).
-
-### INV-FORT-C03 — fortify 不拦截读越界 (除少数例外)
-
-- **statement**: 绝大多数 fortify wrapper 只校验写入目标 (`dst`) 的对象大小. 例外: `memcmp` / `strncmp` (某些 glibc 版本) 对两个输入都有最小长度保护; `read` / `recv` 的保护对象是目标 buffer. 读越界 (例如 `memcpy(dst, src, 2*sizeof(src))` 中的 `src` 越读) 一般不被 fortify 检测, 需靠 ASan / MSan.
-- **runtime**: glibc
-- **version**: all
-- **target**: generic
-- **source_kind**: runtime
-- **source_url_or_path**: glibc `string/bits/string_fortified.h` (`__bos(dst, ...)` 而非 `__bos(src, ...)`)
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 种子必须让目标 buffer 小于源 buffer, 且以写入长度作为变量 (`fill_size`).
-
-### INV-FORT-C04 — `printf` 族的格式字符串位置检查
-
-- **statement**: `_FORTIFY_SOURCE ≥ 2` 时, `printf/fprintf/sprintf/snprintf/syslog/dprintf/vprintf` 系列要求格式字符串参数是字符串常量或 `%n` 相关的写入目标必须在 writable 段 (glibc: `_IO_FLAGS2_FORTIFY` 强制); 违者由 `__readonly_area` 触发 `__chk_fail`. 此外 `sprintf` / `snprintf` 的目标 buffer 受 BOS 约束.
-- **runtime**: glibc
-- **version**: glibc 2.3.4+
-- **target**: generic
-- **source_kind**: runtime + user-doc
-- **source_url_or_path**: glibc `stdio-common/vfprintf-internal.c` (`_IO_FLAGS2_FORTIFY` 路径), `debug/sprintf_chk.c`
-- **version_sensitivity**: stable
-- **oracle_mapping**: fortify oracle 扩展模板可加入 `sprintf(buf, fmt, ...)` 的变体, level=2/3 下期望拦截.
-
-## 5. 运行时契约 (Runtime Contract)
-
-### INV-FORT-F01 — `__chk_fail` 语义
-
-- **statement**: `__chk_fail` (在部分 libc 中名为 `__fortify_fail`) 必须是 `noreturn`; glibc 实现通过 `__libc_message` 输出类似 "`*** buffer overflow detected ***: terminated`" 后 `abort()`, 导致进程 exit code = 128 + SIGABRT = 134.
-- **runtime**: glibc 2.3.4+
-- **target**: generic (Linux/POSIX)
-- **source_kind**: runtime
-- **source_url_or_path**: glibc `debug/chk_fail.c`, `debug/fortify_fail.c`
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 以 `exit_code == 134` 作为 "fortify 成功拦截" 的正向信号 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:44-49`).
-
-### INV-FORT-F02 — `__*_chk` 的 runtime 判定表达式
-
-- **statement**: 所有 `__<name>_chk(..., dstlen)` 的 runtime 校验形式统一为 `if (__glibc_unlikely(dstlen < len)) __chk_fail();`, 其中 `len` 是原函数的写入长度. 当 BOS 给出 `dstlen == (size_t)-1` 时, 由于 `-1` 作为 `size_t` 是最大值, 条件恒不成立 → 退化为原函数 (这是 INV-FORT-B03 的 runtime 对应点).
-- **runtime**: glibc 2.3.4+
-- **target**: generic
-- **source_kind**: runtime
-- **source_url_or_path**: glibc `debug/memcpy_chk.c`, `debug/strcpy_chk.c`, `string/bits/string_fortified.h` 等
-- **evidence_snippet**: `bits/string_fortified.h`: `__fortify_function ... { return __builtin___memcpy_chk (__dest, __src, __len, __glibc_objsize0 (__dest)); }`
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz 若观察到 "level ≥ 1 下 `dstlen` 恒为 `-1`", 即使 libc 存在 `__*_chk` 也无防护; 这通常意味着 compiler-side BOS/BDOS 一直退化到 unknown.
-
-### INV-FORT-F03 — 编译期已知越界直接 `#error`
-
-- **statement**: 当编译期 BOS 确定 `dstlen < len` 成立, glibc wrapper 会在头文件里用 `__warnattr("...")` / `__errordecl` 使链接或编译阶段失败 (具体行为依 glibc 版本: 2.3.4–2.34 为 warning + link-time abort; 2.34+ 更倾向 `__errordecl`). 这是 `_chk` 回写为 `__*_chk_warn` 的路径.
-- **runtime**: glibc
-- **version**: glibc 2.3.4+
-- **target**: generic
-- **source_kind**: runtime
-- **source_url_or_path**: glibc `misc/sys/cdefs.h` (`__warndecl`, `__errordecl`), `string/bits/string_fortified.h`
-- **version_sensitivity**: stable (API), likely-to-drift (wording)
-- **oracle_mapping**: DeFuzz 的 `fill_size` 必须通过 `atoi(argv)` 进入 (runtime-known), 避免触发编译期 `#error` 导致 seed 无法编译 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:61-65`).
-
-### INV-FORT-F04 — `__*_chk` 与 fork/exec 无状态
-
-- **statement**: fortify runtime 无进程全局状态, 每次调用独立判定; fork 子进程无额外初始化; execve 后依赖新进程的 fortify 配置重新生效. 不同于 canary (INV-SP-F04), fortify 不依赖 `AT_RANDOM`.
-- **runtime**: glibc
-- **version**: all
-- **target**: generic
-- **source_kind**: runtime
-- **source_url_or_path**: glibc `debug/` 子目录 (无 ctor/dtor)
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz 可并发跑 fortify oracle 而不担心跨进程干扰.
-
-## 6. 编译器实现 (Compiler Internals)
-
-### INV-FORT-I01 — GCC 通过 `_chk` builtin 表 + `tree-object-size` 展开
-
-- **statement**: GCC 在 `gcc/builtins.cc` 中为每个 fortify-able 函数注册 `expand_builtin___memcpy_chk` / `expand_builtin___strcpy_chk` / ... 等 `_chk` 变体. 在 `tree-object-size` pass 中解析 `__builtin_(dynamic_)object_size`, 若可证安全则把 `_chk` 调用回写为原函数调用 (消除 runtime 检查); 若证明必然越界则发编译期诊断.
-- **compiler**: GCC
-- **version**: GCC 4.0+
-- **target**: generic
-- **source_kind**: source
-- **source_url_or_path**: https://github.com/gcc-mirror/gcc/blob/master/gcc/builtins.cc ; https://github.com/gcc-mirror/gcc/blob/master/gcc/tree-object-size.cc
-- **version_sensitivity**: likely-to-drift (内部实现)
-- **oracle_mapping**: DeFuzz 可 `objdump -d` 查 `__memcpy_chk` / `__strcpy_chk` 外部符号是否保留, 作为 fortify 是否真正生效的静态证据.
-
-### INV-FORT-I02 — Clang 通过 `pass_object_size` + 内置前端降级
-
-- **statement**: Clang 前端在 `clang/lib/CodeGen/CGBuiltin.cpp` (及 `CGExpr.cpp`) 中为 `__builtin___*_chk` 生成 IR intrinsic, 与 glibc 头文件里基于 `__pass_dynamic_object_size`/`__pass_object_size` 的 wrapper 配合. BDOS 的下降由 `llvm/lib/Analysis/MemoryBuiltins.cpp` 的 `ObjectSizeOffsetEvaluator` 完成.
-- **compiler**: LLVM/Clang
-- **version**: Clang 5+ (level 2), Clang 9+ (level 3)
-- **target**: generic
-- **source_kind**: source
-- **source_url_or_path**: https://github.com/llvm/llvm-project/tree/main/clang/lib/CodeGen ; https://github.com/llvm/llvm-project/blob/main/llvm/lib/Analysis/MemoryBuiltins.cpp
+- **source_kind**: bug-disclosure
+- **source_url_or_path**: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=113514
+- **evidence_snippet**: PR 113514 标题: *"Wrong `__builtin_dynamic_object_size` when using a set local variable"*, 报告中 BDOS 返回 48 而实际可写区域为 40.
 - **version_sensitivity**: likely-to-drift
-- **oracle_mapping**: 与 GCC 同类 (objdump 验证).
+- **observation**: 反汇编 `__memcpy_chk` 调用点的 `dstlen` 实参表达式 (RDX 或栈位置) 在调用前已被覆盖为旧的 `argc` 值; 攻击者按 BDOS 虚高值越界写而 `__chk_fail` 不触发 ⇒ 不变量被违反.
 
-### INV-FORT-I03 — 前端 `pass_object_size` 不影响调用约定
+## 2. wrapper 内联 / 优化不得丢失 BOS 上下文
 
-- **statement**: `pass_object_size(N)` 修饰的函数参数, 在 Clang 前端会被额外生成一个隐式 `size_t` 参数由调用方填充, 但该额外参数不改变函数 symbol 的 mangling (C linkage) 也不破坏 ABI (C++ 中进入 mangling). 这是 glibc fortify wrapper 选择 `__pass_object_size` 而非生成新符号的前提.
+### INV-FORT-W01 — `__fortify_function` 内联后必须保留 BOS / `pass_object_size` 上下文
+
+- **statement**: glibc 头文件的 `__fortify_function` wrapper 是 `static __always_inline`, 调用 `__builtin_object_size(dst, …)` 后再转发到 `__<name>_chk(…, dstlen)`. 若编译器 inliner 在内联 wrapper 时丢失了 caller 上下文中的 BOS 信息 (例如把 `__bos(buf, 1)` 折叠为 `-1`, 或在 `__pass_object_size` 标注的隐式参数路径上传错值), 编译期分支判断和 runtime `__write_overflow*` warning 都被消除, `__*_chk` 退化为原函数, 越界写不再触发 `__fortify_panic` / `__chk_fail`. Clang < 13 在 Linux kernel 上下文中触发该回归, 触发后 kernel 整段 fortify-string.h 必须改写为宏化 + `__pass_object_size` 强制传递.
 - **compiler**: LLVM/Clang
-- **version**: Clang 3.3+
+- **version**: Clang ≤ 12 (kernel commit `a28a6e860c6c` "fortify: Work around Clang inlining bugs", merged in 5.18 cycle)
 - **target**: generic
-- **source_kind**: user-doc + source
-- **source_url_or_path**: https://clang.llvm.org/docs/AttributeReference.html#pass-object-size ; `clang/lib/CodeGen/CGCall.cpp`
+- **source_kind**: bug-disclosure + source
+- **source_url_or_path**: https://lore.kernel.org/lkml/20210818060533.3569517-64-keescook@chromium.org/ ; https://github.com/llvm/llvm-project/issues/77813
+- **evidence_snippet**: kernel commit message: 内联后 `__write_overflow*` 编译期分支被消除, 运行期 `*_chk` 路径退化为普通函数; workaround 把 fortify-string.h 全部宏化, 用 `__pass_object_size` 把 BOS 显式作隐式参数传入.
+- **version_sensitivity**: target-specific (Clang 修复后稳定)
+- **observation**: 受影响 Clang 编译的二进制中, 含 `__fortify_function` 包装的 libc 调用点对应的 `.text` 仅出现原函数的 `call`, 未出现 `__memcpy_chk` / `__strcpy_chk` 等 `_chk` 符号引用, 同时源代码确实越界 ⇒ wrapper 已退化为原函数, 不变量被违反.
+
+## 3. Runtime check 必须 fail-closed
+
+### INV-FORT-R01 — `__readonly_area` 在 `/proc/self/maps` 不可用时不得返回 "安全"
+
+- **statement**: glibc `_FORTIFY_SOURCE ≥ 2` 下, `vfprintf` 检测 `%n` 类格式串向写段写入时, 通过 `__readonly_area(addr, len)` 判定目标地址是否在只读段; 实现读 `/proc/self/maps`. 若 `fopen("/proc/self/maps")` 返回 `ENOENT` / `EACCES` (chroot / sandbox / 容器内无 `/proc` / seccomp 过滤 `open` 返回 errno), 当前实现走 "假定安全" 分支返回 1 ⇒ `vfprintf` 内部不再调用 `__chk_fail`, 攻击者构造的 `%n` 向任意可写或可写段地址执行写入完成. hxp CTF 2017 "hardened_flag_store" 是该路径的实战 PoC: 用 seccomp `SECCOMP_RET_ERRNO` 把 `open("/proc/self/maps")` 强制返回 `ENOENT`, 然后让 `printf` 的 `%n` 在 `_FORTIFY_SOURCE=2` 下静默通过.
+- **runtime**: glibc
+- **version**: 长期存在于 glibc Linux 后端
+- **target**: Linux
+- **source_kind**: source + bug-disclosure
+- **source_url_or_path**: https://codebrowser.dev/glibc/glibc/sysdeps/unix/sysv/linux/readonly-area.c.html ; https://0xacb.com/2017/11/19/hxp-flag-store/ ; https://fatalbit.net/2017/11/19/hardened-flag-store.html ; https://bruce30262.github.io/hxp-CTF-2017-hardened-flag-store/
+- **evidence_snippet**: `readonly-area.c` 在 `fopen` 失败 + `errno ∈ {ENOENT, EACCES}` 时 `return 1`; CTF writeup 直接用 seccomp 触发该路径绕过 `_chk_fail`.
 - **version_sensitivity**: stable
-- **oracle_mapping**: 跨 DSO / 静态链接的 seed 可依赖此条, 不需担心 fortify 引入 symbol 冲突.
+- **observation**: 进程在 `/proc` 不可访问的环境下运行被 fortify 的 `printf` 系列, 含 `%n` 写入到可写段, 未触发 `__chk_fail`, 进程未 `abort` ⇒ 不变量被违反.
 
-### INV-FORT-I04 — BOS/`_chk` 展开在 early inlining 之后, pre-LTO 完成
+### INV-FORT-R02 — `__chk_fail` / `__fortify_fail` 必须 `noreturn`
 
-- **statement**: GCC 的 `tree-object-size` pass 和 Clang 的 `LowerConstantIntrinsics` / `InstCombine` 对 `_chk` 的回写都在 LTO pre-link 的 IR 上执行, 因此 `-flto` 不会改变 "该 call site 是否被 fortify"; 但 LTO 阶段的额外内联可能使 BOS 从 `-1` 变为具体值, 进一步消除 runtime 检查.
-- **compiler**: GCC, LLVM/Clang
+- **statement**: glibc / libssp 提供的 `__chk_fail` (旧路径) 与 `__fortify_fail` (统一路径) 必须以 `noreturn` 结束, 实现内部一定要 `abort()` (或等价不可继续路径); 编译器据此不在 `_chk` call 之后插入正常返回路径. 若被替换的实现 (freestanding stub / 自定义 hook) 真的返回, 函数 epilogue 继续执行污染过的状态 ⇒ silent bypass. 与 `__stack_chk_fail` 同类语义, 是 fortify 与 stack canary 共同依赖的最低 runtime 契约.
+- **runtime**: glibc, libssp, 第三方 stub
 - **version**: all
 - **target**: generic
-- **source_kind**: source
-- **source_url_or_path**: `gcc/passes.def` (pass 顺序), `llvm/lib/Transforms/Scalar/LowerConstantIntrinsics.cpp`
+- **source_kind**: runtime
+- **source_url_or_path**: glibc `debug/chk_fail.c` ; glibc `debug/fortify_fail.c`
 - **version_sensitivity**: stable
-- **oracle_mapping**: `-flto` 作为 DeFuzz CFLAGS 矩阵中的独立配置; 预期 fortify 行为与非 LTO 版本"至少一样严格".
+- **observation**: 触发任意一条 fortify check 后函数继续返回正常路径, 或 caller 上下文得到正常返回值 ⇒ 不变量被违反.
 
-## 7. 退化与假阴性 (Fallbacks / False Negatives)
+## 4. wrapper 必须真正覆盖被攻击的写入 sink
 
-### INV-FORT-N01 — `alloca` / VLA 导致 BOS 返回 `-1`
+### INV-FORT-C01 — `vfprintf` 入口必须设置统一的 fortify flag
 
-- **statement**: 对 `alloca(n)` 与 VLA `char buf[n]` (其中 `n` 不是编译期常量), `__builtin_object_size(buf, 0/1)` 均返回 `(size_t)-1` (GCC) 或等价的"未知"值 (Clang); 相应的 `_chk` 调用退化为原函数. level=3 下 BDOS **可以**恢复 alloca/VLA 的大小 (GCC 12+, Clang 9+), 但前提是分配点与使用点在同一 BB / dominator 链上, 且 `n` 的计算无副作用.
-- **compiler**: GCC, LLVM/Clang
-- **version**: GCC 4.0+, Clang 5+ (static); GCC 12+, Clang 9+ (dynamic)
+- **statement**: `printf` 族 (含 `printf` / `fprintf` / `sprintf` / `snprintf` / `vprintf` / `vsprintf` / `vsnprintf` / `dprintf` / `syslog` / `asprintf`) 的所有 `__*_chk` 入口必须在调用 `vfprintf` 内部之前设置统一的 fortify flag (旧实现是 `_IO_FLAGS2_FORTIFY` per-FILE bit, 新实现是 `PRINTF_FORTIFY` 局部参数), 使 `vfprintf` 在格式串解析阶段对 `%n` / 位置参数 / 类型不匹配等做检查. 若任一入口漏设, 该入口下所有 `%n` 写入均不被 fortify 拦截; CVE-2012-0864 即此结构性问题的一个表征 (位置参数路径下整数溢出绕过 fortify), 后续 glibc 主线把 per-FILE bit 重构为 `PRINTF_FORTIFY` 显式参数, 正是为统一覆盖而做.
+- **runtime**: glibc
+- **version**: 历史 glibc (≤ 2.16 触发 CVE-2012-0864), 重构见 glibc 2.29 周期 patchwork
 - **target**: generic
-- **source_kind**: source + user-doc
-- **source_url_or_path**: `gcc/tree-object-size.cc`; Clang `LanguageExtensions.html` (`__builtin_dynamic_object_size`)
-- **version_sensitivity**: likely-to-drift (BDOS 能下降的 alloca/VLA 场景逐步扩大)
-- **oracle_mapping**: DeFuzz fortify oracle 模板 3 (alloca) 在 level=2 下期望 bypass, level=3 下取决于具体 compiler 版本 — 属于"预期退化"区域 (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:247-255`).
+- **source_kind**: bug-disclosure + source
+- **source_url_or_path**: https://bugzilla.redhat.com/show_bug.cgi?id=794766 ; https://nvd.nist.gov/vuln/detail/CVE-2012-0864 ; https://patchwork.ozlabs.org/project/glibc/patch/20181115214449.19262-7-gabriel@inconstante.eti.br/
+- **evidence_snippet**: glibc patch: 把 `_IO_FLAGS2_FORTIFY` 替换为 `PRINTF_FORTIFY`, 明确承认旧旗标在多个 wrapper 间设置不一致导致 bypass 隐患.
+- **version_sensitivity**: stable since fix
+- **observation**: 在被 fortify 的 `printf` 族入口构造 `%n` 写入或类型不匹配的位置参数, 进程未触发 `__chk_fail` ⇒ 该入口未参与 fortify 覆盖, 不变量被违反.
 
-### INV-FORT-N02 — 复杂指针算术使 BOS 退化
+### INV-FORT-C02 — `<err.h>` / `<error.h>` 系列必须有 `_chk` wrapper
 
-- **statement**: `union` 成员间跨字段指针、`(char *)(uintptr_t)value`、跨函数的 escape pointer、`memcpy` 返回值的链式使用等均使 BOS 返回未知. LLVM 的 BDOS 在某些 reaching-definition 可证的情况下能恢复, GCC 的 BDOS 覆盖范围通常略窄.
-- **compiler**: GCC, LLVM/Clang
-- **version**: all
+- **statement**: BSD/GNU 的 `err()` / `errx()` / `warn()` / `warnx()` / `verr()` / `vwarn()` / `error()` / `error_at_line()` 内部走 `vfprintf`, 因此同样可能被 `%n` 攻击. 这些函数若没有 `__fortify_function` wrapper, 即便编译时 `_FORTIFY_SOURCE=2` 已生效, 用户对它们的调用走的是裸 `vfprintf` 路径 ⇒ `%n` 写入完成而无 `__chk_fail`. Red Hat BZ 836931 / sourceware 24987 公开报告该长期空洞.
+- **runtime**: glibc
+- **version**: glibc 全版本 (至该 BZ 报告时未修)
 - **target**: generic
-- **source_kind**: source
-- **source_url_or_path**: `gcc/tree-object-size.cc`; `llvm/lib/Analysis/MemoryBuiltins.cpp`
-- **version_sensitivity**: likely-to-drift
-- **oracle_mapping**: 构造这类"对抗"seed 可用于评估 GCC vs LLVM 的 fortify 覆盖差异, 但不应被直接判定为 bug.
+- **source_kind**: bug-disclosure
+- **source_url_or_path**: https://bugzilla.redhat.com/show_bug.cgi?id=836931 ; https://sourceware.org/bugzilla/show_bug.cgi?id=24987
+- **version_sensitivity**: likely-to-drift (取决于 glibc 主线是否补 wrapper)
+- **observation**: 在被 `_FORTIFY_SOURCE=2` 编译的程序中调用 `warn`/`err` 系列含 `%n` 的格式串向可写段写入, 进程未触发 `__chk_fail` 而正常退出/继续 ⇒ 不变量被违反.
 
-### INV-FORT-N03 — 外部函数返回值的默认不可见
+## 5. 已知 silent-bypass 案例
 
-- **statement**: 除非外部函数标注 `alloc_size` 或等价 IR metadata, 否则其返回值的对象大小对 BOS/BDOS 不可见. 典型反例: 手写 `my_alloc(size_t n) { return malloc(n); }` 若无 `alloc_size`, fortify 对 `my_alloc()` 的返回值无保护.
-- **compiler**: GCC, LLVM/Clang
-- **version**: all
-- **target**: generic
-- **source_kind**: user-doc + source
-- **source_url_or_path**: GCC `Common-Function-Attributes` (`alloc_size`)
-- **version_sensitivity**: stable
-- **oracle_mapping**: 自建 allocator 的 seed 必须显式加 `alloc_size`, 否则 fortify oracle 的 "无防护" 结果无意义.
+| Case | 违反的不变量 | Toolchain / 系统 | 说明 |
+| --- | --- | --- | --- |
+| GCC PR 101836 | INV-FORT-O01 | GCC 长期存在 | struct 最后成员数组的 BOS 退化为 `(size_t)-1`, 任何对该字段的越界写 `__memcpy_chk` 比较恒为假, fortify 失效. |
+| LLVM PR #110497 | INV-FORT-O02 | Clang ≤ 19.1.2 | `counted_by` 嵌套指针访问下 BDOS 返回 0, `_chk` 路径在错误的 0 边界上比较, 越界写不触发 `__fortify_panic`. |
+| LLVM PR #112636 | INV-FORT-O02 | Clang ≤ 19.1.3 | `counted_by` whole-struct BDOS 计算公式偏差 4 字节, 攻击者可在偏差窗口内越界写而不触发 fortify. |
+| GCC PR 113514 | INV-FORT-O03 | GCC 14.0 | 局部变量重赋值后 BDOS 返回旧值导致虚高 8 字节, `__memcpy_chk` 静默放行. |
+| kernel "Work around Clang inlining bugs" (a28a6e860c6c) | INV-FORT-W01 | Clang ≤ 12 | `__fortify_function` 内联后 BOS 上下文丢失, `_chk` wrapper 退化为原函数, 越界写不触发 `__fortify_panic`. |
+| hxp CTF 2017 hardened_flag_store | INV-FORT-R01 | glibc 长期存在 | seccomp 强制 `open("/proc/self/maps")` 返回 `ENOENT`, `__readonly_area` 走 fail-open 路径, `%n` 在 `_FORTIFY_SOURCE=2` 下静默写入. |
+| CVE-2012-0864 | INV-FORT-C01 | glibc ≤ 2.16 | `vfprintf` 位置参数处理整数溢出, `_IO_FLAGS2_FORTIFY` 路径下 `%n` 类型检查被绕过. |
+| Red Hat BZ 836931 / sourceware 24987 | INV-FORT-C02 | glibc 全版本 (未修) | `err`/`warn` 系列从未被 fortify 包裹, 走裸 `vfprintf` 让 `%n` 静默通过. |
 
-### INV-FORT-N04 — 编译器不实现 BOS 时 fortify 完全失效
+## 6. 可程序化筛选结果
 
-- **statement**: 若 C 编译器不实现 `__builtin_object_size` / `__builtin_dynamic_object_size` (返回常量 `-1` / `0` 或完全不识别), 则 glibc 头文件的 `__glibc_objsize0 / __bos` 宏无法得到有效边界, 所有 `_chk` 调用都会退化为原函数. 对用户而言等价于 level=0.
-- **compiler**: third-party C compilers
-- **version**: n/a
-- **target**: generic
-- **source_kind**: user-doc + runtime
-- **source_url_or_path**: https://gcc.gnu.org/onlinedocs/gcc/Object-Size-Checking.html ; https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz 对这类编译器跑 fortify oracle 时期望 level ≥ 1 下仍发生 bypass (exit 139); 不视为回归, 但可作为"该编译器无 fortify 能力"的结论性证据.
+> 筛选维度与静/动态归属准则定义在 [`README.md` §3 可程序化筛选方法论](./README.md#3-可程序化筛选方法论). 本章只列结果. 所有不变量均直接对应某条 silent-bypass 路径, 因此本机制下不再单列"非 silent-bypass 排除项".
 
-### INV-FORT-N05 — 部分 libc 显式禁用 `_FORTIFY_SOURCE`
+### 通过筛选
 
-- **statement**: 如果编译器驱动、内建预定义或 libc 头文件在 TU 预处理阶段显式 `#undef _FORTIFY_SOURCE` 或强制设为 `0`, 用户命令行的 `-D_FORTIFY_SOURCE=N` 也不会真正生效. 这属于工具链能力 / 配置问题, 不是 fortify oracle 的目标 bug.
-- **compiler**: third-party C compilers
-- **version**: n/a
-- **target**: generic
-- **source_kind**: user-doc
-- **source_url_or_path**: https://sourceware.org/glibc/manual/latest/html_node/Source-Fortification.html
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz 构建前应运行 `gcc -D_FORTIFY_SOURCE=2 -E empty.c | grep _FORTIFY_SOURCE` 或同类探针验证 `_FORTIFY_SOURCE` 在 TU 末端仍然定义, 否则 oracle 结果无效.
+- **INV-FORT-O01** — BOS 不得对 struct 最后成员返回 `-1`
+  - 类别: 静态
+  - 通过理由: 源码层可对结构体定义构造测试程序, 编译产物中检查 `__memcpy_chk` 调用点 `dstlen` 实参是否被折叠成立即数 `-1` (即 `0xFFFF…`); 已知 PR 101836 提供反例样本, 可作为 oracle 正反控.
 
-## 8. 与其他机制的交互 (Interactions)
+- **INV-FORT-O02** — `counted_by` BDOS 必须 = `count * sizeof(elem)`
+  - 类别: 静态
+  - 通过理由: 给定带 `counted_by` 的源, 编译后反汇编 `__memcpy_chk` 调用点的 `dstlen` 表达式; 在 LLVM PR #110497 / #112636 提供的最小用例上比对预期值与实际值即可定性. 限定在 Clang.
 
-### INV-FORT-X01 — 与 `-fstack-protector*` 的独立性
+- **INV-FORT-O03** — BDOS 对重赋值变量必须读最新值
+  - 类别: 静态
+  - 通过理由: 编译产物中反汇编 `dstlen` 计算路径, 比对其 SSA 来源是否取自前驱 BB 的旧值 vs 调用点最新值; PR 113514 提供具体最小用例.
 
-- **statement**: fortify 与 stack canary 是正交机制: fortify 在写入**之前或过程中**拦截 (SIGABRT 134 via `__chk_fail`), canary 在函数返回**之前**拦截 (SIGABRT 134 via `__stack_chk_fail`). 两者失败路径都是 134, 因此在 oracle 层必须用 `-fno-stack-protector` 关闭 canary 才能独立判定 fortify 成效.
-- **compiler + runtime**: GCC/Clang + glibc
-- **version**: all
-- **target**: generic
-- **source_kind**: user-doc + bug-disclosure
-- **source_url_or_path**: `@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:53-56`
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 编译命令固定 `-fno-stack-protector` (`@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:260-266`).
+- **INV-FORT-W01** — wrapper 内联后必须保留 BOS 上下文
+  - 类别: 静态
+  - 通过理由: 二进制中 `__memcpy_chk` / `__strcpy_chk` / `__snprintf_chk` 等 `_chk` 符号是否出现在期望位置 (`objdump -d` + 符号引用扫描). Clang < 13 + glibc 头文件的最小用例可复现 wrapper 全部退化为原函数. 与 `_FORTIFY_SOURCE=2/3 -O2` 编译开关交叉.
 
-### INV-FORT-X02 — 与 ASan / HWASan 的叠加
+- **INV-FORT-R01** — `__readonly_area` 必须 fail-closed
+  - 类别: 动态
+  - 通过理由: 必须运行二进制 + 在 chroot / seccomp / 无 `/proc` 环境下触发 `%n`, 观察 `__chk_fail` 是否调用. 静态分析无法判定 runtime `/proc` 可用性. hxp 2017 PoC 可作样本.
 
-- **statement**: `-fsanitize=address` 或 `-fsanitize=hwaddress` 下, 越界访问先被 sanitizer 拦截 (exit code = 1 + sanitizer 消息), 早于 fortify 的 `__chk_fail`. 即: ASan + fortify 同时启用时观察到的信号是 ASan 的, 不是 fortify 的. 部分 libc 版本在 ASan 启用时将 `__*_chk` 重定向为 ASan 的 interceptor.
-- **compiler + runtime**: GCC/Clang + libasan / hwasan
-- **version**: all
-- **target**: generic
-- **source_kind**: source + test
-- **source_url_or_path**: `compiler-rt/lib/asan/asan_interceptors.cpp`
-- **version_sensitivity**: stable
-- **oracle_mapping**: DeFuzz fortify oracle 必须禁用 ASan/HWASan, 否则退出码判定被污染.
+- **INV-FORT-R02** — `__chk_fail` / `__fortify_fail` 必须 `noreturn`
+  - 类别: 动态
+  - 通过理由: 替换或观察实际 `__chk_fail` 实现是否在调用后真正终止进程. 仅静态分析符号属性不充分, freestanding 场景需运行验证.
 
-### INV-FORT-X03 — 与 LTO 的联动
+- **INV-FORT-C01** — `vfprintf` 入口必须设置统一 fortify flag
+  - 类别: 动态
+  - 通过理由: 对每个 `printf` 族入口构造 `%n` 或类型不匹配的位置参数测试, 观察 `__chk_fail` 是否触发; 与 glibc 版本矩阵交叉. CVE-2012-0864 等历史样本提供正反控.
 
-- **statement**: `-flto` 使 BOS/BDOS 看到更多 inline 上下文, 可能使 level ≤ 2 下原本返回 `-1` 的 call site 在 LTO 后变为可证越界, 从而触发编译期 `__errordecl` 或 runtime 拦截. 反之 LTO 不会让 fortify 退化.
-- **compiler**: GCC, LLVM/Clang
-- **version**: all
-- **target**: generic
-- **source_kind**: source
-- **source_url_or_path**: `gcc/lto/` 相关 pass 调度; LLVM LTO pipeline
-- **version_sensitivity**: stable (单调性契约), likely-to-drift (具体覆盖面)
-- **oracle_mapping**: DeFuzz 在 `-flto` 配置下跑同一 seed 应当"至少一样严格".
+- **INV-FORT-C02** — `err`/`warn` 系列必须 `_chk` 包裹
+  - 类别: 静态
+  - 通过理由: 反汇编含 `_FORTIFY_SOURCE=2` 编译的二进制, 验证 `err`/`warn` 调用点是否走 `__*_chk` 符号; 静态可枚举.
 
-### INV-FORT-X04 — 与 `-fbounds-safety` 的关系
+### 未通过筛选
 
-- **statement**: Clang 的 `-fbounds-safety` (BS) 与 fortify 是两套独立机制: BS 在 Sema / IR 生成阶段插入 trap, 覆盖所有指针访问 (不限 libc 函数); fortify 仅覆盖 libc wrapper. BS 不替代 fortify 的跨 libc 调用保护 (例如通过 libc 内部的间接越界); 两者并存时以谁先失败为准.
-- **compiler**: LLVM/Clang
-- **version**: Clang 19+
-- **target**: generic
-- **source_kind**: user-doc + RFC
-- **source_url_or_path**: https://clang.llvm.org/docs/BoundsSafety.html ; https://discourse.llvm.org/t/rfc-enforcing-bounds-safety-in-c-fbounds-safety/70854
-- **version_sensitivity**: likely-to-drift (BS 仍在演进)
-- **oracle_mapping**: DeFuzz 暂不把 BS 纳入 fortify oracle 矩阵; 未来可作独立 oracle.
+本文档已按 silent-bypass 视角剔除非相关项. 历史档案中曾列出的 `_FORTIFY_SOURCE` 启用所需的 `-O1` 前提、`-fhardened` 隐含 level 3、级别向下覆盖规则、`__*_chk` 链接是否存在、level 1/2/3 语义差异、BOS `type` 参数四象限语义、BOS 在 alloca/VLA/外部函数/复杂指针上 *按设计* 退化为 `-1`、`__counted_by`/`pass_object_size` 的 ABI 入口约定、被 fortify 覆盖的 libc 函数清单、手写循环不被 fortify 覆盖、读越界不被 fortify 覆盖、编译期 `__errordecl` 警告、第三方编译器无 BOS、`-flto` 与 fortify 单调性、与 ASan / `-fbounds-safety` 的叠加策略, 后果或为机制更强、或为编译/链接/启动失败、或为只读规范陈述、或为按设计的合法退化, 不构成 silent bypass, 因此不再列入本文档的筛选范围.
 
-## 9. DeFuzz Fortify Oracle 与上述 invariants 的映射总表
+## 7. 开放问题
 
-| Invariant | Oracle 信号 | 触发 seed 模式 |
-|---|---|---|
-| INV-FORT-E01 | `exit_code ∈ {134, 139}` (取决于是否拦截) | 任意 `memcpy/strcpy` 越界, 编译用 `-O2 -D_FORTIFY_SOURCE=2` |
-| INV-FORT-L01 | level=1 拦截但 level=2 额外拦截 sub-object | 同一 seed 跨 level 跑 diff |
-| INV-FORT-L02 | `exit_code == 134` | sub-object 模板 (`struct wrapper { char buf[64]; int x; }` + `strcpy(w.buf, src)`) |
-| INV-FORT-L03 | level=3 拦截 malloc/`__counted_by`, level=2 退化 | `char *p = malloc(n); memcpy(p, src, fill);` |
-| INV-FORT-B03 | level ≤ 2 下 alloca/VLA 不拦截 | 模板 3 (alloca) |
-| INV-FORT-B04 | level=3 下 alloca/VLA 可能拦截 | 同上, 跨 level 对比 |
-| INV-FORT-C01 | 手写循环不拦截 (预期) | `for (i=0;i<fill;i++) buf[i]='A';` |
-| INV-FORT-F01 | `exit_code == 134` | 任意被 fortify 覆盖的越界 |
-| INV-FORT-F02 | 观察到 `dstlen == -1` → 退化 | objdump 确认 `__*_chk` 被保留但 runtime 不触发 |
-| INV-FORT-X01 | 必须 `-fno-stack-protector` | oracle 标准配置 |
-| INV-FORT-N04/N05 | 第三方编译器下 level ≥ 1 仍 exit 139 | 无 BOS / `_FORTIFY_SOURCE` 被 toolchain 清空的编译器 |
-
-## 10. 假阳性处理 (False Positive)
-
-与 canary oracle 相同 (见 `@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md` INV-SP-L04), fortify oracle 在观察到 `exit_code == 139` 时也需要借助 **sentinel 输出** (`printf("SEED_RETURNED\n"); fflush(stdout);`) 区分:
-
-| stdout 含 `SEED_RETURNED` | exit_code | 判定 |
-|---|---|---|
-| Yes | 139 | 真正的 fortify bypass — 报 bug |
-| No | 139 | 函数内部间接崩溃 (如参数副本被破坏) — 假阳性, 不报 |
-| — | 134 | fortify 生效 — 安全 |
-| — | 0 | 未越界 / 越界量不足触发 |
-
-原理见 `@/home/yall/project/de-fuzz/docs/oracles/fortify-oracle.md:204-243`.
-
-## 11. 开放问题 / 未覆盖 invariants (Follow-ups)
-
-- **GCC 15 `__counted_by` 与 glibc ≥ 2.38 的端到端联动**: GCC 15 开始支持 `__attribute__((counted_by(field)))`, 与 Clang 17 的语义对齐, 但 BDOS 下降规则是否完全一致待核.
-- **musl / bionic 的 `__*_chk` 覆盖清单**: 与 glibc 有差异 (musl 历史上较晚引入 `_FORTIFY_SOURCE`, 1.2.5+ 才接近 glibc 覆盖面), 需单独校对.
-- **`-D_FORTIFY_SOURCE=3` 下 `__counted_by` flexible array 的 paired-assignment 语义**: Clang 已在 Sema 层检查, GCC 是否有等价 warning 待核.
-- **fortify 与 `setjmp/longjmp` / C++ 异常穿越的交互**: 若 `_chk` 失败路径被 longjmp 跨越, `__chk_fail` 的 `noreturn` 契约是否仍被尊重 (glibc 实现走 `abort()`, 理论上无法被绕过, 但 longjmp 越过 `__fortify_fail` 的入口前一瞬间的行为未文档化).
-- **交叉编译场景下 target libc 与 host BOS 计算的一致性**: 跨 ISA 交叉编译时 `size_t` 宽度差异可能影响 `(size_t)-1` 的判定 (32-bit target vs 64-bit host BOS).
-- **`_FORTIFY_SOURCE` 对 C++ `std::string` / `std::vector` 的覆盖缺口**: 这些容器内部使用 libc 函数, 但从用户代码视角 `s.resize()` / `v.push_back()` 不走 fortify 路径, 依赖 `_GLIBCXX_ASSERTIONS` / libc++ hardening 独立机制.
-
-## 12. 使用建议
-
-- **新增 CFLAGS 变种**时, 优先确认 `-O1/-O2/-O3 × level∈{0,1,2,3} × {带/不带 -flto}` 的笛卡尔积结果矩阵是否仍满足 INV-FORT-L04 (单调性).
-- **升级 glibc / gcc / clang** 时, 对 §5-§7 逐条回归, §9 的退化模式作为第三方编译器的正控组.
-- 遇到 `exit_code == 139` 时必须先查 sentinel, 区分 **INV-FORT-N01/N02 的合法退化** vs **真正的 fortify bypass**.
-- `version_sensitivity = likely-to-drift` 的条目 (INV-FORT-B03, INV-FORT-B04, INV-FORT-B06, INV-FORT-I01, INV-FORT-I02, INV-FORT-X04) 每次编译器升级都需要人工确认覆盖面变化.
-- fortify 的核心哲学是 **"覆盖 libc wrapper, 不覆盖语言"**; DeFuzz 在设计 seed 模板时应严格遵守 INV-FORT-C01 / C02 的覆盖边界, 避免把 "手写循环越界" 误判为 fortify bug.
+- **GCC 15 `__counted_by` 与 BDOS 下降覆盖面**: GCC 15 主线开始支持 `counted_by` 属性, 与 Clang 等价 silent-bypass 路径 (嵌套指针 / off-by-4 / paren) 是否被独立引入需逐 case 验证, 现阶段无对应 GCC PR 公开.
+- **`__readonly_area` 是否会被改为 fail-closed**: glibc 主线讨论中曾出现把 `/proc/self/maps` 不可用视为不安全的提案, 但默认行为至今未变; 该不变量的修复时机直接决定 INV-FORT-R01 的有效边界.
+- **`err.h` / `error.h` 系列何时纳入 fortify 覆盖**: sourceware 24987 长期 open, 一旦补 wrapper, INV-FORT-C02 的检测样本需要相应更新.
+- **Clang `__fortify_function` 内联回归监测**: Clang 主线对 `__pass_object_size` + `__always_inline` 的处理仍偶有改动 (cf. issue #77813), kernel hardening 邮件列表是观察该不变量退化的最敏感前哨.
+- **`__bdos` 在 LTO / ThinLTO 下的结果稳定性**: BDOS 下降发生在 IR 早期, 但 inliner 在 LTO 阶段会进一步重写表达式; 是否存在 LTO 下 BDOS 由"正确"退化回"错误的虚高值"的场景, 当前无公开证据但属潜在 silent-bypass 路径.
+- **musl 与 bionic 的 fortify silent-bypass 矩阵**: 本文所有引用的 runtime 不变量基于 glibc 实现; musl 1.2.5+ 与 bionic 的 `__*_chk` 实现差异, 尤其 `__readonly_area` / `vfprintf` fortify flag / `err` 系列覆盖, 需要独立调研.
