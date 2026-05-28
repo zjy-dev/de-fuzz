@@ -1,164 +1,150 @@
 ---
 title: Invariants Survey Index
-description: 24 份防御机制 invariant 调研的分类索引，及与 oracle InvariantChecker 实现的对照
-priority: HIGH
-last_updated: 2026-05-08
-status: IMPLEMENTED
-related_docs:
-  - ../architecture/oracle-mechanism-framework.md
-  - ../features/canary-oracle.md
-  - ../guides/adding-a-defense-mechanism.md
+description: 编译器与运行时防御机制的不变量调研档案 —— 分类索引与筛选方法论
+last_updated: 2026-05-28
 ---
 
 # Invariants Survey Index
 
-本目录是 DeFuzz 的"研究档案"层：把 GCC / LLVM / glibc 等开源编译器与运行时里的防御机制按 invariant 维度系统抽样。每份 markdown 是一个独立的 survey artifact，文件内部使用约定字段（`oracle_mapping` / `source_url_or_path` / `version_sensitivity`），与本目录之外的代码文档解耦。
+本目录是一份纯**研究档案**: 把 GCC / LLVM / glibc / 各 ISA ABI 文档中关于防御机制的"安全不变量"按机制系统抽样, 形成 oracle 设计的形式化依据.
 
-> **本目录是只读的研究产物**：survey 文件本身不带 frontmatter（保留原貌），只通过本 README 提供分类导航。
+> "不变量"指的是: 防御机制要发挥作用所**必须**满足的属性. 违反它意味着该机制在编译产物或运行时已被静默削弱, 无论代码本身有没有 bug.
 
-主入口：[`gcc-llvm-defense-invariant-source-survey.md`](./gcc-llvm-defense-invariant-source-survey.md) —— 跨机制总表、信息源分类、给 DeFuzz 的抽样建议。
+每份 markdown 是一个独立的机制 survey, 引用一手资料 (源码 / 手册 / Bugzilla / CVE / paper), 不假设任何下游消费者。下游 (oracle、静态分析、CI) 决定如何用这些不变量, 是另一个层面的事.
+
+主入口: [`gcc-llvm-defense-invariant-source-survey.md`](./gcc-llvm-defense-invariant-source-survey.md) —— 跨机制总表与一手信息源分类.
 
 ## 1. 按机制分类索引
 
 ### 栈相关 (Stack Protection / Hardening)
 
-| 机制 | Survey | Oracle 实现状态 |
-| --- | --- | --- |
-| Stack canary (SP) | [`stack-canary.md`](./stack-canary.md) | ✅ `CanaryOracle` (4 个 checker, 见 `features/canary-oracle.md`) |
-| `_FORTIFY_SOURCE` (FORT) | [`fortify-source.md`](./fortify-source.md) | ⚠ DEPRECATED (`_archive/oracles/fortify-oracle.md`) |
-| `-fstack-clash-protection` (SCP) | [`stack-clash-protection.md`](./stack-clash-protection.md) | ❌ 未实现 |
-| `-fstack-check` (SCK) | [`stack-check.md`](./stack-check.md) | ❌ 未实现 |
-| SafeStack (SS) | [`safestack.md`](./safestack.md) | ❌ 未实现 |
-| ShadowCallStack (SCS, AArch64 `x18` / RISC-V `gp`) | [`shadow-call-stack.md`](./shadow-call-stack.md) | ❌ 未实现 |
-| Shadow Stack (Intel CET-SHSTK / x86) | [`shadow-stack.md`](./shadow-stack.md) | ❌ 未实现 |
-| GCS (AArch64 Guarded Control Stack) | [`gcs.md`](./gcs.md) | ❌ 未实现 |
+| 机制 | Survey |
+| --- | --- |
+| Stack canary (SP) | [`stack-canary.md`](./stack-canary.md) |
+| `_FORTIFY_SOURCE` (FORT) | [`fortify-source.md`](./fortify-source.md) |
+| `-fstack-clash-protection` (SCP) | [`stack-clash-protection.md`](./stack-clash-protection.md) |
+| `-fstack-check` (SCK) | [`stack-check.md`](./stack-check.md) |
+| SafeStack (SS) | [`safestack.md`](./safestack.md) |
+| ShadowCallStack (SCS, AArch64 `x18` / RISC-V `gp`) | [`shadow-call-stack.md`](./shadow-call-stack.md) |
+| Shadow Stack (Intel CET-SHSTK / x86) | [`shadow-stack.md`](./shadow-stack.md) |
+| GCS (AArch64 Guarded Control Stack) | [`gcs.md`](./gcs.md) |
 
 ### 控制流完整性 (CFI / IBT / PAC)
 
-| 机制 | Survey | Oracle 实现状态 |
-| --- | --- | --- |
-| Clang CFI | [`cfi.md`](./cfi.md) | ❌ 未实现 |
-| Kernel CFI (`-fsanitize=kcfi`) | [`kcfi.md`](./kcfi.md) | ❌ 未实现 |
-| Hardened CFR (`-fharden-control-flow-redundancy`) | [`hcfr.md`](./hcfr.md) | ❌ 未实现 |
-| Intel CET-IBT (`endbr*`) | [`endbr-ibt.md`](./endbr-ibt.md) | ❌ 未实现 |
-| AArch64 BTI | [`bti.md`](./bti.md) | ❌ 未实现 |
-| AArch64 PAC | [`pointer-authentication.md`](./pointer-authentication.md) | ❌ 未实现 |
-| RISC-V CFI (Zicfilp/Zicfiss) | [`riscv-cfi.md`](./riscv-cfi.md) | ❌ 未实现 |
+| 机制 | Survey |
+| --- | --- |
+| Clang CFI | [`cfi.md`](./cfi.md) |
+| Kernel CFI (`-fsanitize=kcfi`) | [`kcfi.md`](./kcfi.md) |
+| Hardened CFR (`-fharden-control-flow-redundancy`) | [`hcfr.md`](./hcfr.md) |
+| Intel CET-IBT (`endbr*`) | [`endbr-ibt.md`](./endbr-ibt.md) |
+| AArch64 BTI | [`bti.md`](./bti.md) |
+| AArch64 PAC | [`pointer-authentication.md`](./pointer-authentication.md) |
+| RISC-V CFI (Zicfilp/Zicfiss) | [`riscv-cfi.md`](./riscv-cfi.md) |
 
 ### 内存安全与边界
 
-| 机制 | Survey | Oracle 实现状态 |
-| --- | --- | --- |
-| Bounds Safety (`__counted_by`, ISO N2778) | [`bounds-safety.md`](./bounds-safety.md) | ❌ 未实现 |
-| Sanitizers (ASan/HWASan/MSan/TSan/UBSan/DFSan) | [`sanitizers.md`](./sanitizers.md) | ❌ 未实现 |
-| SanitizerCoverage | [`sancov.md`](./sancov.md) | ❌ 未实现 |
-| Structure Protection (vtable / typed alloc) | [`structure-protection.md`](./structure-protection.md) | ❌ 未实现 |
+| 机制 | Survey |
+| --- | --- |
+| Bounds Safety (`__counted_by`, ISO N2778) | [`bounds-safety.md`](./bounds-safety.md) |
+| Sanitizers (ASan/HWASan/MSan/TSan/UBSan/DFSan) | [`sanitizers.md`](./sanitizers.md) |
+| SanitizerCoverage | [`sancov.md`](./sancov.md) |
+| Structure Protection (vtable / typed alloc) | [`structure-protection.md`](./structure-protection.md) |
 
 ### 编译器代码硬化
 
-| 机制 | Survey | Oracle 实现状态 |
-| --- | --- | --- |
-| `-fhardened` (HARD, 元 flag) | [`hardened.md`](./hardened.md) | ❌ 未实现 |
-| `-fzero-call-used-regs` (ZCUR) | [`zero-call-used-regs.md`](./zero-call-used-regs.md) | ❌ 未实现 |
-| `-fstrub` (STRUB, 栈擦除) | [`strub.md`](./strub.md) | ❌ 未实现 |
-| `-ftrivial-auto-var-init` (AVI) | [`auto-var-init.md`](./auto-var-init.md) | ❌ 未实现 |
+| 机制 | Survey |
+| --- | --- |
+| `-fhardened` (HARD, 元 flag) | [`hardened.md`](./hardened.md) |
+| `-fzero-call-used-regs` (ZCUR) | [`zero-call-used-regs.md`](./zero-call-used-regs.md) |
+| `-fstrub` (STRUB, 栈擦除) | [`strub.md`](./strub.md) |
+| `-ftrivial-auto-var-init` (AVI) | [`auto-var-init.md`](./auto-var-init.md) |
 
-## 2. 已实现 invariant ↔ checker 对照（仅 canary）
+## 2. Survey 字段约定
 
-| Invariant ID | Survey 行 | Checker 实现 | 文档 |
-| --- | --- | --- | --- |
-| `INV-SP-G01` | `stack-canary.md` § Global symbol | `internal/oracle/checker_static_canary.go:30-86` `StackChkSymbolsChecker` | [`features/canary-oracle.md`](../features/canary-oracle.md) |
-| `INV-SP-A01` | `stack-canary.md` § main no-canary | `internal/oracle/checker_static_canary.go:118-191` `MainNoCanaryChecker` | 同上 |
-| `INV-SP-L01` | `stack-canary.md` § runtime-bypass | `internal/oracle/checker_dynamic_buffer.go` `DynamicBufferSearchChecker` | 同上 |
-| `INV-SP-R03` | `stack-canary.md` § epilogue scrub | `internal/oracle/checker_dynamic_scrub.go` `EpilogueCanaryScrubChecker` | 同上 |
-
-其它机制的 invariant 已经在 survey 里枚举但**尚未**有对应 `InvariantChecker` 实现；扩展路径见 [`guides/adding-a-defense-mechanism.md`](../guides/adding-a-defense-mechanism.md)。
-
-## 3. Survey 字段约定（不强制 frontmatter）
-
-各 survey 文件在表格里采用以下约定列（出处：`gcc-llvm-defense-invariant-source-survey.md` § "每条 invariant 推荐保存的字段"）：
+每条不变量按下表字段记录, 字段集来自 [`gcc-llvm-defense-invariant-source-survey.md`](./gcc-llvm-defense-invariant-source-survey.md):
 
 | 字段 | 含义 |
 | --- | --- |
+| `ID` | 机制内唯一标识, 命名 `INV-<MECH>-<CATEGORY><NN>` (如 `INV-SP-L01`) |
+| `statement` | 不变量的可机器验证陈述 |
 | `compiler` | GCC / LLVM / 共用 ABI |
-| `version` | 例：GCC 17.x trunk |
-| `mechanism` | SP / FORT / SCP / SCK / CET / BTI / PAC / SCS / CFI / KCFI / SS / ASan / ... |
-| `statement` | invariant 的可执行陈述 |
-| `source_url_or_path` | 一手证据链接（GCC mirror / LLVM source / RFC / Bugzilla / CVE） |
+| `version` | 适用编译器版本范围 |
+| `target` | 适用 ISA / OS |
+| `source_kind` | user-doc / source / internals / ABI-spec / runtime / bug-disclosure / paper |
+| `source_url_or_path` | 一手证据链接 |
+| `evidence_snippet` | 摘录的证据原文 (可选) |
 | `version_sensitivity` | stable / target-specific / likely-to-drift |
-| `oracle_mapping` | 在 DeFuzz 里若违反，应被哪个 oracle 抓到 |
+| `observation` | 违反时**可被外部观测的现象** (二进制特征 / 运行时行为). 是后续设计 checker 的入口, 但**不写具体实现** |
 
-**给 oracle 实现者的反链**：每个 `InvariantResult.SourceURL` 字段应当指向 survey 文件中对应行的 `source_url_or_path`，让 bug 报告一路追溯回一手证据。
+> `observation` 字段刻意只描述"现象", 不描述"如何检测". 例如: "二进制中 `__stack_chk_fail` 符号缺失" 是现象; "在 ELF `.dynsym` 中查 `__stack_chk_fail`" 是检测手段, 后者应留给 oracle 实现文档.
 
-## 4. 可程序化筛选方法论
+## 3. 可程序化筛选方法论
 
-> 本节是项目级公共规范, 各机制的 invariant 文档 (如 [`stack-canary.md`](./stack-canary.md) 的「可程序化 invariants」章) 复用同一套标准, 只在该机制内列出筛选结果, 不再重复方法论本身.
+> 本节是项目级公共规范. 每份 survey 在自己的「## 可程序化 invariants」章下复用同一套标准, 不再重复方法论.
 
-### 4.1 筛选目的
+### 3.1 为何要筛选
 
-invariant 文档面向"研究档案", 力求覆盖一手信息源里**所有**与机制相关的不变量; 但 oracle 实现面向"工程交付", 资源有限. 两者目标不同, 不能一一映射:
+研究档案追求**完备覆盖**: 一手资料里能找到的不变量都列上; 但程序化检测的资源有限, 也并非所有不变量都值得做成自动化 checker. 两者目标不同, 不强求一一映射.
 
-- 部分不变量描述的是**编译器内部状态** (例如启发式分类位、冲突图), 在二进制层面没有可观测痕迹;
-- 部分不变量是**配置级前提**或**链接器契约**, 违反它会直接编译/链接失败, 不需要 oracle;
-- 部分不变量是**约束作者的最佳实践** (hardening-ideal), 而非可被攻击者绕过的硬安全契约, 易产生大量 false-positive.
+下面三类不变量通常**不适合**做成 checker:
 
-因此先做"可程序化筛选", 把研究档案里的 invariants 切成两类: **应当实现 checker 的** 与 **应当显式排除的**, 让后续工程投入有依据.
+- **编译器内部状态**: 例如 GCC `cfgexpand.cc` 的启发式分类位、SSA 上的冲突图, 在编译产物里没有可观测痕迹.
+- **配置级前提 / 链接器契约**: 例如缺失 `__stack_chk_fail_local` 直接导致链接失败, 编译流水线已抓, 不是 oracle 的"静默失效"领域.
+- **作者侧最佳实践 (hardening-ideal)**: 例如"参数副本应优先放在 callee-saved 寄存器", 文档原文都标注是 ideal 而非硬契约, 自动化判定会引入大量误报.
 
-### 4.2 评估维度
+筛选就是把研究档案里的不变量切成"应当做 checker"和"应当显式排除"两类, 让后续工程投入有依据.
 
-每条 invariant 在筛选阶段按以下四个维度评估. 维度是**判定工具**, 不是评分卡; 任一维度严重不达标即可作为排除理由.
+### 3.2 评估维度
 
-| 维度 | 含义 | 典型不达标信号 |
-| --- | --- | --- |
-| **可观测性 (Observability)** | 验证该不变量所需的信号能否通过现有 oracle 基础设施获取 — `BinaryInspector` (ELF 符号 / 节 / 反汇编)、`Executor` (退出码 / stdout / stderr)、seed 模板插桩、ISA-aware 反汇编 | 信号只存在于编译器中间表示 (GIMPLE / LLVM IR), 在二进制中无残留; 或需要 cross-arch 反汇编但 Capstone / `golang.org/x/arch` 覆盖不全 |
-| **判定确定性 (Decisiveness)** | 是否存在明确的真值条件, 能避免启发式误报. "条件 X 成立 ⇒ 必定违反"或"条件 X 成立 ⇒ 必定满足" | 触发条件依赖编译器版本特定启发式微调 (likely-to-drift 中的 *impl-level* drift); 或需要数值阈值且阈值因优化等级而变 |
-| **实现成本 (Cost)** | 能否复用现有 checker 框架 (静态: `BinaryInspector`; 动态: `Executor` + 退出码协议; seed 模板的 sentinel / scrub 通道) | 必须新写一个跨 ISA 的反汇编器; 或需要在 seed 模板里维护逐 ISA 的 inline asm; 或需要构造对照编译器版本 (历史 GCC ≤13.2) 才能验证 |
-| **静态 vs 动态归属** | 见 §4.3 的判定准则, 决定 checker 进入哪一调度阶段 | — (此维度不是排除维度, 而是分类维度) |
+每条不变量按下面四个维度评估. 维度是**判定工具**, 不是评分卡; 任一维度严重不达标即可作为排除理由.
 
-> 维度间不正交但**够用**: 实现成本与可观测性高度相关 (反汇编缺失既是观测障碍也是成本); 但显式拆开能让排除理由更精准.
+| 维度 | 含义 |
+| --- | --- |
+| **可观测性 (Observability)** | 验证违反/满足该不变量所需的信号, 能否从编译产物或运行时行为中获取. 不达标的典型: 信号只存在于编译器中间表示 (GIMPLE / LLVM IR), 二进制里完全消失. |
+| **判定确定性 (Decisiveness)** | 是否存在明确的真值条件 ("条件 X ⇒ 必定违反"或"条件 X ⇒ 必定满足"), 避免启发式误报. 不达标的典型: 触发条件依赖编译器版本特定启发式, 或阈值随优化等级飘移. |
+| **实现成本 (Cost)** | 验证该不变量需要多少额外基础设施. 不达标的典型: 必须新写跨 ISA 的反汇编器、多版本编译器对照构建、复杂源代码插桩. |
+| **静态 vs 动态归属** | 见 §3.3, 决定 checker 在哪个阶段运行. 这是分类维度, 不是排除维度. |
 
-### 4.3 静态 / 动态归属判定准则
+> 维度间不正交但**够用**: 实现成本与可观测性相关, 但显式拆开能让排除理由更精准.
 
-与 [`docs/story_line.md`](../../story_line.md) §4 "可由机器验证的静态属性 (看汇编/二进制特征) 与动态属性 (看运行时行为)" 一致, 也与 `internal/oracle/invariant.go` 中的 `CategoryStatic` / `CategoryDynamic` 一一对应.
+### 3.3 静态 / 动态归属判定
 
-判定步骤:
+对应 [`docs/story_line.md`](../../story_line.md) §4 "可由机器验证的静态属性 (看汇编/二进制特征) 与动态属性 (看运行时行为)" 的二分法:
 
-1. **若违反/满足条件可以仅通过检查未执行的二进制 (符号表 / 节内容 / 反汇编 / 字符串) 得出**, 归 **静态 (Static)**. 典型: `__stack_chk_fail` 是否被链入、`endbr64` 是否落在函数首字节.
-2. **若必须运行二进制**, 通过观察退出码、stdout 标志位、二分搜索行为、运行时寄存器/内存快照得出, 归 **动态 (Dynamic)**. 典型: 越界写入是否被 canary 拦截、guard 残留是否泄露.
-3. 同一条 invariant 可能"静态部分可观, 动态部分更准"; 此时拆成两个 checker 分别归属, 而不是模糊归一类.
-4. "机制未启用 / 不适用"**不是**第三类, 应在对应 checker 内返回 `VerdictNotApplicable`, 由聚合器忽略.
+1. **若违反/满足条件可以仅通过检查未执行的二进制 (符号表、节内容、反汇编、字符串) 得出**, 归 **静态**. 例: `__stack_chk_fail` 符号是否被链入、`endbr64` 是否落在间接调用目标的首字节.
+2. **若必须运行二进制**, 通过观察退出状态、输出标志、二分搜索行为、运行时寄存器/内存快照得出, 归 **动态**. 例: 越界写入是否被 canary 拦截、guard 残留是否泄露到调用者寄存器.
+3. 同一条不变量可能"静态部分可观, 动态部分更准": 此时拆成两条不同归属的 checker 比模糊归一类好.
+4. "机制未启用 / 不适用"**不是**第三类, 而应在 checker 内表达为"不适用"verdict, 由聚合层忽略.
 
-### 4.4 通用记录格式约定
+### 3.4 通用记录格式
 
-各机制的 invariant 文档应在自己的「## 可程序化 invariants」章下**只**列出筛选结果, 格式如下 (字段紧凑, 不重复方法论):
+每份 survey 在自己的「## 可程序化 invariants」章下**只**列筛选结果, 格式如下:
 
 #### 通过筛选
 
 ```
 - INV-XX-Y0N — <一句话简述>
   - 类别: 静态 / 动态
-  - 通过理由: <一两句话, 引用本节维度>
+  - 通过理由: <一两句话, 说明四个维度上为什么 OK>
 ```
 
 #### 未通过筛选
 
 ```
 - INV-XX-Y0N — <一句话简述>
-  - 排除理由: <一两句话, 必须显式指向本节某一维度, 例如「可观测性不足: 信号仅存在于 GCC GIMPLE 层」>
+  - 排除理由: <一两句话, 必须显式指向四维度之一, 例如「可观测性不足: 信号只存在于 cfgexpand.cc 的编译期分类位」>
 ```
 
 要求:
 
-- **不在该章重复方法论**, 通过相对链接回引本节: `参见 [筛选方法论](../README.md#4-可程序化筛选方法论)`.
-- **不写实现细节**, 实现细节归 `features/<mechanism>-oracle.md`.
-- **不写优先级**, 优先级是工程节奏问题, 与筛选无关; 若需汇报留在 PR / 沟通渠道.
-- 排除理由必须**精确指向四维度之一**, 模糊表述 (如"实现复杂") 应被替换为具体维度 ("实现成本: 需要为 7 种长尾 ISA 各写反汇编器").
+- 不在该章重复方法论, 通过相对链接回引本节: `参见 [筛选方法论](./README.md#3-可程序化筛选方法论)`.
+- 不写实现细节; 实现细节归 oracle 实现文档.
+- 不写优先级; 优先级是工程节奏问题, 与不变量是否可观测无关.
+- 排除理由必须**精确指向某一维度**, 模糊表述 (如"实现复杂") 应被替换为具体维度 ("实现成本: 需要为 7 种长尾 ISA 各写反汇编器").
 
-## 5. 写新 survey 的流程
+## 4. 写新 survey 的流程
 
-1. 复制一份现有 survey 当模板（推荐 `stack-canary.md`，结构最齐全）。
-2. 替换机制简写、给所有 invariant 新 ID（命名 `INV-<MECH>-<CATEGORY><NN>`，例如 `INV-FORT-L01`）。
-3. 在本 README 的"按机制分类索引"表里追加一行；标记 oracle 实现状态为"❌ 未实现"。
-4. （可选）在 `gcc-llvm-defense-invariant-source-survey.md` 末尾"已知锚点"表里追加几条标志性 invariant，用来交叉校验。
-
-实现 oracle 的步骤独立进行：[`guides/adding-a-defense-mechanism.md`](../guides/adding-a-defense-mechanism.md)。
+1. 复制一份现有 survey 当模板 (推荐 [`stack-canary.md`](./stack-canary.md), 字段最齐全).
+2. 替换机制简写、给所有不变量分配新 ID.
+3. 在 §1 "按机制分类索引"表里追加一行.
+4. (可选) 在 [`gcc-llvm-defense-invariant-source-survey.md`](./gcc-llvm-defense-invariant-source-survey.md) "已知锚点"表追加几条标志性不变量, 用来交叉校验.
