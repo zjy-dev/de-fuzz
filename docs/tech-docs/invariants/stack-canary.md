@@ -371,7 +371,109 @@
 | INV-SP-A01 | main 不插 canary | `main` 标注 `no_stack_protector` |
 | INV-SP-R03 | `main` 在 `seed()` 返回后立即用 inline asm 快照所有 caller-saved GPR; 任一等于 guard 运行时值则 stdout 含 `GUARD_LEAKED reg=<idx> name=<reg-name>` | `seed()` 经模板内 redeclaration 加 `noinline,used`; `main` 标 `no_stack_protector` 并多一条 argv `scrub` 分支调 `run_scrub_probe` (call→snapshot→C 比对→`_exit`). 实现: `EpilogueCanaryScrubChecker` (`@/home/yall/project/de-fuzz/internal/oracle/checker_dynamic_scrub.go`) + 4 ISA 模板 `run_scrub_probe`. ISA 覆盖: x64 (TLS `%fs:0x28`) / aarch64 / riscv64 / loongarch64. 受影响 ISA 中其余长尾 backend (mips / xtensa / csky / ...) 待 follow-up. 退出码 134 不可由动态二分发现, 必须 leak-snapshot 通道 |
 
-## 11. 开放问题 / 未覆盖 invariants (Follow-ups)
+## 11. 可程序化 invariants
+
+> 筛选维度与静/动态归属准则定义在 [`README.md` §4 可程序化筛选方法论](./README.md#4-可程序化筛选方法论). 本章只列结果, 不重复方法论.
+
+### 通过筛选
+
+- **INV-SP-G01** — 默认 guard 符号 `__stack_chk_guard` / `__stack_chk_fail` 进入二进制
+  - 类别: 静态
+  - 通过理由: 信号在 `.dynsym` 上直接可读, 判定确定 (符号存在/不存在), 现有 `BinaryInspector` 已支持.
+
+- **INV-SP-A01** — `main` 标 `no_stack_protector` 后必须不调用 SP runtime
+  - 类别: 静态
+  - 通过理由: 通过符号表 + 后续函数级反汇编可定位 main 中是否有 `__stack_chk_*` 调用边, 判定确定; 当前 checker 已落地基础版.
+
+- **INV-SP-A02** — `__attribute__((stack_protect))` 在 `-fstack-protector-explicit` 下必生效
+  - 类别: 静态
+  - 通过理由: 构造极简函数 + 属性的正控 seed 模板, 反汇编目标函数体或检查 guard load 指令模式即可判定; 复用现有 inspector + 模板机制成本低.
+
+- **INV-SP-H03** — 含 VLA / `alloca` 的函数在任一非 off 档位下必须插 canary
+  - 类别: 静态
+  - 通过理由: 现有 alloca / VLA seed 模板 (oracle 模板 2/3) 已稳定; 配合二进制中 `__stack_chk_fail` 引用即可判定确定性的"必须插桩".
+
+- **INV-SP-L01** — Canary slot 必须夹在 vulnerable locals 与 saved registers / return address 之间
+  - 类别: 动态
+  - 通过理由: 二分搜索 `fill_size` 配合 sentinel + 退出码即可观测"先撞 canary 还是先撞 retaddr"; 现有 `DynamicBufferSearchChecker` 已实现.
+
+- **INV-SP-L03** — 动态分配 (VLA/alloca) 必须位于 canary 的栈低端侧
+  - 类别: 动态
+  - 通过理由: 是 L01 的特化形态 (CVE-2023-4039 模型), 复用同一 binary-search + sentinel 通道, seed 模板已具备 alloca / VLA 子模板.
+
+- **INV-SP-L05** — 多个 vulnerable 对象共享同一 canary 保护面
+  - 类别: 动态
+  - 通过理由: 通过 mixed seed 模板 (fixed + VLA + ...) 走 L01 通道即可观测; 无新增基础设施需求.
+
+- **INV-SP-F01** — `__stack_chk_fail` 语义 (`noreturn`, 进程 `exit_code == 134`)
+  - 类别: 动态
+  - 通过理由: 退出码 134 是 oracle 已经在用的正向信号, 判定完全确定; 单独抽 checker 可显式断言"越界 seed 必须以 134 终止", 与 L01 互为对照.
+
+- **INV-SP-R03** — Epilogue 必须在 return 前 clobber 持有过 canary 的寄存器
+  - 类别: 动态
+  - 通过理由: 通过 seed 模板 `run_scrub_probe` 的 inline asm 快照 + C 侧 ground-truth 比对, 直接观测寄存器残留, 判定确定 (碰撞概率 ~2⁻⁶⁴); 现有 `EpilogueCanaryScrubChecker` 已实现.
+
+- **INV-SP-CVE-2023-4039** — AArch64 GCC ≤13.2 的 L01 历史违反形态
+  - 类别: 动态
+  - 通过理由: 是 L01 在特定 (GCC, ISA) 组合下的违反实例, 复用 L01 dynamic 通道, 历史版本作为正控组验证 oracle 检出能力.
+
+### 未通过筛选
+
+- **INV-SP-E01** — 三档 flag 的保护面启发式
+  - 排除理由: 判定确定性不足 — `version_sensitivity` 已标 likely-to-drift, 启发式细节随 GCC 小版本飘移, 任何固定真值表都会变成误报源 (参见 [README §4.2](./README.md#42-评估维度)).
+
+- **INV-SP-E02** — `-fhardened` 隐式启用 SP-strong
+  - 排除理由: 实现成本不对等 — 这是配置级前提, 应在 `compiler-config` / 命令行校验中验证, 不构成 oracle 抓的"静默失效".
+
+- **INV-SP-E03** — 属性可覆盖全局开关
+  - 排除理由: 实现成本 — 与已通过的 A01 / A02 在判定通道上重叠, 单独 checker 信息增益低.
+
+- **INV-SP-H01** — GCC `SPCT_HAS_*` 启发式分类位
+  - 排除理由: 可观测性不足 — 分类位仅存在于 `cfgexpand.cc` 的编译期中间状态, 二进制层无可观测残留.
+
+- **INV-SP-H02** — `-fstack-protector-strong` 的额外触发条件
+  - 排除理由: 判定确定性不足 — 除 VLA/alloca 子集 (已由 H03 覆盖) 外, "addr-taken / 聚合体含数组"等条件易被寄存器分配优化掉, 真值条件不稳定.
+
+- **INV-SP-L02** — AArch64 saved registers 位置 (布局 2)
+  - 排除理由: 实现成本 — 与 L01 是同一现象的不同表述, L01 dynamic 通道已能观测违反; 直接验证布局需要 AArch64 prologue 反汇编与 saved-reg 偏移解析, 投入产出比不对.
+
+- **INV-SP-L04** — Spill / 参数副本不得落在 canary 保护范围外
+  - 排除理由: 判定确定性不足 — 文档明确将其归为 hardening-ideal 边界, 易产生 false-positive (`exit 139` 但 sentinel 未打印); 当前已在 L01 通道作为假阳性过滤项处理.
+
+- **INV-SP-R01** — Canary guard 不驻留 caller-saved 寄存器 (跨调用区间)
+  - 排除理由: 可观测性不足 — 约束的是函数体内中间寄存器状态, end-to-end 退出码不可见; 独立观测需要贯穿被测函数的指令级 trace, 远超现有 oracle 边界.
+
+- **INV-SP-R02** — 跨调用参数副本应优先 callee-saved 寄存器
+  - 排除理由: 判定确定性不足 — 文档显式标记为 "hardening-ideal, 当前不是强 invariant", 不构成可被攻击者绕过的硬安全契约.
+
+- **INV-SP-G02** — x86_64 Linux 从 `%fs:0x28` 读 guard
+  - 排除理由: 实现成本 — 需要反汇编 prologue 匹配 `mov %fs:0x28,%rax` 指令模式, ISA-specific 且与 G01 默认配置等价 (guard 来源不影响 oracle 判定路径).
+
+- **INV-SP-G03** — AArch64 `-mstack-protector-guard=sysreg` 使用 `TPIDR_ELn`
+  - 排除理由: 实现成本 — 同 G02, 还需叠加 flag-conditional 判定 (sysreg vs global), 当前默认配置不命中 sysreg 路径.
+
+- **INV-SP-G04** — `_RUNTIME_ENABLED_P` hook 的延迟判定
+  - 排除理由: 可观测性不足 — 该 hook 仅在 freestanding / kernel 变体生效, DeFuzz user-space target 触发不到, 验证需要构造 freestanding 二进制.
+
+- **INV-SP-F02** — `__stack_chk_fail_local` thunk 静态链接 + PIC 要求
+  - 排除理由: 实现成本不对等 — 这是链接器契约, 违反即链接失败 (编译流水线已抓), 不属于 oracle 的"静默失效"领域.
+
+- **INV-SP-F03** — libc 无 SP 支持时必须链 libssp
+  - 排除理由: 同 F02, 链接失败前置, 不需要 oracle.
+
+- **INV-SP-F04** — guard 值在 fork / exec 后重新初始化
+  - 排除理由: 可观测性不足 — 这是 oracle 二分搜索所**依赖**的前提, 不是 oracle 的检测目标; 验证它需要 ld.so 行为级 introspection.
+
+- **INV-SP-A03** — 属性与 `-fno-stack-protector` 的互斥解析
+  - 排除理由: 实现成本 — 与 A01 / A02 在判定通道上等价 (均为函数级 vs 全局 flag 优先级), 单独 checker 价值低.
+
+- **INV-SP-X01** — `__stack_chk_guard` 跨 DSO 一致
+  - 排除理由: 可观测性不足 — DeFuzz 当前 seed 不涉及 `dlopen`, 验证需要构造多 DSO 场景, 与现有种子模板假设冲突.
+
+- **INV-SP-X02** — `-fstack-protector-strong` 与 LTO 的联动
+  - 排除理由: 判定确定性不足 — "LTO 不改变插桩结果"是预期等价性, 验证需要 LTO / 非 LTO 双编译比较, 不是单 binary 上的 invariant 断言.
+
+## 12. 开放问题 / 未覆盖 invariants (Follow-ups)
 
 - **LLVM `StackProtector.cpp` 启发式 vs GCC `cfgexpand.cc` 的精确差异**: 已知"等价但不一一对应", 但 8 字节边界、取址判定等细节需要对照 lit tests 逐条列出.
 - **RISC-V / LoongArch64 的 canary 布局**: survey 给出 psABI 入口 (`riscv-non-isa/riscv-elf-psABI-doc`), 但当前还缺少各自后端的专门栈帧归纳, 需要后续补齐.
