@@ -4,11 +4,13 @@ go 1.25.5
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.26.0
+	github.com/mitchellh/mapstructure v1.5.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/zjy-dev/gcovr-json-util/v2 v2.2.0
+	golang.org/x/arch v0.27.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -17,9 +19,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
