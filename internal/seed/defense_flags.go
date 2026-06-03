@@ -18,6 +18,18 @@ var defenseDisablingFlags = map[string][]string{
 		"-fno-cf-protection",
 		"-mbranch-protection=none",
 	},
+	// FORTIFY is positive-control only: reject any flag that disables or
+	// silently weakens it. `-O0` is rejected because glibc's
+	// `__fortify_function` wrappers require at least `-O1` to take effect;
+	// without optimisation no `__*_chk` call is emitted in the binary,
+	// which would make every FORTIFY checker NA-out. Treating `-O0` as a
+	// disabling flag is consistent with the fortify-source.md threat model
+	// (see §0 — "wrapper 已替换原始符号" precondition).
+	"fortify": {
+		"-D_FORTIFY_SOURCE=0",
+		"-U_FORTIFY_SOURCE",
+		"-O0",
+	},
 }
 
 // defenseDisablingPrefixes maps oracle type to flag prefixes that disable the defense.
