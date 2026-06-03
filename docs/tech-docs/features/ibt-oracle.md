@@ -12,13 +12,13 @@ status: IMPLEMENTED
 
 The **IBT Oracle** (`oracle.IBTOracle`, registered as `"ibt"`) is a purely static mechanism oracle that detects violations of Intel CET Indirect Branch Tracking (IBT) invariants in compiled x86 / x86-64 ELF binaries.
 
-Its first and primary checker is `UnintendedEndbrChecker` (**INV-IBT-B03**), which surfaces the class of GCC bugs exemplified by **DREV-2026-004**: a defective predicate (`ix86_endbr_immediate_operand`) that fails to detect ENDBR byte patterns embedded in 64-bit `movabs` immediates, producing an unintended CET landing pad inside a function body.
+Its first and primary checker is `UnintendedEndbrChecker` (**INV-IBT-B01**), which surfaces the class of GCC bugs exemplified by **DREV-2026-004**: a defective predicate (`ix86_endbr_immediate_operand`) that fails to detect ENDBR byte patterns embedded in 64-bit `movabs` immediates, producing an unintended CET landing pad inside a function body.
 
 Unlike the canary oracle, the IBT oracle **does not require an Executor or QEMU**. It parses the ELF binary directly using `BinaryInspector` — making it fast, cross-platform, and runnable in CI without any emulation layer.
 
 ---
 
-## Invariant: INV-IBT-B03
+## Invariant: INV-IBT-B01
 
 > Under `-fcf-protection=branch` / `full`, no byte sequence equivalent to ENDBR32 (`F3 0F 1E FB`) or ENDBR64 (`F3 0F 1E FA`) may appear inside a function body **except** as the deliberate prologue emitted at the function entry.
 
@@ -51,7 +51,7 @@ IBTOracle.Analyze(seed, ctx)
     │
     └─► MechanismOracle{
             Name:      "IBT (Intel CET indirect branch tracking)",
-            Checkers:  [UnintendedEndbrChecker],   ← INV-IBT-B03
+            Checkers:  [UnintendedEndbrChecker],   ← INV-IBT-B01
             Polarizer: IBTOracle.polarityFor,
         }
             │
@@ -83,7 +83,7 @@ IBTOracle.Analyze(seed, ctx)
 | Path | Purpose |
 |------|---------|
 | `internal/oracle/ibt_oracle.go` | `IBTOracle` façade; registry init; `DefaultIBTNegativeCFlags` |
-| `internal/oracle/checker_static_ibt.go` | `UnintendedEndbrChecker` (INV-IBT-B03) |
+| `internal/oracle/checker_static_ibt.go` | `UnintendedEndbrChecker` (INV-IBT-B01) |
 | `internal/oracle/inspector.go` | Extended `BinaryInspector`: `FunctionSymbols`, `ExecutableSections`, `Machine`, `Class` |
 | `internal/oracle/ibt_oracle_test.go` | Unit tests: `NewIBTOracle`, `isNegativeCase`, `polarityFor`, error paths, registry |
 | `internal/oracle/checker_static_ibt_test.go` | Unit tests: `selectEndbrPattern`, `findEnclosingFunction`, all `UnintendedEndbrChecker` paths |

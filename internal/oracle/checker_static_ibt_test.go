@@ -111,8 +111,8 @@ func TestMoreSuffix_Truncated(t *testing.T) {
 
 func TestUnintendedEndbrChecker_IDAndCategory(t *testing.T) {
 	c := &UnintendedEndbrChecker{}
-	if c.ID() != "INV-IBT-B03" {
-		t.Errorf("ID: got %q, want INV-IBT-B03", c.ID())
+	if c.ID() != "INV-IBT-B01" {
+		t.Errorf("ID: got %q, want INV-IBT-B01", c.ID())
 	}
 	if c.Category() != CategoryStatic {
 		t.Errorf("Category: got %v, want CategoryStatic", c.Category())

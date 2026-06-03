@@ -7,15 +7,18 @@ import (
 	"sort"
 )
 
-// UnintendedEndbrChecker asserts INV-IBT-B03:
+// UnintendedEndbrChecker asserts INV-IBT-B01:
 //
 //	"Under -fcf-protection=branch / full, no byte sequence equivalent to
 //	ENDBR32 (0xfb 0x1e 0x0f 0xf3) or ENDBR64 (0xfa 0x1e 0x0f 0xf3) may
 //	appear inside a function body except as the deliberate prologue
-//	emitted at the function entry."
+//	emitted at the function entry. The check must cover all 8 possible
+//	1-byte alignment shifts of the 4-byte sequence within an immediate /
+//	displacement — implemented here as an exhaustive byte-by-byte scan
+//	over every executable section."
 //
-// See `@/home/yall/project/de-fuzz/docs/tech-docs/invariants/endbr-ibt.md` §INV-IBT-B03
-// and `findings/DREV-2026-004/` for a concrete bypass produced by GCC's
+// See `docs/tech-docs/invariants/endbr-ibt.md` §INV-IBT-B01 and
+// `findings/DREV-2026-004/` for a concrete bypass produced by GCC's
 // defective `ix86_endbr_immediate_operand` predicate when a 64-bit
 // immediate has the ENDBR pattern at a non-lowest byte offset *and*
 // non-zero bytes above it.
@@ -53,7 +56,7 @@ import (
 type UnintendedEndbrChecker struct{}
 
 // ID implements InvariantChecker.
-func (c *UnintendedEndbrChecker) ID() string { return "INV-IBT-B03" }
+func (c *UnintendedEndbrChecker) ID() string { return "INV-IBT-B01" }
 
 // Category implements InvariantChecker.
 func (c *UnintendedEndbrChecker) Category() InvariantCategory { return CategoryStatic }

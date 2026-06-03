@@ -41,19 +41,97 @@ type BinaryInspector interface {
 	// size from `.symtab` (preferred) merged with `.dynsym`. Used by
 	// static checkers that need precise function address ranges
 	// (e.g., scanning `.text` for unintended ENDBR landing pads inside
-	// function bodies — INV-IBT-B03).
+	// function bodies — INV-IBT-B01).
 	FunctionSymbols() ([]FunctionSymbol, error)
+	// ExtendedFunctionSymbols returns the same set as FunctionSymbols
+	// plus per-symbol binding/visibility/type metadata for IBT-aware
+	// checkers (INV-IBT-P01) that need to filter "indirect-callable"
+	// candidates (GLOBAL/WEAK or address-taken).
+	ExtendedFunctionSymbols() ([]ExtendedFunctionSymbol, error)
 	// ExecutableSections returns the raw bytes plus base address of every
 	// SHF_ALLOC | SHF_EXECINSTR section. For relocatable objects (`.o`)
 	// sh_addr is usually 0, so addresses are section-relative and the
 	// caller must reconcile with FunctionSymbol.Addr which uses the same
 	// reference frame.
 	ExecutableSections() ([]ExecSection, error)
+	// ReadOnlySections returns the raw bytes of SHF_ALLOC sections that
+	// are NOT executable (.rodata, .data.rel.ro, .got*). Used by
+	// checkers that need to look for function pointer references in
+	// vtables / address-taken tables.
+	ReadOnlySections() ([]DataSection, error)
 	// Machine returns the ELF e_machine value (EM_386, EM_X86_64, ...).
 	Machine() (elf.Machine, error)
 	// Class returns the ELF EI_CLASS (ELFCLASS32 / ELFCLASS64).
 	Class() (elf.Class, error)
+	// Relocations returns every relocation entry across `.rela.*` /
+	// `.rel.*` sections, with the referenced symbol name resolved.
+	// Used by INV-IBT-P01 (address-taken function detection) and
+	// INV-IBT-P04 (R_*_IRELATIVE -> IFUNC resolver entries).
+	Relocations() ([]Relocation, error)
+	// IFUNCResolvers returns the function-symbol entries that are STT_GNU_IFUNC
+	// or that are referenced by an IRELATIVE relocation. Their first
+	// 4 bytes must be ENDBR per INV-IBT-P04.
+	IFUNCResolvers() ([]FunctionSymbol, error)
+	// GNUProperty returns the bitwise OR of the
+	// GNU_PROPERTY_X86_FEATURE_1_AND values found in
+	// .note.gnu.property. Returns 0 when the note is absent.
+	GNUProperty() (uint32, error)
+	// EHLandingPads returns the list of program-counter values that the
+	// `.eh_frame` / LSDA tables identify as exception/cleanup landing
+	// pads. Each must begin with ENDBR per INV-IBT-P03.
+	EHLandingPads() ([]uint64, error)
 }
+
+// X86 GNU property bits used by INV-IBT-* checkers (subset).
+const (
+	GNUPropertyX86Feature1IBT    uint32 = 0x1
+	GNUPropertyX86Feature1SHSTK  uint32 = 0x2
+	gnuPropertyX86Feature1AndTag        = 0xc0000002
+)
+
+// ExtendedFunctionSymbol carries the same address range as FunctionSymbol,
+// plus the binding/visibility/type bits the IBT checkers need.
+type ExtendedFunctionSymbol struct {
+	FunctionSymbol
+	// Bind is the ELF symbol binding (STB_LOCAL/STB_GLOBAL/STB_WEAK).
+	Bind elf.SymBind
+	// Visibility is the ELF symbol visibility (STV_DEFAULT/HIDDEN/...).
+	Visibility elf.SymVis
+	// IsIFUNC reports whether the symbol type is STT_GNU_IFUNC.
+	IsIFUNC bool
+}
+
+// DataSection is the read-only counterpart of ExecSection used by
+// non-executable allocated sections (e.g., `.rodata`, `.data.rel.ro`).
+type DataSection struct {
+	Name       string
+	Addr       uint64
+	Data       []byte
+	SectionIdx int
+	Writable   bool
+}
+
+// Relocation is one decoded entry from a `.rela.*` / `.rel.*` table.
+//
+// Type is the architecture-specific relocation type (e.g.,
+// R_X86_64_IRELATIVE = 37). Symbol is the (possibly empty) referenced
+// symbol's name; SymbolValue is its `st_value` (used as resolver
+// address by IRELATIVE).
+type Relocation struct {
+	Section     string
+	Offset      uint64
+	Type        uint32
+	Symbol      string
+	SymbolValue uint64
+	SymbolType  elf.SymType
+	Addend      int64
+}
+
+// X86_64 relocation types we care about (subset).
+const (
+	RX8664IRELATIVE uint32 = 37 // R_X86_64_IRELATIVE
+	RI386IRELATIVE  uint32 = 42 // R_386_IRELATIVE
+)
 
 // FunctionSymbol describes a defined function symbol with its absolute (or
 // section-relative for relocatable objects) start address and byte size.
@@ -115,7 +193,13 @@ type elfInspector struct {
 	syms     []string
 	imps     []string
 	funcs    []FunctionSymbol
+	extFuncs []ExtendedFunctionSymbol
 	execs    []ExecSection
+	rodata   []DataSection
+	relocs   []Relocation
+	ifuncs   []FunctionSymbol
+	gnuProp  uint32
+	ehLPs    []uint64
 	machine  elf.Machine
 	class    elf.Class
 	parseErr error
@@ -236,6 +320,97 @@ func (e *elfInspector) Class() (elf.Class, error) {
 	return e.class, nil
 }
 
+func (e *elfInspector) ExtendedFunctionSymbols() ([]ExtendedFunctionSymbol, error) {
+	e.parseOnce()
+	if !e.exists {
+		return nil, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return nil, ErrNotELF
+	}
+	if e.parseErr != nil {
+		return nil, e.parseErr
+	}
+	out := make([]ExtendedFunctionSymbol, len(e.extFuncs))
+	copy(out, e.extFuncs)
+	return out, nil
+}
+
+func (e *elfInspector) ReadOnlySections() ([]DataSection, error) {
+	e.parseOnce()
+	if !e.exists {
+		return nil, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return nil, ErrNotELF
+	}
+	if e.parseErr != nil {
+		return nil, e.parseErr
+	}
+	out := make([]DataSection, len(e.rodata))
+	copy(out, e.rodata)
+	return out, nil
+}
+
+func (e *elfInspector) Relocations() ([]Relocation, error) {
+	e.parseOnce()
+	if !e.exists {
+		return nil, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return nil, ErrNotELF
+	}
+	if e.parseErr != nil {
+		return nil, e.parseErr
+	}
+	out := make([]Relocation, len(e.relocs))
+	copy(out, e.relocs)
+	return out, nil
+}
+
+func (e *elfInspector) IFUNCResolvers() ([]FunctionSymbol, error) {
+	e.parseOnce()
+	if !e.exists {
+		return nil, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return nil, ErrNotELF
+	}
+	if e.parseErr != nil {
+		return nil, e.parseErr
+	}
+	out := make([]FunctionSymbol, len(e.ifuncs))
+	copy(out, e.ifuncs)
+	return out, nil
+}
+
+func (e *elfInspector) GNUProperty() (uint32, error) {
+	e.parseOnce()
+	if !e.exists {
+		return 0, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return 0, ErrNotELF
+	}
+	return e.gnuProp, nil
+}
+
+func (e *elfInspector) EHLandingPads() ([]uint64, error) {
+	e.parseOnce()
+	if !e.exists {
+		return nil, ErrBinaryMissing
+	}
+	if !e.isELF {
+		return nil, ErrNotELF
+	}
+	if e.parseErr != nil {
+		return nil, e.parseErr
+	}
+	out := make([]uint64, len(e.ehLPs))
+	copy(out, e.ehLPs)
+	return out, nil
+}
+
 // parseOnce loads the ELF symbol tables exactly once per inspector instance.
 // All errors are stored on the receiver and surfaced via the typed methods;
 // this keeps the BinaryInspector interface clean of "init / lazy" knobs.
@@ -270,6 +445,22 @@ func (e *elfInspector) parseOnce() {
 				continue
 			}
 			if sec.Flags&elf.SHF_EXECINSTR == 0 {
+				// Capture allocated, non-executable PROGBITS as
+				// ReadOnlySections so vtable / .rodata consumers can
+				// scan them without re-opening the ELF. Strictly
+				// allocated only — `.comment`/`.debug_*` are skipped.
+				if sec.Flags&elf.SHF_ALLOC == 0 {
+					continue
+				}
+				if data, derr := sec.Data(); derr == nil {
+					e.rodata = append(e.rodata, DataSection{
+						Name:       sec.Name,
+						Addr:       sec.Addr,
+						Data:       data,
+						SectionIdx: i,
+						Writable:   sec.Flags&elf.SHF_WRITE != 0,
+					})
+				}
 				continue
 			}
 			data, derr := sec.Data()
@@ -289,6 +480,7 @@ func (e *elfInspector) parseOnce() {
 
 		symSet := make(map[string]struct{})
 		funcSet := make(map[uint64]FunctionSymbol)
+		extFuncSet := make(map[uint64]ExtendedFunctionSymbol)
 		// Static symbols: may be absent in stripped binaries.
 		if syms, err := f.Symbols(); err == nil {
 			for _, s := range syms {
@@ -296,6 +488,7 @@ func (e *elfInspector) parseOnce() {
 					symSet[s.Name] = struct{}{}
 				}
 				collectFunctionSymbol(funcSet, s)
+				collectExtendedFunctionSymbol(extFuncSet, s)
 			}
 		} else if !errors.Is(err, elf.ErrNoSymbols) {
 			e.parseErr = fmt.Errorf("read .symtab: %w", err)
@@ -313,6 +506,7 @@ func (e *elfInspector) parseOnce() {
 					e.imps = append(e.imps, s.Name)
 				}
 				collectFunctionSymbol(funcSet, s)
+				collectExtendedFunctionSymbol(extFuncSet, s)
 			}
 		} else if !errors.Is(err, elf.ErrNoSymbols) && e.parseErr == nil {
 			e.parseErr = fmt.Errorf("read .dynsym: %w", err)
@@ -333,6 +527,21 @@ func (e *elfInspector) parseOnce() {
 			}
 			return e.funcs[i].Size < e.funcs[j].Size
 		})
+
+		e.extFuncs = make([]ExtendedFunctionSymbol, 0, len(extFuncSet))
+		for _, fs := range extFuncSet {
+			e.extFuncs = append(e.extFuncs, fs)
+		}
+		sort.Slice(e.extFuncs, func(i, j int) bool {
+			return e.extFuncs[i].Addr < e.extFuncs[j].Addr
+		})
+
+		// Decode relocations & IFUNC resolvers.
+		e.relocs, e.ifuncs = decodeRelocationsAndIFUNCs(f, e.extFuncs)
+		// Decode .note.gnu.property for IBT/SHSTK feature bits.
+		e.gnuProp = decodeGNUProperty(f)
+		// Decode EH landing pads (may be empty when .eh_frame absent).
+		e.ehLPs = decodeEHLandingPads(f)
 	})
 }
 
@@ -344,7 +553,7 @@ func (e *elfInspector) parseOnce() {
 // Symbols with section index SHN_UNDEF (imports) and Size == 0 are
 // rejected because they don't bound an actual function body.
 func collectFunctionSymbol(set map[uint64]FunctionSymbol, s elf.Symbol) {
-	if elf.ST_TYPE(s.Info) != elf.STT_FUNC {
+	if elf.ST_TYPE(s.Info) != elf.STT_FUNC && elf.ST_TYPE(s.Info) != elf.STT_GNU_IFUNC {
 		return
 	}
 	if s.Section == elf.SHN_UNDEF {
@@ -361,6 +570,39 @@ func collectFunctionSymbol(set map[uint64]FunctionSymbol, s elf.Symbol) {
 		Addr:       s.Value,
 		Size:       s.Size,
 		SectionIdx: int(s.Section),
+	}
+}
+
+// collectExtendedFunctionSymbol is the IBT-aware companion to
+// collectFunctionSymbol: it preserves binding/visibility/IFUNC bits so
+// INV-IBT-P01 can filter "indirect-callable" candidates.
+func collectExtendedFunctionSymbol(set map[uint64]ExtendedFunctionSymbol, s elf.Symbol) {
+	t := elf.ST_TYPE(s.Info)
+	if t != elf.STT_FUNC && t != elf.STT_GNU_IFUNC {
+		return
+	}
+	if s.Section == elf.SHN_UNDEF {
+		return
+	}
+	if s.Size == 0 {
+		return
+	}
+	// Same dedupe-by-address policy as collectFunctionSymbol; the first
+	// encountered metadata wins. Callers that need to merge alternate
+	// bindings (rare) can post-process Relocations / extra symbol scans.
+	if _, exists := set[s.Value]; exists {
+		return
+	}
+	set[s.Value] = ExtendedFunctionSymbol{
+		FunctionSymbol: FunctionSymbol{
+			Name:       s.Name,
+			Addr:       s.Value,
+			Size:       s.Size,
+			SectionIdx: int(s.Section),
+		},
+		Bind:       elf.ST_BIND(s.Info),
+		Visibility: elf.ST_VISIBILITY(s.Other),
+		IsIFUNC:    t == elf.STT_GNU_IFUNC,
 	}
 }
 

@@ -59,7 +59,7 @@ verdict: BUG DETECTED
 [IBT (Intel CET indirect branch tracking)] 1 invariant violation(s) detected (polarity=positive).
 
 Violations:
-  - INV-IBT-B03 (static)
+  - INV-IBT-B01 (static)
       Evidence: found 1 unintended ENDBR opcode(s) inside function bodies: gadget+0x7@0x7[.text]
       ...
 ```

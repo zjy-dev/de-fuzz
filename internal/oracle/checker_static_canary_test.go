@@ -9,16 +9,22 @@ import (
 // fakeInspector is a hand-rolled BinaryInspector for unit testing static
 // checkers without touching the filesystem or ELF parser.
 type fakeInspector struct {
-	path    string
-	exists  bool
-	isELF   bool
-	syms    []string
-	imports []string
-	funcs   []FunctionSymbol
-	execs   []ExecSection
-	machine elf.Machine
-	class   elf.Class
-	err     error
+	path     string
+	exists   bool
+	isELF    bool
+	syms     []string
+	imports  []string
+	funcs    []FunctionSymbol
+	extFuncs []ExtendedFunctionSymbol
+	execs    []ExecSection
+	rodata   []DataSection
+	relocs   []Relocation
+	ifuncs   []FunctionSymbol
+	gnuProp  uint32
+	ehLPs    []uint64
+	machine  elf.Machine
+	class    elf.Class
+	err      error
 }
 
 func (f *fakeInspector) Path() string { return f.path }
@@ -79,6 +85,72 @@ func (f *fakeInspector) Class() (elf.Class, error) {
 		return 0, f.err
 	}
 	return f.class, nil
+}
+
+func (f *fakeInspector) ExtendedFunctionSymbols() ([]ExtendedFunctionSymbol, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if len(f.extFuncs) > 0 {
+		out := make([]ExtendedFunctionSymbol, len(f.extFuncs))
+		copy(out, f.extFuncs)
+		return out, nil
+	}
+	// Synthesise a default ExtendedFunctionSymbol view from `funcs` so
+	// tests that only set funcs continue to work for checkers that ask
+	// for the extended view.
+	out := make([]ExtendedFunctionSymbol, 0, len(f.funcs))
+	for _, fn := range f.funcs {
+		out = append(out, ExtendedFunctionSymbol{
+			FunctionSymbol: fn,
+			Bind:           elf.STB_GLOBAL,
+			Visibility:     elf.STV_DEFAULT,
+		})
+	}
+	return out, nil
+}
+
+func (f *fakeInspector) ReadOnlySections() ([]DataSection, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]DataSection, len(f.rodata))
+	copy(out, f.rodata)
+	return out, nil
+}
+
+func (f *fakeInspector) Relocations() ([]Relocation, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]Relocation, len(f.relocs))
+	copy(out, f.relocs)
+	return out, nil
+}
+
+func (f *fakeInspector) IFUNCResolvers() ([]FunctionSymbol, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]FunctionSymbol, len(f.ifuncs))
+	copy(out, f.ifuncs)
+	return out, nil
+}
+
+func (f *fakeInspector) GNUProperty() (uint32, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.gnuProp, nil
+}
+
+func (f *fakeInspector) EHLandingPads() ([]uint64, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make([]uint64, len(f.ehLPs))
+	copy(out, f.ehLPs)
+	return out, nil
 }
 
 // TestStackChkSymbolsChecker_Pass: __stack_chk_fail import present → Pass.
