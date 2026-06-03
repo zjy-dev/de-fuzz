@@ -356,7 +356,7 @@ func TestCanaryOracle_SIGBUS_NoSentinel_FalsePositive(t *testing.T) {
 
 // dualModeMockExecutor routes argv to two independent response sets so a
 // single AnalyzeContext can exercise both INV-SP-L01 (binary-search,
-// argv = "<n> <m>") and INV-SP-R03 (scrub, argv = "scrub") simultaneously.
+// argv = "<n> <m>") and INV-SP-S02 (scrub, argv = "scrub") simultaneously.
 //
 // This is the integration-test surface for the multi-invariant wiring in
 // `(*CanaryOracle).mechanism()` — see
@@ -396,14 +396,14 @@ func (m *dualModeMockExecutor) ExecuteWithArgs(binaryPath string, args ...string
 	return 0, "", "", nil
 }
 
-// TestCanaryOracle_DualCheckers_R03LeakDetected: end-to-end mechanism test.
-// L01 sees a SIGABRT (canary held), R03 sees a leak — the bug must be
-// attributed to R03 specifically.
+// TestCanaryOracle_DualCheckers_S02LeakDetected: end-to-end mechanism test.
+// L01 sees a SIGABRT (canary held), S02 sees a leak — the bug must be
+// attributed to S02 specifically.
 //
 // This test exists to guard the wiring in `(*CanaryOracle).mechanism()`:
-// regressions where R03 stops being invoked (e.g., someone removes it
+// regressions where S02 stops being invoked (e.g., someone removes it
 // from the Checkers slice) are caught here.
-func TestCanaryOracle_DualCheckers_R03LeakDetected(t *testing.T) {
+func TestCanaryOracle_DualCheckers_S02LeakDetected(t *testing.T) {
 	orc := &CanaryOracle{MaxBufferSize: 200, DefaultBufSize: 64}
 	ctx := &AnalyzeContext{
 		BinaryPath: "/fake/binary",
@@ -411,7 +411,7 @@ func TestCanaryOracle_DualCheckers_R03LeakDetected(t *testing.T) {
 			// L01 path: SIGABRT @ 100 → Pass.
 			bsCrashThreshold: 100,
 			bsCrashExitCode:  ExitCodeSIGABRT,
-			// R03 path: leak detected.
+			// S02 path: leak detected.
 			scrubExitCode: 1,
 			scrubStdout:   "GUARD_LEAKED reg=12 name=t0\n",
 		},
@@ -421,10 +421,10 @@ func TestCanaryOracle_DualCheckers_R03LeakDetected(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if bug == nil {
-		t.Fatal("expected a Bug from R03 leak; got nil")
+		t.Fatal("expected a Bug from S02 leak; got nil")
 	}
-	if !contains(bug.Description, "INV-SP-R03") {
-		t.Errorf("Bug.Description should reference INV-SP-R03; got:\n%s", bug.Description)
+	if !contains(bug.Description, "INV-SP-S02") {
+		t.Errorf("Bug.Description should reference INV-SP-S02; got:\n%s", bug.Description)
 	}
 	if !contains(bug.Description, "reg=12") {
 		t.Errorf("Bug.Description should preserve leak detail; got:\n%s", bug.Description)

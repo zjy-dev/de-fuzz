@@ -104,6 +104,28 @@ func (o *CanaryOracle) mechanism() *MechanismOracle {
 			// Static (cheap, run first):
 			&StackChkSymbolsChecker{},
 			&MainNoCanaryChecker{},
+			// INV-SP-H01: VLA / alloca seeds must produce a binary that
+			// imports __stack_chk_fail. Source-vs-binary cross-check.
+			&VLAAllocaInstrumentationChecker{
+				InvariantID: "INV-SP-H01",
+				SourceURL:   "https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html",
+				Sensitivity: "stable",
+			},
+			// INV-SP-V01: epilogue must compare guard *value*, not
+			// guard address (GCC PR85434, ARM/Thumb). Disasm-based.
+			&EpilogueGuardCompareChecker{
+				InvariantID: "INV-SP-V01",
+				SourceURL:   "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85434",
+				Sensitivity: "likely-to-drift",
+			},
+			// INV-SP-S01: guard value/address must not spill to a
+			// frame slot the attacker can rewrite (GCC PR85434
+			// scheduling discussion, LLVM D64759). Disasm-based.
+			&GuardSpillChecker{
+				InvariantID: "INV-SP-S01",
+				SourceURL:   "https://gcc.gnu.org/legacy-ml/gcc-patches/2018-04/msg01272.html",
+				Sensitivity: "likely-to-drift",
+			},
 			// Dynamic (binary search; expensive):
 			&DynamicBufferSearchChecker{
 				InvariantID:    "INV-SP-L01",
@@ -115,14 +137,51 @@ func (o *CanaryOracle) mechanism() *MechanismOracle {
 				SentinelMarker: SentinelMarker,
 			},
 			// Dynamic (single scrub probe; cheap relative to binary search).
-			// INV-SP-R03: epilogue must clobber registers that transiently
+			// INV-SP-S02: epilogue must clobber registers that transiently
 			// held the guard. Detects the leak channel observed in
 			// DREV-2026-001 on long-tail backends (loongarch64, riscv64,
 			// mips, csky, xtensa, ...).
 			&EpilogueCanaryScrubChecker{
-				InvariantID: "INV-SP-R03",
+				InvariantID: "INV-SP-S02",
 				SourceURL:   "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045",
 				Sensitivity: "likely-to-drift",
+			},
+			// Dynamic (cache reader; no extra exec cost).
+			// INV-SP-V02: __stack_chk_fail must be noreturn. Reads the
+			// L01 binary-search cache: SIGABRT at the crash boundary
+			// confirms the fail handler aborted as required.
+			&StackChkFailNoreturnChecker{
+				InvariantID: "INV-SP-V02",
+				SourceURL:   "https://gcc.gnu.org/onlinedocs/gccint/Stack-Smashing-Protection.html",
+				Sensitivity: "stable",
+			},
+			// Dynamic (cache reader; no extra exec cost).
+			// INV-SP-L02: VLA / alloca must be on the stack-low side
+			// of the canary (CVE-2023-4039). Reuses L01 cache; only
+			// fires when the seed actually contains VLA/alloca.
+			&DynamicAllocLayoutChecker{
+				InvariantID: "INV-SP-L02",
+				SourceURL:   "https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html",
+				Sensitivity: "stable since fix",
+			},
+			// Dynamic (cache reader; no extra exec cost).
+			// INV-SP-L03: mixed vulnerable objects share a single
+			// canary protection plane. Reuses L01 cache; only fires
+			// when the seed has more than one flavor of vulnerable
+			// object (fixed buffer + VLA / alloca, etc.).
+			&MixedVulnerableObjectsChecker{
+				InvariantID: "INV-SP-L03",
+				SourceURL:   "https://gcc.gnu.org/git/?p=gcc.git;a=blob;f=gcc/cfgexpand.cc",
+				Sensitivity: "stable",
+			},
+			// Dynamic (cache reader; no extra exec cost).
+			// INV-SP-L04: protector slot must not be relocated above
+			// vulnerable locals (CERT VU#129209). Reuses L01 cache;
+			// fires for any fixed-buffer-bearing seed.
+			&ProtectorSlotRelocationChecker{
+				InvariantID: "INV-SP-L04",
+				SourceURL:   "https://kb.cert.org/vuls/id/129209/",
+				Sensitivity: "target-specific",
 			},
 		},
 	}

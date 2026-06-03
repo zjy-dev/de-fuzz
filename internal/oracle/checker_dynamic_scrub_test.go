@@ -182,8 +182,8 @@ func TestEpilogueCanaryScrubChecker_MissingDepsNA(t *testing.T) {
 // this guarantees the registration in canary_oracle.go remains terse.
 func TestEpilogueCanaryScrubChecker_DefaultsAreSane(t *testing.T) {
 	c := &EpilogueCanaryScrubChecker{}
-	if c.ID() != "INV-SP-R03" {
-		t.Errorf("default ID() = %q, want INV-SP-R03", c.ID())
+	if c.ID() != "INV-SP-S02" {
+		t.Errorf("default ID() = %q, want INV-SP-S02", c.ID())
 	}
 	if c.Category() != CategoryDynamic {
 		t.Errorf("Category() = %q, want %q", c.Category(), CategoryDynamic)

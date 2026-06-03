@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// EpilogueCanaryScrubChecker implements `INV-SP-R03` from
-// `@/home/yall/project/de-fuzz/docs/invariants/stack-canary.md:174-194`:
+// EpilogueCanaryScrubChecker implements `INV-SP-S02` from
+// `@/home/yall/project/de-fuzz/docs/tech-docs/invariants/stack-canary.md` §3:
 //
 //	"In an SP-protected function's epilogue, after the canary check passes
 //	but before the return instruction, every GPR that has transiently held
@@ -45,7 +45,7 @@ import (
 // `polarity_sensitive: true` in Detail.
 type EpilogueCanaryScrubChecker struct {
 	// InvariantID is the survey-anchored ID this instance asserts. Almost
-	// always "INV-SP-R03"; parameterized so future per-ISA / per-version
+	// always "INV-SP-S02"; parameterized so future per-ISA / per-version
 	// variants can register distinct IDs without forking the type.
 	InvariantID string
 	// SourceURL backlinks to the survey row.
@@ -75,7 +75,7 @@ const (
 // ID implements InvariantChecker.
 func (c *EpilogueCanaryScrubChecker) ID() string {
 	if c.InvariantID == "" {
-		return "INV-SP-R03"
+		return "INV-SP-S02"
 	}
 	return c.InvariantID
 }
@@ -167,7 +167,7 @@ func (c *EpilogueCanaryScrubChecker) Check(ctx *CheckContext) InvariantResult {
 }
 
 // sourceURL returns the configured SourceURL or the canonical survey
-// location for INV-SP-R03 if the field was left blank.
+// location for INV-SP-S02 if the field was left blank.
 func (c *EpilogueCanaryScrubChecker) sourceURL() string {
 	if c.SourceURL != "" {
 		return c.SourceURL
