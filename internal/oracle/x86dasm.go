@@ -81,6 +81,13 @@ func IsEndbrAt(data []byte, off int, pattern []byte) bool {
 	return bytes.Equal(data[off:off+len(pattern)], pattern)
 }
 
+// resolveRelTarget converts a `call`/`jmp rel` operand into its absolute
+// target. The x86asm.Rel value is relative to the *end* of the
+// instruction (instAddr + instLen).
+func resolveRelTarget(instAddr uint64, instLen int, rel x86asm.Rel) uint64 {
+	return uint64(int64(instAddr+uint64(instLen)) + int64(rel))
+}
+
 // IndirectBranchCacheKey is the CheckContext.Cache slot for the decoded
 // indirect-branch list. Keyed by section name set so a binary with one
 // `.text` is decoded once per Analyze.
@@ -98,6 +105,9 @@ const IndirectBranchCacheKey = "oracle.x86dasm.indirect_branches"
 // follow-up "is this target an ENDBR" check that each consuming checker
 // performs.
 func EnumerateIndirectBranches(machine elf.Machine, execs []ExecSection) []IndirectBranch {
+	// NOTE: one of three independent x86 linear-sweep decoders in the
+	// oracle (see also decodeX86 in disasm/disasm.go and walkSection in
+	// fortify_disasm.go). Candidate for future consolidation.
 	mode := decodeMode(machine)
 	var out []IndirectBranch
 	for _, sec := range execs {
@@ -170,7 +180,7 @@ func classifyBranch(sec ExecSection, addr uint64, inst x86asm.Inst) (IndirectBra
 		// Direct relative branch — we still report it because the
 		// setjmp / IFUNC checkers need to resolve direct calls.
 		ib.TargetKnown = true
-		ib.Target = addr + uint64(inst.Len) + uint64(int64(a))
+		ib.Target = resolveRelTarget(addr, inst.Len, a)
 		return ib, true
 	case x86asm.Reg, x86asm.Mem:
 		// Indirect — target unknown statically.

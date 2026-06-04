@@ -54,16 +54,7 @@ func hasEndbrAt(execs []ExecSection, addr uint64, pattern []byte) bool {
 		if off+uint64(len(pattern)) > uint64(len(sec.Data)) {
 			continue
 		}
-		end := off + uint64(len(pattern))
-		got := sec.Data[off:end]
-		ok := true
-		for i, b := range pattern {
-			if got[i] != b {
-				ok = false
-				break
-			}
-		}
-		return ok
+		return IsEndbrAt(sec.Data, int(off), pattern)
 	}
 	return false
 }

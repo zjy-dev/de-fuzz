@@ -127,6 +127,10 @@ func FindFortifyChkCallSites(inspector BinaryInspector) ([]FortifyChkCallSite, e
 // sections are ELF-aligned so inter-function padding is `nop` /
 // `endbr64`-and-`nop` regions that decode cleanly.
 func walkSection(sec ExecSection, funcs []FunctionSymbol, chkAddrs map[uint64]string, out *[]FortifyChkCallSite) {
+	// NOTE: one of three independent x86 linear-sweep decoders in the
+	// oracle (see also decodeX86 in disasm/disasm.go and
+	// EnumerateIndirectBranches in x86dasm.go). Candidate for future
+	// consolidation.
 	const window = 16 // instructions kept in the rolling buffer
 
 	// Sliding window of recent decoded instructions; we use it to find
@@ -154,7 +158,7 @@ func walkSection(sec ExecSection, funcs []FunctionSymbol, chkAddrs map[uint64]st
 			// `call rel32` — operand 0 is a Rel relative to the
 			// instruction *end*; convert to absolute.
 			if rel, ok := inst.Args[0].(x86asm.Rel); ok {
-				target := uint64(int64(addr+uint64(inst.Len)) + int64(rel))
+				target := resolveRelTarget(addr, inst.Len, rel)
 				if name, isChk := chkAddrs[target]; isChk {
 					site := FortifyChkCallSite{
 						SiteAddr:        addr,

@@ -288,6 +288,10 @@ func decodeAArch64(base uint64, code []byte) ([]Inst, error) {
 }
 
 func decodeX86(base uint64, code []byte, bits int) ([]Inst, error) {
+	// NOTE: one of three independent x86 linear-sweep decoders in the
+	// oracle (see also EnumerateIndirectBranches in x86dasm.go and
+	// walkSection in fortify_disasm.go). Candidate for future
+	// consolidation onto a single shared sweep.
 	out := make([]Inst, 0, len(code)/4)
 	pc := base
 	for off := 0; off < len(code); {

@@ -160,6 +160,10 @@ func (c *UnintendedEndbrChecker) Check(ctx *CheckContext) InvariantResult {
 		// len(sec.Data)-len(pattern)]. We use bytes.Index repeatedly to
 		// step through all occurrences, which is O(N) thanks to the
 		// stdlib's optimised search.
+		//
+		// NOTE: this is a *whole-section sweep* for every ENDBR
+		// occurrence, deliberately distinct from IsEndbrAt (x86dasm.go),
+		// which tests a single known offset. They are not interchangeable.
 		buf := sec.Data
 		base := sec.Addr
 		off := 0
