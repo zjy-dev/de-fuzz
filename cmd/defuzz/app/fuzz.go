@@ -21,7 +21,6 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/prompt/mechanism"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
-	"github.com/zjy-dev/de-fuzz/internal/state"
 )
 
 // NewFuzzCommand creates the "fuzz" subcommand.
@@ -318,13 +317,7 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		logger.Info("Loaded %d initial seeds", len(initialSeeds))
 	}
 
-	// 10. Create metrics manager
-	metricsManager := state.NewFileMetricsManager(stateDir)
-	if err := metricsManager.Load(); err != nil {
-		logger.Warn("Failed to load existing metrics: %v", err)
-	}
-
-	// 11. Create analyzer if configured
+	// 10. Create analyzer if configured
 	var analyzer *coverage.Analyzer
 	// Merge cfg_file_path (single, backward compat) and cfg_file_paths (multi)
 	var cfgPaths []string
