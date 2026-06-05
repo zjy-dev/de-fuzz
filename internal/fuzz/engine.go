@@ -58,6 +58,13 @@ type Config struct {
 	// Random Mutation Phase (activated when coverage is saturated)
 	EnableRandomPhase   bool // Enable random mutation phase after coverage saturation
 	MaxRandomIterations int  // Maximum iterations in random phase (0 = unlimited)
+
+	// Function-Focused Fuzzing (opt-in). When enabled, target-BB selection is
+	// restricted to one focus function at a time, rotating on coverage bottlenecks.
+	EnableFunctionFocus bool    // Enable function-level focused scheduling
+	FocusWindowSize     int     // Iterations per measurement window
+	FocusMinDeltaBP     uint64  // Minimum global coverage increment per window (basis points)
+	FocusRelaxFactor    float64 // Threshold relax multiplier when all functions bottleneck
 }
 
 // Maximum number of debug log calls per prompt type
@@ -81,6 +88,9 @@ type Engine struct {
 	// Lightweight profile aggregation for run summaries.
 	profileCoverage map[string]int
 	profileBugs     map[string]int
+
+	// Function-focused scheduler (nil when disabled).
+	focus *FunctionFocusScheduler
 }
 
 // seedTryResult holds the result of trying a mutated seed.
@@ -103,13 +113,19 @@ func NewEngine(cfg Config) *Engine {
 	if cfg.MaxRetries <= 0 {
 		cfg.MaxRetries = 3
 	}
-	return &Engine{
+	e := &Engine{
 		cfg:              cfg,
 		bugsFound:        make([]*oracle.Bug, 0),
 		promptDebugCount: make(map[string]int),
 		profileCoverage:  make(map[string]int),
 		profileBugs:      make(map[string]int),
 	}
+	if cfg.EnableFunctionFocus && cfg.Analyzer != nil {
+		e.focus = NewFunctionFocusScheduler(cfg.Analyzer, cfg.FocusWindowSize, cfg.FocusMinDeltaBP, cfg.FocusRelaxFactor)
+		logger.Info("Function-focused fuzzing enabled (window=%d, minDelta=%d bp, relax=%.2f)",
+			cfg.FocusWindowSize, cfg.FocusMinDeltaBP, cfg.FocusRelaxFactor)
+	}
+	return e
 }
 
 // logPromptDebug logs prompt content with a limit per prompt type.
@@ -154,8 +170,18 @@ func (e *Engine) Run() error {
 
 		e.iterationCount++
 
-		// Step 1: Select target BB (one with most successors among uncovered)
-		target := e.cfg.Analyzer.SelectTarget()
+		// Step 1: Select target BB. With function focus enabled, selection is
+		// restricted to the current focus function; fall back to global selection
+		// when the focus scheduler has nothing left.
+		var target *coverage.TargetInfo
+		if e.focus != nil {
+			target = e.focus.NextTarget()
+			if target == nil {
+				target = e.cfg.Analyzer.SelectTarget()
+			}
+		} else {
+			target = e.cfg.Analyzer.SelectTarget()
+		}
 		if target == nil {
 			logger.Info("All target basic blocks covered! Fuzzing complete.")
 
@@ -185,6 +211,11 @@ func (e *Engine) Run() error {
 		} else {
 			logger.Warn("Failed to cover target %s:BB%d after %d retries",
 				target.Function, target.BBID, actualRetries)
+		}
+
+		// Settle the function-focus measurement window for this iteration.
+		if e.focus != nil {
+			e.focus.OnIterationEnd()
 		}
 
 		// Save state periodically

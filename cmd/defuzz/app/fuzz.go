@@ -412,6 +412,11 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		MaxIterations:  limit,
 		MaxRetries:     cfg.Compiler.Fuzz.MaxConstraintRetries,
 		MappingPath:    filepath.Join(stateDir, "coverage_mapping.json"),
+
+		EnableFunctionFocus: cfg.Compiler.Fuzz.EnableFunctionFocus,
+		FocusWindowSize:     cfg.Compiler.Fuzz.FocusWindowSize,
+		FocusMinDeltaBP:     cfg.Compiler.Fuzz.FocusMinDeltaBP,
+		FocusRelaxFactor:    cfg.Compiler.Fuzz.FocusRelaxFactor,
 	})
 	return cfgEngine.Run()
 }

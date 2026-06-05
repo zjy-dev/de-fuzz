@@ -86,6 +86,24 @@ type FuzzConfig struct {
 
 	// FlagStrategy controls rule-driven compiler flag scheduling during fuzzing.
 	FlagStrategy FlagStrategyConfig `mapstructure:"flag_strategy"`
+
+	// EnableFunctionFocus enables function-level focused fuzzing (opt-in).
+	// When true, target-BB selection is restricted to one focus function at a
+	// time, rotating to the next lowest-coverage function on coverage bottlenecks.
+	EnableFunctionFocus bool `mapstructure:"enable_function_focus"`
+
+	// FocusWindowSize is the number of iterations per measurement window when
+	// function focus is enabled (default: 10).
+	FocusWindowSize int `mapstructure:"focus_window_size"`
+
+	// FocusMinDeltaBP is the minimum global BB-coverage increment (basis points)
+	// required per window; below this the focus function is declared a bottleneck
+	// (default: 1, i.e. 0.01%).
+	FocusMinDeltaBP uint64 `mapstructure:"focus_min_delta_bp"`
+
+	// FocusRelaxFactor multiplies the bottleneck threshold when all functions are
+	// bottlenecked, before restarting the rotation. Valid range (0,1], default 0.5.
+	FocusRelaxFactor float64 `mapstructure:"focus_relax_factor"`
 }
 
 // CompilerInfo holds basic compiler identification from the main config.
@@ -529,6 +547,17 @@ func LoadConfig() (*Config, error) {
 		}
 		if cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder == "" {
 			cfg.Compiler.Fuzz.FlagStrategy.SelectionOrder = "deterministic"
+		}
+	}
+	if cfg.Compiler.Fuzz.EnableFunctionFocus {
+		if cfg.Compiler.Fuzz.FocusWindowSize <= 0 {
+			cfg.Compiler.Fuzz.FocusWindowSize = 10
+		}
+		if cfg.Compiler.Fuzz.FocusMinDeltaBP == 0 {
+			cfg.Compiler.Fuzz.FocusMinDeltaBP = 1
+		}
+		if cfg.Compiler.Fuzz.FocusRelaxFactor <= 0 || cfg.Compiler.Fuzz.FocusRelaxFactor > 1 {
+			cfg.Compiler.Fuzz.FocusRelaxFactor = 0.5
 		}
 	}
 

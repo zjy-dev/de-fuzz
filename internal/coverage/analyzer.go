@@ -393,6 +393,60 @@ func (c *Analyzer) SelectTarget() *TargetInfo {
 		return nil
 	}
 
+	return c.buildTargetInfo(candidate, coveredLines)
+}
+
+// SelectTargetInFunction selects the best uncovered BB restricted to one function.
+// Returns nil when the function has no selectable uncovered reachable BB.
+func (c *Analyzer) SelectTargetInFunction(funcName string) *TargetInfo {
+	coveredLines := c.mapping.GetCoveredLines()
+
+	candidate := c.selectTargetBB([]string{funcName}, coveredLines)
+	if candidate == nil {
+		logger.Debug("[Analyzer] No uncovered BBs found in function %s", funcName)
+		return nil
+	}
+
+	return c.buildTargetInfo(candidate, coveredLines)
+}
+
+// LowestCoverageFunction returns the target function with the lowest BB coverage
+// ratio (tie-break: most uncovered BBs), skipping names in `exclude`.
+// Functions with no trackable BBs (total == 0) are skipped.
+// Returns ("", false) when no eligible function remains.
+func (c *Analyzer) LowestCoverageFunction(exclude map[string]bool) (string, bool) {
+	coveredLines := c.GetCoveredLines()
+
+	bestFunc := ""
+	bestRatio := 2.0 // higher than any valid ratio (which is in [0,1])
+	bestUncovered := -1
+
+	for _, funcName := range c.targetFunctions {
+		if exclude[funcName] {
+			continue
+		}
+		covered, total := c.getFunctionCoverage(funcName, coveredLines)
+		if total == 0 {
+			continue
+		}
+		ratio := float64(covered) / float64(total)
+		uncovered := total - covered
+
+		if ratio < bestRatio || (ratio == bestRatio && uncovered > bestUncovered) {
+			bestRatio = ratio
+			bestUncovered = uncovered
+			bestFunc = funcName
+		}
+	}
+
+	if bestFunc == "" {
+		return "", false
+	}
+	return bestFunc, true
+}
+
+// buildTargetInfo computes the base seed for a candidate BB and assembles a TargetInfo.
+func (c *Analyzer) buildTargetInfo(candidate *BBCandidate, coveredLines map[LineID]bool) *TargetInfo {
 	logger.Debug("[Analyzer] Selected candidate: %s:BB%d (weight=%.2f, succs=%d, preds=%v)",
 		candidate.Function, candidate.BBID, candidate.Weight, candidate.SuccessorCount, candidate.Predecessors)
 

@@ -339,3 +339,101 @@ func TestCoverageMapping_RecordLinesMultipleSeeds(t *testing.T) {
 	seeds2 := cm.GetSeedsForLine(lines[1])
 	assert.Len(t, seeds2, 2)
 }
+
+// newFocusTestAnalyzer builds a two-function analyzer fixture for the
+// function-focus selection tests. Both functions have a single targetable
+// entry BB (id 2, no predecessors => reachable) with one source line.
+func newFocusTestAnalyzer(t *testing.T) (*Analyzer, *CoverageMapping) {
+	t.Helper()
+	cm, err := NewCoverageMapping("")
+	require.NoError(t, err)
+
+	a := &Analyzer{
+		functions: map[string]*CFGFunction{
+			"funcA": {
+				Name: "funcA",
+				Blocks: map[int]*BasicBlock{
+					2: {ID: 2, Function: "funcA", File: "a.c", Lines: []int{10}, Successors: []int{3}},
+					3: {ID: 3, Function: "funcA", File: "a.c", Lines: []int{11}},
+				},
+			},
+			"funcB": {
+				Name: "funcB",
+				Blocks: map[int]*BasicBlock{
+					2: {ID: 2, Function: "funcB", File: "b.c", Lines: []int{20}, Successors: []int{3}},
+					3: {ID: 3, Function: "funcB", File: "b.c", Lines: []int{21}},
+				},
+			},
+		},
+		targetFunctions: []string{"funcA", "funcB"},
+		mapping:         cm,
+	}
+	return a, cm
+}
+
+func TestAnalyzer_SelectTargetInFunction(t *testing.T) {
+	a, _ := newFocusTestAnalyzer(t)
+
+	// Restricted selection only returns BBs from the requested function.
+	target := a.SelectTargetInFunction("funcB")
+	require.NotNil(t, target)
+	assert.Equal(t, "funcB", target.Function)
+
+	// Cover funcB's targetable BBs => no selectable BB remains.
+	a.RecordCoverage(1, []string{"b.c:20", "b.c:21"})
+	assert.Nil(t, a.SelectTargetInFunction("funcB"))
+
+	// funcA is still selectable independently.
+	target = a.SelectTargetInFunction("funcA")
+	require.NotNil(t, target)
+	assert.Equal(t, "funcA", target.Function)
+}
+
+func TestAnalyzer_LowestCoverageFunction(t *testing.T) {
+	a, _ := newFocusTestAnalyzer(t)
+
+	// Cover funcA's BB2 so funcA has higher coverage than funcB.
+	a.RecordCoverage(1, []string{"a.c:10"})
+
+	fn, ok := a.LowestCoverageFunction(nil)
+	require.True(t, ok)
+	assert.Equal(t, "funcB", fn, "funcB has lower coverage")
+
+	// Excluding funcB falls back to funcA.
+	fn, ok = a.LowestCoverageFunction(map[string]bool{"funcB": true})
+	require.True(t, ok)
+	assert.Equal(t, "funcA", fn)
+
+	// Excluding all yields no eligible function.
+	_, ok = a.LowestCoverageFunction(map[string]bool{"funcA": true, "funcB": true})
+	assert.False(t, ok)
+}
+
+func TestAnalyzer_LowestCoverageFunction_TieBreakByUncovered(t *testing.T) {
+	cm, err := NewCoverageMapping("")
+	require.NoError(t, err)
+	a := &Analyzer{
+		functions: map[string]*CFGFunction{
+			// Both 0% covered; funcBig has more uncovered BBs.
+			"funcSmall": {
+				Name: "funcSmall",
+				Blocks: map[int]*BasicBlock{
+					2: {ID: 2, Function: "funcSmall", File: "s.c", Lines: []int{1}},
+				},
+			},
+			"funcBig": {
+				Name: "funcBig",
+				Blocks: map[int]*BasicBlock{
+					2: {ID: 2, Function: "funcBig", File: "g.c", Lines: []int{1}},
+					3: {ID: 3, Function: "funcBig", File: "g.c", Lines: []int{2}},
+				},
+			},
+		},
+		targetFunctions: []string{"funcSmall", "funcBig"},
+		mapping:         cm,
+	}
+
+	fn, ok := a.LowestCoverageFunction(nil)
+	require.True(t, ok)
+	assert.Equal(t, "funcBig", fn, "tie on ratio resolved by more uncovered BBs")
+}
