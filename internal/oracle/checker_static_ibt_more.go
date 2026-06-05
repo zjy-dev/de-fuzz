@@ -20,11 +20,8 @@ import (
 //   - INV-IBT-P06  IndirectBranchTargetEndbrChecker
 //   - INV-IBT-N01  NotrackPrefixGuardChecker
 //   - INV-IBT-N02  FineIBTHashCollisionChecker
-//   - INV-IBT-M01  IBTRuntimeEnforcementChecker
 //
-// All checkers are CategoryStatic except INV-IBT-M01 which is CategoryDynamic
-// (it requires arch_prctl + dlopen at runtime; the static checker collapses
-// to NA when no Executor is available).
+// All checkers are CategoryStatic.
 
 // ---- shared static helpers --------------------------------------------------
 
@@ -984,59 +981,4 @@ func extractFineIBTHash(execs []ExecSection, addr uint64) (uint32, bool) {
 			uint32(bytes[7])<<16 | uint32(bytes[8])<<24, true
 	}
 	return 0, false
-}
-
-// ============================================================================
-// INV-IBT-M01 — runtime IBT enforcement must not be silently disabled by
-// dlopen of an IBT-less DSO.
-// ============================================================================
-
-// IBTRuntimeEnforcementChecker is a CategoryDynamic checker. The static
-// portion verifies the binary itself advertises the IBT feature bit in
-// `.note.gnu.property`; the dynamic portion would need to invoke
-// `arch_prctl(ARCH_CET_STATUS)` post-dlopen. Because the latter requires
-// a privileged Executor, this checker degrades to NotApplicable when no
-// Executor is available — the static "binary advertises IBT" result is
-// reported in Detail for future runtime correlation.
-type IBTRuntimeEnforcementChecker struct{}
-
-func (c *IBTRuntimeEnforcementChecker) ID() string { return "INV-IBT-M01" }
-func (c *IBTRuntimeEnforcementChecker) Category() InvariantCategory {
-	return CategoryDynamic
-}
-
-func (c *IBTRuntimeEnforcementChecker) Check(ctx *CheckContext) InvariantResult {
-	r := initIBTResult(c.ID(), CategoryDynamic)
-	if ctx == nil || ctx.Inspector == nil {
-		r.Verdict = VerdictNotApplicable
-		r.Reason = "no inspector available"
-		return r
-	}
-	gnu, err := ctx.Inspector.GNUProperty()
-	if err != nil {
-		r.Verdict = naOrError(err)
-		r.Reason = fmt.Sprintf("inspector.GNUProperty failed: %v", err)
-		return r
-	}
-	hasIBT := gnu&GNUPropertyX86Feature1IBT != 0
-	r.Detail["binary_ibt_property"] = hasIBT
-	r.Detail["gnu_property_bits"] = fmt.Sprintf("0x%x", gnu)
-	if !hasIBT {
-		r.Verdict = VerdictNotApplicable
-		r.Reason = "binary does not advertise GNU_PROPERTY_X86_FEATURE_1_IBT; runtime enforcement n/a"
-		return r
-	}
-	if ctx.Executor == nil {
-		r.Verdict = VerdictNotApplicable
-		r.Reason = "binary advertises IBT property; runtime arch_prctl(ARCH_CET_STATUS) check requires an Executor (none provided)"
-		return r
-	}
-	// We could actually run the binary here under a probe shim, but
-	// that requires a host kernel with CET support and the binary
-	// itself to invoke arch_prctl. For now the dynamic path is left as
-	// NA with a directive Reason; a follow-up integration test can
-	// fill it in.
-	r.Verdict = VerdictNotApplicable
-	r.Reason = "dynamic dlopen probe not yet implemented; static IBT property bit is set"
-	return r
 }

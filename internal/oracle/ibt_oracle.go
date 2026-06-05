@@ -70,9 +70,6 @@ func (o *IBTOracle) mechanism() *MechanismOracle {
 			&NotrackPrefixGuardChecker{},
 			// INV-IBT-N02: FineIBT signature hashes must not collide.
 			&FineIBTHashCollisionChecker{},
-			// INV-IBT-M01: GNU property bits and runtime arch_prctl
-			// state agree that IBT is enforced.
-			&IBTRuntimeEnforcementChecker{},
 		},
 	}
 }
