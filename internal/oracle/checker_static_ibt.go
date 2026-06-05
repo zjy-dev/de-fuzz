@@ -41,11 +41,6 @@ import (
 //     skip; padding bytes between functions are common and not a bug.
 //  4. ≥1 violation → VerdictFail (mechanism violated). Otherwise Pass.
 //
-// Polarity: this checker is `polarity_sensitive: true`. Under
-// PolarityInverted (e.g., a seed compiled with `-fcf-protection=none`),
-// any "unintended ENDBR" is meaningless and the aggregator collapses
-// Fail → Pass via `applyPolarity`.
-//
 // False-positive caveat: setjmp returns, EH landing pads, and
 // computed-goto targets are *also* legitimate ENDBR positions but are
 // not at any STT_FUNC's `st_value`. The current trigger set
@@ -75,13 +70,9 @@ var (
 // Check implements InvariantChecker.
 func (c *UnintendedEndbrChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html",
-		Sensitivity: "likely-to-drift",
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Inspector == nil {

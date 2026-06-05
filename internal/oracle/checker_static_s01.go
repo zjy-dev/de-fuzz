@@ -38,15 +38,8 @@ import (
 //   - any candidate function spills a tagged       → Fail
 //     address register to an SP-relative slot
 //   - otherwise                                    → Pass
-//
-// Polarity. `polarity_sensitive: true`. A `-fno-stack-protector`
-// build won't import `__stack_chk_fail` and we'll report NA, which
-// the aggregator does not flip; the negative control therefore
-// produces no Fail.
 type GuardSpillChecker struct {
 	InvariantID string
-	SourceURL   string
-	Sensitivity string
 	// FunctionFilter mirrors V01: empty → scan everything except
 	// boilerplate; non-empty → only listed names.
 	FunctionFilter []string
@@ -66,13 +59,9 @@ func (c *GuardSpillChecker) Category() InvariantCategory { return CategoryStatic
 // Check implements InvariantChecker.
 func (c *GuardSpillChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Inspector == nil {
@@ -173,18 +162,4 @@ func (c *GuardSpillChecker) Check(ctx *CheckContext) InvariantResult {
 	r.Evidence = fmt.Sprintf("scanned %d candidate function(s); %d PC-relative guard-address load(s) observed, none spilled to SP-relative slots",
 		len(candidates), totalPC)
 	return r
-}
-
-func (c *GuardSpillChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://gcc.gnu.org/legacy-ml/gcc-patches/2018-04/msg01272.html"
-}
-
-func (c *GuardSpillChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "likely-to-drift"
 }

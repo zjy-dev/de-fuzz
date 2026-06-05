@@ -40,11 +40,9 @@ func (c *FortifyChkPresenceChecker) Category() InvariantCategory { return Catego
 // Check implements InvariantChecker.
 func (c *FortifyChkPresenceChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://lore.kernel.org/lkml/20210818060533.3569517-64-keescook@chromium.org/",
-		Sensitivity: "target-specific",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Inspector == nil {
@@ -131,11 +129,9 @@ func (c *ErrWarnChkChecker) Category() InvariantCategory { return CategoryStatic
 // Check implements InvariantChecker.
 func (c *ErrWarnChkChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://sourceware.org/bugzilla/show_bug.cgi?id=24987",
-		Sensitivity: "likely-to-drift",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Inspector == nil {

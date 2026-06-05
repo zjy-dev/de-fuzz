@@ -48,11 +48,9 @@ func (c *FortifyVfprintfFlagChecker) Category() InvariantCategory { return Categ
 
 func (c *FortifyVfprintfFlagChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   "https://nvd.nist.gov/vuln/detail/CVE-2012-0864",
-		Sensitivity: "likely-to-drift",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 	if ctx == nil || ctx.Executor == nil || ctx.BinaryPath == "" {
 		r.Verdict = VerdictNotApplicable

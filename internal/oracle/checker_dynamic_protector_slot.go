@@ -39,20 +39,12 @@ import (
 //   - L01 cache: SIGSEGV/SIGBUS without sentinel          → NotApplicable
 //   - other crash exit                                    → NotApplicable
 //
-// Polarity. The Fail verdict only makes sense when SP is enabled.
-// Under `-fno-stack-protector` the same SIGSEGV+sentinel will appear
-// but no protector slot exists to be relocated. We tag
-// `polarity_sensitive: true` so the aggregator inverts on the
-// negative control.
-//
 // L04 deliberately overlaps with L01 / L03 on the observable signal.
 // Each checker is intended to anchor a different *root cause* in the
 // final report; the aggregator already deduplicates raw bug-equivalent
 // signals at the report layer.
 type ProtectorSlotRelocationChecker struct {
 	InvariantID string
-	SourceURL   string
-	Sensitivity string
 }
 
 // ID implements InvariantChecker.
@@ -71,13 +63,9 @@ func (c *ProtectorSlotRelocationChecker) Category() InvariantCategory {
 // Check implements InvariantChecker.
 func (c *ProtectorSlotRelocationChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil {
@@ -149,18 +137,4 @@ func (c *ProtectorSlotRelocationChecker) Check(ctx *CheckContext) InvariantResul
 			dyn.MinCrashSize, dyn.CrashExitCode)
 		return r
 	}
-}
-
-func (c *ProtectorSlotRelocationChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://kb.cert.org/vuls/id/129209/"
-}
-
-func (c *ProtectorSlotRelocationChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "target-specific"
 }

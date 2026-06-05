@@ -38,11 +38,9 @@ func (c *StackChkSymbolsChecker) Category() InvariantCategory { return CategoryS
 // Check implements InvariantChecker.
 func (c *StackChkSymbolsChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://gcc.gnu.org/onlinedocs/gccint/Stack-Smashing-Protection.html",
-		Sensitivity: "stable",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Inspector == nil {
@@ -126,11 +124,9 @@ func (c *MainNoCanaryChecker) Category() InvariantCategory { return CategoryStat
 // Check implements InvariantChecker.
 func (c *MainNoCanaryChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html",
-		Sensitivity: "stable",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Inspector == nil {

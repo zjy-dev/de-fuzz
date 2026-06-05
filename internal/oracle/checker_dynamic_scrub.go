@@ -38,22 +38,11 @@ import (
 // NotApplicable with a Reason that captures a truncated stdout, because
 // it indicates a template / build failure rather than a real assertion
 // outcome.
-//
-// This checker is **polarity-insensitive**: even under `-fno-stack-protector`
-// the absence of a canary makes a leak impossible, and "no leak observed"
-// stays the correct outcome. We deliberately do NOT set
-// `polarity_sensitive: true` in Detail.
 type EpilogueCanaryScrubChecker struct {
 	// InvariantID is the survey-anchored ID this instance asserts. Almost
 	// always "INV-SP-S02"; parameterized so future per-ISA / per-version
 	// variants can register distinct IDs without forking the type.
 	InvariantID string
-	// SourceURL backlinks to the survey row.
-	SourceURL string
-	// Sensitivity mirrors the survey's `version_sensitivity` field.
-	// Default "likely-to-drift" because the affected backend list shifts
-	// with every GCC release that adds a `stack_protect_test` define_insn.
-	Sensitivity string
 	// ScrubArgv is the single argv token that selects scrub mode in the
 	// seed template. Defaults to "scrub" via ID().
 	ScrubArgv string
@@ -95,11 +84,9 @@ func (c *EpilogueCanaryScrubChecker) Category() InvariantCategory {
 // MechanismOracle by design.
 func (c *EpilogueCanaryScrubChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Executor == nil || ctx.BinaryPath == "" {
@@ -164,25 +151,6 @@ func (c *EpilogueCanaryScrubChecker) Check(ctx *CheckContext) InvariantResult {
 		r.Detail["stderr_excerpt"] = truncateForDetail(stderr)
 		return r
 	}
-}
-
-// sourceURL returns the configured SourceURL or the canonical survey
-// location for INV-SP-S02 if the field was left blank.
-func (c *EpilogueCanaryScrubChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=125045"
-}
-
-// sensitivity returns the configured Sensitivity or the default
-// "likely-to-drift" appropriate for an invariant whose hit list expands
-// with every new backend.
-func (c *EpilogueCanaryScrubChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "likely-to-drift"
 }
 
 // extractMarkerLine returns the first line of `stdout` that contains

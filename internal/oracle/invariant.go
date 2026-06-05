@@ -89,13 +89,6 @@ type InvariantResult struct {
 	// Detail is structured data (exit codes, sizes, symbol names) for
 	// machine consumption.
 	Detail map[string]any
-	// SourceURL points back to the primary spec source, mirrors the
-	// `source_url_or_path` field of the survey.
-	SourceURL string
-	// Sensitivity mirrors the `version_sensitivity` field of the survey:
-	// "stable" / "likely-to-drift". Aggregator may use this to weight
-	// reports.
-	Sensitivity string
 	// Reason is a free-form explanation populated for NotApplicable / Error
 	// verdicts. Empty for Pass / Fail (use Evidence instead).
 	Reason string
@@ -152,9 +145,8 @@ func (c *CheckContext) CacheSet(key string, value any) {
 // `docs/invariants/*.md`.
 //
 // Every method must be safe to call repeatedly with the same context, since
-// the aggregator may run a checker more than once (e.g., for cross-polarity
-// validation). Implementations should put expensive state in CheckContext.Cache,
-// not on the receiver.
+// the aggregator may run a checker more than once. Implementations should put
+// expensive state in CheckContext.Cache, not on the receiver.
 type InvariantChecker interface {
 	// ID returns the survey-anchored ID, e.g. "INV-SP-L01".
 	ID() string

@@ -26,11 +26,6 @@ type DynamicBufferSearchChecker struct {
 	// MechanismLabel is a short human label used in evidence strings
 	// (e.g., "Stack canary").
 	MechanismLabel string
-	// SourceURL is copied verbatim into the InvariantResult so reports
-	// can backlink to the survey.
-	SourceURL string
-	// Sensitivity mirrors the survey's `version_sensitivity` field.
-	Sensitivity string
 
 	// MaxFillSize bounds the binary search upper end. Search is on `[0, MaxFillSize]`.
 	MaxFillSize int
@@ -76,25 +71,18 @@ func (c *DynamicBufferSearchChecker) Category() InvariantCategory { return Categ
 
 // Check implements InvariantChecker.
 //
-// Verdict mapping (positive polarity):
+// Verdict mapping (positive build):
 //   - no crash within [0, MaxFillSize]      → NotApplicable (search bound too tight, or mechanism prevents reach)
 //   - SIGABRT (134)                          → Pass (canary / fortify caught it)
 //   - SIGSEGV (139) / SIGBUS (135) + sentinel→ Fail (mechanism bypassed)
 //   - SIGSEGV / SIGBUS + no sentinel         → NotApplicable (likely indirect crash inside seed())
 //   - other non-zero exit + sentinel         → Fail (suspicious; flag for manual review)
 //   - other non-zero exit + no sentinel      → NotApplicable
-//
-// Polarity inversion is handled by the aggregator (see `applyPolarity`);
-// this checker tags itself polarity-sensitive via Detail.
 func (c *DynamicBufferSearchChecker) Check(ctx *CheckContext) InvariantResult {
 	result := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   c.SourceURL,
-		Sensitivity: c.Sensitivity,
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Executor == nil || ctx.BinaryPath == "" {

@@ -42,15 +42,8 @@ import (
 //     ≥1 register-indirect deref of that loaded address → Pass
 //   - protected function has ≥1 PC-relative load AND
 //     ZERO register-indirect derefs of that address      → Fail
-//
-// Polarity. `polarity_sensitive: true`: under a `-fno-stack-protector`
-// build the function will not import `__stack_chk_fail` so we report
-// NotApplicable, which the aggregator does not flip; the negative
-// control therefore correctly produces no Fail.
 type EpilogueGuardCompareChecker struct {
 	InvariantID string
-	SourceURL   string
-	Sensitivity string
 	// FunctionFilter, if non-empty, restricts inspection to functions
 	// whose symbol name matches one of these strings exactly. Default
 	// behaviour (empty) is "any function that imports __stack_chk_fail";
@@ -73,13 +66,9 @@ func (c *EpilogueGuardCompareChecker) Category() InvariantCategory { return Cate
 // Check implements InvariantChecker.
 func (c *EpilogueGuardCompareChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil || ctx.Inspector == nil {
@@ -196,20 +185,6 @@ func (c *EpilogueGuardCompareChecker) Check(ctx *CheckContext) InvariantResult {
 	r.Evidence = fmt.Sprintf("scanned %d candidate function(s); every PC-relative load is followed by a register-indirect dereference (%d total) — guard *value*, not address, reaches the compare",
 		len(candidates), totalDeref)
 	return r
-}
-
-func (c *EpilogueGuardCompareChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85434"
-}
-
-func (c *EpilogueGuardCompareChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "likely-to-drift"
 }
 
 // guardUsageReport summarises the address-materialisation / dereference
@@ -372,16 +347,16 @@ func selectCandidateFunctions(funcs []FunctionSymbol, filter []string) []Functio
 		return out
 	}
 	skip := map[string]struct{}{
-		"_start":              {},
-		"_init":               {},
-		"_fini":               {},
-		"__libc_csu_init":     {},
-		"__libc_csu_fini":     {},
-		"frame_dummy":         {},
-		"register_tm_clones":  {},
-		"deregister_tm_clones": {},
+		"_start":                {},
+		"_init":                 {},
+		"_fini":                 {},
+		"__libc_csu_init":       {},
+		"__libc_csu_fini":       {},
+		"frame_dummy":           {},
+		"register_tm_clones":    {},
+		"deregister_tm_clones":  {},
 		"__do_global_dtors_aux": {},
-		"call_weak_fn":        {},
+		"call_weak_fn":          {},
 	}
 	out := make([]FunctionSymbol, 0, len(funcs))
 	for _, fn := range funcs {

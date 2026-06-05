@@ -30,26 +30,9 @@ import (
 // "fail handler returned" signal. A precise Fail would require a custom
 // probe that triggers `__stack_chk_fail` directly and observes whether
 // the process continues; that lives behind a separate, future checker.
-//
-// Polarity:
-//   - Positive build: a SIGABRT-on-overflow run is the expected behavior;
-//     V02 contributes a Pass.
-//   - Negative build (`-fno-stack-protector`): no canary, no fail handler
-//     dispatch, the cache yields "no crash" or a non-SIGABRT crash; V02
-//     reports NA, never Fail. So we are polarity-INSENSITIVE in the Fail
-//     direction; the Pass is only meaningful in the positive build.
-//
-// This is consistent with `EpilogueCanaryScrubChecker` (S02), which is
-// also polarity-insensitive: under the negative control we cannot leak
-// what was never loaded, and under the negative control we cannot abort
-// what was never checked.
 type StackChkFailNoreturnChecker struct {
 	// InvariantID survey-anchored ID; defaults to "INV-SP-V02".
 	InvariantID string
-	// SourceURL backlinks to the survey row.
-	SourceURL string
-	// Sensitivity mirrors the survey's `version_sensitivity` field.
-	Sensitivity string
 }
 
 // ID implements InvariantChecker.
@@ -72,11 +55,9 @@ func (c *StackChkFailNoreturnChecker) Category() InvariantCategory {
 // `DynamicBufferSearchChecker` run within the same Analyze call.
 func (c *StackChkFailNoreturnChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil {
@@ -128,18 +109,4 @@ func (c *StackChkFailNoreturnChecker) Check(ctx *CheckContext) InvariantResult {
 			dyn.MinCrashSize, dyn.CrashExitCode)
 		return r
 	}
-}
-
-func (c *StackChkFailNoreturnChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://gcc.gnu.org/onlinedocs/gccint/Stack-Smashing-Protection.html"
-}
-
-func (c *StackChkFailNoreturnChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "stable"
 }

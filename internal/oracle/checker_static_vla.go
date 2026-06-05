@@ -27,20 +27,9 @@ import (
 //   - seed has VLA / alloca AND binary does NOT import the symbol → Fail
 //   - seed has neither VLA nor alloca                             → NotApplicable
 //   - inspector unavailable / non-ELF                             → NotApplicable
-//
-// Polarity. Under `-fno-stack-protector` the binary will NOT import
-// `__stack_chk_fail`, even on a VLA seed; that is by design and not a
-// bug. The invariant is conditional on "any non-off setting of
-// -fstack-protector*" being in effect. We expose
-// `polarity_sensitive: true` so the aggregator can flip the verdict
-// (Fail → Pass) when running the negative control.
 type VLAAllocaInstrumentationChecker struct {
 	// InvariantID survey-anchored ID; defaults to "INV-SP-H01".
 	InvariantID string
-	// SourceURL backlinks to the survey row.
-	SourceURL string
-	// Sensitivity mirrors the survey's `version_sensitivity` field.
-	Sensitivity string
 }
 
 // ID implements InvariantChecker.
@@ -60,13 +49,9 @@ func (c *VLAAllocaInstrumentationChecker) Category() InvariantCategory {
 // Check implements InvariantChecker.
 func (c *VLAAllocaInstrumentationChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil {
@@ -116,18 +101,4 @@ func (c *VLAAllocaInstrumentationChecker) Check(ctx *CheckContext) InvariantResu
 	r.Verdict = VerdictFail
 	r.Evidence = "seed has VLA/alloca but binary does NOT import __stack_chk_fail; whole-function silent bypass on the most dangerous stack-allocation pattern"
 	return r
-}
-
-func (c *VLAAllocaInstrumentationChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html"
-}
-
-func (c *VLAAllocaInstrumentationChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "stable"
 }

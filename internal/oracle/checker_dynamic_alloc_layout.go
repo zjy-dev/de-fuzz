@@ -30,16 +30,8 @@ import (
 //   - L01 cache: crash @ SIGSEGV/SIGBUS + sentinel           → Fail
 //   - L01 cache: crash @ SIGSEGV/SIGBUS without sentinel     → NotApplicable
 //   - other crash exit                                       → NotApplicable
-//
-// Polarity. The Fail verdict is meaningful only when SP is enabled.
-// Under `-fno-stack-protector` the VLA seed will likely also crash via
-// SIGSEGV-with-sentinel, but that is not a violation — there is no
-// canary to be crossed. We tag `polarity_sensitive: true` so the
-// aggregator inverts the verdict on the negative control.
 type DynamicAllocLayoutChecker struct {
 	InvariantID string
-	SourceURL   string
-	Sensitivity string
 }
 
 // ID implements InvariantChecker.
@@ -58,13 +50,9 @@ func (c *DynamicAllocLayoutChecker) Category() InvariantCategory {
 // Check implements InvariantChecker.
 func (c *DynamicAllocLayoutChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil {
@@ -131,18 +119,4 @@ func (c *DynamicAllocLayoutChecker) Check(ctx *CheckContext) InvariantResult {
 			dyn.MinCrashSize, dyn.CrashExitCode)
 		return r
 	}
-}
-
-func (c *DynamicAllocLayoutChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html"
-}
-
-func (c *DynamicAllocLayoutChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "stable since fix"
 }

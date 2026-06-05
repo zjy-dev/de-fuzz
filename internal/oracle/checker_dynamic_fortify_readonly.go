@@ -44,11 +44,9 @@ func (c *FortifyReadonlyAreaChecker) Category() InvariantCategory { return Categ
 
 func (c *FortifyReadonlyAreaChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   "https://codebrowser.dev/glibc/glibc/sysdeps/unix/sysv/linux/readonly-area.c.html",
-		Sensitivity: "stable",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 	if ctx == nil || ctx.Executor == nil || ctx.BinaryPath == "" {
 		r.Verdict = VerdictNotApplicable

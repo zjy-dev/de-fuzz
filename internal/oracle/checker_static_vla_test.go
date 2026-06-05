@@ -117,10 +117,4 @@ func TestVLAAllocaInstrumentationChecker_DefaultsAreSane(t *testing.T) {
 	if c.Category() != CategoryStatic {
 		t.Errorf("Category() = %q, want %q", c.Category(), CategoryStatic)
 	}
-	if c.sourceURL() == "" {
-		t.Error("default sourceURL() must be non-empty")
-	}
-	if c.sensitivity() == "" {
-		t.Error("default sensitivity() must be non-empty")
-	}
 }

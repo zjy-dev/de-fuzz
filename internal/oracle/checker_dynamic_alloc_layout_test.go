@@ -187,25 +187,6 @@ func TestDynamicAllocLayoutChecker_CacheTypeMismatch(t *testing.T) {
 	}
 }
 
-// TestDynamicAllocLayoutChecker_PolarityTagged — Detail must include
-// polarity_sensitive=true so the aggregator inverts on negative control.
-func TestDynamicAllocLayoutChecker_PolarityTagged(t *testing.T) {
-	c := &DynamicAllocLayoutChecker{}
-	ctx := &CheckContext{
-		Seed: vlaSeed(),
-		Cache: map[string]any{
-			dynamicSearchCacheKey: &dynamicSearchResult{
-				MinCrashSize:  64,
-				CrashExitCode: ExitCodeSIGABRT,
-			},
-		},
-	}
-	r := c.Check(ctx)
-	if v, ok := r.Detail["polarity_sensitive"].(bool); !ok || !v {
-		t.Errorf("Detail[polarity_sensitive] must be true; got %v", r.Detail["polarity_sensitive"])
-	}
-}
-
 // TestDynamicAllocLayoutChecker_NilContextIsNA — must not panic.
 func TestDynamicAllocLayoutChecker_NilContextIsNA(t *testing.T) {
 	c := &DynamicAllocLayoutChecker{}
@@ -223,11 +204,5 @@ func TestDynamicAllocLayoutChecker_DefaultsAreSane(t *testing.T) {
 	}
 	if c.Category() != CategoryDynamic {
 		t.Errorf("Category() = %q, want %q", c.Category(), CategoryDynamic)
-	}
-	if c.sourceURL() == "" {
-		t.Error("default sourceURL() must be non-empty")
-	}
-	if c.sensitivity() == "" {
-		t.Error("default sensitivity() must be non-empty")
 	}
 }

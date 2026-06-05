@@ -199,24 +199,6 @@ func TestProtectorSlotRelocationChecker_UnexpectedExitIsNA(t *testing.T) {
 	}
 }
 
-// TestProtectorSlotRelocationChecker_PolarityTagged.
-func TestProtectorSlotRelocationChecker_PolarityTagged(t *testing.T) {
-	c := &ProtectorSlotRelocationChecker{}
-	ctx := &CheckContext{
-		Seed: fixedSeed(),
-		Cache: map[string]any{
-			dynamicSearchCacheKey: &dynamicSearchResult{
-				MinCrashSize:  64,
-				CrashExitCode: ExitCodeSIGABRT,
-			},
-		},
-	}
-	r := c.Check(ctx)
-	if v, ok := r.Detail["polarity_sensitive"].(bool); !ok || !v {
-		t.Errorf("Detail[polarity_sensitive] must be true; got %v", r.Detail["polarity_sensitive"])
-	}
-}
-
 // TestProtectorSlotRelocationChecker_NilContextIsNA.
 func TestProtectorSlotRelocationChecker_NilContextIsNA(t *testing.T) {
 	c := &ProtectorSlotRelocationChecker{}
@@ -248,11 +230,5 @@ func TestProtectorSlotRelocationChecker_DefaultsAreSane(t *testing.T) {
 	}
 	if c.Category() != CategoryDynamic {
 		t.Errorf("Category() = %q, want %q", c.Category(), CategoryDynamic)
-	}
-	if c.sourceURL() == "" {
-		t.Error("default sourceURL() must be non-empty")
-	}
-	if c.sensitivity() == "" {
-		t.Error("default sensitivity() must be non-empty")
 	}
 }

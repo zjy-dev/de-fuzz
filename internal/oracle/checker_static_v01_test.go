@@ -182,17 +182,6 @@ func TestEpilogueGuardCompareChecker_FunctionFilter(t *testing.T) {
 	}
 }
 
-// TestEpilogueGuardCompareChecker_PolarityTag — V01 must self-tag
-// polarity_sensitive so the aggregator flips Fail→Pass on negative
-// controls.
-func TestEpilogueGuardCompareChecker_PolarityTag(t *testing.T) {
-	c := &EpilogueGuardCompareChecker{}
-	r := c.Check(armELFCtx(t, failShape(), []string{"__stack_chk_fail"}))
-	if got, _ := r.Detail["polarity_sensitive"].(bool); !got {
-		t.Errorf("Detail[polarity_sensitive] = %v, want true", r.Detail["polarity_sensitive"])
-	}
-}
-
 // TestEpilogueGuardCompareChecker_NilContextIsNA — defensive.
 func TestEpilogueGuardCompareChecker_NilContextIsNA(t *testing.T) {
 	c := &EpilogueGuardCompareChecker{}
@@ -210,11 +199,5 @@ func TestEpilogueGuardCompareChecker_DefaultsAreSane(t *testing.T) {
 	}
 	if c.Category() != CategoryStatic {
 		t.Errorf("Category() = %q, want %q", c.Category(), CategoryStatic)
-	}
-	if c.sourceURL() == "" {
-		t.Error("default sourceURL() must be non-empty")
-	}
-	if c.sensitivity() == "" {
-		t.Error("default sensitivity() must be non-empty")
 	}
 }

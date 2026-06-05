@@ -60,16 +60,12 @@ func hasEndbrAt(execs []ExecSection, addr uint64, pattern []byte) bool {
 }
 
 // initIBTResult populates the common fields shared by every checker in
-// this file (ID, category, source URL, polarity flag).
+// this file (ID, category).
 func initIBTResult(id string, category InvariantCategory) InvariantResult {
 	return InvariantResult{
-		ID:          id,
-		Category:    category,
-		SourceURL:   "https://gcc.gnu.org/onlinedocs/gcc/Instrumentation-Options.html",
-		Sensitivity: "likely-to-drift",
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       id,
+		Category: category,
+		Detail:   map[string]any{},
 	}
 }
 
@@ -127,7 +123,7 @@ func fetchPattern(ctx *CheckContext, r *InvariantResult) ([]byte, bool) {
 // hand-rolled function-pointer tables.
 type IndirectCallableEndbrChecker struct{}
 
-func (c *IndirectCallableEndbrChecker) ID() string                { return "INV-IBT-P01" }
+func (c *IndirectCallableEndbrChecker) ID() string                  { return "INV-IBT-P01" }
 func (c *IndirectCallableEndbrChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *IndirectCallableEndbrChecker) Check(ctx *CheckContext) InvariantResult {
@@ -321,7 +317,7 @@ func isPCRelocCallType(t uint32) bool {
 // following the CALL begins with ENDBR.
 type SetjmpReturnEndbrChecker struct{}
 
-func (c *SetjmpReturnEndbrChecker) ID() string                { return "INV-IBT-P02" }
+func (c *SetjmpReturnEndbrChecker) ID() string                  { return "INV-IBT-P02" }
 func (c *SetjmpReturnEndbrChecker) Category() InvariantCategory { return CategoryStatic }
 
 var setjmpFamily = map[string]struct{}{
@@ -414,7 +410,7 @@ func (c *SetjmpReturnEndbrChecker) Check(ctx *CheckContext) InvariantResult {
 // EHLandingPads() and asserts each begins with ENDBR.
 type EHLandingPadEndbrChecker struct{}
 
-func (c *EHLandingPadEndbrChecker) ID() string                { return "INV-IBT-P03" }
+func (c *EHLandingPadEndbrChecker) ID() string                  { return "INV-IBT-P03" }
 func (c *EHLandingPadEndbrChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *EHLandingPadEndbrChecker) Check(ctx *CheckContext) InvariantResult {
@@ -476,7 +472,7 @@ func (c *EHLandingPadEndbrChecker) Check(ctx *CheckContext) InvariantResult {
 // resolver addresses, and asserts each entry begins with ENDBR.
 type IFUNCResolverEndbrChecker struct{}
 
-func (c *IFUNCResolverEndbrChecker) ID() string                { return "INV-IBT-P04" }
+func (c *IFUNCResolverEndbrChecker) ID() string                  { return "INV-IBT-P04" }
 func (c *IFUNCResolverEndbrChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *IFUNCResolverEndbrChecker) Check(ctx *CheckContext) InvariantResult {
@@ -778,7 +774,7 @@ func (c *IndirectBranchTargetEndbrChecker) Check(ctx *CheckContext) InvariantRes
 // a function-pointer call rather than a switch dispatch.
 type NotrackPrefixGuardChecker struct{}
 
-func (c *NotrackPrefixGuardChecker) ID() string                { return "INV-IBT-N01" }
+func (c *NotrackPrefixGuardChecker) ID() string                  { return "INV-IBT-N01" }
 func (c *NotrackPrefixGuardChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *NotrackPrefixGuardChecker) Check(ctx *CheckContext) InvariantResult {
@@ -883,7 +879,7 @@ func targetLandsInRodata(br IndirectBranch, rodatas []DataSection) bool {
 // checker collapses to NotApplicable.
 type FineIBTHashCollisionChecker struct{}
 
-func (c *FineIBTHashCollisionChecker) ID() string                { return "INV-IBT-N02" }
+func (c *FineIBTHashCollisionChecker) ID() string                  { return "INV-IBT-N02" }
 func (c *FineIBTHashCollisionChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *FineIBTHashCollisionChecker) Check(ctx *CheckContext) InvariantResult {

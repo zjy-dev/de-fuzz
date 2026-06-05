@@ -191,9 +191,6 @@ func TestUnintendedEndbrChecker_Pass_EndbrOnlyAtEntry(t *testing.T) {
 	if r.Verdict != VerdictPass {
 		t.Fatalf("ENDBR only at entry: want Pass, got %s: %s", r.Verdict, r.Evidence)
 	}
-	if r.Detail["polarity_sensitive"] != true {
-		t.Error("Detail must include polarity_sensitive=true")
-	}
 	if r.Detail["endbr_at_function_entry"].(int) != 1 {
 		t.Errorf("expected 1 at-entry ENDBR, got %v", r.Detail["endbr_at_function_entry"])
 	}
@@ -233,9 +230,6 @@ func TestUnintendedEndbrChecker_Fail_UnintendedInBody(t *testing.T) {
 	}
 	if r.Detail["endbr_unintended_in_function_body"].(int) != 1 {
 		t.Errorf("expected 1 violation, got %v", r.Detail["endbr_unintended_in_function_body"])
-	}
-	if r.Detail["polarity_sensitive"] != true {
-		t.Error("polarity_sensitive must be true on Fail path")
 	}
 }
 

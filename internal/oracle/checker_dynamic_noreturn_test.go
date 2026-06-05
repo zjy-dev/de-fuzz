@@ -126,12 +126,6 @@ func TestStackChkFailNoreturnChecker_DefaultsAreSane(t *testing.T) {
 	if c.Category() != CategoryDynamic {
 		t.Errorf("Category() = %q, want %q", c.Category(), CategoryDynamic)
 	}
-	if c.sourceURL() == "" {
-		t.Error("default sourceURL() must be non-empty")
-	}
-	if c.sensitivity() == "" {
-		t.Error("default sensitivity() must be non-empty")
-	}
 }
 
 // TestStackChkFailNoreturnChecker_NilContextIsNA — must not panic.

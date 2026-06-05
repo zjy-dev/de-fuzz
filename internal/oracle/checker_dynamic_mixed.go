@@ -34,15 +34,8 @@ import (
 //   - L01 cache: SIGSEGV/SIGBUS + sentinel               → Fail
 //   - L01 cache: SIGSEGV/SIGBUS without sentinel         → NotApplicable
 //   - other crash exit                                   → NotApplicable
-//
-// Polarity. Under `-fno-stack-protector` the mixed seed will likely
-// also produce SIGSEGV+sentinel, but that is not a violation — there
-// is no canary plane to be subverted. We tag `polarity_sensitive:
-// true` so the aggregator inverts the verdict on the negative control.
 type MixedVulnerableObjectsChecker struct {
 	InvariantID string
-	SourceURL   string
-	Sensitivity string
 }
 
 // ID implements InvariantChecker.
@@ -61,13 +54,9 @@ func (c *MixedVulnerableObjectsChecker) Category() InvariantCategory {
 // Check implements InvariantChecker.
 func (c *MixedVulnerableObjectsChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   c.sourceURL(),
-		Sensitivity: c.sensitivity(),
-		Detail: map[string]any{
-			"polarity_sensitive": true,
-		},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 
 	if ctx == nil {
@@ -137,18 +126,4 @@ func (c *MixedVulnerableObjectsChecker) Check(ctx *CheckContext) InvariantResult
 			dyn.MinCrashSize, dyn.CrashExitCode)
 		return r
 	}
-}
-
-func (c *MixedVulnerableObjectsChecker) sourceURL() string {
-	if c.SourceURL != "" {
-		return c.SourceURL
-	}
-	return "https://gcc.gnu.org/git/?p=gcc.git;a=blob;f=gcc/cfgexpand.cc"
-}
-
-func (c *MixedVulnerableObjectsChecker) sensitivity() string {
-	if c.Sensitivity != "" {
-		return c.Sensitivity
-	}
-	return "stable"
 }

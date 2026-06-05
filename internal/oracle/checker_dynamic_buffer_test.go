@@ -59,9 +59,6 @@ func TestDynamicBufferSearchChecker_SIGSEGVWithSentinelFails(t *testing.T) {
 	if r.Verdict != VerdictFail {
 		t.Fatalf("expected Fail on SIGSEGV+sentinel, got %s", r.Verdict)
 	}
-	if r.Detail["polarity_sensitive"] != true {
-		t.Error("dynamic checker must mark itself polarity_sensitive")
-	}
 }
 
 // TestDynamicBufferSearchChecker_SIGSEGVWithoutSentinelNA: indirect crash
@@ -90,8 +87,8 @@ func TestDynamicBufferSearchChecker_SIGSEGVWithoutSentinelNA(t *testing.T) {
 func TestDynamicBufferSearchChecker_CacheReuse(t *testing.T) {
 	probes := 0
 	exec := &countingExecutor{
-		inner:    &MockExecutor{CrashThreshold: 100, CrashExitCode: ExitCodeSIGABRT},
-		probes:   &probes,
+		inner:  &MockExecutor{CrashThreshold: 100, CrashExitCode: ExitCodeSIGABRT},
+		probes: &probes,
 	}
 	c := &DynamicBufferSearchChecker{
 		MaxFillSize: 200, DefaultBufSize: 64, SentinelMarker: SentinelMarker,

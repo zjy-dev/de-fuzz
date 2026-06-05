@@ -72,7 +72,7 @@ func (m *MechanismOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []R
 	all = append(all, static...)
 	all = append(all, dynamic...)
 
-	// Aggregate: any Fail (post-polarity) → bug.
+	// Aggregate: any Fail → bug.
 	violations := filterByVerdict(all, VerdictFail)
 	if len(violations) == 0 {
 		return nil, nil
@@ -138,12 +138,6 @@ func (m *MechanismOracle) formatDescription(all, violations []InvariantResult) s
 		}
 		if len(r.Detail) > 0 {
 			fmt.Fprintf(&b, "      Detail: %s\n", formatDetail(r.Detail))
-		}
-		if r.SourceURL != "" {
-			fmt.Fprintf(&b, "      Source: %s\n", r.SourceURL)
-		}
-		if r.Sensitivity != "" {
-			fmt.Fprintf(&b, "      Sensitivity: %s\n", r.Sensitivity)
 		}
 	}
 

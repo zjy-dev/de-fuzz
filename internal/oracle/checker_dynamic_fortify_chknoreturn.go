@@ -40,11 +40,9 @@ func (c *FortifyChkNoreturnChecker) Category() InvariantCategory { return Catego
 
 func (c *FortifyChkNoreturnChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryDynamic,
-		SourceURL:   "https://codebrowser.dev/glibc/glibc/debug/chk_fail.c.html",
-		Sensitivity: "stable",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryDynamic,
+		Detail:   map[string]any{},
 	}
 	if ctx == nil || ctx.Executor == nil || ctx.BinaryPath == "" {
 		r.Verdict = VerdictNotApplicable

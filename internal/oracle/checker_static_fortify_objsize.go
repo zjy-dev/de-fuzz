@@ -19,16 +19,14 @@ import (
 // sentinel — exactly the GCC PR 101836 silent-bypass shape.
 type LastMemberObjectSizeChecker struct{}
 
-func (c *LastMemberObjectSizeChecker) ID() string                 { return "INV-FORT-O01" }
+func (c *LastMemberObjectSizeChecker) ID() string                  { return "INV-FORT-O01" }
 func (c *LastMemberObjectSizeChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *LastMemberObjectSizeChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=101836",
-		Sensitivity: "likely-to-drift",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 	sites, verdict, reason := loadFortifyCallSites(ctx, &r)
 	if verdict != verdictUndecided {
@@ -81,16 +79,14 @@ func (c *LastMemberObjectSizeChecker) Check(ctx *CheckContext) InvariantResult {
 // legitimately pass small dstlens.
 type CountedByObjectSizeChecker struct{}
 
-func (c *CountedByObjectSizeChecker) ID() string                 { return "INV-FORT-O02" }
+func (c *CountedByObjectSizeChecker) ID() string                  { return "INV-FORT-O02" }
 func (c *CountedByObjectSizeChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *CountedByObjectSizeChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://github.com/llvm/llvm-project/pull/110497",
-		Sensitivity: "target-specific",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 	sites, verdict, reason := loadFortifyCallSites(ctx, &r)
 	if verdict != verdictUndecided {
@@ -157,16 +153,14 @@ func (c *CountedByObjectSizeChecker) Check(ctx *CheckContext) InvariantResult {
 // fortify-source.md plan as `disasm_confidence` low.
 type StaleBDOSSizeChecker struct{}
 
-func (c *StaleBDOSSizeChecker) ID() string                 { return "INV-FORT-O03" }
+func (c *StaleBDOSSizeChecker) ID() string                  { return "INV-FORT-O03" }
 func (c *StaleBDOSSizeChecker) Category() InvariantCategory { return CategoryStatic }
 
 func (c *StaleBDOSSizeChecker) Check(ctx *CheckContext) InvariantResult {
 	r := InvariantResult{
-		ID:          c.ID(),
-		Category:    CategoryStatic,
-		SourceURL:   "https://gcc.gnu.org/bugzilla/show_bug.cgi?id=113514",
-		Sensitivity: "likely-to-drift",
-		Detail:      map[string]any{},
+		ID:       c.ID(),
+		Category: CategoryStatic,
+		Detail:   map[string]any{},
 	}
 	sites, verdict, reason := loadFortifyCallSites(ctx, &r)
 	if verdict != verdictUndecided {

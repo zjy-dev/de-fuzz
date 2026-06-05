@@ -125,15 +125,6 @@ func TestGuardSpillChecker_FunctionFilter(t *testing.T) {
 	}
 }
 
-// TestGuardSpillChecker_PolarityTag — required for the aggregator.
-func TestGuardSpillChecker_PolarityTag(t *testing.T) {
-	c := &GuardSpillChecker{}
-	r := c.Check(armELFCtx(t, spillShape(), []string{"__stack_chk_fail"}))
-	if got, _ := r.Detail["polarity_sensitive"].(bool); !got {
-		t.Errorf("Detail[polarity_sensitive] = %v, want true", r.Detail["polarity_sensitive"])
-	}
-}
-
 // TestGuardSpillChecker_NilContextIsNA.
 func TestGuardSpillChecker_NilContextIsNA(t *testing.T) {
 	c := &GuardSpillChecker{}
@@ -151,11 +142,5 @@ func TestGuardSpillChecker_DefaultsAreSane(t *testing.T) {
 	}
 	if c.Category() != CategoryStatic {
 		t.Errorf("Category() = %q, want %q", c.Category(), CategoryStatic)
-	}
-	if c.sourceURL() == "" {
-		t.Error("default sourceURL() must be non-empty")
-	}
-	if c.sensitivity() == "" {
-		t.Error("default sensitivity() must be non-empty")
 	}
 }
