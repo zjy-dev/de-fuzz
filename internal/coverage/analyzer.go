@@ -161,6 +161,60 @@ func NewAnalyzer(cfgPaths []string, targetFunctions []string, sourceDir string, 
 	return cfgAnalyzer, nil
 }
 
+// NewAnalyzerFromCFGFunctions creates an analyzer from pre-parsed CFGFunctions
+// (e.g. produced by the LLVM IR parser) instead of parsing CFG dump files.
+// It reuses the same indexing, predecessor-map building, target validation and
+// coverage-mapping logic as NewAnalyzer.
+func NewAnalyzerFromCFGFunctions(funcs map[string]*CFGFunction, targetFunctions []string, sourceDir string, mappingPath string, weightDecayFactor float64) (*Analyzer, error) {
+	if len(funcs) == 0 {
+		return nil, fmt.Errorf("at least one CFG function is required")
+	}
+
+	if weightDecayFactor <= 0 || weightDecayFactor > 1 {
+		weightDecayFactor = 0.8
+	}
+
+	cfgAnalyzer := &Analyzer{
+		functions:         make(map[string]*CFGFunction),
+		lineToBB:          make(map[LineID][]int),
+		bbToSuccCount:     make(map[string]int),
+		bbWeights:         make(map[string]*BBWeightInfo),
+		targetFunctions:   targetFunctions,
+		sourceDir:         sourceDir,
+		weightDecayFactor: weightDecayFactor,
+	}
+
+	// Index the provided functions (ensures SuccsMap is populated for predecessors).
+	for name, fn := range funcs {
+		if fn.SuccsMap == nil {
+			fn.SuccsMap = make(map[int][]int)
+		}
+		for bbID, bb := range fn.Blocks {
+			if _, ok := fn.SuccsMap[bbID]; !ok {
+				fn.SuccsMap[bbID] = bb.Successors
+			}
+		}
+		cfgAnalyzer.functions[name] = fn
+		cfgAnalyzer.indexFunction(fn)
+	}
+
+	cfgAnalyzer.buildPredecessorMaps()
+
+	for _, fn := range targetFunctions {
+		if _, ok := cfgAnalyzer.functions[fn]; !ok {
+			return nil, fmt.Errorf("target function %s not found in CFG functions", fn)
+		}
+	}
+
+	mapping, err := NewCoverageMapping(mappingPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create coverage mapping: %w", err)
+	}
+	cfgAnalyzer.mapping = mapping
+
+	return cfgAnalyzer, nil
+}
+
 // Regular expressions for parsing CFG
 var (
 	// Match function headers including C++ anonymous namespace names like {anonymous}::pass_expand::execute

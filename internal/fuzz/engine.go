@@ -797,9 +797,10 @@ func (e *Engine) extractCoveredLines(report coverage.Report) []string {
 		return make([]string, 0)
 	}
 
-	// Try to use filtered extraction if GCCCoverage is available
-	if gccCov, ok := e.cfg.Coverage.(*coverage.GCCCoverage); ok {
-		lines, err := gccCov.ExtractCoveredLinesFiltered(report)
+	// Try to use filtered extraction if the coverage backend supports it
+	// (both GCCCoverage and LLVMCoverage implement FilteredLineExtractor).
+	if filtered, ok := e.cfg.Coverage.(coverage.FilteredLineExtractor); ok {
+		lines, err := filtered.ExtractCoveredLinesFiltered(report)
 		if err != nil {
 			logger.Debug("Failed to extract filtered covered lines: %v", err)
 			return make([]string, 0)

@@ -75,3 +75,12 @@ type PreCompileCoverage interface {
 type PostCompileCoverage interface {
 	MeasureCompiled(s *seed.Seed) (Report, error)
 }
+
+// FilteredLineExtractor is an optional interface for coverage implementations that
+// can extract the set of covered "file:line" identifiers from a report, filtered
+// to the configured target files/functions. Both GCCCoverage and LLVMCoverage
+// implement it, so the engine can extract covered lines without depending on a
+// concrete coverage type.
+type FilteredLineExtractor interface {
+	ExtractCoveredLinesFiltered(report Report) ([]string, error)
+}
