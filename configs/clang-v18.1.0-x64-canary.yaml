@@ -1,0 +1,55 @@
+compiler:
+  # Coverage backend selection: "llvm" uses LLVM source-based coverage
+  # (llvm-profdata + llvm-cov) instead of gcov/gcovr.
+  coverage_backend: "llvm"
+
+  # Instrumented clang binary (built with -fprofile-instr-generate -fcoverage-mapping,
+  # scoped to the stack-protector source files via -fprofile-list).
+  # This is also the binary passed to `llvm-cov export`.
+  path: "/root/project/de-fuzz/target_compilers/llvm-x64/build/bin/clang"
+
+  source_parent_path: "/root/project/de-fuzz/target_compilers/llvm-x64/llvm-project"
+
+  # Directory where the instrumented clang writes .profraw files (cleaned each run).
+  llvm_profile_dir: "/root/project/de-fuzz/target_compilers/llvm-x64/build/profraw"
+
+  # LLVM coverage tool commands.
+  llvm_profdata_command: "llvm-profdata"
+  llvm_cov_command: "llvm-cov"
+  # Optional demangler used to match mangled C++ function names against targets.
+  llvm_demangler_command: "llvm-cxxfilt"
+
+  # Compiler flags passed to clang when compiling each seed.
+  cflags:
+    - "-fstack-protector-strong"
+    - "-O0"
+
+  fuzz:
+    output_root_dir: "fuzz_out"
+    max_iterations: 2
+    max_new_seeds: 1
+    max_test_cases: 0
+    timeout: 30
+    use_qemu: false
+    # LLVM IR (.ll) files used as the CFG source for target selection.
+    # Generate with: clang -S -emit-llvm -g -O0 <source>.cpp -o <out>.ll
+    llvm_ir_paths:
+      - "/root/project/de-fuzz/target_compilers/llvm-x64/build/StackProtector.ll"
+    max_constraint_retries: 2
+    weight_decay_factor: 0.8
+
+  oracle:
+    # Oracle/LLM subsystems are unaffected by the coverage backend.
+    type: "canary"
+    options:
+      max_buffer_size: 1024
+
+# Target source files and functions to track (Clang/LLVM stack protector core).
+targets:
+  - file: "llvm/lib/CodeGen/StackProtector.cpp"
+    functions:
+      - "StackProtector::runOnFunction"
+      - "StackProtector::InsertStackProtectors"
+      - "StackProtector::RequiresStackProtector"
+      - "StackProtector::ContainsProtectableArray"
+      - "StackProtector::HasAddressTaken"

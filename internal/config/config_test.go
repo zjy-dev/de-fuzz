@@ -612,3 +612,40 @@ config:
 	assert.Equal(t, 0, fuzzCfg.MaxNewSeeds)
 	assert.False(t, fuzzCfg.UseQEMU)
 }
+
+func TestValidateCoverageBackend(t *testing.T) {
+	llvmOK := func() *Config {
+		c := &Config{}
+		c.Compiler.CoverageBackend = "llvm"
+		c.Compiler.Path = "/bin/clang"
+		c.Compiler.LLVMCovCommand = "llvm-cov"
+		c.Compiler.Fuzz.LLVMIRPaths = []string{"/x/a.ll"}
+		return c
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr bool
+	}{
+		{"gcc backend ok", func(c *Config) { c.Compiler.CoverageBackend = "gcc" }, false},
+		{"llvm complete ok", func(c *Config) {}, false},
+		{"llvm missing path", func(c *Config) { c.Compiler.Path = "" }, true},
+		{"llvm missing cov cmd", func(c *Config) { c.Compiler.LLVMCovCommand = "" }, true},
+		{"llvm missing ir paths", func(c *Config) { c.Compiler.Fuzz.LLVMIRPaths = nil }, true},
+		{"unknown backend", func(c *Config) { c.Compiler.CoverageBackend = "msvc" }, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := llvmOK()
+			tt.mutate(c)
+			err := validateCoverageBackend(c)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

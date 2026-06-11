@@ -72,6 +72,11 @@ type FuzzConfig struct {
 	// If both cfg_file_path and cfg_file_paths are specified, they are combined
 	CFGFilePaths []string `mapstructure:"cfg_file_paths"`
 
+	// LLVMIRPaths is a list of LLVM IR (.ll) file paths used as the CFG source
+	// when CoverageBackend == "llvm". Functions from all .ll files are merged into
+	// a single analyzer. Semantically equivalent to CFGFilePaths for the GCC backend.
+	LLVMIRPaths []string `mapstructure:"llvm_ir_paths"`
+
 	// MappingPath is the path to store/load coverage mapping (optional)
 	// If empty, defaults to {output_dir}/state/coverage_mapping.json
 	MappingPath string `mapstructure:"mapping_path"`
@@ -125,6 +130,25 @@ type CompilerConfig struct {
 
 	// Path is the path to the compiler executable (e.g., /path/to/gcc)
 	Path string `mapstructure:"path"`
+
+	// CoverageBackend selects the coverage implementation: "gcc" (default) or "llvm".
+	// "gcc" uses gcov/gcovr; "llvm" uses LLVM source-based coverage (llvm-profdata + llvm-cov).
+	CoverageBackend string `mapstructure:"coverage_backend"`
+
+	// LLVMProfileDir is the directory where instrumented clang writes .profraw files.
+	// Required when CoverageBackend == "llvm".
+	LLVMProfileDir string `mapstructure:"llvm_profile_dir"`
+
+	// LLVMProfdataCommand is the llvm-profdata executable/command (e.g. "llvm-profdata").
+	LLVMProfdataCommand string `mapstructure:"llvm_profdata_command"`
+
+	// LLVMCovCommand is the llvm-cov executable/command (e.g. "llvm-cov").
+	// Required when CoverageBackend == "llvm".
+	LLVMCovCommand string `mapstructure:"llvm_cov_command"`
+
+	// LLVMDemanglerCommand is an optional demangler (e.g. "llvm-cxxfilt" or "c++filt").
+	// If empty, function matching falls back to mangled + simplified names.
+	LLVMDemanglerCommand string `mapstructure:"llvm_demangler_command"`
 
 	// GcovrExecPath is the path to gcovr executable for coverage analysis
 	GcovrExecPath string `mapstructure:"gcovr_exec_path"`
@@ -417,6 +441,29 @@ func Load(configFileName string, result interface{}) error {
 	return nil
 }
 
+// validateCoverageBackend checks that required fields are present for the
+// selected coverage backend. CoverageBackend must already be normalized.
+func validateCoverageBackend(cfg *Config) error {
+	switch cfg.Compiler.CoverageBackend {
+	case "gcc":
+		// No additional required fields beyond the existing GCC validation.
+		return nil
+	case "llvm":
+		if cfg.Compiler.Path == "" {
+			return fmt.Errorf("coverage_backend=llvm requires compiler.path (instrumented clang)")
+		}
+		if cfg.Compiler.LLVMCovCommand == "" {
+			return fmt.Errorf("coverage_backend=llvm requires compiler.llvm_cov_command")
+		}
+		if len(cfg.Compiler.Fuzz.LLVMIRPaths) == 0 {
+			return fmt.Errorf("coverage_backend=llvm requires at least one compiler.fuzz.llvm_ir_paths entry")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown coverage_backend %q: must be \"gcc\" or \"llvm\"", cfg.Compiler.CoverageBackend)
+	}
+}
+
 // LoadConfig loads the entire application configuration from all sources.
 func LoadConfig() (*Config, error) {
 	var cfg Config
@@ -538,6 +585,14 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.Compiler.Oracle.Options == nil {
 		cfg.Compiler.Oracle.Options = make(map[string]interface{})
+	}
+
+	// Coverage backend: default to "gcc" for backward compatibility.
+	if cfg.Compiler.CoverageBackend == "" {
+		cfg.Compiler.CoverageBackend = "gcc"
+	}
+	if err := validateCoverageBackend(&cfg); err != nil {
+		return nil, err
 	}
 
 	return &cfg, nil

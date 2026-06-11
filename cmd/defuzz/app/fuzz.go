@@ -183,52 +183,90 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 		DisableLLMCFlags: !allowLLMCFlags,
 	})
 
-	// 4. Create coverage tracker (coverage is generated during compilation by instrumented GCC)
+	// 4. Create coverage tracker (coverage is generated during compilation by the instrumented compiler)
 	cmdExecutor := exec.NewCommandExecutor()
 
-	// Create a compile function wrapper for coverage
-	compileFunc := func(s *seed.Seed) error {
-		result, err := gccCompiler.Compile(s)
-		if err != nil {
-			return err
-		}
-		if !result.Success {
-			return fmt.Errorf("compilation failed: %s", result.Stderr)
-		}
-		return nil
-	}
-
-	filterConfigPath, _ := config.GetCompilerConfigPath(cfg)
-
-	// Determine gcovr command: use config if set, otherwise use default
-	gcovrCommand := cfg.Compiler.GcovrCommand
-	if gcovrCommand == "" {
-		return fmt.Errorf("gcovr command not specified in config")
-	}
-
 	// Determine total report path: use config if set, otherwise use state directory
-	// This is critical for resume capability - the total.json stores accumulated coverage
+	// This is critical for resume capability - the total report stores accumulated coverage
 	totalReportPath := cfg.Compiler.TotalReportPath
 	if totalReportPath == "" {
 		totalReportPath = filepath.Join(stateDir, "total.json")
 	}
 	fmt.Printf("[Fuzz] Coverage report path: %s\n", totalReportPath)
 
-	// Check if we're resuming (total.json exists)
+	// Check if we're resuming (total report exists)
 	if _, err := os.Stat(totalReportPath); err == nil {
 		fmt.Println("[Fuzz] Found existing coverage data, resuming from checkpoint...")
 	} else {
 		fmt.Println("[Fuzz] Starting fresh fuzzing session...")
 	}
 
-	coverageTracker := coverage.NewGCCCoverage(
-		cmdExecutor,
-		compileFunc,
-		cfg.Compiler.GcovrExecPath,
-		gcovrCommand,
-		totalReportPath,
-		filterConfigPath,
-	)
+	filterConfigPath, _ := config.GetCompilerConfigPath(cfg)
+
+	var coverageTracker coverage.Coverage
+	if cfg.Compiler.CoverageBackend == "llvm" {
+		// LLVM backend: instrumented clang writes .profraw via LLVM_PROFILE_FILE,
+		// then llvm-profdata + llvm-cov produce the coverage report.
+		profileDir := cfg.Compiler.LLVMProfileDir
+		if profileDir == "" {
+			profileDir = filepath.Join(outputDir, "profraw")
+		}
+		if err := os.MkdirAll(profileDir, 0755); err != nil {
+			return fmt.Errorf("failed to create LLVM profile dir: %w", err)
+		}
+
+		llvmCompileFunc := func(s *seed.Seed) error {
+			// Each seed run writes its own .profraw keyed by PID.
+			os.Setenv("LLVM_PROFILE_FILE", filepath.Join(profileDir, "seed-%p.profraw"))
+			result, err := gccCompiler.Compile(s)
+			if err != nil {
+				return err
+			}
+			if !result.Success {
+				return fmt.Errorf("compilation failed: %s", result.Stderr)
+			}
+			return nil
+		}
+
+		coverageTracker = coverage.NewLLVMCoverage(coverage.LLVMCoverageConfig{
+			Executor:         cmdExecutor,
+			CompileFunc:      llvmCompileFunc,
+			CompilerBinary:   cfg.Compiler.Path,
+			ProfileDir:       profileDir,
+			ProfdataCommand:  cfg.Compiler.LLVMProfdataCommand,
+			CovCommand:       cfg.Compiler.LLVMCovCommand,
+			DemanglerCommand: cfg.Compiler.LLVMDemanglerCommand,
+			TotalReportPath:  totalReportPath,
+			SeedReportDir:    stateDir,
+			Targets:          toLLVMTargets(cfg.Compiler.Targets),
+		})
+	} else {
+		// GCC backend (default).
+		compileFunc := func(s *seed.Seed) error {
+			result, err := gccCompiler.Compile(s)
+			if err != nil {
+				return err
+			}
+			if !result.Success {
+				return fmt.Errorf("compilation failed: %s", result.Stderr)
+			}
+			return nil
+		}
+
+		gcovrCommand := cfg.Compiler.GcovrCommand
+		if gcovrCommand == "" {
+			return fmt.Errorf("gcovr command not specified in config")
+		}
+
+		coverageTracker = coverage.NewGCCCoverage(
+			cmdExecutor,
+			compileFunc,
+			cfg.Compiler.GcovrExecPath,
+			gcovrCommand,
+			totalReportPath,
+			filterConfigPath,
+		)
+	}
 
 	// 6. Create LLM client
 	llmClient, err := llm.New(cfg.RemixerConfigPath, cfg.DefaultTemperature)
@@ -319,64 +357,47 @@ func runFuzz(cfg *config.Config, outputDir string, logDir string, limit, timeout
 
 	// 10. Create analyzer if configured
 	var analyzer *coverage.Analyzer
-	// Merge cfg_file_path (single, backward compat) and cfg_file_paths (multi)
-	var cfgPaths []string
-	if cfg.Compiler.Fuzz.CFGFilePath != "" {
-		cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePath)
+
+	// Determine mapping path (shared by both backends).
+	mappingPath := cfg.Compiler.Fuzz.MappingPath
+	if mappingPath == "" {
+		mappingPath = filepath.Join(stateDir, "coverage_mapping.json")
 	}
-	cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePaths...)
 
-	if len(cfgPaths) > 0 && len(cfg.Compiler.Targets) > 0 {
+	if cfg.Compiler.CoverageBackend == "llvm" {
+		// LLVM backend: build the analyzer from parsed .ll files.
 		var targetFunctions []string
-		skippedTargets := 0
-		if len(cfgPaths) == 1 {
-			// With a single CFG dump, only track targets from the matching source file.
-			cfgSourceBase := inferCFGSourceBase(cfgPaths[0])
-			for _, target := range cfg.Compiler.Targets {
-				if cfgSourceBase != "" && filepath.Base(target.File) != cfgSourceBase {
-					skippedTargets += len(target.Functions)
-					continue
-				}
-				targetFunctions = append(targetFunctions, target.Functions...)
-			}
-			if len(targetFunctions) == 0 {
-				logger.Warn("No target functions matched CFG source %s; skipping analyzer", cfgSourceBase)
-			}
-			logger.Info("Creating analyzer with %d target functions (skipped %d outside %s)", len(targetFunctions), skippedTargets, cfgSourceBase)
-			logger.Debug("CFG file: %s", cfgPaths[0])
-		} else {
-			for _, target := range cfg.Compiler.Targets {
-				targetFunctions = append(targetFunctions, target.Functions...)
-			}
-			logger.Info("Creating analyzer with %d target functions from %d CFG files", len(targetFunctions), len(cfgPaths))
-			for _, p := range cfgPaths {
-				logger.Debug("CFG file: %s", p)
-			}
+		for _, target := range cfg.Compiler.Targets {
+			targetFunctions = append(targetFunctions, target.Functions...)
 		}
-
-		// Determine mapping path
-		mappingPath := cfg.Compiler.Fuzz.MappingPath
-		if mappingPath == "" {
-			mappingPath = filepath.Join(stateDir, "coverage_mapping.json")
-		}
-
-		logger.Debug("Target functions: %v", targetFunctions)
-
-		if len(targetFunctions) > 0 {
-			analyzer, err = coverage.NewAnalyzer(
-				cfgPaths,
+		if len(cfg.Compiler.Fuzz.LLVMIRPaths) > 0 && len(targetFunctions) > 0 {
+			logger.Info("Creating LLVM analyzer with %d target functions from %d IR files",
+				len(targetFunctions), len(cfg.Compiler.Fuzz.LLVMIRPaths))
+			funcs, perr := coverage.ParseLLVMIRFiles(
+				cfg.Compiler.Fuzz.LLVMIRPaths,
 				targetFunctions,
-				cfg.Compiler.SourceParentPath,
-				mappingPath,
-				cfg.Compiler.Fuzz.WeightDecayFactor,
+				cfg.Compiler.LLVMDemanglerCommand,
 			)
-			if err != nil {
-				logger.Warn("Failed to create analyzer: %v (continuing without target function tracking)", err)
-				analyzer = nil
+			if perr != nil {
+				logger.Warn("Failed to parse LLVM IR: %v (continuing without target function tracking)", perr)
 			} else {
-				logger.Info("Analyzer initialized, total target lines: %d", analyzer.GetTotalTargetLines())
+				analyzer, err = coverage.NewAnalyzerFromCFGFunctions(
+					funcs,
+					targetFunctions,
+					cfg.Compiler.SourceParentPath,
+					mappingPath,
+					cfg.Compiler.Fuzz.WeightDecayFactor,
+				)
+				if err != nil {
+					logger.Warn("Failed to create LLVM analyzer: %v (continuing without target function tracking)", err)
+					analyzer = nil
+				} else {
+					logger.Info("LLVM analyzer initialized, total target lines: %d", analyzer.GetTotalTargetLines())
+				}
 			}
 		}
+	} else {
+		analyzer = buildGCCAnalyzer(cfg, mappingPath)
 	}
 
 	// 12. Create and run fuzzing engine
@@ -425,4 +446,75 @@ func inferCFGSourceBase(cfgPath string) string {
 		base = base[:idx]
 	}
 	return base
+}
+
+// toLLVMTargets converts config target functions to coverage.LLVMTarget values.
+func toLLVMTargets(targets []config.TargetFunction) []coverage.LLVMTarget {
+	out := make([]coverage.LLVMTarget, 0, len(targets))
+	for _, t := range targets {
+		out = append(out, coverage.LLVMTarget{File: t.File, Functions: t.Functions})
+	}
+	return out
+}
+
+// buildGCCAnalyzer builds the CFG analyzer for the GCC backend from the
+// configured .015t.cfg dump file(s). Returns nil if no analyzer can be built.
+func buildGCCAnalyzer(cfg *config.Config, mappingPath string) *coverage.Analyzer {
+	// Merge cfg_file_path (single, backward compat) and cfg_file_paths (multi)
+	var cfgPaths []string
+	if cfg.Compiler.Fuzz.CFGFilePath != "" {
+		cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePath)
+	}
+	cfgPaths = append(cfgPaths, cfg.Compiler.Fuzz.CFGFilePaths...)
+
+	if len(cfgPaths) == 0 || len(cfg.Compiler.Targets) == 0 {
+		return nil
+	}
+
+	var targetFunctions []string
+	skippedTargets := 0
+	if len(cfgPaths) == 1 {
+		// With a single CFG dump, only track targets from the matching source file.
+		cfgSourceBase := inferCFGSourceBase(cfgPaths[0])
+		for _, target := range cfg.Compiler.Targets {
+			if cfgSourceBase != "" && filepath.Base(target.File) != cfgSourceBase {
+				skippedTargets += len(target.Functions)
+				continue
+			}
+			targetFunctions = append(targetFunctions, target.Functions...)
+		}
+		if len(targetFunctions) == 0 {
+			logger.Warn("No target functions matched CFG source %s; skipping analyzer", cfgSourceBase)
+		}
+		logger.Info("Creating analyzer with %d target functions (skipped %d outside %s)", len(targetFunctions), skippedTargets, cfgSourceBase)
+		logger.Debug("CFG file: %s", cfgPaths[0])
+	} else {
+		for _, target := range cfg.Compiler.Targets {
+			targetFunctions = append(targetFunctions, target.Functions...)
+		}
+		logger.Info("Creating analyzer with %d target functions from %d CFG files", len(targetFunctions), len(cfgPaths))
+		for _, p := range cfgPaths {
+			logger.Debug("CFG file: %s", p)
+		}
+	}
+
+	if len(targetFunctions) == 0 {
+		return nil
+	}
+
+	logger.Debug("Target functions: %v", targetFunctions)
+
+	analyzer, err := coverage.NewAnalyzer(
+		cfgPaths,
+		targetFunctions,
+		cfg.Compiler.SourceParentPath,
+		mappingPath,
+		cfg.Compiler.Fuzz.WeightDecayFactor,
+	)
+	if err != nil {
+		logger.Warn("Failed to create analyzer: %v (continuing without target function tracking)", err)
+		return nil
+	}
+	logger.Info("Analyzer initialized, total target lines: %d", analyzer.GetTotalTargetLines())
+	return analyzer
 }
