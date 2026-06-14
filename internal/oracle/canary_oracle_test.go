@@ -240,7 +240,7 @@ func TestCanaryOracle_MissingContext(t *testing.T) {
 
 func TestCanaryOracle_Registration(t *testing.T) {
 	// Test that canary oracle is registered
-	orc, err := New("canary", nil, nil, nil, "")
+	orc, err := New("canary", nil)
 	if err != nil {
 		t.Fatalf("Failed to create canary oracle: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestCanaryOracle_CustomMaxBufferSize(t *testing.T) {
 		"max_buffer_size": 8192,
 	}
 
-	orc, err := NewCanaryOracle(options, nil, nil, "")
+	orc, err := NewCanaryOracle(options)
 	if err != nil {
 		t.Fatalf("Failed to create canary oracle: %v", err)
 	}

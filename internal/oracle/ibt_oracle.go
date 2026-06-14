@@ -3,8 +3,6 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/zjy-dev/de-fuzz/internal/llm"
-	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -26,7 +24,7 @@ type IBTOracle struct{}
 
 // NewIBTOracle constructs a new IBT oracle from a YAML options map.
 // No options are currently required.
-func NewIBTOracle(options map[string]interface{}, _ llm.LLM, _ *prompt.Builder, _ string) (Oracle, error) {
+func NewIBTOracle(options map[string]interface{}) (Oracle, error) {
 	return &IBTOracle{}, nil
 }
 
@@ -38,6 +36,12 @@ func (o *IBTOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Result)
 		return nil, fmt.Errorf("ibt oracle requires AnalyzeContext with BinaryPath")
 	}
 	return o.mechanism().Analyze(s, ctx, results)
+}
+
+// Evaluate implements MechanismEvaluator, returning raw per-checker results for
+// the gRPC OracleService adapter.
+func (o *IBTOracle) Evaluate(s *seed.Seed, ctx *AnalyzeContext, allowed map[string]bool) ([]InvariantResult, error) {
+	return o.mechanism().Evaluate(s, ctx, allowed)
 }
 
 // mechanism builds the MechanismOracle that backs Analyze.

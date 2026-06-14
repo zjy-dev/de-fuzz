@@ -3,8 +3,6 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/zjy-dev/de-fuzz/internal/llm"
-	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -13,7 +11,7 @@ func init() {
 }
 
 // NewCrashOracle creates a new crash-detection oracle.
-func NewCrashOracle(options map[string]interface{}, l llm.LLM, prompter *prompt.Builder, context string) (Oracle, error) {
+func NewCrashOracle(options map[string]interface{}) (Oracle, error) {
 	return &CrashOracle{}, nil
 }
 

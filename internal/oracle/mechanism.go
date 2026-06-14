@@ -48,29 +48,10 @@ type MechanismOracle struct {
 // generic over mechanism — the only mechanism-specific knowledge is in
 // `Name` (for messaging) and the `Checkers` list (for logic).
 func (m *MechanismOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Result) (*Bug, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("%s mechanism oracle requires AnalyzeContext", m.Name)
+	all, err := m.Evaluate(s, ctx, nil)
+	if err != nil {
+		return nil, err
 	}
-
-	cctx := &CheckContext{
-		Seed:       s,
-		BinaryPath: ctx.BinaryPath,
-		Executor:   ctx.Executor,
-		Cache:      make(map[string]any),
-	}
-	if ctx.BinaryPath != "" {
-		cctx.Inspector = NewBinaryInspector(ctx.BinaryPath)
-	}
-
-	// Phase 1: Static.
-	static := m.runPhase(cctx, CategoryStatic)
-
-	// Phase 2: Dynamic.
-	dynamic := m.runPhase(cctx, CategoryDynamic)
-
-	all := make([]InvariantResult, 0, len(static)+len(dynamic))
-	all = append(all, static...)
-	all = append(all, dynamic...)
 
 	// Aggregate: any Fail → bug.
 	violations := filterByVerdict(all, VerdictFail)
@@ -85,12 +66,51 @@ func (m *MechanismOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []R
 	}, nil
 }
 
+// Evaluate runs every checker (Static→Dynamic) and returns the raw per-checker
+// `InvariantResult`s without folding them into a single `*Bug`. This is the
+// shared core of `Analyze` and the gRPC `OracleService.Analyze` adapter, which
+// needs the individual four-state verdicts on the wire (FR-019/020/021).
+//
+// `allowed` optionally restricts execution to a set of checker IDs (used by the
+// router to run only the checkers selected for a given ISA, FR-013/018). A nil
+// or empty `allowed` runs every checker. Cheap checkers are still gated by the
+// caller's set; the always-on policy lives in the Python router, not here.
+func (m *MechanismOracle) Evaluate(s *seed.Seed, ctx *AnalyzeContext, allowed map[string]bool) ([]InvariantResult, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("%s mechanism oracle requires AnalyzeContext", m.Name)
+	}
+
+	cctx := &CheckContext{
+		Seed:       s,
+		BinaryPath: ctx.BinaryPath,
+		Executor:   ctx.Executor,
+		Cache:      make(map[string]any),
+	}
+	if ctx.BinaryPath != "" {
+		cctx.Inspector = NewBinaryInspector(ctx.BinaryPath)
+	}
+
+	// Phase 1: Static. Phase 2: Dynamic. Order preserves the shared dynamic
+	// cache that cheap dynamic checkers read from the expensive search.
+	static := m.runPhase(cctx, CategoryStatic, allowed)
+	dynamic := m.runPhase(cctx, CategoryDynamic, allowed)
+
+	all := make([]InvariantResult, 0, len(static)+len(dynamic))
+	all = append(all, static...)
+	all = append(all, dynamic...)
+	return all, nil
+}
+
 // runPhase executes every checker whose Category matches `category`, in
-// declaration order.
-func (m *MechanismOracle) runPhase(ctx *CheckContext, category InvariantCategory) []InvariantResult {
+// declaration order. When `allowed` is non-empty, checkers whose ID is absent
+// from it are skipped.
+func (m *MechanismOracle) runPhase(ctx *CheckContext, category InvariantCategory, allowed map[string]bool) []InvariantResult {
 	var out []InvariantResult
 	for _, c := range m.Checkers {
 		if c.Category() != category {
+			continue
+		}
+		if len(allowed) > 0 && !allowed[c.ID()] {
 			continue
 		}
 		r := c.Check(ctx)

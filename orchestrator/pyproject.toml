@@ -1,0 +1,58 @@
+[project]
+name = "defuzz-loop"
+version = "0.1.0"
+description = "Agentic loop orchestrator for de-fuzz: explicit LangGraph pipeline + three agents over a blackboard."
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "langgraph-checkpoint-sqlite>=2.0.0",
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "mcp>=1.0.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# LLM providers — pick what the configured provider needs.
+openai = ["langchain-openai>=0.2.0"]
+anthropic = ["langchain-anthropic>=0.2.0"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5.0",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+defuzz-loop = "defuzz_loop.graph:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# Generated protobuf stubs are not linted.
+exclude = ["defuzz_loop/clients/pb/**"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ['defuzz_loop/clients/pb/.*']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["defuzz_loop"]

@@ -299,7 +299,7 @@ func TestFortifyVfprintfFlagChecker_NarrowEntries(t *testing.T) {
 func TestNewFortifyOracle_PrintfEntries(t *testing.T) {
 	o, err := NewFortifyOracle(map[string]interface{}{
 		"printf_entries": []interface{}{"printf", "snprintf"},
-	}, nil, nil, "")
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -311,7 +311,7 @@ func TestNewFortifyOracle_PrintfEntries(t *testing.T) {
 
 // TestFortifyOracle_AnalyzeRequiresBinaryPath: missing BinaryPath errors out.
 func TestFortifyOracle_AnalyzeRequiresBinaryPath(t *testing.T) {
-	o, _ := NewFortifyOracle(nil, nil, nil, "")
+	o, _ := NewFortifyOracle(nil)
 	_, err := o.Analyze(nil, &AnalyzeContext{}, nil)
 	if err == nil {
 		t.Fatal("expected error when BinaryPath is empty")
@@ -320,7 +320,7 @@ func TestFortifyOracle_AnalyzeRequiresBinaryPath(t *testing.T) {
 
 // TestFortifyOracle_RegisteredInRegistry: oracle.Register("fortify") wired.
 func TestFortifyOracle_RegisteredInRegistry(t *testing.T) {
-	o, err := New("fortify", nil, nil, nil, "")
+	o, err := New("fortify", nil)
 	if err != nil {
 		t.Fatalf("expected fortify factory in registry, got error: %v", err)
 	}

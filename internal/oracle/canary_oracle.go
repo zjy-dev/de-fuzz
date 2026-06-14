@@ -3,8 +3,6 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/zjy-dev/de-fuzz/internal/llm"
-	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -47,7 +45,7 @@ type CanaryOracle struct {
 //
 //	max_buffer_size:  int  (default DefaultMaxBufferSize)
 //	default_buf_size: int  (default 64)
-func NewCanaryOracle(options map[string]interface{}, l llm.LLM, prompter *prompt.Builder, context string) (Oracle, error) {
+func NewCanaryOracle(options map[string]interface{}) (Oracle, error) {
 	maxSize := DefaultMaxBufferSize
 	bufSize := 64
 
@@ -93,6 +91,12 @@ func (o *CanaryOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Resu
 		return nil, fmt.Errorf("canary oracle requires AnalyzeContext with Executor and BinaryPath")
 	}
 	return o.mechanism().Analyze(s, ctx, results)
+}
+
+// Evaluate implements MechanismEvaluator, returning raw per-checker results for
+// the gRPC OracleService adapter.
+func (o *CanaryOracle) Evaluate(s *seed.Seed, ctx *AnalyzeContext, allowed map[string]bool) ([]InvariantResult, error) {
+	return o.mechanism().Evaluate(s, ctx, allowed)
 }
 
 // mechanism builds the MechanismOracle that backs Analyze. Exposed as a

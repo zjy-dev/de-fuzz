@@ -8,7 +8,15 @@
 # Binary name and paths
 BINARY_NAME := defuzz
 CMD_PATH := ./cmd/defuzz
+CORE_BINARY_NAME := defuzz-core
+CORE_CMD_PATH := ./cmd/defuzz-core
 BUILD_DIR := .
+
+# Proto
+PROTO_DIR := ./specs/002-agentic-loop-redesign/contracts
+PROTO_FILE := oracle.proto
+GO_PB_OUT := ./internal/service/pb
+PY_PB_OUT := ./orchestrator/defuzz_loop/clients/pb
 
 # Go commands
 GO := go
@@ -52,6 +60,27 @@ install: ## Install binary to $GOPATH/bin
 	@echo "📦 Installing $(BINARY_NAME)..."
 	$(GO) install $(LDFLAGS) $(CMD_PATH)
 	@echo "✅ Installed to $(shell go env GOPATH)/bin/$(BINARY_NAME)"
+
+.PHONY: build-core
+build-core: ## Build the deterministic gRPC+MCP Go core (cmd/defuzz-core)
+	@echo "🔨 Building $(CORE_BINARY_NAME)..."
+	$(GOBUILD) -o $(BUILD_DIR)/$(CORE_BINARY_NAME) $(CORE_CMD_PATH)
+	@echo "✅ Built: $(BUILD_DIR)/$(CORE_BINARY_NAME)"
+
+.PHONY: proto
+proto: ## Generate Go + Python gRPC stubs from oracle.proto (uses uv-managed grpc_tools.protoc)
+	@echo "🧬 Generating protobuf stubs..."
+	@mkdir -p $(GO_PB_OUT) $(PY_PB_OUT)
+	cd orchestrator && PATH="$$PATH:$(shell go env GOPATH)/bin" uv run python -m grpc_tools.protoc \
+		-I ../$(PROTO_DIR) \
+		--go_out=../$(GO_PB_OUT) --go_opt=paths=source_relative \
+		--go-grpc_out=../$(GO_PB_OUT) --go-grpc_opt=paths=source_relative \
+		--python_out=defuzz_loop/clients/pb \
+		--grpc_python_out=defuzz_loop/clients/pb \
+		--pyi_out=defuzz_loop/clients/pb \
+		$(PROTO_FILE)
+	@echo "⚠️  Then fix the Python grpc import to package-relative ('from . import oracle_pb2')."
+	@echo "✅ Stubs generated"
 
 # ==============================================================================
 # Development

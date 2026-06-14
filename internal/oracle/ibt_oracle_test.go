@@ -9,7 +9,7 @@ import (
 // ---- NewIBTOracle ----
 
 func TestNewIBTOracle_NoOptions(t *testing.T) {
-	o, err := NewIBTOracle(nil, nil, nil, "")
+	o, err := NewIBTOracle(nil)
 	if err != nil {
 		t.Fatalf("NewIBTOracle(nil): %v", err)
 	}
@@ -39,7 +39,7 @@ func TestIBTOracle_Analyze_EmptyBinaryPath(t *testing.T) {
 // ---- registry ----
 
 func TestIBTOracle_RegisteredAsIBT(t *testing.T) {
-	o, err := New("ibt", nil, nil, nil, "")
+	o, err := New("ibt", nil)
 	if err != nil {
 		t.Fatalf("oracle 'ibt' not found in registry: %v", err)
 	}

@@ -1,0 +1,39 @@
+# ISA → toolchain mapping for the deterministic BuildService (T008).
+#
+# The build node never hard-codes cross-compiler paths: it looks each ISA up
+# here. An ISA absent from this file yields an error build cell (R8) rather than
+# a crash, so the loop degrades gracefully on hosts missing a cross toolchain.
+#
+# Per ISA:
+#   gcc_path     : (cross-)gcc executable
+#   prefix       : -B prefix for compiler components (cc1, as, ld); optional
+#   sysroot      : --sysroot for cross builds; optional (native omits it)
+#   cflags       : mechanism/ISA flags injected into every compile
+#   qemu_path    : user-mode emulator for dynamic checkers; omit for native
+#   qemu_sysroot : -L sysroot for QEMU
+#   native       : true for the host ISA (run binaries directly, no QEMU)
+#
+# Paths below are placeholders — point them at your installed toolchains.
+toolchains:
+  x86_64:
+    gcc_path: gcc
+    cflags:
+      - -fstack-protector-strong
+      - -O0
+    native: true
+
+  aarch64:
+    gcc_path: aarch64-linux-gnu-gcc
+    cflags:
+      - -fstack-protector-strong
+      - -O0
+    qemu_path: qemu-aarch64
+    qemu_sysroot: /usr/aarch64-linux-gnu
+
+  riscv64:
+    gcc_path: riscv64-linux-gnu-gcc
+    cflags:
+      - -fstack-protector-strong
+      - -O0
+    qemu_path: qemu-riscv64
+    qemu_sysroot: /usr/riscv64-linux-gnu

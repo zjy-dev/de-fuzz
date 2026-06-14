@@ -44,6 +44,15 @@ type Oracle interface {
 	Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Result) (*Bug, error)
 }
 
+// MechanismEvaluator is implemented by mechanism oracles that can return the
+// raw per-checker `InvariantResult`s instead of a folded `*Bug`. The gRPC
+// `OracleService.Analyze` adapter needs the individual four-state verdicts on
+// the wire (FR-019/020/021), so it type-asserts a constructed Oracle to this
+// interface. `allowed` optionally restricts execution to a set of checker IDs.
+type MechanismEvaluator interface {
+	Evaluate(s *seed.Seed, ctx *AnalyzeContext, allowed map[string]bool) ([]InvariantResult, error)
+}
+
 // IsCrashExit determines if an exit code indicates a crash.
 // Common crash signals: SIGSEGV (11), SIGBUS (7), SIGABRT (6), SIGFPE (8), SIGILL (4)
 // On Unix, signal exits are typically 128 + signal number.

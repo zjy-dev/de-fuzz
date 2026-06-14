@@ -3,8 +3,6 @@ package oracle
 import (
 	"fmt"
 
-	"github.com/zjy-dev/de-fuzz/internal/llm"
-	"github.com/zjy-dev/de-fuzz/internal/prompt"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
 )
 
@@ -38,7 +36,7 @@ type FortifyOracle struct {
 // Schema:
 //
 //	printf_entries: []string  (optional; default = printfEntries)
-func NewFortifyOracle(options map[string]interface{}, _ llm.LLM, _ *prompt.Builder, _ string) (Oracle, error) {
+func NewFortifyOracle(options map[string]interface{}) (Oracle, error) {
 	o := &FortifyOracle{}
 	if options == nil {
 		return o, nil
@@ -68,6 +66,12 @@ func (o *FortifyOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Res
 		return nil, fmt.Errorf("fortify oracle requires AnalyzeContext with BinaryPath")
 	}
 	return o.mechanism().Analyze(s, ctx, results)
+}
+
+// Evaluate implements MechanismEvaluator, returning raw per-checker results for
+// the gRPC OracleService adapter.
+func (o *FortifyOracle) Evaluate(s *seed.Seed, ctx *AnalyzeContext, allowed map[string]bool) ([]InvariantResult, error) {
+	return o.mechanism().Evaluate(s, ctx, allowed)
 }
 
 // mechanism builds the MechanismOracle that backs Analyze. Exposed so

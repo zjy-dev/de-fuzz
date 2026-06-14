@@ -61,7 +61,7 @@ int main() {
 	// Create canary oracle
 	oracle, err := New("canary", map[string]interface{}{
 		"max_buffer_size": 200,
-	}, nil, nil, "")
+	})
 	require.NoError(t, err)
 
 	// Create test seed
@@ -143,7 +143,7 @@ int main() {
 	// Create canary oracle
 	oracle, err := New("canary", map[string]interface{}{
 		"max_buffer_size": 300,
-	}, nil, nil, "")
+	})
 	require.NoError(t, err)
 
 	// Create test seed
@@ -221,7 +221,7 @@ int main() {
 	// Create canary oracle
 	oracle, err := New("canary", map[string]interface{}{
 		"max_buffer_size": 200,
-	}, nil, nil, "")
+	})
 	require.NoError(t, err)
 
 	// Create test seed
