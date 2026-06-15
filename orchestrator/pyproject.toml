@@ -48,6 +48,7 @@ exclude = ['defuzz_loop/clients/pb/.*']
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 
 [build-system]

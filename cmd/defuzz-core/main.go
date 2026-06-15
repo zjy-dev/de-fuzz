@@ -20,6 +20,8 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	_ "github.com/zjy-dev/de-fuzz/internal/oracle" // register oracle plugins
 	"github.com/zjy-dev/de-fuzz/internal/service"
 	pb "github.com/zjy-dev/de-fuzz/internal/service/pb"
@@ -30,6 +32,7 @@ func main() {
 	mcpAddr := flag.String("mcp-addr", "127.0.0.1:50052", "address for the agent-facing MCP server")
 	mechanism := flag.String("mechanism", "canary", "the single defense mechanism this run targets (canary|ibt|fortify)")
 	toolchainsPath := flag.String("toolchains", "configs/toolchains.yaml", "path to the ISA→toolchain config")
+	sourceRoot := flag.String("source-root", "", "defense implementation source tree for the MCP search_source tool")
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -47,8 +50,13 @@ func main() {
 	pb.RegisterOracleServiceServer(grpcServer, service.NewOracleServer(*mechanism, nil, toolchains))
 	pb.RegisterCoverageServiceServer(grpcServer, service.NewCoverageServer(nil))
 
-	mcpServer := &http.Server{Addr: *mcpAddr}
-	// MCP tools (search_source/query_invariants/...) registered in T016+.
+	mcpHandler := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return service.NewMCPServer(*sourceRoot, *mechanism, toolchains) },
+		nil,
+	)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", mcpHandler)
+	mcpServer := &http.Server{Addr: *mcpAddr, Handler: mux}
 
 	grpcLn, err := net.Listen("tcp", *grpcAddr)
 	if err != nil {

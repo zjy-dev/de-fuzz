@@ -13,6 +13,8 @@ related_docs:
 
 # System Overview
 
+> **⚠️ 主循环已改造（2026-06）**：覆盖率驱动的 fuzz 主循环（`internal/fuzz` / `internal/prompt` / `internal/state` / Go 侧 `internal/llm`）在本分支已被 **agentic loop** 取代——Python (LangGraph) 显式编排确定性流水线 + 三个 agent，Go core 退为双适配器（gRPC 确定性节点 + MCP 只读 tools），LLM 全经 Python provider。落地见 [agentic-loop-redesign.md](./agentic-loop-redesign.md) 与 `specs/002-agentic-loop-redesign/`。下文描述的覆盖率驱动主循环为历史 baseline（保留在其他分支）。
+
 DeFuzz 是一个 Go 语言写的、面向编译器自身防御实现的 LLM-driven 约束求解 fuzzer。它把"测程序"换成"测编译器"——被插桩的 `xgcc` 在编译每颗 LLM 生成的 C seed 时把覆盖率写进自己的 `.gcda`，fuzzer 再据此选下一个未覆盖的目标 BB、用 LLM 求解"什么样的 seed 能让编译器走到这个 BB"。
 
 ## 1. 一句话定位

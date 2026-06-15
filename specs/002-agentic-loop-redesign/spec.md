@@ -184,6 +184,6 @@ oracle 判定违反时，编排器调用最小化 agent，它读流水线记在�
 - 现有 `internal/oracle` 的四态 verdict 框架、`internal/coverage`、`internal/compiler` 等确定性组件可被复用，本方案在其上加声明式元数据与编排层，不重写其裁决逻辑。
 - 不变量调研档案（`docs/tech-docs/invariants/`）已按 ISA 锚定，可作为 checker `applicable_isas` 元数据的声明式来源，无需运行时推算。
 - 跨 ISA 执行依赖现有 QEMU user-mode 路径（`internal/seed_executor`），ISA 可用性以环境为准。
-- LLM provider 经现有 `internal/llm` 接入；"可复现"指锁定共享状态输入版本，LLM 输出本身的非确定性不在本方案保证范围内（属可复现边界的设计点）。
+- LLM provider 经 Python 侧 provider 模块（langchain/langgraph，`orchestrator/defuzz_loop/llm/provider.py`）接入；Go 侧 `internal/llm` 已删除，LLM 全走 Python。"可复现"指锁定共享状态输入版本，LLM 输出本身的非确定性不在本方案保证范围内（属可复现边界的设计点）。
 - 本 spec 聚焦结构与职责；三个 agent 的 tool 接口/prompt 结构、共享状态 schema/版本化/读写契约、checker 元数据字段定义与注册方式、Generator 选 checker 的输出 schema、subagent 协议、broad-sweep 兜底抽样触发策略，以及与现有 `internal/fuzz`/`internal/oracle`/`internal/coverage` 的具体改造点与迁移路径，留待后续 plan / ADR / spec 展开。
 - 覆盖率仍是有用的推进信号，但不再独自驱动主循环，而是作为喂给 Generator 的反馈信号之一。

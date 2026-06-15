@@ -25,7 +25,6 @@ from pydantic import BaseModel, Field
 
 class SeedOrigin(StrEnum):
     GENERATOR = "generator"
-    INITIAL = "initial"
     MINIMIZED = "minimized"
 
 

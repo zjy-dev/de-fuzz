@@ -1,20 +1,22 @@
 ---
-title: "Agentic Loop Redesign (Proposal)"
+title: "Agentic Loop Redesign"
 description: 用 agentic loop 替代 fuzz loop 的高层方案——显式编排的确定性流水线，外加三个各带 tools 的 agent，checker 绑定 ISA 做种子路由
 priority: HIGH
-last_updated: 2026-06-14
-status: Proposed
+last_updated: 2026-06-15
+status: Implemented
 related_docs:
   - ./overview.md
   - ./oracle-mechanism-framework.md
   - ./fuzz-engine-loop.md
   - ./decisions/003-oracle-multi-invariant-redesign.md
   - ../invariants/README.md
+  - ../../../specs/002-agentic-loop-redesign/spec.md
+  - ../../../specs/002-agentic-loop-redesign/plan.md
 ---
 
-# Agentic Loop Redesign (Proposal)
+# Agentic Loop Redesign
 
-> **本文性质**：高层方案，只讲结构和职责，不涉及接口签名、字段定义这些技术细节。细节待方案定下来再另起 ADR / spec。
+> **本文性质**：高层方案，讲结构和职责。落地实现见 `specs/002-agentic-loop-redesign/`（spec/plan/tasks）：Python (LangGraph) 编排 + Go core 双适配器（gRPC 确定性节点 + MCP agent tools），LLM 全经 Python provider。
 
 ## 1. 动机
 

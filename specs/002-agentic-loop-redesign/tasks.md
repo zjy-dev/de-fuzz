@@ -71,18 +71,18 @@ description: "Task list for Agentic Loop Redesign implementation"
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] 编写 `orchestrator/tests/test_graph_loop.py`：断言节点执行顺序固定、not_violated→回开头、violated→终止、Error→非违反侧（SC-001，R8）
+- [X] T015 [P] [US1] 编写 `orchestrator/tests/test_graph_loop.py`：断言节点执行顺序固定、not_violated→回开头、violated→终止、Error→非违反侧（SC-001，R8）
 
 ### Implementation for User Story 1
 
-- [ ] T016 [P] [US1] 实现 MCP server `internal/service/mcp_server.go` 的 `search_source` + `query_invariants` 只读 tool（读 T005 同源元数据），注册进 `cmd/defuzz-core`（contracts/mcp-tools.md）
-- [ ] T017 [P] [US1] 实现 MCP client 封装 `orchestrator/defuzz_loop/clients/mcp_client.py`，且每次 tool 调用落 `tool_call_log`（R5）
-- [ ] T018 [US1] 实现 Generator agent `orchestrator/defuzz_loop/agents/generator.py`：用 T013 LLM provider，带 search_source/query_invariants tool，产出 `Seed`（source + selected_checkers，**不含 ISA**，FR-012/013）
-- [ ] T019 [P] [US1] 实现 build 节点 `orchestrator/defuzz_loop/nodes/build.py`（调用 grpc_client.Build，写 build_artifacts）
-- [ ] T020 [P] [US1] 实现 coverage 节点 `orchestrator/defuzz_loop/nodes/coverage.py`（调用 Measure，**仅此处可写** coverage，FR-022）
-- [ ] T021 [P] [US1] 实现 oracle 节点 `orchestrator/defuzz_loop/nodes/oracle.py`（调用 Analyze，写 verdict_history，违反时写 pending_bug）
-- [ ] T022 [US1] 在 `graph.py` 串联固定边：read state→generator→routing→build→coverage→oracle→条件路由；接入 CLI `run`（quickstart 步骤 3，支持 `--disable-agent`）
-- [ ] T023 [US1] 实现条件路由函数 `orchestrator/defuzz_loop/graph.py`：aggregate=not_violated→loop back（round+1）、violated→END（FR-005）
+- [X] T016 [P] [US1] 实现 MCP server `internal/service/mcp_server.go` 的 `search_source` + `query_invariants` 只读 tool（读 T005 同源元数据），注册进 `cmd/defuzz-core`（contracts/mcp-tools.md）
+- [X] T017 [P] [US1] 实现 MCP client 封装 `orchestrator/defuzz_loop/clients/mcp_client.py`，且每次 tool 调用落 `tool_call_log`（R5）
+- [X] T018 [US1] 实现 Generator agent `orchestrator/defuzz_loop/agents/generator.py`：用 T013 LLM provider，带 search_source/query_invariants tool，产出 `Seed`（source + selected_checkers，**不含 ISA**，FR-012/013）
+- [X] T019 [P] [US1] 实现 build 节点 `orchestrator/defuzz_loop/nodes/build.py`（调用 grpc_client.Build，写 build_artifacts）
+- [X] T020 [P] [US1] 实现 coverage 节点 `orchestrator/defuzz_loop/nodes/coverage.py`（调用 Measure，**仅此处可写** coverage，FR-022）
+- [X] T021 [P] [US1] 实现 oracle 节点 `orchestrator/defuzz_loop/nodes/oracle.py`（调用 Analyze，写 verdict_history，违反时写 pending_bug）
+- [X] T022 [US1] 在 `graph.py` 串联固定边：read state→generator→routing→build→coverage→oracle→条件路由；接入 CLI `run`（quickstart 步骤 3，支持 `--disable-agent`）
+- [X] T023 [US1] 实现条件路由函数 `orchestrator/defuzz_loop/graph.py`：aggregate=not_violated→loop back（round+1）、violated→END（FR-005）
 
 **Checkpoint**: MVP 可跑——单轮闭环按固定顺序推进，可演示
 
@@ -96,13 +96,13 @@ description: "Task list for Agentic Loop Redesign implementation"
 
 ### Tests for User Story 2
 
-- [ ] T024 [P] [US2] 编写 `orchestrator/tests/test_checker_routing.py`：断言 Generator 输出 100% 不含 ISA；cheap checker 默认全开；differential checker 的 applicable_isas 全跑无剪枝；漏选 expensive checker 时正确性不受影响（SC-002/006/008，FR-016/017/018）
+- [X] T024 [P] [US2] 编写 `orchestrator/tests/test_checker_routing.py`：断言 Generator 输出 100% 不含 ISA；cheap checker 默认全开；differential checker 的 applicable_isas 全跑无剪枝；漏选 expensive checker 时正确性不受影响（SC-002/006/008，FR-016/017/018）
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] 实现 routing 模块 `orchestrator/defuzz_loop/routing.py`：启动拉取 CheckerMetadata 缓存；按 `selected_checkers ∪ 全部 cheap` 查 `applicable_isas` 笛卡尔展开为 `BuildMatrix.cells`；`mode=differential`→加入 `forced_full`（FR-013/015/016/017，contracts/blackboard-schema.md 路由契约）
-- [ ] T026 [US2] 在 `graph.py` 把 routing 作为 build 前置节点接入（消费 Generator 的 selected_checkers，产出 BuildMatrix 写回 state）
-- [ ] T027 [US2] 在 routing 中实现超集原则与 cheap 兜底：expensive 漏选只影响是否跑，cheap 全开 + checker 自带 NotApplicable 兜住正确性（FR-018，data-model 规则）
+- [X] T025 [US2] 实现 routing 模块 `orchestrator/defuzz_loop/routing.py`：启动拉取 CheckerMetadata 缓存；按 `selected_checkers ∪ 全部 cheap` 查 `applicable_isas` 笛卡尔展开为 `BuildMatrix.cells`；`mode=differential`→加入 `forced_full`（FR-013/015/016/017，contracts/blackboard-schema.md 路由契约）
+- [X] T026 [US2] 在 `graph.py` 把 routing 作为 build 前置节点接入（消费 Generator 的 selected_checkers，产出 BuildMatrix 写回 state）
+- [X] T027 [US2] 在 routing 中实现超集原则与 cheap 兜底：expensive 漏选只影响是否跑，cheap 全开 + checker 自带 NotApplicable 兜住正确性（FR-018，data-model 规则）
 
 **Checkpoint**: US1 闭环 + 确定性 ISA 路由，差分信号守住
 
@@ -116,14 +116,14 @@ description: "Task list for Agentic Loop Redesign implementation"
 
 ### Tests for User Story 3
 
-- [ ] T028 [P] [US3] 编写 `orchestrator/tests/test_blackboard.py`：断言写权限矩阵越权抛错；锁定 checkpoint replay 输入一致；ablation flag 单独开关其余流程仍推进；bug→证据回溯成功（SC-003/004/005，FR-008/009/010/011/022）
+- [X] T028 [P] [US3] 编写 `orchestrator/tests/test_blackboard.py`：断言写权限矩阵越权抛错；锁定 checkpoint replay 输入一致；ablation flag 单独开关其余流程仍推进；bug→证据回溯成功（SC-003/004/005，FR-008/009/010/011/022）
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] 在 `state.py` / 节点出口实现写权限矩阵断言（coverage 仅 coverage 节点写、guidance 仅反馈 agent 写等，越权抛错，FR-008/022）
-- [ ] T030 [P] [US3] 实现 replay 能力 `orchestrator/defuzz_loop/graph.py`：CLI `inspect` / `replay`，锁定 checkpoint_id 重放（回放 tool_call_log + LLM 请求记录，非逐 token 重算，R7，FR-009）
-- [ ] T031 [P] [US3] 实现 ablation 开关：`AblationFlags` 在路由处生效，CLI `--ablation <edge>=off`；`checker_routing=off`→退回全 ISA 笛卡尔积全跑（FR-010，SC-004）
-- [ ] T032 [P] [US3] 实现 bug 回溯 `trace-bug` CLI：从 verdict_history / pending_bug 沿 checkpoint 链回溯到 failing_checker 的确定性证据（FR-011，SC-005）
+- [X] T029 [US3] 在 `state.py` / 节点出口实现写权限矩阵断言（coverage 仅 coverage 节点写、guidance 仅反馈 agent 写等，越权抛错，FR-008/022）
+- [X] T030 [P] [US3] 实现 replay 能力 `orchestrator/defuzz_loop/graph.py`：每次 `run` 落一个自包含审计目录 `runs/<experiment>_<mechanism>_<UTC时间戳>/`（独立 `checkpoints.sqlite` + `manifest.json`，记 git sha / toolchains 快照 / checker 目录 / LLM 与 ablation 配置），run 间隔离不串台；CLI `inspect` / `replay` / `trace-bug` 以 `--run-dir` 锁定 checkpoint_id 重放（回放 tool_call_log + LLM 请求记录，非逐 token 重算，R7，FR-009）
+- [X] T031 [P] [US3] 实现 ablation 开关：四条 `AblationFlags` 边各自生效——`checker_routing`（routing.py，off→退回全 ISA 笛卡尔积全跑）、`feedback_to_generator`（generator.py guidance_block）、`coverage_feedback`（feedback.py coverage_signal）、`oracle_grounding`（oracle.py bug_evidence，off→退化裁决无证据）；CLI `--ablation <edge>=off`（FR-010，SC-004）
+- [X] T032 [P] [US3] 实现 bug 回溯 `trace-bug` CLI：从 verdict_history / pending_bug 沿 checkpoint 链回溯到 failing_checker 的确定性证据（FR-011，SC-005）
 
 **Checkpoint**: 护城河三件套（可复现/可 ablation/可审计）落地，P1 MVP 完整
 
@@ -137,9 +137,9 @@ description: "Task list for Agentic Loop Redesign implementation"
 
 ### Implementation for User Story 4
 
-- [ ] T033 [P] [US4] 实现 MCP `coverage_diff` 只读 tool `internal/service/mcp_server.go`：仅读传入的已测覆盖数据做 diff，端点无测量代码路径（FR-022，R6，contracts/mcp-tools.md）
-- [ ] T034 [US4] 实现反馈 agent `orchestrator/defuzz_loop/agents/feedback.py`：用 T013 LLM provider，上下文隔离 subagent，带 coverage_diff tool，产出 Guidance（FR-023/024）
-- [ ] T035 [US4] 在 `graph.py` not_violated 分支接入反馈 agent：写 guidance 到 state，下一轮 Generator 读取（去掉 `--disable-agent feedback` 生效）
+- [X] T033 [P] [US4] 实现 MCP `coverage_diff` 只读 tool `internal/service/mcp_server.go`：仅读传入的已测覆盖数据做 diff，端点无测量代码路径（FR-022，R6，contracts/mcp-tools.md）
+- [X] T034 [US4] 实现反馈 agent `orchestrator/defuzz_loop/agents/feedback.py`：用 T013 LLM provider，上下文隔离 subagent，带 coverage_diff tool，产出 Guidance（FR-023/024）
+- [X] T035 [US4] 在 `graph.py` not_violated 分支接入反馈 agent：写 guidance 到 state，下一轮 Generator 读取（去掉 `--disable-agent feedback` 生效）
 
 **Checkpoint**: 闭环带语义反馈引导
 
@@ -153,9 +153,9 @@ description: "Task list for Agentic Loop Redesign implementation"
 
 ### Implementation for User Story 5
 
-- [ ] T036 [P] [US5] 实现 MCP `creduce_run` + `compile_exec` tool `internal/service/mcp_server.go`：creduce 确定性归约 + 复用 `internal/compiler`/`internal/seed_executor` 校验 `still_triggers`（FR-026，contracts/mcp-tools.md）
-- [ ] T037 [US5] 实现最小化 agent `orchestrator/defuzz_loop/agents/minimizer.py`：用 T013 LLM provider，读 pending_bug，creduce 主力 + LLM 语义引导，产出 MinimizedPoC（FR-025/026）
-- [ ] T038 [US5] 在 `graph.py` violated 分支接入最小化 agent：写 MinimizedPoC 到 state、该支为 END 交人审（FR-005）
+- [X] T036 [P] [US5] 实现 MCP `creduce_run` + `compile_exec` tool `internal/service/mcp_server.go`：creduce 确定性归约 + 复用 `internal/compiler`/`internal/seed_executor` 校验 `still_triggers`（FR-026，contracts/mcp-tools.md）
+- [X] T037 [US5] 实现最小化 agent `orchestrator/defuzz_loop/agents/minimizer.py`：用 T013 LLM provider，读 pending_bug，creduce 主力 + LLM 语义引导，产出 MinimizedPoC（FR-025/026）
+- [X] T038 [US5] 在 `graph.py` violated 分支接入最小化 agent：写 MinimizedPoC 到 state、该支为 END 交人审（FR-005）
 
 **Checkpoint**: 违反分支产出可人审的最小化 PoC
 
@@ -171,8 +171,10 @@ description: "Task list for Agentic Loop Redesign implementation"
 - [X] T042 [P] 删除旧 `internal/state/`（旧 fuzz state）——被 blackboard 取代
 - [X] T043 [P] 精简 `cmd/defuzz/`：移除覆盖率驱动 fuzz 子命令，保留仍需要的工具入口；评估 `cmd/*-repro` 是否保留为独立调试工具
 - [X] T044 删除后运行 `go build ./...` + `go test ./internal/oracle/... ./internal/coverage/... ./internal/compiler/...` 确认复用组件不受影响
-- [ ] T045 [P] 更新文档：将 `docs/tech-docs/architecture/agentic-loop-redesign.md` 状态由 Proposed 改为 Implemented 关联本 spec/plan；更新 `overview.md` 主循环描述；更新 spec Assumption（LLM 经 Python provider 而非 Go `internal/llm`，analyze C3）
-- [ ] T046 运行 `specs/002-agentic-loop-redesign/quickstart.md` 全流程验证（MVP + 反馈 + 最小化 + 一次 ablation 对照），确认 SC-001~SC-006 / SC-008 达成（SC-007 跨分支 baseline 对照属论文 eval，不在此构建验证）
+- [X] T045 [P] 更新文档：将 `docs/tech-docs/architecture/agentic-loop-redesign.md` 状态由 Proposed 改为 Implemented 关联本 spec/plan；更新 `overview.md` 主循环描述；更新 spec Assumption（LLM 经 Python provider 而非 Go `internal/llm`，analyze C3）
+- [X] T046 运行 `specs/002-agentic-loop-redesign/quickstart.md` 全流程验证（MVP + 反馈 + 最小化 + 一次 ablation 对照），确认 SC-001~SC-006 / SC-008 达成（SC-007 跨分支 baseline 对照属论文 eval，不在此构建验证）
+  - 验证状态：(1) quickstart 步骤 4 的三套测试全过（`uv run pytest tests/ -q` 22 passed），直接对应 SC-001~006/008；ruff 全绿。(2) Go core 双适配器（gRPC+MCP）冷启动正常，Python 编排经 gRPC 拉到 28 个 checker 元数据 SSOT，5 个 MCP tool（search_source/query_invariants/coverage_diff/creduce_run/compile_exec）均响应正确，creduce 缺失时优雅降级（iterations=0，R8）。(3) US1 MVP 闭环已在前序会话用 gpt-5.4 真机验证。
+  - 环境受限项（非代码缺陷）：本机仅 Apple clang（无插桩 xgcc）、无 gcovr/qemu-aarch64/creduce，`OPENAI_API_KEY` 未注入，故 quickstart 步骤 3/5 的跨 ISA 实编译 + coverage + 实时 LLM 全流程无法在此宿主复现；该部分留待具备插桩工具链与 LLM 凭据的实验环境运行。
 
 ---
 

@@ -7,14 +7,16 @@
 - Go 1.25.5（仓库现有），Python 3.12
 - instrumented `xgcc` + `gcovr`（见 `docs/tech-docs/guides/building-instrumented-gcc.md`）
 - QEMU user-mode（跨 ISA 执行）
-- LLM provider（`configs/remixer.yaml`）
+- LLM provider（`orchestrator/configs/llm.yaml`，API key 从 `api_key_env` 指定的环境变量读取）
 
 ## 1. 起 Go core（gRPC + MCP 双适配器）
 
 ```bash
 go build -o bin/defuzz-core ./cmd/defuzz-core
-./bin/defuzz-core --grpc-addr unix:///tmp/defuzz-core.grpc --mcp-addr unix:///tmp/defuzz-core.mcp
+./bin/defuzz-core --grpc-addr 127.0.0.1:50051 --mcp-addr 127.0.0.1:50052
 ```
+
+gRPC 监听 TCP（默认 `127.0.0.1:50051`）；MCP 经 Streamable HTTP 暴露在 `http://127.0.0.1:50052/mcp`。
 
 一个进程同时暴露：
 - gRPC：BuildService / CoverageService / OracleService / CheckerMetadataService
@@ -37,9 +39,8 @@ python -m grpc_tools.protoc -I ../specs/002-agentic-loop-redesign/contracts \
 
 ```bash
 python -m defuzz_loop.graph run \
-  --initial-seeds ../initial_seeds \
-  --grpc unix:///tmp/defuzz-core.grpc \
-  --mcp  unix:///tmp/defuzz-core.mcp \
+  --grpc 127.0.0.1:50051 \
+  --mcp  http://127.0.0.1:50052/mcp \
   --max-rounds 1 \
   --disable-agent feedback --disable-agent minimizer   # MVP：只跑骨架 + Generator
 ```
@@ -58,10 +59,12 @@ cd orchestrator && pytest
 
 ## 5. 检视 blackboard / replay
 
+每次 `run` 会在 `orchestrator/runs/<experiment>_<mechanism>_<UTC时间戳>/` 下生成一个**自包含审计目录**（独立的 `checkpoints.sqlite` + `manifest.json`，后者记录 git sha / toolchains 快照 / checker 目录 / LLM 与 ablation 配置）。run 之间互不串台，下列命令直接传该目录：
+
 ```bash
-python -m defuzz_loop.graph inspect --thread <id>              # 看某 run 的 checkpoint 链
-python -m defuzz_loop.graph replay  --thread <id> --checkpoint <cid>  # 锁版本重放
-python -m defuzz_loop.graph trace-bug --thread <id> --bug <bid>      # bug→确定性证据回溯（SC-005）
+python -m defuzz_loop.graph inspect --run-dir runs/<dir>                    # 看某 run 的 checkpoint 链
+python -m defuzz_loop.graph replay  --run-dir runs/<dir> --checkpoint <cid>  # 锁版本重放
+python -m defuzz_loop.graph trace-bug --run-dir runs/<dir> --bug <bid>       # bug→确定性证据回溯（SC-005）
 ```
 
 ## 接下来

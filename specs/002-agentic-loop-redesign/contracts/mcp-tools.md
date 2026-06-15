@@ -33,9 +33,9 @@ agent 在 ReAct 里经 MCP 调用的 tool。MCP server 与 gRPC server 在同一
 ### `coverage_diff`
 覆盖率 diff（**严格只读**，research R6 / FR-022）。
 
-- **输入**: `{ }`（不接受触发测量的参数）
+- **输入**: `{ base?: string, new?: string }`（编排器传入 coverage 节点已测好的 gcovr JSON 报告；不接受触发测量的参数）
 - **输出**: `{ delta: {...}, cumulative_summary: {...} }`
-- **数据源**: 只读编排器传入的 `CoverageState.last_delta` / `cumulative`，即 coverage 节点已测好的结果。
+- **数据源**: 只读编排器传入的 `CoverageState.last_delta` / `cumulative`，即 coverage 节点已测好的结果。`base`/`new` 即这两份已测报告，tool 仅做 diff，不自行测量。
 - **物理保证**: 该 tool 端点无测量代码路径，无法自行触发 build/run。
 
 ---
@@ -52,9 +52,9 @@ agent 在 ReAct 里经 MCP 调用的 tool。MCP server 与 gRPC server 在同一
 ### `compile_exec`
 编译并执行候选 PoC，校验是否仍触发原 bug（只读式验证，不写 blackboard）。
 
-- **输入**: `{ source: string, isa: string }`
+- **输入**: `{ source: string, isa: string, checker_id?: string }`
 - **输出**: `{ exit_code: int, stdout: string, stderr: string, still_triggers: bool }`
-- **说明**: 复用 `internal/compiler` + `internal/seed_executor`；`still_triggers` 由再跑一次对应 checker 判定（防止删成另一个 bug，FR-026）。
+- **说明**: 复用 `internal/compiler` + `internal/seed_executor`；`still_triggers` 由再跑一次对应 checker 判定（防止删成另一个 bug，FR-026）。`checker_id` 指定原 failing checker：`still_triggers` 为 true 当且仅当该 checker 再次 Fail；省略时退化为"任一 checker Fail 即算仍触发"。
 
 ---
 

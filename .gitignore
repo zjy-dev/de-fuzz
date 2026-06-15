@@ -43,6 +43,14 @@ workspace/
 logs/
 experiments/
 
+# Orchestrator per-run audit dirs and checkpoints
+orchestrator/runs/
+*.sqlite
+
+# Build artifacts and scratch workspaces
+/bin/
+.work/
+
 # Target compilers and toolchains
 target_compilers/
 arm-gnu-*/
