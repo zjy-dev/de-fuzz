@@ -30,7 +30,7 @@ DeFuzz 是 Go 1.25 写的命令行工具，关键依赖与外部组件如下。�
 | `github.com/zjy-dev/gcovr-json-util/v2` | v2.2.0 | gcovr JSON 报告解析 + 累积合并 | `core/internal/coverage/gcc.go` |
 | `github.com/stretchr/testify` | v1.10.0 | 单元测试断言 + suite | 全部 `*_test.go` |
 
-> LLM 客户端已从 Go 移除，迁至 Python orchestrator，见 `orchestrator/defuzz_loop/llm/provider.py` 与 `orchestrator/configs/llm.yaml`。
+> LLM 客户端已从 Go 移除，迁至 Python orchestrator，见 `orchestrator/defuzz_loop/llm.py` 与 `orchestrator/configs/llm.yaml`。
 
 > 本项目**不**使用 zap/logrus 等第三方 logger；`internal/logger/` 是自研的薄包装，原因是研究脚手架对结构化日志没需求。
 
@@ -58,7 +58,7 @@ DeFuzz 是 Go 1.25 写的命令行工具，关键依赖与外部组件如下。�
 
 ## 5. LLM Provider
 
-LLM 已迁至 Python orchestrator，不再在 Go core 中实现。Provider 抽象与多后端（OpenAI 兼容、Anthropic 等）路由见 `orchestrator/defuzz_loop/llm/provider.py`，配置见 `orchestrator/configs/llm.yaml`。API key 通过 `.env` 注入，不硬编码。
+LLM 已迁至 Python orchestrator，不再在 Go core 中实现。Provider 抽象与多后端（OpenAI 兼容、Anthropic 等）路由见 `orchestrator/defuzz_loop/llm.py`，配置见 `orchestrator/configs/llm.yaml`。API key 通过 `.env` 注入，不硬编码。
 
 ## 6. 测试 + 集成测试
 

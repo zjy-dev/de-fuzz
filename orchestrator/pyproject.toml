@@ -29,7 +29,7 @@ dev = [
 ]
 
 [project.scripts]
-defuzz-loop = "defuzz_loop.graph:main"
+defuzz-loop = "defuzz_loop.cli:main"
 
 [tool.ruff]
 line-length = 100

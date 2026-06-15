@@ -15,7 +15,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
-_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "llm.yaml"
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs" / "llm.yaml"
 
 
 class Provider(StrEnum):

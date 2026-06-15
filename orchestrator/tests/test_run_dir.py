@@ -9,14 +9,14 @@ contaminated by another.
 
 from __future__ import annotations
 
-from defuzz_loop.graph import (
+from defuzz_loop.audit import (
     build_manifest,
     make_run_dir,
     read_manifest,
     thread_id,
     write_manifest,
 )
-from defuzz_loop.llm.provider import LLMConfig
+from defuzz_loop.llm import LLMConfig
 from defuzz_loop.state import AblationFlags, Blackboard
 
 

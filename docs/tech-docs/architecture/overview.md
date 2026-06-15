@@ -93,7 +93,7 @@ Engine.Run
 | 测试目标 (`xgcc`) | 项目外构建，见 `tech-docs/guides/building-instrumented-gcc.md` | 命令行参数 + `.gcda` 副作用 |
 | 覆盖率工具 (`gcovr`) | 系统安装；`compiler.gcovr_command` 配置 | JSON 报告 |
 | 发散分析 (`uftrace`) | 系统安装（可选）；`coverage/divergence.go` 调用 | replay 输出文本 |
-| LLM Provider | Python orchestrator（`orchestrator/defuzz_loop/llm/provider.py` + `orchestrator/configs/llm.yaml`） | OpenAI-compatible API |
+| LLM Provider | Python orchestrator（`orchestrator/defuzz_loop/llm.py` + `orchestrator/configs/llm.yaml`） | OpenAI-compatible API |
 | ELF 解析 | `debug/elf` (stdlib) | `BinaryInspector` |
 | 跨架构执行 | QEMU user-mode；`internal/seed_executor/QEMUOracleExecutorAdapter` | exec.Cmd |
 

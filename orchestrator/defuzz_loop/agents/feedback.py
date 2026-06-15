@@ -12,7 +12,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from ..clients.mcp_client import MCPClient
-from ..llm.provider import LLMConfig, build_chat_model
+from ..llm import LLMConfig, build_chat_model
 from ..state import Blackboard, Guidance
 
 _SYSTEM_PROMPT = """You are a fuzzing feedback strategist for ONE defense mechanism.

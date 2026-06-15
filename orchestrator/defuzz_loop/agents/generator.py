@@ -14,7 +14,7 @@ import uuid
 from pydantic import BaseModel, Field
 
 from ..clients.mcp_client import MCPClient
-from ..llm.provider import LLMConfig, build_chat_model
+from ..llm import LLMConfig, build_chat_model
 from ..state import Blackboard, Seed, SeedOrigin, ToolCall
 
 _SYSTEM_PROMPT = """You are a compiler-hardening fuzzing seed generator.
