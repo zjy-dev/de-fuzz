@@ -5,8 +5,6 @@ priority: MEDIUM
 last_updated: 2026-05-08
 status: IMPLEMENTED
 related_docs:
-  - ./scripts-commands.md
-  - ./config-schema.md
   - ../architecture/overview.md
 ---
 
@@ -29,10 +27,10 @@ DeFuzz 是 Go 1.25 写的命令行工具，关键依赖与外部组件如下。�
 | `github.com/spf13/cobra` | v1.10.1 | CLI 子命令路由 | `cmd/defuzz/app/root.go` |
 | `github.com/spf13/viper` | v1.19.0 | YAML 配置加载 + 环境变量解析 | `internal/config/config.go` |
 | `gopkg.in/yaml.v3` | v3.0.1 | YAML 序列化（远程外部 schema） | `internal/coverage/...` |
-| `github.com/zjy-dev/gcovr-json-util/v2` | v2.2.0 | gcovr JSON 报告解析 + 累积合并 | `internal/coverage/gcc.go` |
-| `github.com/sashabaranov/go-openai` | v1.41.2 | OpenAI-compatible LLM 客户端 | `internal/llm/openai_client.go` |
-| `github.com/anthropics/anthropic-sdk-go` | v1.26.0 | Claude 客户端（备选 provider） | `internal/llm/anthropic_client.go` |
+| `github.com/zjy-dev/gcovr-json-util/v2` | v2.2.0 | gcovr JSON 报告解析 + 累积合并 | `core/internal/coverage/gcc.go` |
 | `github.com/stretchr/testify` | v1.10.0 | 单元测试断言 + suite | 全部 `*_test.go` |
+
+> LLM 客户端已从 Go 移除，迁至 Python orchestrator，见 `orchestrator/defuzz_loop/llm/provider.py` 与 `orchestrator/configs/llm.yaml`。
 
 > 本项目**不**使用 zap/logrus 等第三方 logger；`internal/logger/` 是自研的薄包装，原因是研究脚手架对结构化日志没需求。
 
@@ -54,20 +52,13 @@ DeFuzz 是 Go 1.25 写的命令行工具，关键依赖与外部组件如下。�
 | `gcovr` | 把 `.gcda` 转成 JSON 覆盖率报告 | 每一轮 `coverage.MeasureCompiled` | `compiler.gcovr_command` + `gcovr_exec_path` |
 | `gcov-14` | 被 `gcovr` 内部调用解 `.gcno`/`.gcda` | 同上 | gcovr_command 中 `--gcov-executable` |
 | `qemu-aarch64` / `qemu-loongarch64` 等 | 跨架构 user-mode 执行 | 每一轮 oracle dynamic checker | `compiler.fuzz.qemu_path` + `qemu_sysroot` |
-| `uftrace` | 发散分析：record + replay seed 编译过程 | 每次约束求解 retry | 系统 PATH 自动发现 (`internal/coverage/divergence.go`) |
-| `python3 + uv` | 可视化脚本 `scripts/plot_coverage.py` | 离线分析 | n/a |
+| `python3 + uv` | 编排层运行时（LangGraph + 三个 agent） | 每一轮 | `orchestrator/configs/llm.yaml` |
 
 外部二进制的存在性由用户负责保证；fuzzer 启动期不做工具体检（这是 follow-up 项）。
 
 ## 5. LLM Provider
 
-| Provider | 客户端 | 配置 |
-| --- | --- | --- |
-| OpenAI / 兼容 (DeepSeek, MiniMax) | `internal/llm/openai_client.go` (`go-openai`) | `configs/remixer.yaml` 的 `default_temperature` + remixer endpoint |
-| Anthropic Claude | `internal/llm/anthropic_client.go` (`anthropic-sdk-go`) | 同上，由 remixer config 路由 |
-| Remixer 路由 | `internal/llm/llm.go` | 顶层 `remixer_config` 字段 |
-
-API key 通过 `.env` 文件 + viper 的 `${VAR}` 语法注入到 YAML，不硬编码（`config.go:resolveEnvVars`）。
+LLM 已迁至 Python orchestrator，不再在 Go core 中实现。Provider 抽象与多后端（OpenAI 兼容、Anthropic 等）路由见 `orchestrator/defuzz_loop/llm/provider.py`，配置见 `orchestrator/configs/llm.yaml`。API key 通过 `.env` 注入，不硬编码。
 
 ## 6. 测试 + 集成测试
 

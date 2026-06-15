@@ -6,7 +6,6 @@ last_updated: 2026-05-08
 status: IMPLEMENTED
 related_docs:
   - ../gcc-instrumentation/README.md
-  - ../architecture/gcc-pipeline.md
   - ../architecture/decisions/002-multi-cfg-orchestration.md
 ---
 
@@ -33,7 +32,7 @@ DeFuzz 的"被测目标"是 **被插桩的 GCC 自身**。本指南是入口页�
 2. **CFG dump**：同一份 cfgexpand.o 同时拿到 `-fdump-tree-cfg-lineno`，构建期产出 `cfgexpand.cc.015t.cfg` 文件。
 3. **链接 flag**：`ALL_LINKERFLAGS += $(COVERAGE_LDFLAGS)` 让带 `-fprofile-arcs` 的 object 能正确链接到 `__gcov_*` 符号。
 
-详见 `@/home/yall/project/de-fuzz/docs/tech-docs/architecture/gcc-pipeline.md` §2。
+详见 `docs/tech-docs/gcc-instrumentation/Makefile.in.patch` 全文。
 
 ## 3. 多 CFG 时的扩展
 
@@ -83,7 +82,7 @@ compiler:
     cfg_file_path:    <build>/gcc/cfgexpand.cc.015t.cfg
 ```
 
-字段语义全表见 `@/home/yall/project/de-fuzz/docs/tech-docs/reference/config-schema.md`。
+字段语义见 `core/internal/` 配置加载代码与 `configs/toolchains.yaml`。
 
 ## 6. 故障域速查
 

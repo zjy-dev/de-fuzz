@@ -8,7 +8,6 @@ related_docs:
   - ../architecture/oracle-mechanism-framework.md
   - ../features/mechanism-contract.md
   - ../features/canary-oracle.md
-  - ../reference/config-schema.md
 ---
 
 # Adding a Defense Mechanism (End-to-End Checklist)
@@ -183,7 +182,6 @@ targets:
 
 - `docs/tech-docs/features/foo-oracle.md` —— 新机制 oracle 的"实现现状"参考（参考 `canary-oracle.md` 的"实现现状"段落格式：列 invariant ↔ checker 表、Polarity sensitivity 表、报告样例）。
 - 在 `docs/tech-docs/README.md` 主索引追加该 feature 的链接行。
-- 如果 axes 与 canary 的 FlagScheduler 共用，在 `docs/tech-docs/features/flag-scheduler.md` §"当前限制"上补一句"也支持 foo 策略 (ISA: ...)"。
 
 > **如何验证**：在 `docs/tech-docs/` 全文 grep `foo`，确认所有引用都更新了。
 

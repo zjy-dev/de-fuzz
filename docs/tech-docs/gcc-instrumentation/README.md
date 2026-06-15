@@ -6,7 +6,6 @@ last_updated: 2026-05-24
 status: IMPLEMENTED
 related_docs:
   - ../guides/building-instrumented-gcc.md
-  - ../architecture/gcc-pipeline.md
 ---
 
 # GCC Instrumentation

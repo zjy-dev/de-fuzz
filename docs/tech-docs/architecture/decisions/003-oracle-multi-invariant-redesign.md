@@ -12,6 +12,9 @@ related_docs:
 
 # ADR-003: Oracle Multi-Invariant Redesign
 
+> **⚠️ 已被取代（Superseded, 2026-06）**：本 ADR 描述的旧覆盖率/oracle 编排设计已被 agentic loop redesign 取代，见 [../agentic-loop-redesign.md](../agentic-loop-redesign.md)。以下内容仅作历史记录。
+
+
 > **Addendum (2026-05-21)**：本 ADR §3.2 中提出的 "Phase 1: Enablement (BLOCKING)" 已在 2026-05-21 后被回收。`InvariantCategory` 简化为 `Static / Dynamic` 两类，对齐 `@/home/yall/project/de-fuzz/docs/story_line.md` §4 的"静态属性 / 动态属性"二分类，原因：
 > - Enablement 自项目落地以来从未注册过 checker，是事实上的死代码；
 > - 它把"机制是否启用"建模为独立调度阶段，与"以何种证据验证不变量"这条 Category 主轴正交，分类不纯；

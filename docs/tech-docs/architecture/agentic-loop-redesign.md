@@ -7,7 +7,6 @@ status: Implemented
 related_docs:
   - ./overview.md
   - ./oracle-mechanism-framework.md
-  - ./fuzz-engine-loop.md
   - ./decisions/003-oracle-multi-invariant-redesign.md
   - ../invariants/README.md
   - ../../../specs/002-agentic-loop-redesign/spec.md

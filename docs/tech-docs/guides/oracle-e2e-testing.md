@@ -8,7 +8,6 @@ related_docs:
   - ../architecture/oracle-mechanism-framework.md
   - ../features/canary-oracle.md
   - ../guides/adding-a-defense-mechanism.md
-  - ../../reference/config-schema.md
 ---
 
 # Oracle 端到端测试：绕过 Fuzz Loop

@@ -5,10 +5,8 @@ priority: CRITICAL
 last_updated: 2026-05-08
 status: IMPLEMENTED
 related_docs:
-  - ./gcc-pipeline.md
+  - ./agentic-loop-redesign.md
   - ./oracle-mechanism-framework.md
-  - ./fuzz-engine-loop.md
-  - ./prompt-architecture.md
 ---
 
 # System Overview
@@ -64,7 +62,7 @@ DeFuzz 是一个 Go 语言写的、面向编译器自身防御实现的 LLM-driv
    └─────────────────┘  └──────────────────┘
 ```
 
-详细数据流见 `@/home/yall/project/de-fuzz/docs/tech-docs/architecture/gcc-pipeline.md`。
+详细数据流见 [agentic-loop-redesign.md](./agentic-loop-redesign.md)（当前架构）。
 
 ## 3. 主循环数据流（一次成功的迭代）
 
@@ -85,7 +83,7 @@ Engine.Run
   │     9. corpus.Add (qualified: covered_new || hit_target || found_bug)
   │     10. (非命中) divergence.Analyze + GetRefinedPrompt → goto 5
   └─ (target 全覆盖时, 可选)
-       RandomMutationPhase.Run                       # 见 features/random-mutation-phase.md
+       RandomMutationPhase.Run                       # 历史 baseline
 ```
 
 ## 4. 与外部世界的接口
@@ -95,7 +93,7 @@ Engine.Run
 | 测试目标 (`xgcc`) | 项目外构建，见 `tech-docs/guides/building-instrumented-gcc.md` | 命令行参数 + `.gcda` 副作用 |
 | 覆盖率工具 (`gcovr`) | 系统安装；`compiler.gcovr_command` 配置 | JSON 报告 |
 | 发散分析 (`uftrace`) | 系统安装（可选）；`coverage/divergence.go` 调用 | replay 输出文本 |
-| LLM Provider | `internal/llm/remixer*` + `configs/remixer.yaml` | OpenAI-compatible API |
+| LLM Provider | Python orchestrator（`orchestrator/defuzz_loop/llm/provider.py` + `orchestrator/configs/llm.yaml`） | OpenAI-compatible API |
 | ELF 解析 | `debug/elf` (stdlib) | `BinaryInspector` |
 | 跨架构执行 | QEMU user-mode；`internal/seed_executor/QEMUOracleExecutorAdapter` | exec.Cmd |
 
@@ -111,8 +109,6 @@ Engine.Run
 
 ## 6. 进一步阅读
 
-- 构建期与运行期的端到端数据流：`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/gcc-pipeline.md`
-- Oracle 多 invariant 框架的实现态参考：`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/oracle-mechanism-framework.md`
-- Fuzz 主循环与 RandomMutationPhase：`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/fuzz-engine-loop.md`
-- Prompt 流水线与 mechanism contract：`@/home/yall/project/de-fuzz/docs/tech-docs/architecture/prompt-architecture.md` + `tech-docs/features/mechanism-contract.md`
-- 添加新防御机制的端到端 checklist：`@/home/yall/project/de-fuzz/docs/tech-docs/guides/adding-a-defense-mechanism.md`
+- 当前架构权威文档（Python 编排 + Go core 双适配器）：[agentic-loop-redesign.md](./agentic-loop-redesign.md) 与 `specs/002-agentic-loop-redesign/`
+- Oracle 多 invariant 框架的实现态参考：[oracle-mechanism-framework.md](./oracle-mechanism-framework.md)
+- 添加新防御机制的端到端 checklist：`../guides/adding-a-defense-mechanism.md`

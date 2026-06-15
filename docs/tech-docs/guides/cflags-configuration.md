@@ -4,9 +4,6 @@ description: 配置文件中 cflags 字段的语义，以及与 LLM 动态 cflag
 priority: MEDIUM
 last_updated: 2026-05-08
 status: IMPLEMENTED
-related_docs:
-  - ../reference/config-schema.md
-  - ../features/flag-scheduler.md
 ---
 
 # CFlags Configuration Guide
