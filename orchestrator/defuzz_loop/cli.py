@@ -27,6 +27,7 @@ from .clients.mcp_client import MCPClient
 from .graph import build_graph
 from .llm import LLMConfig
 from .routing import CheckerCatalog
+from .specgen import cli as specgen_cli
 from .state import Blackboard
 
 
@@ -228,6 +229,8 @@ def main() -> None:
     tb.add_argument("--run-dir", required=True, help="the run's audit directory")
     tb.add_argument("--bug", required=True, help="failing seed_id")
 
+    specgen_cli.add_parser(sub)
+
     args = parser.parse_args()
     if args.command == "run":
         asyncio.run(_run(args))
@@ -237,6 +240,8 @@ def main() -> None:
         _replay(args)
     elif args.command == "trace-bug":
         _trace_bug(args)
+    elif args.command == "specgen":
+        asyncio.run(specgen_cli.run(args))
 
 
 if __name__ == "__main__":
