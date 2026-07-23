@@ -14,26 +14,16 @@
 #   native       : true for the host ISA (run binaries directly, no QEMU)
 #
 # Paths below are placeholders — point them at your installed toolchains.
+#
+# This run targets aarch64 FORTIFY only. We run inside a native aarch64 Linux
+# VM, so aarch64 is the host ISA (native: true, no QEMU). FORTIFY requires
+# optimization to take effect, so the cflags enable -O2 -D_FORTIFY_SOURCE=2.
+# x86_64 / riscv64 are intentionally omitted: their build cells become error
+# artifacts (R8) that the oracle skips, scoping the sweep to aarch64.
 toolchains:
-  x86_64:
+  aarch64:
     gcc_path: gcc
     cflags:
-      - -fstack-protector-strong
-      - -O0
+      - -O2
+      - -D_FORTIFY_SOURCE=2
     native: true
-
-  aarch64:
-    gcc_path: aarch64-linux-gnu-gcc
-    cflags:
-      - -fstack-protector-strong
-      - -O0
-    qemu_path: qemu-aarch64
-    qemu_sysroot: /usr/aarch64-linux-gnu
-
-  riscv64:
-    gcc_path: riscv64-linux-gnu-gcc
-    cflags:
-      - -fstack-protector-strong
-      - -O0
-    qemu_path: qemu-riscv64
-    qemu_sysroot: /usr/riscv64-linux-gnu

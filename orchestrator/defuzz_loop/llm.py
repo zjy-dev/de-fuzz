@@ -30,6 +30,9 @@ class LLMConfig(BaseModel):
     max_tokens: int | None = None
     base_url: str | None = None
     api_key_env: str = "OPENAI_API_KEY"
+    # Reasoning depth for OpenAI reasoning models (GPT-5 family): low|medium|high|xhigh.
+    # None leaves the gateway default; only forwarded when the provider supports it.
+    reasoning_effort: str | None = None
     timeout: int = 120
 
     @classmethod
@@ -53,7 +56,7 @@ def build_chat_model(config: LLMConfig | None = None) -> Any:
     if cfg.provider is Provider.OPENAI:
         from langchain_openai import ChatOpenAI
 
-        return ChatOpenAI(
+        kwargs: dict[str, Any] = dict(
             model=cfg.model,
             temperature=cfg.temperature,
             max_tokens=cfg.max_tokens,
@@ -61,6 +64,11 @@ def build_chat_model(config: LLMConfig | None = None) -> Any:
             api_key=api_key,
             timeout=cfg.timeout,
         )
+        # Reasoning models take effort via the request body; the OpenAI-compatible
+        # gateway reads it from extra_body so it survives langchain's param filtering.
+        if cfg.reasoning_effort:
+            kwargs["extra_body"] = {"reasoning_effort": cfg.reasoning_effort}
+        return ChatOpenAI(**kwargs)
     if cfg.provider is Provider.ANTHROPIC:
         from langchain_anthropic import ChatAnthropic
 

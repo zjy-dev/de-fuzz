@@ -14,6 +14,15 @@ Write-permission matrix (enforced at node exits, see graph.py / test_blackboard.
 | tool_call_log     | tool-call wrapper layer      | R5             |
 | pending_bug       | oracle node (on violation)   | FR-025         |
 | build_matrix      | routing (lookup, not agent)  | FR-013/015     |
+| target_queue      | orchestrator (run init)      | enumeration    |
+| target_idx/...    | bump node (scheduler)        | enumeration    |
+
+Invariant scheduling is deterministic: the orchestrator enumerates the whole
+checker catalog into `target_queue` at run init and the bump node advances a
+cursor over it. The agent never chooses which invariant to attack — it only
+generates a seed for the orchestrator-assigned `current_target()`. This keeps
+"which invariant, how long" out of the LLM's nondeterministic control and in the
+versioned blackboard, so a run is reproducible and every invariant gets budget.
 """
 
 from __future__ import annotations
@@ -46,7 +55,9 @@ class Seed(BaseModel):
     id: str
     source: str
     parent_id: str | None = None
-    # Generator selects checkers only — never ISA (FR-013).
+    # The invariant(s) this seed is built to stress. Under deterministic
+    # enumeration this is the single orchestrator-assigned target; the agent
+    # never picks it, and it never carries an ISA (FR-013).
     selected_checkers: list[str] = Field(default_factory=list)
     origin: SeedOrigin = SeedOrigin.GENERATOR
 
@@ -132,6 +143,9 @@ class AblationFlags(BaseModel):
     coverage_feedback: bool = True
     oracle_grounding: bool = True
     checker_routing: bool = True  # False -> full ISA cartesian product, no pruning
+    # LLM oracle: adjudicates invariants the deterministic oracle returns NA/Error
+    # on (non-programmable on this ISA). Off -> only deterministic bugs count.
+    llm_oracle: bool = True
 
 
 class Blackboard(BaseModel):
@@ -146,9 +160,34 @@ class Blackboard(BaseModel):
     ablation_flags: AblationFlags = Field(default_factory=AblationFlags)
     pending_bug: BugEvidence | None = None
 
+    # LLM-oracle adjudications of invariants the deterministic oracle could not
+    # decide (NA/Error). Append-only audit trail; the LLM oracle is a fallback
+    # judge for non-programmable invariants and never overrides a deterministic
+    # verdict (R8 zero-false-positive: only a confident LLM Fail flips aggregate).
+    llm_verdicts: list[InvariantResult] = Field(default_factory=list)
+
+    # Deterministic invariant enumeration (set at run init, advanced by bump).
+    # target_queue is the fixed-order catalog of checker IDs to sweep; target_idx
+    # points at the one currently being fuzzed; rounds_on_target / target_started_at
+    # measure the spent budget for the hybrid (rounds OR seconds) stop rule.
+    target_queue: list[str] = Field(default_factory=list)
+    target_idx: int = 0
+    rounds_on_target: int = 0
+    target_started_at: float = 0.0
+
     # Per-round transients (cleared after write-back).
     current_seed: Seed | None = None
     build_matrix: BuildMatrix | None = None
     build_artifacts: list[BuildArtifact] = Field(default_factory=list)
     last_verdict: OracleVerdict | None = None
     minimized_poc: MinimizedPoC | None = None
+
+    def current_target(self) -> str | None:
+        """The invariant currently assigned by the enumeration cursor.
+
+        None once the queue is exhausted (or never populated). Routing unions
+        this with the always-on cheap checkers; the Generator stresses only this.
+        """
+        if 0 <= self.target_idx < len(self.target_queue):
+            return self.target_queue[self.target_idx]
+        return None

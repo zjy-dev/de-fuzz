@@ -156,8 +156,108 @@ async def distill_query(judge: Judge, seed: Seed) -> SeedQuery:
     return SeedQuery(
         seed_id=seed.seed_id,
         origin_mechanism=seed.origin_mechanism,
+        origin_isas=list(seed.origin_isas),
         violated_invariant=seed.violated_invariant,
         root_cause_phrase=out.root_cause_phrase.strip(),
         agnostic_tokens=[t.strip() for t in out.agnostic_tokens if t.strip()],
+        exact_anchors=_harvest_exact_anchors(seed),
+    )
+
+
+# --- function-signature distillation (PropertyGPT-style query) -------------
+# The abstract-phrase query above deliberately strips identifiers so a seed can
+# jump to a *sister mechanism*. The empirical cost (probe_funcbody_query.py +
+# eval_retrieval_p0.py) is that retrieval recall already saturates yet the sites
+# it lands on are mechanism-*relevant*, not mechanism-*failure* sites — the audit
+# critique. PropertyGPT instead queries with the function under analysis. We keep
+# that idea but distill a *behavioral signature* rather than pasting the raw body:
+# a whole 50k-char body under BM25 collides on boilerplate (`rtx`/`insn`/`return`
+# sit in 40-65% of chunks) and degenerates to same-file neighbours (73% measured).
+# The signature keeps the security-relevant verbs/operands and drops boilerplate,
+# so it is usable by BOTH bm25 and dense (and is the intended query for hybrid).
+
+_SIGNATURE_SYSTEM = """You distill the SECURITY-RELEVANT SIGNATURE of a compiler \
+hardening defect from the buggy function(s) it lives in. Unlike a mechanism-\
+agnostic paraphrase, you KEEP the concrete operations, data-flow and control-flow \
+that make the defect checkable, because the signature will retrieve OTHER sites \
+(sister mechanisms AND sister targets) that share the same enforcing/omitting \
+structure.
+
+You are given the seed's violated invariant plus the body of the function(s) the \
+seed's evidence names as the defect site and (when present) a reference site that \
+does it correctly.
+
+Return:
+1. signature_phrase: 1-2 sentences naming the enforcing action that is present-\
+and-correct at the reference site but ABSENT/broken at the defect site — phrased \
+as the *guarantee that must hold*, in terms a reviewer can look for (e.g. "a \
+register that transiently held a secret is overwritten before the return insn", \
+"a bound operand is decremented by the same offset the pointer advanced").
+2. structure_tokens: 6-14 tokens naming the concrete operations/opcodes/hooks \
+involved (emit_move_insn, clobber, targetm.have_*, return edge, POINTER_PLUS, \
+objsize, ...). Keep target/mechanism identifiers that denote the STRUCTURE; drop \
+prose words.
+
+Anchor on the FAILURE: name the enforcing step and where it is missing, not just \
+the topic area."""
+
+_SIGNATURE_USER = """Seed {seed_id} (origin mechanism: {origin_mechanism}).
+
+VIOLATED INVARIANT (the guarantee that was broken):
+{violated_invariant}
+
+DEFECT-SITE FUNCTION BODIES (the code that omits/breaks the enforcing step):
+{defect_bodies}
+
+REFERENCE-SITE FUNCTION BODIES (does it correctly — may be empty):
+{reference_bodies}
+
+Distill the security-relevant signature now."""
+
+
+class SignatureDistillation(BaseModel):
+    """The judge's structured output for the function-signature query mode."""
+
+    signature_phrase: str = Field(
+        description="1-2 sentences naming the enforcing guarantee that is absent at the defect site"
+    )
+    structure_tokens: list[str] = Field(
+        default_factory=list,
+        description="6-14 concrete operation/opcode/hook tokens naming the structure",
+    )
+
+
+async def distill_signature_query(
+    judge: Judge, seed: Seed, *, defect_bodies: list[str], reference_bodies: list[str]
+) -> SeedQuery:
+    """Stage 1 (query-mode=signature): distill a structure-preserving query.
+
+    ``defect_bodies`` / ``reference_bodies`` are the corpus function texts the
+    caller resolved from the seed's anchors (defect site) and its "reference /
+    fixed path" evidence. Bodies are clipped so the prompt stays bounded; the
+    resulting ``root_cause_phrase`` + ``agnostic_tokens`` feed the identical
+    retriever path, so bm25 / embedding / hybrid all consume it unchanged.
+    """
+    user = _SIGNATURE_USER.format(
+        seed_id=seed.seed_id,
+        origin_mechanism=seed.origin_mechanism,
+        violated_invariant=seed.violated_invariant or "(none)",
+        defect_bodies="\n\n".join(b[:2500] for b in defect_bodies) or "(none)",
+        reference_bodies="\n\n".join(b[:2500] for b in reference_bodies) or "(none)",
+    )
+    out: SignatureDistillation = await judge.complete(
+        task=TASK_DISTILL,
+        key=seed.seed_id,
+        system=_SIGNATURE_SYSTEM,
+        user=user,
+        output_model=SignatureDistillation,
+    )
+    return SeedQuery(
+        seed_id=seed.seed_id,
+        origin_mechanism=seed.origin_mechanism,
+        origin_isas=list(seed.origin_isas),
+        violated_invariant=seed.violated_invariant,
+        root_cause_phrase=out.signature_phrase.strip(),
+        agnostic_tokens=[t.strip() for t in out.structure_tokens if t.strip()],
         exact_anchors=_harvest_exact_anchors(seed),
     )

@@ -1,0 +1,36 @@
+# Fig: single-iteration agentic data flow (academic monochrome)
+# render: d2 --theme=0 --pad=8 main-loop.d2 ../main-loop.svg
+# Deterministic pipeline (spine) invokes agents only at fixed positions.
+
+classes: {
+  node:  { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  agent: { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  term:  { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A"; border-radius: 20 } }
+  dec:   { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+}
+
+direction: down
+
+start: "START  (read blackboard:\nfeedback + corpus + coverage)" { class: term }
+
+gen: "Generator agent\ntools: source search, invariant query\nout: seed + selected checker set" { class: agent }
+
+routing: "routing\ncheckers -> bound ISAs (table lookup)" { class: node }
+build: "build" { class: node }
+coverage: "coverage  (measured, written back)" { class: node }
+oracle: "oracle  (checkers -> verdict)" { class: node }
+
+route: "violated?" { class: dec; shape: diamond }
+
+minim: "Minimizer agent\ntools: C-Reduce, compile/exec\nout: minimized PoC -> human review" { class: agent }
+feedback: "Feedback agent  (context-isolated)\ntool: coverage diff\nout: next-round guidance" { class: agent }
+
+start -> gen: "invoke" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+gen -> routing: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+routing -> build: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+build -> coverage: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+coverage -> oracle: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+oracle -> route: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+route -> minim: "yes: deterministic bug evidence" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+route -> feedback: "no: coverage delta + verdict" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+feedback -> start: "write guidance to blackboard\n(next round)" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }

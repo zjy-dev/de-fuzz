@@ -1,0 +1,28 @@
+# Fig: BM25 vs embedding retrieval union/dedup (academic monochrome)
+# render: d2 --theme=0 --pad=8 bm25-vs-embedding.d2 ../bm25-vs-embedding.svg
+
+classes: {
+  backend: { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  only:    { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  inter:   { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  total:   { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+}
+
+direction: down
+
+bm25: "BM25 (sparse)\ndistinctive identifiers · 9 hits" { class: backend }
+embed: "doubao-embedding-vision (dense)\nisomorphic blocks · 7 hits" { class: backend }
+
+bonly: "BM25-only\n4" { class: only }
+both: "Intersection\n5\nsame seed & chunk,\nisomorphic statement" { class: inter }
+eonly: "Embedding-only\n2\nARM CMSE clear-set,\nRISC-V saturating trunc." { class: only }
+
+union: "Union (dedup by (seed_id, chunk_id) + statement): 11\nall is_novel  ·  novelty threshold 85.0" { class: total }
+
+bm25 -> bonly: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+bm25 -> both: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+embed -> both: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+embed -> eonly: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+bonly -> union: "" { style: { stroke: "#7A7A7A"; stroke-width: 1 } }
+both -> union: "" { style: { stroke: "#7A7A7A"; stroke-width: 1 } }
+eonly -> union: "" { style: { stroke: "#7A7A7A"; stroke-width: 1 } }

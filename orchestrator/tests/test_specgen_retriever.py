@@ -12,7 +12,9 @@ from __future__ import annotations
 from defuzz_loop.specgen.retriever import (
     BM25Retriever,
     exit_filter,
+    is_cross_isa_sibling,
     retrieve,
+    rrf_fuse,
     tokenize,
 )
 from defuzz_loop.specgen.schema import Chunk, ChunkMeta, Hit, SeedQuery
@@ -91,6 +93,57 @@ def test_exit_filter_drops_exact_anchor_hit() -> None:
     assert dropped[0].chunk_id == "x:1"
 
 
+def _isa_hit(cid: str, mechanism: str, isa: str, text: str = "reference template") -> Hit:
+    return Hit(
+        chunk_id=cid,
+        text=text,
+        metadata=ChunkMeta(source_kind="source", mechanism=mechanism, isa=isa, path=cid, line=1),
+        score=1.0,
+    )
+
+
+def _isa_query() -> SeedQuery:
+    # An ISA-scoped seed: it lives on mips/loongarch, mechanism stack-protector.
+    return SeedQuery(
+        seed_id="DREV-2026-001",
+        origin_mechanism="stack-protector",
+        root_cause_phrase="the guard value must be clobbered before the success return",
+        agnostic_tokens=["clobber", "guard"],
+        exact_anchors=["stack_protect_test"],  # a family symbol on every backend
+        origin_isas=["mips", "loongarch64"],
+    )
+
+
+def test_is_cross_isa_sibling_only_for_other_concrete_backend() -> None:
+    q = _isa_query()
+    # arm != {mips, loongarch64}, same mechanism → sibling.
+    assert is_cross_isa_sibling(q, _isa_hit("arm.md:1", "stack-protector", "arm"))
+    # generic is the shared middle-end fallback — never a sibling target.
+    assert not is_cross_isa_sibling(q, _isa_hit("cfgexpand.cc:1", "stack-protector", "generic"))
+    # one of the seed's own ISAs = the seed's own site, not a sibling.
+    assert not is_cross_isa_sibling(q, _isa_hit("mips.md:1", "stack-protector", "mips"))
+    # different mechanism is out of scope for the sibling exemption.
+    assert not is_cross_isa_sibling(q, _isa_hit("arm.md:2", "cet", "arm"))
+    # a mechanism-neutral seed (no origin_isas) never yields a sibling.
+    assert not is_cross_isa_sibling(_query(), _isa_hit("arm.md:1", "fortify-source", "arm"))
+
+
+def test_exit_filter_exempts_cross_isa_sibling_from_both_drops() -> None:
+    q = _isa_query()
+    hits = [
+        # sibling reference: SAME mechanism AND carries the family anchor — the v1
+        # filter would have double-killed it; the exemption keeps it.
+        _isa_hit("arm.md:9481", "stack-protector", "arm",
+                 '(define_expand "stack_protect_test" ...)'),
+        # the seed's own middle-end fallback site (generic) still self-filters out.
+        _isa_hit("cfgexpand.cc:6940", "stack-protector", "generic",
+                 "generic stack_protect_test fallback"),
+    ]
+    survivors, dropped = exit_filter(hits, q)
+    assert {h.chunk_id for h in survivors} == {"arm.md:9481"}
+    assert {h.chunk_id for h in dropped} == {"cfgexpand.cc:6940"}
+
+
 def test_retrieve_over_fetches_then_trims_to_top_k() -> None:
     r = BM25Retriever()
     r.index(_CORPUS)
@@ -104,3 +157,23 @@ def test_empty_corpus_returns_no_hits() -> None:
     r = BM25Retriever()
     r.index([])
     assert r.search(_query(), top_k=5) == []
+
+
+def test_rrf_fuse_rewards_agreement_across_backends() -> None:
+    # bm25 ranks A>B; dense ranks B>C. B is the only chunk both backends return,
+    # so RRF must float B above A (bm25's #1) and C (dense's #1).
+    bm25 = [_hit("A", "a", "m", 9.0), _hit("B", "b", "m", 8.0)]
+    dense = [_hit("B", "b", "m", 0.9), _hit("C", "c", "m", 0.8)]
+    fused = rrf_fuse([bm25, dense], rrf_k=60)
+    assert fused[0].chunk_id == "B"  # agreement wins over either single #1
+    # B: 1/61 + 1/60 ≈ 0.0331; A: 1/60 ≈ 0.0167; C: 1/61 ≈ 0.0164.
+    assert fused[0].score > fused[1].score
+    # A chunk seen by only one backend still appears (union, not intersection).
+    assert {"A", "B", "C"} == {h.chunk_id for h in fused}
+
+
+def test_rrf_fuse_preserves_hit_payload() -> None:
+    bm25 = [_hit("A", "alpha-text", "stack-clash", 5.0)]
+    fused = rrf_fuse([bm25], rrf_k=60)
+    assert fused[0].text == "alpha-text"
+    assert fused[0].metadata.mechanism == "stack-clash"

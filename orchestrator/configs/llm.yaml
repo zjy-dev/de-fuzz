@@ -3,9 +3,10 @@
 # The API key is read from the environment variable named by `api_key_env`.
 llm:
   provider: openai          # openai | anthropic
-  model: gpt-5.4
-  temperature: 1.0
+  model: gpt-5.5
+  temperature: 1.0          # GPT-5 reasoning models require temperature 1.0
   max_tokens: null
   base_url: https://loliapi.org/v1   # OpenAI-compatible gateway
   api_key_env: OPENAI_API_KEY
-  timeout: 120
+  reasoning_effort: high   # GPT-5 reasoning depth (low|medium|high|xhigh)
+  timeout: 600              # xhigh reasoning is slow; allow a generous ceiling

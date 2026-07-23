@@ -10,8 +10,8 @@ CORE_BINARY_NAME := defuzz-core
 CORE_CMD_PATH := ./cmd/defuzz-core
 BUILD_DIR := bin
 
-# Proto (contract lives outside the Go tree, under specs/)
-PROTO_DIR := specs/002-agentic-loop-redesign/contracts
+# Proto (gRPC contract SSOT lives with the Go core, under core/proto/)
+PROTO_DIR := core/proto
 PROTO_FILE := oracle.proto
 GO_PB_OUT := core/internal/service/pb
 PY_PB_OUT := orchestrator/defuzz_loop/clients/pb

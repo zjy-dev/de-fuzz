@@ -14,6 +14,8 @@ last_updated: 2026-05-28
 
 主入口: [`gcc-llvm-defense-invariant-source-survey.md`](./gcc-llvm-defense-invariant-source-survey.md) —— 跨机制总表与一手信息源分类.
 
+> **自动产出 (创新点 A)**: [`cross-mechanism-generated.md`](./cross-mechanism-generated.md) 与本目录的人工调研档案不同 —— 它是 RAG 跨机制类比迁移管道 (`orchestrator/defuzz_loop/specgen`) 的产出: 把一个机制里已查实的漏洞根因当探针, 在另一机制的 GCC 16.1 源码里检索同形操作并落成新规则, 过两道静态接地闸后接受. 本轮 24 个种子产出 9 条新不变量.
+
 ## 1. 按机制分类索引
 
 ### 栈相关 (Stack Protection / Hardening)

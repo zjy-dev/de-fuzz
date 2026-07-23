@@ -26,7 +26,12 @@ class Seed(BaseModel):
 
     seed_id: str
     origin_mechanism: str
-    source_kind: str = "finding"  # finding | historical-bug | bug-disclosure
+    # The ISA(s) the seed's defect applies to (e.g. [mips, loongarch64]). Used by
+    # the exit filter to distinguish "same mechanism, SAME target = self" (drop)
+    # from "same mechanism, DIFFERENT target = the cross-ISA goal" (keep). Empty
+    # for mechanism-neutral seeds (survey invariants, middle-end bugs).
+    origin_isas: list[str] = Field(default_factory=list)
+    source_kind: str = "finding"  # finding | historical-bug | bug-disclosure | invariant
     violated_invariant: str = ""
     # Free text the query distiller reads. Kept verbatim from the source doc.
     impact: str = ""
@@ -48,6 +53,10 @@ class SeedQuery(BaseModel):
 
     seed_id: str
     origin_mechanism: str
+    # ISA(s) the seed's defect lives on; carried through from the Seed so the
+    # exit filter can keep same-mechanism hits on a DIFFERENT target (the
+    # cross-ISA differential goal) while still dropping the seed's own site.
+    origin_isas: list[str] = Field(default_factory=list)
     violated_invariant: str = ""
     # The single mechanism-agnostic sentence that enters retrieval.
     root_cause_phrase: str
@@ -165,6 +174,13 @@ class Candidate(BaseModel):
     novelty: Novelty | None = None
     chunk_id: str = ""
     score: float = 0.0
+    # True when the hit is a cross-ISA SIBLING of the seed (same mechanism, a
+    # different concrete backend): the chunk is a CORRECT reference implementing
+    # the enforcing step, and the invariant is a coverage requirement ("every
+    # backend must do E; one that omits it is the bug"). Selects the differential
+    # specialize/grounding path — grounding verifies E is PRESENT here rather than
+    # demanding a visible violation in reference code.
+    differential: bool = False
 
 
 class Rejected(BaseModel):

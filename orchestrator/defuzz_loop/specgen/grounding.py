@@ -49,6 +49,48 @@ DERIVED-FROM SOURCE CHUNK ({path}):
 
 Is the statement entailed by (grounded in) this chunk?"""
 
+# --- differential (cross-ISA coverage) entailment --------------------------
+# A differential candidate is grounded on a CORRECT cross-ISA reference: the chunk
+# implements the enforcing step, and the invariant is the requirement that every
+# backend do so. The default gate would reject it ("the chunk shows correct
+# behavior, no violation here") — which is precisely backwards: correct-by-
+# construction reference code is the positive exemplar the coverage rule stands on.
+# So the differential gate flips the burden: entailed=true iff the enforcing
+# operation the statement names is CONCRETELY PRESENT in this chunk (anti-
+# hallucination), regardless of whether a violation is visible.
+_DIFF_ENTAIL_SYSTEM = """You verify that a proposed CROSS-TARGET COVERAGE invariant \
+is GROUNDED in a concrete reference implementation — not invented from memory.
+
+You are given a coverage-requirement statement (of the form "every backend \
+implementing mechanism M must perform enforcing step E; one that omits E is \
+vulnerable") and the exact source chunk it was derived from. The chunk is a \
+CORRECT reference implementation on one backend — it is EXPECTED to do E right. \
+Your job is NOT to find a bug in this chunk. Your job is to confirm the chunk \
+actually performs the enforcing step E that the statement requires.
+
+- entailed=true: the chunk concretely performs (or defines) the enforcing step E \
+the statement names — so E is a real, implementable operation and the coverage \
+rule is grounded in first-party evidence. This is the expected verdict for a \
+faithful reference.
+- entailed=false: the enforcing step E the statement names is NOT present in this \
+chunk — the statement was written from memory / prior knowledge and this chunk \
+does not actually exhibit E. Also false if the statement's E and the chunk's \
+operation are unrelated.
+
+Do NOT set entailed=false merely because the chunk is correct / shows no bug — a \
+correct reference is exactly what grounds a coverage requirement. Cite the \
+supporting line/symbol (the code that performs E) in `support`."""
+
+_DIFF_ENTAIL_USER = """COVERAGE-REQUIREMENT STATEMENT:
+{statement}
+
+REFERENCE CHUNK ({path}) — a correct implementation on one backend:
+```
+{chunk}
+```
+
+Does this chunk concretely perform the enforcing step the statement requires?"""
+
 _MAX_CHUNK_CHARS = 4000
 
 
@@ -82,17 +124,22 @@ async def ground_candidate(judge: Judge, candidate: Candidate) -> GroundingResul
             reason="not-falsifiable: empty observation/observability",
         )
 
-    # Gate 1: evidence entailment (judgment).
+    # Gate 1: evidence entailment (judgment). A differential candidate is grounded
+    # on a correct cross-ISA reference, so it uses the present-the-enforcing-step
+    # prompt; the default prompt would wrongly reject correct reference code for
+    # "showing no violation".
+    entail_system = _DIFF_ENTAIL_SYSTEM if candidate.differential else _ENTAIL_SYSTEM
+    entail_user = (_DIFF_ENTAIL_USER if candidate.differential else _ENTAIL_USER).format(
+        statement=candidate.statement,
+        path=candidate.source_url_or_path,
+        chunk=_clip(candidate.evidence_snippet),
+    )
     try:
         verdict: EntailmentJudgment = await judge.complete(
             task=TASK_ENTAILMENT,
             key=f"{candidate.seed_id}::{candidate.chunk_id}",
-            system=_ENTAIL_SYSTEM,
-            user=_ENTAIL_USER.format(
-                statement=candidate.statement,
-                path=candidate.source_url_or_path,
-                chunk=_clip(candidate.evidence_snippet),
-            ),
+            system=entail_system,
+            user=entail_user,
             output_model=EntailmentJudgment,
         )
     except PendingJudgment:

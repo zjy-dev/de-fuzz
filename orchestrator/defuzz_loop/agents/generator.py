@@ -1,10 +1,12 @@
-"""Generator agent: produces a Seed (C source + selected_checkers, never ISA).
+"""Generator agent: produces a Seed (C source) for an ASSIGNED invariant.
 
 Grounds itself on the SSOT checker catalog via the MCP query_invariants tool
 (restricted to the run's single mechanism, per the single-mechanism principle),
 optionally inspects the defense source via search_source, then asks the configured
-LLM for a structured seed. The agent selects checkers only; ISA expansion is the
-deterministic routing layer's job (FR-012/013).
+LLM for the seed source. The agent does NOT choose which invariant to attack: the
+orchestrator enumerates the catalog deterministically and hands the agent one
+`current_target()` per round. ISA expansion is the deterministic routing layer's
+job (FR-012/013).
 """
 
 from __future__ import annotations
@@ -19,35 +21,34 @@ from ..state import Blackboard, Seed, SeedOrigin, ToolCall
 
 _SYSTEM_PROMPT = """You are a compiler-hardening fuzzing seed generator.
 You target ONE defense mechanism: {mechanism}.
-Produce a single self-contained C translation unit that exercises the target
-defense's code paths, plus the subset of checkers whose invariants this seed can
-trigger.
+The orchestrator has assigned you ONE invariant to stress this round; your job is
+to produce a single self-contained C translation unit that maximizes the chance
+of triggering that invariant's checker.
 
 Hard rules:
-- selected_checkers MUST be a subset of the provided catalog IDs. Never invent IDs.
-- NEVER choose an ISA / architecture. You pick checkers only; ISA is derived later.
+- Write C that specifically exercises the assigned invariant below. Do NOT try to
+  cover other checkers; a separate round is dedicated to each one.
+- NEVER choose an ISA / architecture. ISA is derived later by routing.
 - The C source must compile as a freestanding-ish test (a main() is fine).
 - Prefer constructs that stress the mechanism (e.g. for stack canary: char arrays,
   VLAs/alloca, mixed locals, address-taken vars).
 
-Catalog of selectable checkers for {mechanism}:
-{catalog}
+Assigned invariant this round:
+{target_meta}
 """
 
-_USER_PROMPT = """Round {round}.
+_USER_PROMPT = """Round {round}. Assigned invariant: {target}.
 {guidance_block}
-Generate one seed now."""
+Generate one seed that stresses {target} now."""
 
 
 class GeneratorOutput(BaseModel):
-    """Structured seed the LLM must return."""
+    """Structured seed the LLM must return (source only; target is assigned)."""
 
     source: str = Field(description="complete C source for the seed")
-    selected_checkers: list[str] = Field(
-        default_factory=list,
-        description="subset of catalog checker IDs this seed can trigger; no ISA",
+    rationale: str = Field(
+        default="", description="brief why this source stresses the assigned invariant"
     )
-    rationale: str = Field(default="", description="brief why these checkers")
 
 
 def guidance_block(bb: Blackboard) -> str:
@@ -88,23 +89,32 @@ class GeneratorAgent:
 
     async def generate(self, bb: Blackboard) -> Seed:
         catalog = await self._catalog(bb.round, bb.tool_call_log)
-        catalog_ids = {c["id"] for c in catalog}
-        catalog_text = "\n".join(
-            f"- {c['id']} (mode={c.get('mode')}, cost={c.get('cost')}, "
-            f"category={c.get('category')})"
-            for c in catalog
-        )
+        by_id = {c["id"]: c for c in catalog}
+        target = bb.current_target()
+
+        meta = by_id.get(target) if target else None
+        if meta is not None:
+            target_meta = (
+                f"- {meta['id']} (mode={meta.get('mode')}, cost={meta.get('cost')}, "
+                f"category={meta.get('category')})"
+            )
+        else:
+            target_meta = f"- {target}" if target else "- (none assigned)"
 
         guidance = guidance_block(bb)
 
         messages = [
             (
                 "system",
-                _SYSTEM_PROMPT.format(mechanism=self._mechanism, catalog=catalog_text),
+                _SYSTEM_PROMPT.format(mechanism=self._mechanism, target_meta=target_meta),
             ),
             (
                 "user",
-                _USER_PROMPT.format(round=bb.round, guidance_block=guidance),
+                _USER_PROMPT.format(
+                    round=bb.round,
+                    target=target or "(none)",
+                    guidance_block=guidance,
+                ),
             ),
         ]
 
@@ -113,8 +123,9 @@ class GeneratorAgent:
         )
         result: GeneratorOutput = await structured.ainvoke(messages)
 
-        # Enforce single-mechanism principle: drop any ID outside the catalog.
-        selected = [cid for cid in result.selected_checkers if cid in catalog_ids]
+        # The seed's target is the orchestrator-assigned invariant, not an LLM
+        # choice (kept only when it is a real catalog ID).
+        selected = [target] if target in by_id else []
 
         return Seed(
             id=uuid.uuid4().hex[:12],

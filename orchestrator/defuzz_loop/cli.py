@@ -12,6 +12,7 @@ import asyncio
 
 from .agents.feedback import FeedbackAgent
 from .agents.generator import GeneratorAgent
+from .agents.llm_oracle import LLMOracleAgent
 from .agents.minimizer import MinimizerAgent
 from .audit import (
     async_checkpointer,
@@ -44,8 +45,33 @@ def _parse_ablation(items: list[str]) -> dict[str, bool]:
     return overrides
 
 
-def _initial_blackboard(args: argparse.Namespace) -> Blackboard:
-    bb = Blackboard()
+# Mechanism → checker-ID prefix, mirroring the Go core's mechanismOf (mcp_server.go).
+_MECHANISM_PREFIX = {
+    "canary": "INV-SP-",
+    "ibt": "INV-IBT-",
+    "fortify": "INV-FORT-",
+}
+
+
+def _scoped_target_queue(mechanism: str, all_ids: list[str]) -> list[str]:
+    """Restrict the enumeration sweep to the run's single mechanism.
+
+    The oracle serves one mechanism per process, so spending rounds on other
+    mechanisms' checkers only wastes budget. An unknown mechanism falls back to
+    the full catalog.
+    """
+    prefix = _MECHANISM_PREFIX.get(mechanism)
+    if prefix is None:
+        return list(all_ids)
+    return [cid for cid in all_ids if cid.startswith(prefix)]
+
+
+def _initial_blackboard(args: argparse.Namespace, target_queue: list[str]) -> Blackboard:
+    bb = Blackboard(target_queue=list(target_queue))
+    if args.budget_secs > 0:
+        import time
+
+        bb.target_started_at = time.time()
     overrides = _parse_ablation(getattr(args, "ablation", []))
     for edge, value in overrides.items():
         if not hasattr(bb.ablation_flags, edge):
@@ -68,22 +94,32 @@ async def _run(args: argparse.Namespace) -> None:
             None if "feedback" in disabled else FeedbackAgent(args.mechanism, mcp, llm_config)
         )
         minimizer = None if "minimizer" in disabled else MinimizerAgent(args.mechanism, mcp)
+        llm_oracle = (
+            None
+            if "llm_oracle" in disabled
+            else LLMOracleAgent(args.mechanism, llm_config)
+        )
         graph = build_graph(
             generator=generator,
             catalog=catalog,
             client=client,
-            max_rounds=args.max_rounds,
+            budget_rounds=args.budget_rounds,
+            budget_secs=args.budget_secs,
             feedback=feedback,
             minimizer=minimizer,
+            llm_oracle=llm_oracle,
         )
 
-        initial = _initial_blackboard(args)
+        # Deterministic enumeration: sweep the run mechanism's checkers in order.
+        target_queue = _scoped_target_queue(args.mechanism, catalog.all_ids)
+        initial = _initial_blackboard(args, target_queue)
         write_manifest(
             run_dir,
             build_manifest(
                 experiment=args.experiment,
                 mechanism=args.mechanism,
-                max_rounds=args.max_rounds,
+                budget_rounds=args.budget_rounds,
+                budget_secs=args.budget_secs,
                 grpc_addr=args.grpc,
                 mcp_addr=args.mcp,
                 llm_config=llm_config,
@@ -95,14 +131,17 @@ async def _run(args: argparse.Namespace) -> None:
 
         async with async_checkpointer(run_dir) as saver:
             app = graph.compile(checkpointer=saver)
+            # Worst case: every target runs its full round budget; ~8 nodes/round.
+            max_iters = max(1, len(target_queue)) * max(1, args.budget_rounds)
             config = {
                 "configurable": {"thread_id": thread_id(args.experiment, args.mechanism)},
-                "recursion_limit": 8 * args.max_rounds + 10,
+                "recursion_limit": 8 * max_iters + 10,
             }
             final = await app.ainvoke(initial, config=config)
 
     bb = Blackboard.model_validate(final)
     print(f"rounds run: {bb.round + 1}")
+    print(f"targets swept: {min(bb.target_idx, len(bb.target_queue))}/{len(bb.target_queue)}")
     print(f"corpus size: {len(bb.corpus)}")
     print(f"verdicts: {[v.aggregate for v in bb.verdict_history]}")
     if bb.guidance is not None:
@@ -192,7 +231,18 @@ def main() -> None:
         "--mechanism", default="canary", help="single defense mechanism (canary|ibt|fortify)"
     )
     run.add_argument("--experiment", default="exp", help="experiment label for the thread_id")
-    run.add_argument("--max-rounds", type=int, default=1, help="max loop iterations")
+    run.add_argument(
+        "--budget-rounds",
+        type=int,
+        default=1,
+        help="loop iterations per invariant before advancing to the next (round-robin)",
+    )
+    run.add_argument(
+        "--budget-secs",
+        type=float,
+        default=0.0,
+        help="wall-clock cap per invariant (0 = no time cap, pure reproducible rounds)",
+    )
     run.add_argument("--grpc", default="localhost:50051", help="Go core gRPC address")
     run.add_argument("--mcp", default="http://127.0.0.1:50052/mcp", help="Go core MCP url")
     run.add_argument(
@@ -207,8 +257,8 @@ def main() -> None:
         "--disable-agent",
         action="append",
         default=[],
-        choices=["feedback", "minimizer"],
-        help="disable an optional agent (MVP disables both)",
+        choices=["feedback", "minimizer", "llm_oracle"],
+        help="disable an optional agent (MVP disables feedback+minimizer)",
     )
     run.add_argument(
         "--ablation",

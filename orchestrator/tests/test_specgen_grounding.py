@@ -174,3 +174,105 @@ async def test_grounding_rejects_when_not_entailed() -> None:
     assert rejected[0].grounding is not None
     assert not rejected[0].grounding.accepted
     assert "not-entailed" in rejected[0].grounding.reason
+
+
+# --- differential (cross-ISA sibling) path ---------------------------------
+
+
+class _CapturingJudge:
+    """Return canned per-task output, capturing the system prompt seen per task."""
+
+    def __init__(self, by_task: dict[str, BaseModel]) -> None:
+        self._by_task = by_task
+        self.systems: dict[str, str] = {}
+
+    async def complete(self, *, task, key, system, user, output_model: type[T]) -> T:
+        self.systems[task] = system
+        out = self._by_task[task]
+        assert isinstance(out, output_model)
+        return out
+
+
+def _isa_sq() -> SeedQuery:
+    # ISA-scoped seed on mips/loongarch: an arm hit is a cross-ISA sibling.
+    return SeedQuery(
+        seed_id="DREV-2026-001",
+        origin_mechanism="stack-protector",
+        root_cause_phrase="the guard value must be clobbered before the success return",
+        agnostic_tokens=["clobber", "guard"],
+        origin_isas=["mips", "loongarch64"],
+    )
+
+
+def _sibling_hit() -> Hit:
+    return Hit(
+        chunk_id="arm.md:9349:stack_protect_combined_test",
+        text='(define_expand "stack_protect_combined_test" ... (clobber (reg:CC CC_REGNUM)))',
+        metadata=ChunkMeta(
+            source_kind="source",
+            mechanism="stack-protector",
+            compiler="GCC",
+            version="gcc-16.1.0",
+            isa="arm",
+            path="config/arm/arm.md",
+            line=9349,
+            symbol="stack_protect_combined_test",
+        ),
+        score=210.0,
+    )
+
+
+async def test_generate_flags_differential_and_uses_coverage_prompt() -> None:
+    from defuzz_loop.specgen import generate as gen
+
+    judge = _CapturingJudge({"analogy": _ANALOGY_YES, "specialize": _DRAFT_OK})
+    cands, rejected = await generate_candidates(judge, _isa_sq(), [_sibling_hit()])
+    assert rejected == []
+    assert len(cands) == 1
+    c = cands[0]
+    # A cross-ISA sibling is flagged differential and took the coverage prompts.
+    assert c.differential is True
+    assert judge.systems["analogy"] == gen._DIFF_ANALOGY_SYSTEM
+    assert judge.systems["specialize"] == gen._DIFF_SPECIALIZE_SYSTEM
+    # Same-mechanism (stack-protector on both) is expected on the differential path.
+    assert c.origin_mechanism == "stack-protector"
+    assert c.hit_mechanism == "stack-protector"
+    assert c.target == "arm"
+
+
+async def test_generate_non_sibling_stays_default_path() -> None:
+    from defuzz_loop.specgen import generate as gen
+
+    # A mechanism-neutral seed (no origin_isas) never flags differential.
+    judge = _CapturingJudge({"analogy": _ANALOGY_YES, "specialize": _DRAFT_OK})
+    cands, _ = await generate_candidates(judge, _sq(), [_hit()])
+    assert cands[0].differential is False
+    assert judge.systems["analogy"] == gen._ANALOGY_SYSTEM
+    assert judge.systems["specialize"] == gen._SPECIALIZE_SYSTEM
+
+
+async def test_grounding_routes_differential_to_coverage_entailment() -> None:
+    from defuzz_loop.specgen import grounding as gr
+    from defuzz_loop.specgen.grounding import EntailmentJudgment
+
+    judge = _CapturingJudge(
+        {"entailment": EntailmentJudgment(entailed=True, support="clobber reg:CC")}
+    )
+    c = _candidate(observation="guard left live in a GPR at ret", observability="missing clobber")
+    c.differential = True
+    result = await ground_candidate(judge, c)
+    # A correct reference is accepted (enforcing step PRESENT), via the diff prompt.
+    assert result.accepted
+    assert judge.systems["entailment"] == gr._DIFF_ENTAIL_SYSTEM
+
+
+async def test_grounding_default_candidate_uses_default_entailment() -> None:
+    from defuzz_loop.specgen import grounding as gr
+    from defuzz_loop.specgen.grounding import EntailmentJudgment
+
+    judge = _CapturingJudge({"entailment": EntailmentJudgment(entailed=True, support="line 100")})
+    c = _candidate(observation="32-bit truncation visible", observability="wrong immediate")
+    assert c.differential is False
+    result = await ground_candidate(judge, c)
+    assert result.accepted
+    assert judge.systems["entailment"] == gr._ENTAIL_SYSTEM

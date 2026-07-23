@@ -123,15 +123,15 @@ def _catalog() -> CheckerCatalog:
 
 def test_checker_routing_flag_toggles_only_that_edge() -> None:
     catalog = _catalog()
-    seed = Seed(id="s", source="", selected_checkers=[])  # selects nothing
-
+    # No enumeration target yet: the orchestrator-assigned target is None, so only
+    # the always-on cheap checkers should auto-run when routing is ON.
     on = expand_matrix(
         catalog,
-        Blackboard(current_seed=seed, ablation_flags=AblationFlags(checker_routing=True)),
+        Blackboard(target_queue=[], ablation_flags=AblationFlags(checker_routing=True)),
     )
     off = expand_matrix(
         catalog,
-        Blackboard(current_seed=seed, ablation_flags=AblationFlags(checker_routing=False)),
+        Blackboard(target_queue=[], ablation_flags=AblationFlags(checker_routing=False)),
     )
 
     # routing ON: only cheap checkers auto-run (expensive L01 not selected).
@@ -139,6 +139,20 @@ def test_checker_routing_flag_toggles_only_that_edge() -> None:
     # routing OFF (control arm): full checker × ISA product, no pruning.
     assert {c.checker_id for c in off.cells} == {"INV-SP-G01", "INV-SP-L01"}
     assert len(off.cells) > len(on.cells)
+
+
+def test_checker_routing_includes_current_target() -> None:
+    catalog = _catalog()
+    # When the orchestrator points the cursor at the expensive L01, routing ON must
+    # build it in addition to the always-on cheap checkers.
+    on = expand_matrix(
+        catalog,
+        Blackboard(
+            target_queue=["INV-SP-L01"],
+            ablation_flags=AblationFlags(checker_routing=True),
+        ),
+    )
+    assert {c.checker_id for c in on.cells} == {"INV-SP-G01", "INV-SP-L01"}
 
 
 def test_ablation_flags_are_independent() -> None:

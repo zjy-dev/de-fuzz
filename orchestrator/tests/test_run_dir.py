@@ -37,7 +37,8 @@ def test_manifest_roundtrips_and_captures_environment(tmp_path) -> None:
     manifest = build_manifest(
         experiment="ablate",
         mechanism="canary",
-        max_rounds=3,
+        budget_rounds=3,
+        budget_secs=0.0,
         grpc_addr="127.0.0.1:50051",
         mcp_addr="http://127.0.0.1:50052/mcp",
         llm_config=cfg,
@@ -49,7 +50,8 @@ def test_manifest_roundtrips_and_captures_environment(tmp_path) -> None:
     restored = read_manifest(run_dir)
 
     assert restored["thread_id"] == thread_id("ablate", "canary")
-    assert restored["max_rounds"] == 3
+    assert restored["budget_rounds"] == 3
+    assert restored["budget_secs"] == 0.0
     assert restored["llm"]["model"] == "gpt-5.4"
     assert restored["ablation_flags"]["coverage_feedback"] is False
     assert restored["disabled_agents"] == ["minimizer"]

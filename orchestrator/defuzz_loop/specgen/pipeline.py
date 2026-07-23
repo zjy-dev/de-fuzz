@@ -18,6 +18,7 @@ Staging artifacts written under ``out_dir`` (plan §CLI):
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -26,12 +27,19 @@ from pathlib import Path
 from ..llm import LLMConfig
 from . import corpus as corpus_mod
 from .dedup import assess_novelty, build_baseline
+from .embedding import EmbeddingClient, EmbeddingConfig
 from .generate import generate_candidates
 from .grounding import ground_candidates
-from .judge import PendingJudgment, TranscriptJudge, build_judge
-from .query import distill_query
-from .retriever import BM25Retriever, Retriever, retrieve
-from .schema import Candidate, Rejected, Seed
+from .judge import Judge, PendingJudgment, TranscriptJudge, build_judge
+from .query import _harvest_exact_anchors, distill_query, distill_signature_query
+from .retriever import (
+    BM25Retriever,
+    EmbeddingRetriever,
+    HybridRetriever,
+    Retriever,
+    retrieve,
+)
+from .schema import Candidate, Chunk, Rejected, Seed, SeedQuery
 from .seeds import load_seeds
 
 
@@ -45,6 +53,10 @@ class PipelineConfig:
     out_dir: Path
     cache_root: Path
     top_k: int = 8
+    # Over-fetch multiplier: retrieve top_k*over_fetch raw hits before the exit
+    # filter so a full slate of top_k *survivors* remains after same-mechanism /
+    # self-anchor hits are dropped. Exposed so a run can widen recall.
+    over_fetch: int = 4
     # BM25 raw scores are length-sensitive and corpus-relative. Calibrated from
     # the real 450-entry baseline's intra nearest-neighbor distribution
     # (p50≈36, p90≈68, p95≈88): flag a candidate as a near-duplicate only when it
@@ -55,6 +67,76 @@ class PipelineConfig:
     transcript: Path | None = None
     llm_config: LLMConfig | None = None
     seed_ids: list[str] | None = None  # restrict to these seed ids (slice runs)
+    # Retrieval backend: "bm25" (lexical v1) or "embedding" (dense Phase 2).
+    retriever: str = "bm25"
+    embedding_config: EmbeddingConfig | None = None
+    # Query construction: "abstract" (mechanism-neutral root-cause paraphrase,
+    # the v1 cross-mechanism default) or "signature" (PropertyGPT-style: distil a
+    # structure-preserving signature from the buggy function bodies the seed's
+    # evidence names, so retrieval keeps mechanism/target specificity). Signature
+    # signature mode is meant to be paired with a dense-capable retriever (embedding/hybrid);
+    # under bm25 a code-heavy query collides on corpus boilerplate.
+    query_mode: str = "abstract"
+    # Reuse a previously-built ``<cache_root>/corpus.jsonl`` instead of rescanning
+    # ``gcc_root``. The cached corpus pins chunk line numbers to the GCC version it
+    # was built from (evidence anchors are line-exact), so re-running seed slices
+    # or evaluating query/filter changes must reuse the SAME corpus rather than
+    # re-chunk a different local tree. Falls back to a fresh build if absent.
+    reuse_corpus: bool = False
+
+
+def _build_retriever(cfg: PipelineConfig) -> tuple[Retriever, str]:
+    """Construct the retrieval backend named by ``cfg.retriever``.
+
+    ``bm25`` (lexical v1), ``embedding`` (dense Phase 2), or ``hybrid`` (RRF
+    fusion of both — the P0 recall+precision upgrade).
+    """
+
+    def _dense() -> tuple[EmbeddingRetriever, str]:
+        ecfg = cfg.embedding_config or EmbeddingConfig.load()
+        api_key = os.environ.get(ecfg.api_key_env, "")
+        client = EmbeddingClient(ecfg, api_key=api_key)
+        cache_path = cfg.cache_root / "embeddings.json"
+        return EmbeddingRetriever(client, cache_path=cache_path), ecfg.model
+
+    if cfg.retriever == "embedding":
+        return _dense()
+    if cfg.retriever == "hybrid":
+        dense, dense_name = _dense()
+        return HybridRetriever(BM25Retriever(), dense), f"hybrid(bm25+{dense_name})"
+    return BM25Retriever(), "bm25"
+
+
+def _bodies_for_symbols(
+    by_sym: dict[str, list[Chunk]], symbols: list[str]
+) -> list[str]:
+    """Corpus function texts for the given symbols (signature-query material)."""
+    out: list[str] = []
+    for sym in symbols:
+        out.extend(c.text for c in by_sym.get(sym, []))
+    return out
+
+
+async def _distill(
+    cfg: PipelineConfig, judge: Judge, seed: Seed, by_sym: dict[str, list[Chunk]]
+) -> SeedQuery:
+    """Build the seed's retrieval query per ``cfg.query_mode``.
+
+    ``abstract`` is the mechanism-neutral v1 path. ``signature`` resolves the
+    seed's defect-site symbols (its exact anchors) to corpus function bodies and
+    asks the judge for a structure-preserving signature. If no anchor resolves to
+    a corpus body there is nothing structural to distil, so we fall back to the
+    abstract query.
+    """
+    if cfg.query_mode != "signature":
+        return await distill_query(judge, seed)
+    anchors = _harvest_exact_anchors(seed)
+    defect_bodies = _bodies_for_symbols(by_sym, anchors)
+    if not defect_bodies:
+        return await distill_query(judge, seed)
+    return await distill_signature_query(
+        judge, seed, defect_bodies=defect_bodies, reference_bodies=[]
+    )
 
 
 @dataclass
@@ -126,6 +208,7 @@ async def run_pipeline(cfg: PipelineConfig) -> PipelineResult:
         cfg.seed_sources,
         findings_root=cfg.findings_root,
         bugs_root=cfg.bugs_root,
+        invariants_root=cfg.invariants_root,
     )
     if cfg.seed_ids:
         wanted = set(cfg.seed_ids)
@@ -133,14 +216,30 @@ async def run_pipeline(cfg: PipelineConfig) -> PipelineResult:
 
     # Stage 2 — corpus (cache to disk for reproducibility / offline replay).
     corpus_path = cfg.cache_root / "corpus.jsonl"
-    chunks = corpus_mod.build_corpus(
-        cfg.gcc_root, cache_root=cfg.cache_root, include_bugzilla=cfg.include_bugzilla
-    )
-    corpus_mod.write_corpus(chunks, corpus_path)
+    if cfg.reuse_corpus and corpus_path.exists():
+        # Reuse the pinned corpus verbatim (line-exact evidence anchors); do not
+        # rescan gcc_root, which may be a different version / absent.
+        chunks = corpus_mod.load_corpus(corpus_path)
+    else:
+        chunks = corpus_mod.build_corpus(
+            cfg.gcc_root, cache_root=cfg.cache_root, include_bugzilla=cfg.include_bugzilla
+        )
+        # Never clobber an existing pinned corpus with an empty build (e.g. a
+        # missing/rescanned gcc_root produced 0 chunks). An empty overwrite would
+        # destroy the line-exact corpus every reuse run depends on.
+        if chunks:
+            corpus_mod.write_corpus(chunks, corpus_path)
 
     # Stage 3 — index once, reuse across seeds.
-    retriever: Retriever = BM25Retriever()
+    retriever, retriever_name = _build_retriever(cfg)
     retriever.index(chunks)
+
+    # Symbol → corpus chunks, for the signature query mode (function-body lookup).
+    by_sym: dict[str, list[Chunk]] = {}
+    if cfg.query_mode == "signature":
+        for c in chunks:
+            if c.metadata.symbol:
+                by_sym.setdefault(c.metadata.symbol, []).append(c)
 
     judge, tj = build_judge(transcript=cfg.transcript, llm_config=cfg.llm_config)
 
@@ -149,12 +248,14 @@ async def run_pipeline(cfg: PipelineConfig) -> PipelineResult:
     for seed in seeds:
         # Stage 1 — distill (judgment).
         try:
-            sq = await distill_query(judge, seed)
+            sq = await _distill(cfg, judge, seed, by_sym)
         except PendingJudgment:
             continue
 
         # Stage 3 — retrieve + exit filter (deterministic).
-        survivors, _dropped = retrieve(retriever, sq, top_k=cfg.top_k)
+        survivors, _dropped = retrieve(
+            retriever, sq, top_k=cfg.top_k, over_fetch=cfg.over_fetch
+        )
 
         # Stage 4 — three-gate transform (judgment).
         cands, rej = await generate_candidates(judge, sq, survivors)
@@ -174,7 +275,7 @@ async def run_pipeline(cfg: PipelineConfig) -> PipelineResult:
         if c.novelty is not None and not c.novelty.is_novel:
             result.demoted.append(c)
 
-    _write_staging(cfg, result, corpus_path, tj)
+    _write_staging(cfg, result, corpus_path, tj, retriever_name)
     return result
 
 
@@ -183,6 +284,7 @@ def _write_staging(
     result: PipelineResult,
     corpus_path: Path,
     tj: TranscriptJudge | None,
+    retriever_name: str,
 ) -> None:
     out = cfg.out_dir
 
@@ -224,8 +326,10 @@ def _write_staging(
         "gcc_root": str(cfg.gcc_root),
         "corpus_path": str(corpus_path),
         "corpus_size": result.corpus_size,
-        "retriever": "bm25",
+        "retriever": retriever_name,
+        "query_mode": cfg.query_mode,
         "top_k": cfg.top_k,
+        "over_fetch": cfg.over_fetch,
         "dedup_threshold": cfg.dedup_threshold,
         "include_bugzilla": cfg.include_bugzilla,
         "transcript": str(cfg.transcript) if cfg.transcript else None,

@@ -99,6 +99,28 @@ docs/presentations/pptx-workspace/node_modules/
 # Local experiment plots
 scripts/assets/*deepseek*.png
 
+# Survey / reference papers (not our own)
+docs/papers/
+SpecAuditor.pdf
+
+# Audit source references and probe binaries
+.audit-probes/
+.audit-src-gcc16/
+.audit-src-glibc/
+
+# Auto-research runtime state
+orchestrator/.autoresearch/
+
+# LaTeX build artifacts (paper source is tracked)
+docs/paper/*.aux
+docs/paper/*.bbl
+docs/paper/*.blg
+docs/paper/*.log
+docs/paper/*.out
+docs/paper/*.toc
+docs/paper/*.lof
+docs/paper/*.lot
+
 /findings
 fuzz_out*/
 compiler-audit/

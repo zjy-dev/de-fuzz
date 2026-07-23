@@ -19,6 +19,9 @@ dependencies = [
 # LLM providers — pick what the configured provider needs.
 openai = ["langchain-openai>=0.2.0"]
 anthropic = ["langchain-anthropic>=0.2.0"]
+specgen = [
+    "rank-bm25>=0.2.2",
+]
 
 [dependency-groups]
 dev = [

@@ -1,9 +1,0 @@
-{
-  "ai": "trae",
-  "ai_skills": true,
-  "branch_numbering": "sequential",
-  "here": true,
-  "integration": "trae",
-  "script": "sh",
-  "speckit_version": "0.9.2"
-}

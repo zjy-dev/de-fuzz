@@ -21,7 +21,13 @@ NODE_WRITE_PERMISSIONS: dict[str, frozenset[str]] = {
     "build": frozenset({"build_artifacts"}),
     "coverage": frozenset({"coverage"}),
     "oracle": frozenset({"verdict_history", "last_verdict", "pending_bug"}),
-    "bump": frozenset({"round"}),
+    # LLM oracle is a fallback judge: it appends to llm_verdicts (audit) and, only
+    # on a confident FAIL, promotes last_verdict and writes pending_bug — the same
+    # bug fields the deterministic oracle owns, never any other field.
+    "llm_oracle": frozenset({"llm_verdicts", "last_verdict", "pending_bug"}),
+    "bump": frozenset(
+        {"round", "target_idx", "rounds_on_target", "target_started_at"}
+    ),
     "feedback": frozenset({"guidance"}),
     "minimizer": frozenset({"minimized_poc"}),
 }

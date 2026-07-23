@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..llm import LLMConfig
+from .embedding import EmbeddingConfig
 from .pipeline import PipelineConfig, run_pipeline
 
 # Sibling repo holding the DREV findings + historical bug corpus + survey docs.
@@ -32,15 +33,42 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sg.add_argument(
         "--seed-source",
         default="findings",
-        help="comma list of seed pools: findings,bugs (default: findings)",
+        help="comma list of seed pools: findings,bugs,invariants (default: findings)",
     )
     sg.add_argument(
         "--corpus-root",
-        required=True,
-        help="path to the GCC source tree's gcc/ dir (the retrieval corpus)",
+        required=False,
+        default=None,
+        help="path to the GCC source tree's gcc/ dir (the retrieval corpus); "
+        "optional when --reuse-corpus finds a cached corpus.jsonl",
     )
     sg.add_argument(
-        "--retriever", default="bm25", choices=["bm25"], help="retriever backend (v1: bm25)"
+        "--reuse-corpus",
+        action="store_true",
+        help="reuse <cache-root>/corpus.jsonl verbatim instead of rescanning "
+        "--corpus-root (keeps line-exact evidence anchors pinned to the cached "
+        "GCC version; required for re-running slices against the same corpus)",
+    )
+    sg.add_argument(
+        "--retriever",
+        default="bm25",
+        choices=["bm25", "embedding", "hybrid"],
+        help="retriever backend: bm25 (lexical v1), embedding (dense "
+        "doubao-embedding-vision), or hybrid (RRF fusion of both)",
+    )
+    sg.add_argument(
+        "--embedding-config",
+        default=None,
+        help="path to embedding.yaml (for --retriever embedding; default: configs/embedding.yaml)",
+    )
+    sg.add_argument(
+        "--query-mode",
+        default="abstract",
+        choices=["abstract", "signature"],
+        help="query construction: abstract (mechanism-neutral root-cause "
+        "paraphrase, v1 default) or signature (PropertyGPT-style structure-"
+        "preserving signature distilled from the buggy function bodies; pair "
+        "with --retriever embedding/hybrid)",
     )
     sg.add_argument(
         "--out", default=None, help="staging output dir (default: orchestrator/runs/specgen_<ts>)"
@@ -71,6 +99,13 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
         help="corpus/bugzilla cache dir (default: <out>/cache)",
     )
     sg.add_argument("--top-k", type=int, default=8, help="hits kept per seed after exit filter")
+    sg.add_argument(
+        "--over-fetch",
+        type=int,
+        default=4,
+        help="raw-hit multiplier before the exit filter (top_k*over_fetch); "
+        "raise to widen recall for the analogy gate",
+    )
     sg.add_argument(
         "--dedup-threshold",
         type=float,
@@ -116,26 +151,39 @@ def _cfg_from_args(args: argparse.Namespace) -> PipelineConfig:
     if args.transcript is None:
         llm_config = LLMConfig.load(args.llm_config) if args.llm_config else LLMConfig.load()
 
+    embedding_config = None
+    if args.retriever in ("embedding", "hybrid"):
+        embedding_config = (
+            EmbeddingConfig.load(args.embedding_config)
+            if args.embedding_config
+            else EmbeddingConfig.load()
+        )
+
     return PipelineConfig(
         seed_sources=sources,
-        gcc_root=Path(args.corpus_root),
+        gcc_root=Path(args.corpus_root) if args.corpus_root else Path("."),
         findings_root=findings_root,
         bugs_root=bugs_root,
         invariants_root=invariants_root,
         out_dir=out_dir,
         cache_root=cache_root,
         top_k=args.top_k,
+        over_fetch=args.over_fetch,
         dedup_threshold=args.dedup_threshold,
         include_bugzilla=not args.no_bugzilla,
         transcript=Path(args.transcript) if args.transcript else None,
         llm_config=llm_config,
         seed_ids=list(args.seed_id) or None,
+        retriever=args.retriever,
+        embedding_config=embedding_config,
+        query_mode=args.query_mode,
+        reuse_corpus=args.reuse_corpus,
     )
 
 
 async def run(args: argparse.Namespace) -> None:
     cfg = _cfg_from_args(args)
-    print(f"specgen out dir: {cfg.out_dir}")
+    print(f"specgen out dir: {cfg.out_dir}  (retriever: {cfg.retriever})")
     result = await run_pipeline(cfg)
     print(f"seeds: {len(result.seeds)}  corpus: {result.corpus_size} chunks")
     print(

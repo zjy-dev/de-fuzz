@@ -3,10 +3,11 @@
 Consumes the SSOT CheckerMetadata pulled over gRPC (same table the agent's
 query_invariants reads). Rules (data-model §rules, blackboard-schema §routing):
 
-1. selected = current_seed.selected_checkers ∪ all cheap checkers (always-on, FR-017).
+1. selected = current enumeration target ∪ all cheap checkers (always-on, FR-017).
+   The target is the orchestrator-assigned `current_target()`, not an agent choice.
 2. For each selected checker, cartesian-expand its applicable_isas into cells.
 3. mode=differential checkers go into forced_full; their ISAs are never pruned (FR-016).
-4. ablation_flags.checker_routing=False → ignore agent selection, run ALL checkers ×
+4. ablation_flags.checker_routing=False → ignore the target, run ALL checkers ×
    ALL ISAs (the control arm, FR-010 / SC-004).
 
 Superset principle (FR-018): missing an expensive checker only changes whether it
@@ -47,8 +48,9 @@ def expand_matrix(catalog: CheckerCatalog, bb: Blackboard) -> BuildMatrix:
     if not bb.ablation_flags.checker_routing:
         selected = catalog.all_ids  # control arm: full checker × ISA product
     else:
-        seed_checkers = bb.current_seed.selected_checkers if bb.current_seed else []
-        selected = sorted(set(seed_checkers) | set(catalog.cheap_ids()))
+        target = bb.current_target()
+        targets = {target} if target else set()
+        selected = sorted(targets | set(catalog.cheap_ids()))
 
     cells: list[BuildCell] = []
     forced_full: set[str] = set()

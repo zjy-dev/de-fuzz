@@ -9,13 +9,11 @@ related_docs:
   - ./oracle-mechanism-framework.md
   - ./decisions/003-oracle-multi-invariant-redesign.md
   - ../invariants/README.md
-  - ../../../specs/002-agentic-loop-redesign/spec.md
-  - ../../../specs/002-agentic-loop-redesign/plan.md
 ---
 
 # Agentic Loop Redesign
 
-> **本文性质**：高层方案，讲结构和职责。落地实现见 `specs/002-agentic-loop-redesign/`（spec/plan/tasks）：Python (LangGraph) 编排 + Go core 双适配器（gRPC 确定性节点 + MCP agent tools），LLM 全经 Python provider。
+> **本文性质**：高层方案，讲结构和职责。落地实现就是代码本身：Python (LangGraph) 编排在 `orchestrator/defuzz_loop/`，Go core 双适配器（gRPC 确定性节点 + MCP agent tools）在 `core/internal/service/`，LLM 全经 Python provider（`orchestrator/defuzz_loop/llm.py`）。各环节的具体代码落点见 §7。
 
 ## 1. 动机
 
@@ -153,15 +151,23 @@ agent 选 checker 是个性能优化——省掉跑昂贵 checker 的无谓开�
 | 编排显式的 agent 系统：和"自由发挥型"（FuzzAgent / Claude Code）相反，流水线掌握编排权、agent 经共享状态联动，换来可复现 / 可 ablation / 可审计 | 护城河 | §1.5、§3.5 |
 | Agentic loop：被预言机 grounding 的、覆盖率引导的、针对静默失效的种子生成与 ISA 路由 | 载体（新颖点在"问题 + grounding + ISA 路由 + 显式编排"，不在 agent plumbing） | §3、§4 |
 
-## 7. 暂不展开（待后续 ADR / spec）
+## 7. 代码落点
 
-- 三个 agent 各自的 tool 接口和 prompt 结构；
-- 共享状态的 schema、版本化、读写契约；
-- checker 元数据的字段定义和注册方式；
-- Generator 选 checker 的输出 schema，以及流水线怎么消费它；
-- 反馈 agent、最小化 agent 的 subagent 协议；
-- 廉价 broad-sweep 兜底抽样的触发策略；
-- 跟现有 `internal/fuzz`、`internal/oracle`、`internal/coverage` 的具体改造点和迁移路径。
+本方案各环节已落地，对应代码如下（曾经在早期 spec 里"暂不展开"的几项，现在都在这些文件里）：
+
+| 环节 | 代码 |
+| --- | --- |
+| 显式编排骨架（固定边序 + 条件路由 + bump 枚举游标） | `orchestrator/defuzz_loop/graph.py` |
+| 共享状态 schema / 版本化（checkpointer） | `orchestrator/defuzz_loop/state.py`、`orchestrator/defuzz_loop/audit.py` |
+| 读写契约（按节点的写权限矩阵 + guard 断言） | `orchestrator/defuzz_loop/permissions.py` |
+| checker→ISA 路由（查表展开 BuildMatrix、cheap 全开、differential 强制全跑） | `orchestrator/defuzz_loop/routing.py` |
+| checker 元数据 SSOT（字段定义 + 注册） | `core/internal/oracle/metadata.go` |
+| 三个 agent | `orchestrator/defuzz_loop/agents/{generator,feedback,minimizer}.py` |
+| 确定性节点（build / coverage / oracle） | `orchestrator/defuzz_loop/nodes/`，经 gRPC 调 `core/internal/service/grpc_server.go` |
+| agent 只读 tool（search_source / query_invariants / coverage_diff / creduce_run / compile_exec） | `core/internal/service/mcp_server.go`，客户端 `orchestrator/defuzz_loop/clients/mcp_client.py` |
+| CLI（run / inspect / replay / trace-bug） | `orchestrator/defuzz_loop/cli.py` |
+
+gRPC 契约见 `core/internal/service/pb/`（由 `oracle.proto` 生成）；上手与验证路径见 `docs/tech-docs/README.md` 指向的 guide。
 
 ## 8. 待验证的实验假设
 

@@ -12,7 +12,7 @@ DeFuzz 是一个 LLM-driven 的约束求解 fuzzer，用来测试 C 编译器自
 
 > **从哪里开始？**
 > - 第一次接触这个项目 → 读 `architecture/overview.md`，再按需展开。
-> - 想跑起来 → `guides/building-instrumented-gcc.md` → `../../specs/002-agentic-loop-redesign/quickstart.md`。
+> - 想跑起来 → `guides/building-instrumented-gcc.md` 搭被测目标；编排层跑法见 `architecture/agentic-loop-redesign.md` §7（代码落点）与仓库根 `Makefile`（`make build-core` + `orchestrator/` 下 `uv run`）。
 > - 想加防御机制 → `guides/adding-a-defense-mechanism.md`。
 > - 想理解 oracle 怎么工作 → `architecture/oracle-mechanism-framework.md`。
 
@@ -69,6 +69,12 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 ## GCC Instrumentation
 
 [gcc-instrumentation/README.md](./gcc-instrumentation/README.md) 子目录含各 ISA 的 BUILD-GUIDE 与构建脚本。
+
+## Audit Campaigns
+
+| 报告 | 范围 | 结论 |
+| --- | --- | --- |
+| [audits/fortify-source-gcc16-glibc239.md](./audits/fortify-source-gcc16-glibc239.md) | FORTIFY_SOURCE 静态审计：GCC 16.1.0 + glibc 2.39 / aarch64 | 1 个新 finding（DREV-2026-025，INV-FORT-O02 signed-count 32 位截断 silent bypass）；O01/O03/W01/R01/R02/C01 HOLDS；C02 为已知 sourceware #24987 carry-forward |
 
 ## Recent Changes (本次同步覆盖范围)
 
