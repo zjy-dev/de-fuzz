@@ -1,0 +1,29 @@
+# ISA → toolchain mapping for the deterministic BuildService (T008).
+#
+# The build node never hard-codes cross-compiler paths: it looks each ISA up
+# here. An ISA absent from this file yields an error build cell (R8) rather than
+# a crash, so the loop degrades gracefully on hosts missing a cross toolchain.
+#
+# Per ISA:
+#   gcc_path     : (cross-)gcc executable
+#   prefix       : -B prefix for compiler components (cc1, as, ld); optional
+#   sysroot      : --sysroot for cross builds; optional (native omits it)
+#   cflags       : mechanism/ISA flags injected into every compile
+#   qemu_path    : user-mode emulator for dynamic checkers; omit for native
+#   qemu_sysroot : -L sysroot for QEMU
+#   native       : true for the host ISA (run binaries directly, no QEMU)
+#
+# Paths below are placeholders — point them at your installed toolchains.
+#
+# This run targets aarch64 FORTIFY only. We run inside a native aarch64 Linux
+# VM, so aarch64 is the host ISA (native: true, no QEMU). FORTIFY requires
+# optimization to take effect, so the cflags enable -O2 -D_FORTIFY_SOURCE=2.
+# x86_64 / riscv64 are intentionally omitted: their build cells become error
+# artifacts (R8) that the oracle skips, scoping the sweep to aarch64.
+toolchains:
+  aarch64:
+    gcc_path: gcc
+    cflags:
+      - -O2
+      - -D_FORTIFY_SOURCE=2
+    native: true

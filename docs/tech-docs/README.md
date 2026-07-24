@@ -12,7 +12,7 @@ DeFuzz 是一个 LLM-driven 的约束求解 fuzzer，用来测试 C 编译器自
 
 > **从哪里开始？**
 > - 第一次接触这个项目 → 读 `architecture/overview.md`，再按需展开。
-> - 想跑起来 → `guides/building-instrumented-gcc.md` → `reference/config-schema.md` → `reference/scripts-commands.md`。
+> - 想跑起来 → `guides/building-instrumented-gcc.md` 搭被测目标；编排层跑法见 `architecture/agentic-loop-redesign.md` §7（代码落点）与仓库根 `Makefile`（`make build-core` + `orchestrator/` 下 `uv run`）。
 > - 想加防御机制 → `guides/adding-a-defense-mechanism.md`。
 > - 想理解 oracle 怎么工作 → `architecture/oracle-mechanism-framework.md`。
 
@@ -20,11 +20,9 @@ DeFuzz 是一个 LLM-driven 的约束求解 fuzzer，用来测试 C 编译器自
 
 | 文档 | 主题 |
 | --- | --- |
+| [architecture/agentic-loop-redesign.md](./architecture/agentic-loop-redesign.md) | 当前架构权威文档：Python (LangGraph) 编排 + 三个 agent + Go core 双适配器（gRPC + MCP） |
 | [architecture/overview.md](./architecture/overview.md) | 系统总览：组件分层、数据流、近期改造时间线 |
-| [architecture/gcc-pipeline.md](./architecture/gcc-pipeline.md) | 构建期 GCC 插桩 → 运行期数据流的端到端拆解 |
 | [architecture/oracle-mechanism-framework.md](./architecture/oracle-mechanism-framework.md) | `MechanismOracle` / `InvariantChecker` / `BinaryInspector` / `Polarizer` 实现态参考 |
-| [architecture/fuzz-engine-loop.md](./architecture/fuzz-engine-loop.md) | 主循环、约束求解 retry、覆盖率/oracle/corpus 三方决策、随机阶段接入 |
-| [architecture/prompt-architecture.md](./architecture/prompt-architecture.md) | 分层 prompt + mechanism contract 后置校验 |
 
 ### Architecture Decision Records
 
@@ -41,8 +39,6 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 | --- | --- |
 | [features/canary-oracle.md](./features/canary-oracle.md) | ✅ 已实现 (4 个 invariant checker) |
 | [features/ibt-oracle.md](./features/ibt-oracle.md) | ✅ 已实现 (10 个 invariant checker; DREV-2026-004) |
-| [features/flag-scheduler.md](./features/flag-scheduler.md) | ✅ 已实现 (仅 aarch64) |
-| [features/random-mutation-phase.md](./features/random-mutation-phase.md) | ✅ 已实现 (默认关闭) |
 | [features/mechanism-contract.md](./features/mechanism-contract.md) | ✅ 已实现 (canary 已注册) |
 | [_archive/oracles/fortify-oracle.md](./_archive/oracles/fortify-oracle.md) | ⚠ DEPRECATED — Go 实现在 a7307b6 移除 |
 
@@ -59,8 +55,6 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 
 | 文档 | 用途 |
 | --- | --- |
-| [reference/config-schema.md](./reference/config-schema.md) | YAML 全字段对照表 + minimal canary 样例 |
-| [reference/scripts-commands.md](./reference/scripts-commands.md) | CLI / Makefile / scripts/ 速查 |
 | [reference/tech-stack.md](./reference/tech-stack.md) | 语言、依赖、外部二进制工具、并发模型、持久化格式 |
 | [reference/open-source-c-compilers.md](./reference/open-source-c-compilers.md) | 选型调研：为什么选 GCC 当被测目标 |
 
@@ -75,6 +69,12 @@ ADR 索引：[decisions/README.md](./architecture/decisions/README.md)。
 ## GCC Instrumentation
 
 [gcc-instrumentation/README.md](./gcc-instrumentation/README.md) 子目录含各 ISA 的 BUILD-GUIDE 与构建脚本。
+
+## Audit Campaigns
+
+| 报告 | 范围 | 结论 |
+| --- | --- | --- |
+| [audits/fortify-source-gcc16-glibc239.md](./audits/fortify-source-gcc16-glibc239.md) | FORTIFY_SOURCE 静态审计：GCC 16.1.0 + glibc 2.39 / aarch64 | 1 个新 finding（DREV-2026-025，INV-FORT-O02 signed-count 32 位截断 silent bypass）；O01/O03/W01/R01/R02/C01 HOLDS；C02 为已知 sourceware #24987 carry-forward |
 
 ## Recent Changes (本次同步覆盖范围)
 

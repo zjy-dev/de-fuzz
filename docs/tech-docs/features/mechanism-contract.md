@@ -5,7 +5,6 @@ priority: HIGH
 last_updated: 2026-05-08
 status: IMPLEMENTED
 related_docs:
-  - ../architecture/prompt-architecture.md
   - ../architecture/oracle-mechanism-framework.md
   - ../guides/adding-a-defense-mechanism.md
 ---

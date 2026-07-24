@@ -1,0 +1,37 @@
+# Fig: invariant -> verdict oracle flow (academic monochrome)
+# render: d2 --theme=0 --pad=8 oracle-flow.d2 ../oracle-flow.svg
+
+classes: {
+  io:    { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  node:  { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  gate:  { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  term:  { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A"; border-radius: 20 } }
+  termE: { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A"; border-radius: 20 } }
+  store: { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; font-color: "#333333" } }
+}
+
+direction: down
+
+start: "seed (source / asm / binary)" { class: term }
+
+static:  "Static checker\nsymbols · sections · disassembly" { class: node }
+dynamic: "Dynamic checker\nexit status · register/memory snapshot" { class: node }
+
+verdict: "Aggregate verdict\npass / fail / not-applicable / error\n(NotApplicable ignored by aggregator)" { class: node }
+
+gate: "Deterministic-evidence gate\nbug reported only on a checker fail\nor a reproducible execution differential" { class: gate }
+
+bug:   "Bug (grounded)" { class: termE }
+ok:    "OK" { class: term }
+
+cache: "Metadata cache" { class: store; shape: cylinder }
+
+start -> static: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+start -> dynamic: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+static -> verdict: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+dynamic -> verdict: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+verdict -> gate: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+gate -> bug: "any Fail + evidence" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+gate -> ok: "all Pass / NA" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+static -> cache: "reuse" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }
+dynamic -> cache: "reuse" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }

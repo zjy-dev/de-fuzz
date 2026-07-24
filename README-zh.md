@@ -1,138 +1,61 @@
 # DeFuzz
 
-一个基于 LLM 约束求解的编译器防御策略模糊测试工具。
+一套挖编译器自身软件防御实现 bug 的 agentic 系统（stack canary、FORTIFY、CFI、shadow stack、IBT 等）。
 
-使用 Golang 编写。
+它测的是**编译器**而非程序：让 agent 生成 C seed，由插桩 GCC 按 (checker→ISA) 矩阵编译，再用零假阳性的 oracle 跑 invariant checker，判定防御机制是否**静默失效**。
 
-## 核心思想
+## 架构
 
-DeFuzz 灵感来自 HLPFuzz 论文。它使用 **LLM 驱动的渐进式约束求解** 来系统地探索编译器防御实现中难以触达的代码路径。
+DeFuzz 分两段：
 
-### 核心概念：基于 LLM 的约束求解
+- **Go core**（`core/`，module `github.com/zjy-dev/de-fuzz`）—— 一个确定性进程，在同一套 `internal/` 包上暴露两个面：
+  - **gRPC**（`:50051`）：确定性节点 —— `BuildService` / `CoverageService` / `OracleService` / `CheckerMetadataService`。
+  - **MCP**（`:50052`）：agent 只读 tool —— `search_source`、`query_invariants`、`coverage_diff`、`creduce_run`、`compile_exec`。
+- **Python orchestrator**（`orchestrator/`，包 `defuzz_loop`）—— 一个 LangGraph 流水线，驱动主循环和三个 agent（Generator / Feedback / Minimizer）。
 
-与传统覆盖率引导的模糊测试（随机变异）不同，DeFuzz 主动选择目标并引导 LLM 生成满足特定路径约束的输入。
+设计原则：**ReAct 的归 agent，确定性的归编排**。build/coverage/oracle 写死在一条固定边序的流水线里；agent 只在固定位置被调用，彼此从不直连，只通过版本化的共享状态（blackboard）联动。这样换来可复现的轨迹、可按边 ablation、可审计的 bug 结论。
 
-### Seed 定义
-
-一个 seed 是一个独立的测试用例，包含：
-
-```go
-// internal/seed/seed.go
-type Seed struct {
-	ID        uint64      // 唯一标识符
-	Content   string      // C 源代码
-	TestCases []TestCase  // 多个测试用例
-	Meta      SeedMetadata
-}
-
-type SeedMetadata struct {
-	FilePath   string    // Seed 目录路径
-	ParentID   uint64    // 父种子 ID（初始种子为 0）
-	Depth      int       // 迭代深度
-	State      string    // 种子状态
-}
-```
-
-### 算法流程图
+## 主循环
 
 ```
-      ┌──────────────────────────────────────────────────────────────────┐
-      │       1. 维护 mapping: 每行代码 → 首次覆盖它的种子ID                  │
-      └──────────────────────────────────────────────────────────────────┘
-                                       ↓
-      ┌──────────────────────────────────────────────────────────────────┐
-      │       2. 运行初始种子，建立 mapping，持久化种子到磁盘                  │
-      └──────────────────────────────────────────────────────────────────┘
-                                       ↓
-                               ┌───────────────┐
-                               │  约束求解循环   │
-                               └───────────────┘
-                                       ↓
-      ┌──────────────────────────────────────────────────────────────────┐
-      │       3. 选取策略: 未覆盖代码中，后继最多的基本块作为目标                │
-      └──────────────────────────────────────────────────────────────────┘
-                                       ↓
-      ┌──────────────────────────────────────────────────────────────────┐
-      │  4. 构建 Prompt:                                                 │
-      │     - 目标函数代码 (标注: 已覆盖行/未覆盖行/目标基本块行)               │
-      │     - 目标基本块前驱对应的种子作为 shot (示例)                        │
-      └──────────────────────────────────────────────────────────────────┘
-                                       ↓
-      ┌──────────────────────────────────────────────────────────────────┐
-      │  5. LLM 变异: 根据 shot 变异出种子，期望覆盖目标基本块                 │
-      └──────────────────────────────────────────────────────────────────┘
-                                       ↓
-      ┌──────────────────────────────────────────────────────────────────┐
-      │  6. 编译测试种子                                                   │
-      └──────────────────────────────────────────────────────────────────┘
-                                       ↓
-                       ┌───────────────┴───────────────┐
-                       ↓                               ↓
-             ┌───────────────────┐           ┌───────────────────┐
-             │  覆盖了目标基本块?   │           │  未覆盖目标基本块   │
-             └───────────────────┘           └───────────────────┘
-                       ↓                               ↓
-             ┌───────────────────┐           ┌───────────────────┐
-             │  维护 mapping     │           │ 发散分析 (uftrace)  │
-             │  塞入 Oracle      │           │ 定位 call trace    │
-             │  返回步骤 3        │           │ 差异点函数          │
-             └───────────────────┘           └───────────────────┘
-                                                       ↓
-                                           ┌───────────────────────┐
-                                           │ 将发散信息发给 LLM      │
-                                           │ 再次变异 (返回步骤 6)    │
-                                           └───────────────────────┘
+START → generator → routing → build → coverage → oracle → ⟨route⟩
+            ▲                                                 │
+            └──────────── bump (round+1, 枚举游标) ←─ not_violated ┘
+                                              violated → END
 ```
 
-### 算法概述
+- `generator` —— Generator agent 为当前 target invariant 生成 seed 并选 checker 集；ISA 不是自由维度（每个 checker 静态绑定它适用的 ISA）。
+- `routing` —— 把 (checker→ISA) 展开成编译矩阵；廉价静态 checker 全开，差分 checker 强制跑全 ISA 集（不剪枝）。
+- `build` / `coverage` / `oracle` —— 确定性 gRPC 节点。缺 toolchain 的 ISA 产 error cell 而非崩溃。任一 checker `Fail` ⇒ violated。
+- `route` —— violated → （可选）Minimizer agent → END；not_violated → （可选）Feedback agent 写 guidance → `bump` → 下一轮。
 
-DeFuzz 实现以下约束求解过程：
+调度是确定性的：run init 把整个 checker 目录枚举成队列，游标逐个扫，每个 invariant 花固定预算（N 轮 OR T 秒）。agent 不挑攻击哪个 invariant。
 
-1. **维护 Mapping**: 追踪每个代码行首次由哪个种子覆盖。
+## 跑起来
 
-2. **初始化**: 运行初始种子建立 mapping，然后将种子持久化到磁盘。
+先编 Go core，再从编排层驱动：
 
-3. **目标选择**: 每次循环选取后继最多的未覆盖基本块作为目标（CFG 引导）。
+```sh
+make build-core                       # → bin/defuzz-core (gRPC + MCP)
+bin/defuzz-core --mechanism canary    # 启动确定性 core
 
-4. **构建 Prompt**:
-   - 提供目标函数代码，标注已覆盖/未覆盖/目标行
-   - 包含覆盖目标前驱的种子作为 shot（示例）
-
-5. **LLM 变异**: 将 prompt 发送给 LLM，要求其根据 shot 变异以覆盖目标 BB。
-
-6. **编译测试**: 编译变异后的种子并测试是否能覆盖目标。
-
-7. **覆盖率检查**:
-   - 如果覆盖：更新 mapping，塞入 Oracle，仅在新覆盖率增加时才持久化
-   - 如果未覆盖：运行发散分析（uftrace），将结果发送给 LLM 进行精细化变异
-
-8. **发散分析**: 对比基准种子和变异种子的 call trace，找出它们的分叉点，然后将此信息发送回 LLM 进行下一次变异尝试。
-
-### 测试预言机（插件化）
-
-预言机采用插件化设计。优先使用手写的传统预言机，LLM 作为回退方案。
-
-#### 传统预言机（Canary 示例）
-
-对于 stack canary，使用二分搜索预言机检测绕过：
-
-```
-用缓冲区大小 N 运行（填充 'A' = 0x41）
-  - 退出码 0：正常执行
-  - 退出码 134 (SIGABRT)：Canary 拦截了溢出（安全）
-  - 退出码 139 (SIGSEGV)：返回地址在检查前被修改（漏洞！）
-
-在 [0, MaxBufferSize] 范围内二分搜索最小崩溃大小：
-  - 最小崩溃退出码为 139 -> 检测到 Canary 绕过
-  - 最小崩溃退出码为 134 -> Canary 正常工作
+cd orchestrator
+uv run defuzz-loop run --mechanism canary --experiment demo
 ```
 
-#### LLM 预言机（回退）
+每个 run 落到 `orchestrator/runs/<experiment>_<mechanism>_<UTC>/`，自带独立的 `checkpoints.sqlite` + `manifest.json`。三个只读子命令可审计：
 
-当没有传统预言机时，使用基于 LLM 的分析：
-
+```sh
+uv run defuzz-loop inspect   --run-dir <dir>            # 列 checkpoint 链
+uv run defuzz-loop replay    --run-dir <dir> --checkpoint <id>
+uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # 回溯到确定性证据
 ```
-运行种子 -> 获取反馈（退出码 + stdout + stderr）-> LLM 判断是否存在漏洞
-```
 
-**注意：** 所有编译和执行直接在主机上进行。请确保系统中已安装所需的工具链（GCC、QEMU 等）并在 PATH 中可用。
+被测的插桩 GCC 在项目外构建，见 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md)。ISA→toolchain 路径配在 [`configs/toolchains.yaml`](configs/toolchains.yaml)。
+
+## 文档
+
+- 架构权威文档：[docs/tech-docs/architecture/agentic-loop-redesign.md](docs/tech-docs/architecture/agentic-loop-redesign.md)
+- 系统总览（组件 + 数据流）：[docs/tech-docs/architecture/overview.md](docs/tech-docs/architecture/overview.md)
+- 技术栈：[docs/tech-docs/reference/tech-stack.md](docs/tech-docs/reference/tech-stack.md)
+- 总入口：[docs/tech-docs/README.md](docs/tech-docs/README.md)

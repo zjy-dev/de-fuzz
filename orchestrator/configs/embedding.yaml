@@ -1,0 +1,12 @@
+# Dense-retrieval embedding provider for specgen's Phase-2 retriever.
+#
+# doubao-embedding-vision is a fixed vector model: it cannot be switched via the
+# Ark "Auto" router or the console, so the model id and Base URL are pinned here
+# and the pipeline calls the OpenAI-compatible {base_url}/embeddings endpoint
+# directly. The API key is read from the env var named by api_key_env (kept out
+# of the repo for commit purity); export it before a live embedding run.
+embedding:
+  model: doubao-embedding-vision
+  base_url: https://ark.cn-beijing.volces.com/api/coding/v3
+  api_key_env: ARK_API_KEY
+  dim: 2048

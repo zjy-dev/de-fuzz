@@ -5,11 +5,13 @@ priority: MEDIUM
 last_updated: 2026-05-08
 status: Superseded
 related_docs:
-  - ../gcc-pipeline.md
-  - ../../reference/config-schema.md
+  - ../oracle-mechanism-framework.md
 ---
 
 # ADR-002: Multi-CFG Orchestration
+
+> **⚠️ 已被取代（Superseded, 2026-06）**：本 ADR 描述的旧覆盖率/多-CFG 编排设计已被 agentic loop redesign 取代，见 [../agentic-loop-redesign.md](../agentic-loop-redesign.md)。以下内容仅作历史记录。
+
 
 > **状态说明**：本文档原为对未合入分支 `more_architecture` 上 commit `b907c01` "Multi-File CFG and Fortify Update" 的评估。当前 main 上的多 CFG 实现保留于 `cmd/defuzz/app/fuzz.go` `inferCFGSourceBase` + `cfgPaths` 合并逻辑（`internal/coverage/analyzer.go:113-162` 收 `cfgPaths []string`），并未采纳 PR 中的 `collectTargetFunctionsForCFGPaths` helper 与 `CompilerConfig{}` reset。本文保留作为历史评估与后续改造对照。
 >

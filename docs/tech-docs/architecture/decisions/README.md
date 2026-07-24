@@ -14,7 +14,7 @@ status: IMPLEMENTED
 
 | ADR | Status | 主题 | 关键代码位置 |
 | --- | --- | --- | --- |
-| 001 | (隐式 — 见 README) | LLM-driven constraint solving as the fuzzing engine | `internal/fuzz/engine.go`, `internal/llm/` |
+| 001 | (隐式 — 见 README) | LLM-driven constraint solving as the fuzzing engine | ⚠️ 旧 `internal/fuzz/engine.go` / `internal/llm/` 已删除/迁移（LLM 现于 Python orchestrator）；被 agentic loop redesign 取代 |
 | [002](./002-multi-cfg-orchestration.md) | Superseded | Multi-CFG orchestration（PR `b907c01` 评估） | `cmd/defuzz/app/fuzz.go:330-387`, `internal/coverage/analyzer.go` |
 | [003](./003-oracle-multi-invariant-redesign.md) | Accepted, Implemented | Oracle multi-invariant redesign | `internal/oracle/{mechanism,invariant,inspector}.go`, `checker_*.go` |
 

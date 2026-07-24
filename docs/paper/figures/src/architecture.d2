@@ -1,0 +1,36 @@
+# Fig: DeFuzz two-part architecture (academic monochrome, wide/figure*)
+# render: d2 --theme=0 --pad=8 architecture.d2 ../architecture.svg
+
+classes: {
+  container: { style: { fill: transparent; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A"; bold: true } }
+  agent:  { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  node:   { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  state:  { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; font-color: "#333333" } }
+  adapter:{ style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  ssot:   { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; font-color: "#333333" } }
+}
+
+direction: down
+
+orch: "Python orchestrator  (LangGraph)" {
+  class: container
+  graph: "graph.py\nfixed edge order + conditional routing" { class: node }
+  agents: "Agents:  Generator · Feedback · Minimizer" { class: agent }
+  bb: "Versioned blackboard  (state.py + checkpointer)\nseed corpus & lineage · coverage · verdict history · feedback guidance" { class: state }
+
+  graph -> bb: "" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4 } }
+  agents -> bb: "" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4 } }
+}
+
+core: "Go deterministic core" {
+  class: container
+  grpc: "gRPC adapter\ndeterministic nodes:\nbuild · coverage · oracle" { class: adapter }
+  mcp: "MCP adapter\nread-only agent tools:\nsearch_source · query_invariants\ncoverage_diff · creduce_run" { class: adapter }
+  meta: "Checker-metadata SSOT\nISA binding · single/differential · cheap/expensive" { class: ssot }
+
+  grpc -> meta: "reads" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }
+  mcp -> meta: "reads" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }
+}
+
+orch.graph -> core.grpc: "invoke nodes" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+orch.agents -> core.mcp: "call tools" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }

@@ -27,14 +27,12 @@ status: IMPLEMENTED
 
 | 旧路径 (≤ 2026-05-08) | 新路径 |
 | --- | --- |
-| `docs/architecture/gcc-pipeline.md` | `docs/tech-docs/architecture/gcc-pipeline.md` |
 | `docs/architecture/multi-cfg-evaluation.md` | `docs/tech-docs/architecture/decisions/002-multi-cfg-orchestration.md` |
 | `docs/architecture/oracle-multi-invariant-redesign.md` | `docs/tech-docs/architecture/decisions/003-oracle-multi-invariant-redesign.md` |
 | `docs/oracles/canary-oracle.md` | `docs/tech-docs/features/canary-oracle.md` |
 | `docs/oracles/fortify-oracle.md` | `docs/tech-docs/_archive/oracles/fortify-oracle.md` (DEPRECATED) |
 | `docs/cflags-configuration.md` | `docs/tech-docs/guides/cflags-configuration.md` |
 | `docs/open-source-c-compilers.md` | `docs/tech-docs/reference/open-source-c-compilers.md` |
-| `docs/prompt-architecture.md` | `docs/tech-docs/architecture/prompt-architecture.md` |
 | `docs/invariants/<mechanism>.md` | `docs/tech-docs/invariants/<mechanism>.md` (内容不变) |
 | `docs/gcc-instrumentation/` | `docs/tech-docs/gcc-instrumentation/` |
 | `presentations/` | `docs/presentations/` |

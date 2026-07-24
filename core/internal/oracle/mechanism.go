@@ -1,0 +1,219 @@
+package oracle
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/zjy-dev/de-fuzz/internal/seed"
+)
+
+// MechanismOracle is the per-defense-mechanism aggregator that runs a list of
+// `InvariantChecker`s and folds their `InvariantResult`s into a single
+// `*Bug` for the existing `Oracle.Analyze` contract.
+//
+// One instance corresponds to one row in `docs/invariants/*.md` (canary,
+// cfi, scs, ...). It is what mechanism oracles (e.g., `CanaryOracle`)
+// delegate to internally.
+//
+// Scheduling is `Static → Dynamic`, sequentially. Static checkers can be
+// parallelized later (see ADR-003 §3.2); we keep them sequential here
+// because:
+//   - a single Analyze rarely runs more than ~5 static checkers;
+//   - the dynamic checker (binary search via QEMU) dominates wall-clock time;
+//   - parallel inspection would require synchronizing the BinaryInspector,
+//     which is currently single-reader by design.
+//
+// The aggregation policy is plain OR over verdicts:
+//   - any Static / Dynamic Fail → bug;
+//   - all others (Pass / NotApplicable / Error) → no bug.
+//
+// "Mechanism not active" is intentionally not a separate scheduling phase;
+// when a static checker detects that the mechanism is off (e.g. the binary
+// has no `__stack_chk_fail` import), it returns `VerdictNotApplicable` with
+// a descriptive Reason. NA never produces a bug, so misconfiguration never
+// turns into a false positive — and the diagnostic still surfaces in the
+// rendered description.
+type MechanismOracle struct {
+	// Name is a human-readable mechanism label, used in bug descriptions
+	// and logs (e.g., "stack canary", "_FORTIFY_SOURCE"). Should match the
+	// title in `docs/invariants/*.md`.
+	Name string
+	// Checkers is the ordered list of invariant checkers. Order within a
+	// category is preserved (so determinism is in the operator's hands).
+	Checkers []InvariantChecker
+}
+
+// Analyze implements the `Oracle` contract. The implementation is fully
+// generic over mechanism — the only mechanism-specific knowledge is in
+// `Name` (for messaging) and the `Checkers` list (for logic).
+func (m *MechanismOracle) Analyze(s *seed.Seed, ctx *AnalyzeContext, results []Result) (*Bug, error) {
+	all, err := m.Evaluate(s, ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Aggregate: any Fail → bug.
+	violations := filterByVerdict(all, VerdictFail)
+	if len(violations) == 0 {
+		return nil, nil
+	}
+
+	return &Bug{
+		Seed:        s,
+		Results:     results,
+		Description: m.formatDescription(all, violations),
+	}, nil
+}
+
+// Evaluate runs every checker (Static→Dynamic) and returns the raw per-checker
+// `InvariantResult`s without folding them into a single `*Bug`. This is the
+// shared core of `Analyze` and the gRPC `OracleService.Analyze` adapter, which
+// needs the individual four-state verdicts on the wire (FR-019/020/021).
+//
+// `allowed` optionally restricts execution to a set of checker IDs (used by the
+// router to run only the checkers selected for a given ISA, FR-013/018). A nil
+// or empty `allowed` runs every checker. Cheap checkers are still gated by the
+// caller's set; the always-on policy lives in the Python router, not here.
+func (m *MechanismOracle) Evaluate(s *seed.Seed, ctx *AnalyzeContext, allowed map[string]bool) ([]InvariantResult, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("%s mechanism oracle requires AnalyzeContext", m.Name)
+	}
+
+	cctx := &CheckContext{
+		Seed:       s,
+		BinaryPath: ctx.BinaryPath,
+		Executor:   ctx.Executor,
+		Cache:      make(map[string]any),
+	}
+	if ctx.BinaryPath != "" {
+		cctx.Inspector = NewBinaryInspector(ctx.BinaryPath)
+	}
+
+	// Phase 1: Static. Phase 2: Dynamic. Order preserves the shared dynamic
+	// cache that cheap dynamic checkers read from the expensive search.
+	static := m.runPhase(cctx, CategoryStatic, allowed)
+	dynamic := m.runPhase(cctx, CategoryDynamic, allowed)
+
+	all := make([]InvariantResult, 0, len(static)+len(dynamic))
+	all = append(all, static...)
+	all = append(all, dynamic...)
+	return all, nil
+}
+
+// runPhase executes every checker whose Category matches `category`, in
+// declaration order. When `allowed` is non-empty, checkers whose ID is absent
+// from it are skipped.
+func (m *MechanismOracle) runPhase(ctx *CheckContext, category InvariantCategory, allowed map[string]bool) []InvariantResult {
+	var out []InvariantResult
+	for _, c := range m.Checkers {
+		if c.Category() != category {
+			continue
+		}
+		if len(allowed) > 0 && !allowed[c.ID()] {
+			continue
+		}
+		r := c.Check(ctx)
+		// Defensive: ensure ID/Category survive even if a checker forgot to
+		// populate them.
+		if r.ID == "" {
+			r.ID = c.ID()
+		}
+		if r.Category == "" {
+			r.Category = category
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// filterByVerdict returns only those results whose Verdict matches.
+func filterByVerdict(rs []InvariantResult, want InvariantVerdict) []InvariantResult {
+	var out []InvariantResult
+	for _, r := range rs {
+		if r.Verdict == want {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// formatDescription renders the structured Bug.Description text consumed by
+// downstream metadata (`Seed.Metadata.BugDescription`). Format is stable so
+// tests / log parsers can rely on it; see the canonical sample in
+// `docs/architecture/oracle-multi-invariant-redesign.md` §3.3.
+func (m *MechanismOracle) formatDescription(all, violations []InvariantResult) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "[%s] %d invariant violation(s) detected.\n",
+		m.Name, len(violations))
+
+	// Violations: full detail.
+	b.WriteString("\nViolations:\n")
+	sortedViol := append([]InvariantResult(nil), violations...)
+	sort.Slice(sortedViol, func(i, j int) bool { return sortedViol[i].ID < sortedViol[j].ID })
+	for _, r := range sortedViol {
+		fmt.Fprintf(&b, "  - %s (%s)\n", r.ID, r.Category)
+		if r.Evidence != "" {
+			fmt.Fprintf(&b, "      Evidence: %s\n", r.Evidence)
+		}
+		if len(r.Detail) > 0 {
+			fmt.Fprintf(&b, "      Detail: %s\n", formatDetail(r.Detail))
+		}
+	}
+
+	// Compact summary of the rest.
+	if passed := formatInvariantList(all, VerdictPass); passed != "" {
+		fmt.Fprintf(&b, "\nPassed: %s\n", passed)
+	}
+	if na := buildNAList(all); na != "" {
+		fmt.Fprintf(&b, "\nNot applicable:\n%s", na)
+	}
+	if errs := buildErrorList(all); errs != "" {
+		fmt.Fprintf(&b, "\nErrors:\n%s", errs)
+	}
+
+	return b.String()
+}
+
+// formatDetail renders a Detail map as a deterministic key=value list.
+func formatDetail(d map[string]any) string {
+	keys := make([]string, 0, len(d))
+	for k := range d {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%v", k, d[k]))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+func buildNAList(rs []InvariantResult) string {
+	var b strings.Builder
+	for _, r := range rs {
+		if r.Verdict != VerdictNotApplicable {
+			continue
+		}
+		fmt.Fprintf(&b, "  - %s: %s\n", r.ID, fallback(r.Reason, "no reason given"))
+	}
+	return b.String()
+}
+
+func buildErrorList(rs []InvariantResult) string {
+	var b strings.Builder
+	for _, r := range rs {
+		if r.Verdict != VerdictError {
+			continue
+		}
+		fmt.Fprintf(&b, "  - %s: %s\n", r.ID, fallback(r.Reason, "unknown error"))
+	}
+	return b.String()
+}
+
+func fallback(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
+}
