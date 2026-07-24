@@ -85,6 +85,7 @@ ollama/
 .gemini/
 .opencode/
 .claude/
+.trae/
 
 # Temporary and cache files
 *.tmp
