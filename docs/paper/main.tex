@@ -95,46 +95,45 @@ deterministic binary or runtime signal.
 
 \section{Introduction}\label{sec:intro}
 
-The number of publicly disclosed vulnerabilities has grown for a decade; the
-CVE database now registers more than twenty thousand new entries per year and
-the rate is still rising. Major vendors have conceded that manual auditing and
-secure-coding disciplines alone are insufficient to eliminate memory-safety bugs in
-upper-layer code. As a consequence, the behavior of a program following a bug trigger 
-has become increasingly critical: stack canaries, \texttt{\_FORTIFY\_SOURCE},
+The number of publicly disclosed vulnerabilities continues to grow; the
+CVE database now registers more than twenty thousand new entries per year. Major vendors acknowledge that manual auditing and
+secure-coding disciplines alone cannot eliminate memory-safety bugs in
+upper-layer code. As a result, the behavior of a program after a bug triggers
+has become critical. Defenses such as stack canaries, \texttt{\_FORTIFY\_SOURCE},
 Indirect Branch Tracking (IBT), Control-Flow Integrity (CFI), Pointer
 Authentication (PAC), and shadow stacks are deployed jointly by the compiler
-and the runtime as a backstop intended to hold even when an exploit fires.
+and the runtime as a backstop. They are intended to hold even when an exploit fires.
 \incfig{defense-role}{Compiler-inserted defenses as the runtime last
 line: they must hold once an upper-layer memory-safety bug is triggered.}
 
-Compiler-emitted defenses share a common working model: at compile time the
+Compiler-emitted defenses share a common working model: the
 compiler inserts check instructions, layout constraints, or metadata so that
 any run-time deviation from the intended behavior is caught and the program is
 terminated. The stack canary is the canonical example---a random sentinel is
 placed between the buffer and the saved return address, and is compared against
 its original value before the function returns.
 
-However, defense mechanisms themselves consist of code, which is susceptible to bugs. 
-Furthermore, the effectiveness of a defense depends not only on the correctness 
-of its implementation but also on the underlying ISA. As the number of ISAs keeps growing, the
-cross-architecture attack surface widens, and the rigor of defense implementations 
-within compilers becomes correspondingly harder to guarantee.
+However, defense mechanisms themselves consist of code, which is susceptible to bugs.
+Their effectiveness depends not only on the correctness
+of the implementation but also on the underlying ISA. As the number of ISAs grows, the
+cross-architecture attack surface widens, making the correctness of defense implementations
+within compilers harder to guarantee.
 
 \subsection{Silent failure}
 CVE-2023-4039 is a representative case. The \texttt{-fstack-protector} mechanism of GCC was
-defeated on AArch64 for a long time: when a function uses a variable-length
+defeated on AArch64 for years: when a function uses a variable-length
 array (VLA) or \texttt{alloca}, the compiler places the canary \emph{above} the
-VLA while the saved return address sits \emph{below} it, so an overflow rewrites
-the return address before the canary is ever checked. The bug had existed since
-early GCC versions and was only analyzed and fixed by outside researchers in
+VLA while the saved return address sits \emph{below} it. An overflow rewrites
+the return address before the canary is checked. The bug existed since
+early GCC versions and was analyzed and fixed by outside researchers in
 2023. Figure~\ref{fig:stack-layout} shows the buggy frame layout.
 \incfigh{stack-layout}{CVE-2023-4039 buggy stack frame: canary above the
 VLA, return address below it, so an overflow bypasses the check.}{0.86}
 
-This class of failure has a \emph{double-silent} character: it raises no error
-at compile time (toolchain and functional tests see nothing) and produces
-correct functional results at run time (program behavior sees nothing), yet the
-security contract is already broken. We call this a \emph{silent failure}: the
+This class of failure is \emph{double-silent}: it raises no error
+at compile time (toolchain and functional tests pass) and produces
+correct functional results at run time (program behavior is normal), yet the
+security contract is broken. We call this a \emph{silent failure}: the
 compiled artifact appears to carry a complete line of defense, but an attacker
 can bypass it entirely.
 
@@ -146,22 +145,22 @@ the compiler must uphold a security contract across a two-dimensional space of
 many defense mechanisms (canary, \texttt{\_FORTIFY\_SOURCE}, IBT, CFI, \dots)
 and many ISAs (x86-64, AArch64, RISC-V, LoongArch, \dots). Each cell maps to an
 independent middle-end pass or backend template, and any detail can decide
-whether the mechanism takes effect. Homologous omissions are not rare: PR-96191,
-a sibling of CVE-2023-4039 fixed in 2020, covered only some architectures and
-left several fallback backends untouched, so the same failure persisted
-silently on other targets for years. Our preliminary experiments already
-confirmed several such homologous failures with the GCC upstream.
+whether the mechanism takes effect. Homologous omissions occur: PR-96191,
+a sibling of CVE-2023-4039 fixed in 2020, covered some architectures but
+left several fallback backends untouched, so the failure persisted
+silently on other targets for years. Our preliminary experiments confirmed
+several such homologous failures in the GCC upstream.
 \incfig{defense-matrix}{The defense mechanism $\times$ ISA matrix. Each
 cell is an independent backend/pass; silent failures hide in individual cells.}
 
 \emph{Difficulty in failure adjudication: the oracle gap.} Even when a test reaches
-the relevant code path, ``is the defense contract still satisfied'' is not
-directly observable: the program does not crash, its output agrees with other
-compilers, and everything looks normal while the contract has already been
+the relevant code path, the defense contract's status is not
+directly observable. The program does not crash, its output agrees with other
+compilers, and everything looks normal while the contract is already
 violated. We call the static or dynamic properties a defense must satisfy at
 run time its \emph{safety invariants} (e.g., the canary must lie between any
 overflow-reachable stack object and the return address); breaking them is a
-silent failure. Existing automated methods are oblivious to this phenomenon: crash- or
+silent failure. Existing automated methods miss this phenomenon: crash- or
 differential-output tools such as Csmith and YARPGen trigger no anomaly, and
 coverage-guided fuzzing lacks the oracle to judge the security status of each
 cell.
@@ -170,28 +169,28 @@ cell.
 DeFuzz closes the oracle gap and searches the matrix directly by combining an
 invariant-grounded oracle with an explicitly-orchestrated agentic loop. We
 distill the safety invariants of each defense into machine-checkable checkers
-that form a sound oracle; we generate new cross-mechanism invariants by
-retrieval-augmented analogy transfer; and we drive seed generation with an
+that form a sound oracle. We generate new cross-mechanism invariants by
+retrieval-augmented analogy transfer, and we drive seed generation with an
 agentic loop whose orchestration is deterministic and whose agents are grounded
 by that oracle. A checker-bound ISA routing scheme keeps the agent away from the
 raw ISA axis.
 
 \subsection{Contributions}
 \begin{itemize}
-  \item \textbf{An oracle for silent failure (main line).} A sound,
+  \item \textbf{An oracle for silent failure.} A sound,
   machine-checkable oracle that fills the silent-failure oracle gap and supplies
   false-positive-free ground truth for agentic bug hunting
   (\S\ref{sec:oracle}).
-  \item \textbf{Systematized security invariants (support).} A bottom-up
+  \item \textbf{Systematized security invariants.} A bottom-up
   taxonomy over 468 catalogued invariants across more than two dozen defenses,
   each in a machine-decidable static/dynamic form, plus a cross-mechanism
   generation pipeline that yields 11 new invariants
   (\S\ref{sec:invariants},~\S\ref{sec:specgen}).
-  \item \textbf{An explicitly-orchestrated agent system (moat).} A deterministic
+  \item \textbf{An explicitly-orchestrated agent system.} A deterministic
   pipeline with agents at fixed positions linked through a versioned blackboard,
   yielding reproducible, ablatable, and auditable runs---in contrast to
   free-running agent systems (\S\ref{sec:loop}).
-  \item \textbf{An agentic loop (vehicle).} Oracle-grounded, coverage-guided
+  \item \textbf{An agentic loop.} Oracle-grounded, coverage-guided
   seed generation with checker-bound ISA routing that collapses the Cartesian
   product (\S\ref{sec:loop}).
 \end{itemize}
@@ -199,15 +198,15 @@ raw ISA axis.
 \section{Background and Motivation}\label{sec:bg}
 
 \subsection{Compiler defenses and the mechanism $\times$ ISA matrix}
-A compiler-emitted defense inserts, at compile time, either extra check
+A compiler-emitted defense inserts extra check
 instructions (canary comparison, CFI target checks), layout constraints (guard
-placement, shadow-stack slots), or metadata (BTI landing pads, PAC signing) so
-that a run-time deviation is detected and the program is halted. Whether the
-inserted defense is actually effective is decided on a per-backend basis: stack
-layout, register allocation, and instruction encoding all differ across ISAs,
+placement, shadow-stack slots), or metadata (BTI landing pads, PAC signing) at compile time so
+that a run-time deviation is detected and the program halts. Whether the
+inserted defense is effective is decided per-backend: stack
+layout, register allocation, and instruction encoding differ across ISAs,
 and each is realized by a distinct pass or target template. The matrix in
-Figure~\ref{fig:defense-matrix} therefore has genuinely independent cells, and
-a defense that is correct in one cell can be silently broken in the next.
+Figure~\ref{fig:defense-matrix} therefore has independent cells, and
+a defense that is correct in one cell can be silently broken in another.
 
 \subsection{Silent failure: a real case}
 Returning to CVE-2023-4039: the effectiveness of the stack protector depends on
@@ -220,41 +219,40 @@ Both cases exemplify the same phenomenon---a complete-looking defense that an at
 bypasses.
 
 \subsection{Why existing methods miss it}
-\emph{Static analysis} is constrained by patterns: silent failures exhibit heterogeneous
-forms, and most confirmed cases involve idiosyncratic violations, rendering pattern
+\emph{Static analysis} is constrained by patterns. Silent failures exhibit heterogeneous
+forms, and most confirmed cases involve idiosyncratic violations, making pattern
 matching difficult to generalize. \emph{Crash and differential fuzzing}
 monitor surface-level signals---whether the program crashes or disagrees with another
-compiler---which by construction cannot catch a silent logic failure; this is
+compiler---which cannot catch a silent logic failure. This is
 the oracle gap. \emph{Free-running agent fuzzers} can find bugs but sacrifice
-reproducibility: with an agent deciding the control flow, when to compile, and
+reproducibility: when an agent decides the control flow, when to compile, and
 when to declare a bug, trajectories cannot be replayed, ablations cannot be
-run, and a bug claim cannot be traced back to a deterministic cause.
+run, and a bug claim cannot be traced to a deterministic cause.
 
 \subsection{Scope and threat model}
 We target the compiler's own defense implementation on GCC and LLVM. A finding
 is a \emph{silent failure}: a compiled artifact whose defense contract is
-violated while it compiles cleanly and runs correctly. Following our project
-constraint, we describe only the violated invariant (the falsification surface)
+violated while it compiles cleanly and runs correctly. We describe only the violated invariant (the falsification surface)
 and do not construct working exploits. The source-comment and RAG corpus is
 pinned to GCC~16.1 to keep evidence and reproduction anchored to one tree.
 
 \section{System Overview}\label{sec:overview}
 
 DeFuzz shifts the paradigm from testing the program to testing the compiler itself. The
-orchestrator enumerates the entire checker catalog into a deterministic
-schedule; for each invariant a Generator agent produces a C seed; the seed runs
+orchestrator enumerates the checker catalog into a deterministic
+schedule. For each invariant, a Generator agent produces a C seed. The seed runs
 through a hard-wired pipeline---routing $\rightarrow$ build $\rightarrow$
-coverage $\rightarrow$ oracle---that yields an invariant verdict; a violation is
-handed to a minimizer agent, a non-violation goes through a feedback agent back
+coverage $\rightarrow$ oracle---that yields an invariant verdict. A violation is
+handed to a minimizer agent, while a non-violation goes through a feedback agent back
 to the next round. The full trajectory is versioned into a per-run checkpoint
-chain, so it is reproducible, ablatable, and auditable.
+chain, making it reproducible, ablatable, and auditable.
 
-The system architecture is divided into two main components (Figure~\ref{fig:architecture}): a Go deterministic
+The system architecture is divided into two components (Figure~\ref{fig:architecture}): a Go deterministic
 core that exposes both a gRPC adapter (deterministic build/coverage/oracle
 nodes) and an MCP adapter (read-only agent tools), and a Python orchestrator
 built on LangGraph that holds the control flow and the shared state. Both
-adapters read a single source of truth for checker metadata, so adjudication
-logic lives in exactly one place.
+adapters read a single source of truth for checker metadata, keeping adjudication
+logic in exactly one place.
 \wincfig{architecture}{DeFuzz two-part architecture: Python LangGraph
 orchestrator (control flow + blackboard) over a Go core with gRPC (deterministic
 nodes) and MCP (read-only agent tools) adapters.}
@@ -269,13 +267,13 @@ otherwise feedback $\rightarrow$ bump $\rightarrow$ next round).}{0.62}
 \section{Security Invariants for Compiler Defenses}\label{sec:invariants}
 
 \subsection{What is a security invariant}
-A \emph{security invariant} is a property a defense must satisfy for it to be
-effective; violating it means the mechanism has been silently weakened in the
-compiled artifact or at run time, whether or not the code itself contains an
+A \emph{security invariant} is a property a defense must satisfy to be
+effective. Violating it means the mechanism has been silently weakened in the
+compiled artifact or at run time, regardless of whether the code itself contains an
 overt bug. Each invariant is recorded with a machine-verifiable
-\texttt{statement} and, separately, an \texttt{observation} field that names
+\texttt{statement} and an \texttt{observation} field that names
 only the externally observable phenomenon of a violation---not how to detect it.
-The separation of the phenomenon from its detection recipe is deliberate: ``the
+The separation of the phenomenon from its detection recipe is deliberate. For example, ``the
 \texttt{\_\_stack\_chk\_fail} symbol is missing from the binary'' is a
 phenomenon, whereas ``look it up in the ELF \texttt{.dynsym}'' is a detection
 mechanism that belongs to the oracle implementation.
@@ -291,7 +289,7 @@ analysis, CI) can decide how to use each invariant independently. Because the
 corpus is too large to read into a model context in one pass, we combine a
 segmented, per-mechanism manual survey (this section) with a retrieval-augmented
 generation pass that cheaply harvests the root-cause-homologous slice first
-(\S\ref{sec:specgen}); the two are complementary rather than redundant.
+(\S\ref{sec:specgen}). The two are complementary rather than redundant.
 
 \subsection{A bottom-up taxonomy}
 Rather than imposing a top-down category scheme, we cluster the 468 catalogued
@@ -341,13 +339,13 @@ isomorphic site in another.
 
 \subsection{Pipeline: distill $\rightarrow$ analogy $\rightarrow$ specialize $\rightarrow$ entailment}
 A confirmed root cause is first \emph{distilled} into a mechanism-agnostic
-description; \emph{analogy} is a semantic-isomorphism gate that decides whether a
-retrieved code block instantiates the same failure shape; \emph{specialize}
-instantiates the invariant on the concrete target source; and \emph{entailment}
-checks that the instantiated statement actually follows
+description. The \emph{analogy} step is a semantic-isomorphism gate that decides whether a
+retrieved code block instantiates the same failure shape. The \emph{specialize}
+step instantiates the invariant on the concrete target source, and \emph{entailment}
+checks that the instantiated statement follows from the evidence
 (Figure~\ref{fig:specgen-pipeline}). The analogy gate is essential: roughly
-94\% of BM25 hits are lexical collisions, and only the semantic gate keeps
-generation quality up.
+94\% of BM25 hits are lexical collisions, and only the semantic gate maintains
+generation quality.
 \incfigh{specgen-pipeline}{SpecGen: distill (mechanism-agnostic root
 cause) $\rightarrow$ analogy (semantic gate) $\rightarrow$ specialize
 $\rightarrow$ entailment.}{0.82}
@@ -357,13 +355,13 @@ We run the same pipeline twice, changing only the retrieval backend: sparse BM25
 and dense \texttt{doubao-embedding-vision}, over the same 24 probe seeds and the
 same 4{,}496 GCC-16.1 source chunks. BM25 excels on distinctive identifiers
 (\texttt{ix86\_zero\_call\_used\_regs}, \texttt{SUBREG\_PROMOTED},
-\texttt{CONST\_HIGH\_PART}); the dense retriever pulls in semantically
+\texttt{CONST\_HIGH\_PART}). The dense retriever pulls in semantically
 isomorphic blocks whose lexical anchors are weak (the CMSE clear-set constructor,
 the RISC-V saturating truncation). Deduplicating by \texttt{(seed\_id,
 chunk\_id)} and statement, the two paths yield 5 in the intersection, 4
 BM25-only, and 2 embedding-only, for 11 in the union
-(Figure~\ref{fig:bm25-vs-embedding}); all 11 are marked \texttt{is\_novel} after
-a novelty check (threshold 85.0). Table~\ref{tab:retrieval} summarizes.
+(Figure~\ref{fig:bm25-vs-embedding}). All 11 are marked \texttt{is\_novel} after
+a novelty check (threshold 85.0). Table~\ref{tab:retrieval} summarizes the results.
 \incfig{bm25-vs-embedding}{Union/dedup of BM25 and embedding retrieval:
 5 intersection, 4 BM25-only, 2 embedding-only, 11 union.}
 
@@ -388,7 +386,7 @@ Embedding-only                   & 2  & BM25 missed; dense retrieval added \\
 \subsection{Grounding gates and reproducibility}
 An invariant is accepted only after two static grounding gates confirm the
 retrieved evidence supports the statement, and after the novelty check
-(threshold 85.0) confirms it does not duplicate an existing seed or manual rule.
+confirms it does not duplicate an existing seed or manual rule.
 Because the dense retriever returns slightly different vectors per call, we cache
 query vectors keyed by query text so that top-$k$ ordering---and hence the
 accepted set---reproduces across runs.
@@ -397,8 +395,8 @@ accepted set---reproduces across runs.
 
 \subsection{Checker design}
 Each invariant is realized by a checker that returns a four-state verdict
-(pass / fail / not-applicable / error); \texttt{NotApplicable} is returned
-honestly when the mechanism is off or the seed does not exercise it, and is
+(pass / fail / not-applicable / error). \texttt{NotApplicable} is returned
+when the mechanism is off or the seed does not exercise it, and is
 ignored by the aggregation layer. Soundness is the central property: a bug is
 reported only when a deterministic checker fails or an execution differential
 reproduces, never on the strength of model output alone
@@ -410,15 +408,15 @@ any bug is reported.}{0.82}
 \subsection{Mechanism aggregator and flag profiles}
 A per-mechanism aggregator combines checker verdicts: any Fail raises a
 mechanism-level violation carrying its evidence. On/off flag profiles let the
-oracle adjudicate differentially (defense enabled vs.\ disabled), and because the
+oracle adjudicate differentially (defense enabled vs.\ disabled). Because the
 checkers key on binary and runtime signals rather than on the producing
 compiler, GCC and LLVM share the same checkers.
 
 \subsection{Checker metadata as a single source of truth}
 Each checker declares three metadata fields: which ISAs it binds, whether it is
 single-ISA or differential, and whether it is cheap or expensive. This metadata
-is the single source of truth read by both the gRPC and the MCP adapter, and it
-is what makes the ISA routing in \S\ref{sec:loop} a table lookup rather than an
+is the single source of truth read by both the gRPC and the MCP adapter. It
+makes the ISA routing in \S\ref{sec:loop} a table lookup rather than an
 agent decision.
 
 \section{Agentic Loop}\label{sec:loop}
@@ -427,19 +425,19 @@ agent decision.
 Four principles run through the design. (1) The pipeline is deterministic and
 hard-wired: generate $\rightarrow$ build $\rightarrow$ coverage $\rightarrow$
 oracle $\rightarrow$ route, in a fixed order. (2) Agents are invoked only at
-fixed positions and do semantic judgment; the pipeline keeps control. (3) Agents
+fixed positions and perform semantic judgment; the pipeline keeps control. (3) Agents
 never call each other directly---they communicate through shared state. (4)
-Correctness is held by deterministic evidence: the agent proposes, the oracle
+Correctness is determined by deterministic evidence: the agent proposes, the oracle
 adjudicates.
 
 \subsection{Explicit orchestration and the blackboard}
-The linkage between agents is a real closed loop---feedback guides the next
+The linkage between agents forms a closed loop---feedback guides the next
 Generator round, the oracle adjudicates, a non-violation returns to feedback, a
 violation goes to the minimizer---but all of it flows through a versioned
 blackboard rather than direct agent-to-agent messages
 (Figure~\ref{fig:blackboard}). The blackboard holds the seed corpus and lineage,
 cumulative coverage, the oracle verdict history, and the feedback agent's
-guidance. This design provides three critical properties that elevate agent-based bug hunting into a rigorous method: \emph{reproducibility} (pin a blackboard version and any agent's input is
+guidance. This design provides three properties that make agent-based bug hunting a rigorous method: \emph{reproducibility} (pin a blackboard version and any agent's input is
 fully determined), \emph{ablatability} (each linkage edge can be switched off
 independently), and \emph{auditability} (a bug claim traces back through the
 blackboard to a deterministic cause).
@@ -448,26 +446,26 @@ versioned shared state, enabling reproduce / ablate / audit.}
 
 \subsection{Three agents}
 The \textbf{Generator} (invoked at the start) carries read-only source-search and
-invariant-query tools and outputs a new seed plus the checker set it selects;
-coverage is not an agent-reportable tool but is measured by the coverage node and
-fed back, so the agent cannot fabricate coverage. The \textbf{feedback agent}
+invariant-query tools and outputs a new seed plus the checker set it selects.
+Coverage is not an agent-reportable tool but is measured by the coverage node and
+fed back, preventing the agent from fabricating coverage. The \textbf{feedback agent}
 (invoked on a non-violation) is a context-isolated subagent that turns the
 coverage delta and the Pass/NotApplicable verdict into next-round guidance
 written back to the blackboard. The \textbf{minimizer} (invoked on a violation)
 shrinks the PoC with deterministic delta debugging (C-Reduce) as the workhorse
-and the LLM only for semantic guidance, so that reduction does not accidentally
+and the LLM only for semantic guidance, ensuring that reduction does not accidentally
 delete the structure that triggers the bug.
 
 \subsection{Checker-routed seeds, ISA-bound checkers}
-Instead of letting the agent pick an ISA, we statically bind each checker to its applicable ISA set, restricting the agent to the semantic task for which it is well-suited: ``which checkers can this seed trigger?'' Choosing a checker
-automatically claims all ISAs bound to it, so the agent never touches the raw ISA
+Instead of letting the agent pick an ISA, we statically bind each checker to its applicable ISA set. This restricts the agent to the semantic task for which it is well-suited: ``which checkers can this seed trigger?'' Choosing a checker
+automatically claims all ISAs bound to it, keeping the agent away from the raw ISA
 axis (Figure~\ref{fig:checker-routing}). Two backstops keep this an optimization
 rather than a correctness risk: cheap static checkers are always on and never
 enter the agent's decision, and the agent selects a superset (``keep everything
 not obviously impossible''), never a precise set. Differential checkers carry the
 ``multiple ISAs + differential verdict'' semantics, so once selected they force a
-full ISA fan-out and the cross-ISA silent-failure signal is preserved by
-metadata rather than by agent diligence.
+full ISA fan-out, preserving the cross-ISA silent-failure signal through
+metadata rather than agent diligence.
 \incfig{checker-routing}{Checker-bound ISA routing: the agent selects
 checkers; each checker fans out to its bound ISAs; cheap checkers always on.}
 
@@ -475,44 +473,24 @@ checkers; each checker fans out to its bound ISAs; cheap checkers always on.}
 The Go core (\texttt{cmd/defuzz-core}) exposes \texttt{grpc\_server.go} (build,
 coverage, oracle, and checker-metadata services) and \texttt{mcp\_server.go}
 (the read-only tools \texttt{search\_source}, \texttt{query\_invariants},
-\texttt{coverage\_diff}, \texttt{creduce\_run}, \texttt{compile\_exec}); the
-oracle, checkers, and metadata SSOT live under \texttt{internal/oracle}. The
+\texttt{coverage\_diff}, \texttt{creduce\_run}, \texttt{compile\_exec}). The
+oracle, checkers, and metadata live under \texttt{internal/oracle}. The
 Python orchestrator (\texttt{defuzz\_loop}) holds \texttt{graph.py} (fixed edge
-order + conditional routing + enumeration cursor), \texttt{state.py} (the
-blackboard), \texttt{audit.py} (per-run directory + checkpointer),
+order, conditional routing, enumeration cursor), \texttt{state.py} (the
+blackboard), \texttt{audit.py} (per-run directory and checkpointer),
 \texttt{routing.py} (the checker~$\rightarrow$~ISA matrix expansion), the three
 agents, and the deterministic node wrappers. Each execution generates a dedicated per-run
 directory with \texttt{checkpoints.sqlite} (the versioned state chain) and
-\texttt{manifest.json} (git SHA, toolchains, checker catalog, LLM config,
-ablation flags), which the \texttt{inspect} / \texttt{replay} / \texttt{trace-bug}
+\texttt{manifest.json} (git SHA, toolchains, checker catalog, LLM configuration,
+and ablation flags), which the \texttt{inspect}, \texttt{replay}, and \texttt{trace-bug}
 subcommands consume for reproduction.
 
 \section{Evaluation}\label{sec:eval}
-\emph{Setup.} Targets are an instrumented GCC~16.1, a cross-GCC, and LLVM;
-ISAs are x86-64, AArch64, RISC-V, and LoongArch, with cross-architecture
-execution under QEMU user mode. We report the two research questions the
-current artifact supports.
+\emph{Setup.} We evaluate DeFuzz on an instrumented GCC~16.1, a cross-compiler build of GCC, and LLVM, targeting x86-64, AArch64, RISC-V, and LoongArch. Cross-architecture execution runs under QEMU user mode.
 
-\paragraph{RQ1 --- Real bugs} Across GCC, LLVM, \texttt{lld}, and
-\texttt{compiler-rt}, DeFuzz produced 29 distinct silent-failure defects that
-cleared a five-item admission gate (concrete violated invariant, concrete
-impact, a source-level reason no later layer rescues the failure, at least one
-verbatim evidence site, and a reproduction recipe); one further candidate was
-retracted on closer inspection and is excluded from the count. Each defect is
-grounded in a deterministic binary or runtime signal rather than in model
-output. The corpus spans 17 defense mechanisms and 15 instruction-set targets,
-confirming that silent failures are not confined to a single cell of the
-mechanism~$\times$~ISA matrix. Figure~\ref{fig:bug-stats} breaks the corpus down
-by producing toolchain, defense mechanism, and affected ISA; GCC accounts for
-19 defects and LLVM-family projects for the remaining 10, and \texttt{ibt}
-(Intel CET / RISC-V Zicfilp landing pads) is the most frequently violated
-mechanism. Seventeen defects are ISA-specific and twelve are generic. The
-defects concentrate on x86-64, RISC-V, and AArch64, the three targets with the
-densest control-flow-integrity surface. Table~\ref{tab:corpus} summarizes the
-composition. Following the project's responsible-disclosure policy, findings
-remain private until the holder files upstream; at the time of writing one
-defect has been reported upstream and the rest are pending disclosure, so we
-report neither CVE identifiers nor upstream-confirmation counts here.
+\paragraph{RQ1 --- Real bugs} DeFuzz discovered 29 distinct silent-failure defects across GCC, LLVM, \texttt{lld}, and \texttt{compiler-rt}. Each defect passed a five-item admission gate: a concrete violated invariant, concrete impact, a source-level reason no later layer rescues the failure, at least one verbatim evidence site, and a reproduction recipe. (One candidate was retracted upon manual inspection and is excluded.) Every defect is grounded in a deterministic binary or runtime signal.
+
+The corpus spans 17 defense mechanisms and 15 instruction-set targets, showing that silent failures are not confined to a single cell of the mechanism~$\times$~ISA matrix. Figure~\ref{fig:bug-stats} breaks the corpus down by toolchain, defense mechanism, and affected ISA. GCC accounts for 19 defects and LLVM-family projects for the remaining 10. The \texttt{ibt} mechanism (Intel CET / RISC-V Zicfilp landing pads) is the most frequently violated. Seventeen defects are ISA-specific and twelve are generic. The defects concentrate on x86-64, RISC-V, and AArch64, which have the densest control-flow-integrity surface. Table~\ref{tab:corpus} summarizes the composition. Following responsible-disclosure policies, findings remain private until reported upstream; currently, one defect has been reported and the rest are pending disclosure, so we omit CVE identifiers and upstream-confirmation counts.
 \incfig{bug-stats}{Silent-failure defects found by DeFuzz across 29 confirmed
 findings: (a) by producing toolchain, (b) by defense mechanism, (c) by affected
 ISA. ISA counts sum over multi-ISA findings.}
@@ -537,16 +515,10 @@ Generic (ISA-independent) defects    & 12 \\
 \end{tabular}
 \end{table}
 
-\paragraph{RQ2 --- Invariant generation quality} The cross-mechanism pipeline
-produced 11 union invariants (5 intersection, 4 BM25-only, 2 embedding-only),
-all \texttt{is\_novel}; the analogy gate filtered roughly 94\% of BM25 hits as
-lexical collisions (Table~\ref{tab:retrieval}).
+\paragraph{RQ2 --- Invariant generation quality} The cross-mechanism pipeline generated 11 new invariants (5 intersection, 4 BM25-only, 2 embedding-only). All passed the novelty check. The analogy gate filtered approximately 94\% of BM25 hits as lexical collisions (Table~\ref{tab:retrieval}).
 
 \section{Discussion and Limitations}\label{sec:disc}
-DeFuzz describes only violated invariants and does not build exploits; the RAG
-corpus is pinned to GCC~16.1; dense retrieval is non-deterministic and requires
-query-vector caching to reproduce; and checker routing is a performance
-optimization guarded by always-on static checkers, not a correctness mechanism.
+DeFuzz describes violated invariants but does not build working exploits. The RAG corpus is pinned to GCC~16.1. Dense retrieval is non-deterministic, requiring query-vector caching for reproducibility. Checker routing acts as a performance optimization guarded by always-on static checkers rather than a strict correctness boundary.
 
 \section{Related Work}\label{sec:related}
 \emph{Compiler bug finding.} Csmith~\cite{yang2011csmith},
@@ -564,11 +536,7 @@ greybox fuzzing to LLM agents; in contrast, our agents are explicitly
 orchestrated rather than free-running.
 
 \section{Conclusion}\label{sec:concl}
-An invariant-grounded oracle turns ``agents can find bugs'' from a one-off demo
-into a reproducible method for silent defense failures across the mechanism
-$\times$ ISA matrix. By pairing a sound oracle with an explicitly-orchestrated
-agentic loop and checker-bound ISA routing, DeFuzz makes such bugs both findable
-and auditable.
+An invariant-grounded oracle turns agent-based bug finding from a one-off demonstration into a reproducible method. By pairing a sound oracle with an explicitly orchestrated agentic loop and checker-bound ISA routing, DeFuzz makes silent defense failures across the mechanism~$\times$~ISA matrix both findable and auditable.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
