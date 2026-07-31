@@ -76,20 +76,19 @@ specifications, and confirmed historical bugs---into a machine-checkable
 oracle; every checker returns a four-state verdict and stays sound by grounding
 each bug claim in a deterministic binary or runtime signal rather than in model
 output. Second, we introduce a cross-mechanism invariant-generation pipeline
-that treats a confirmed root cause in one mechanism as a probe, retrieves
-structurally analogous code in another mechanism, and instantiates a new
-invariant behind two static grounding gates; from 25 confirmed defense bugs and
-24 probes over GCC~16.1 it yields 11 new cross-mechanism invariants, none
-duplicating an existing seed. Third, we build an explicitly-orchestrated
-agentic loop: a deterministic pipeline drives build, coverage, and oracle in a
-fixed order and invokes agents only at fixed positions, where they communicate
-through a versioned blackboard rather than free-form dialogue. Unlike
-free-running agent systems, this design yields reproducible traces, per-edge
-ablation, and bug claims that trace back to deterministic evidence; a
-checker-bound ISA routing scheme collapses the mechanism $\times$ ISA Cartesian
-product into a single semantic decision. On GCC, LLVM, \texttt{lld}, and
-\texttt{compiler-rt}, DeFuzz discovered 29 silent-failure defects spanning 17
-defense mechanisms and 15 instruction-set targets, each grounded in a
+that combines retrieval-augmented generation to harvest root-cause-homologous
+slices with a segmented LLM review to recover the remaining invariants; from 25
+confirmed defense bugs and 24 probes over GCC~16.1, it yields 11 new
+cross-mechanism invariants, none duplicating an existing seed. Third, we build
+an explicitly orchestrated agentic loop: a deterministic pipeline drives build,
+coverage, and oracle in a fixed order and invokes agents only at fixed positions,
+where they communicate through a versioned blackboard rather than free-form
+dialogue. Unlike free-running agent systems, this design yields reproducible
+traces, per-edge ablation, and bug claims that trace back to deterministic
+evidence; a checker-bound ISA routing scheme collapses the mechanism~$\times$~ISA
+Cartesian product into a single semantic decision. On GCC, LLVM, \texttt{lld},
+and \texttt{compiler-rt}, DeFuzz discovered 29 silent-failure defects spanning
+17 defense mechanisms and 15 instruction-set targets, each grounded in a
 deterministic binary or runtime signal.
 \end{abstract}
 
