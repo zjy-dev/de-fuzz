@@ -39,26 +39,6 @@
   \end{figure*}%
 }
 
-% ---- placeholder figure: a labeled box inside a real float so \ref resolves.
-% usage: \figplaceholder{stem}{caption}  -> label becomes fig:stem
-\newcommand{\figplaceholder}[2]{%
-  \begin{figure}[t]\centering
-  \setlength{\fboxsep}{10pt}%
-  \fbox{\parbox[c][2.2cm][c]{0.86\columnwidth}{\centering
-    \textbf{[FIGURE PLACEHOLDER]}\\[3pt]\small\ttfamily #1}}%
-  \caption{#2}\label{fig:#1}
-  \end{figure}%
-}
-\newcommand{\wfigplaceholder}[2]{%
-  \begin{figure*}[t]\centering
-  \setlength{\fboxsep}{10pt}%
-  \fbox{\parbox[c][2.6cm][c]{0.9\textwidth}{\centering
-    \textbf{[FIGURE PLACEHOLDER]}\\[3pt]\small\ttfamily #1}}%
-  \caption{#2}\label{fig:#1}
-  \end{figure*}%
-}
-\newcommand{\tbd}[1]{{\color{red}\textbf{[TBD:~#1]}}}
-
 \lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,xleftmargin=2pt}
 
 \begin{document}
@@ -510,7 +490,8 @@ subcommands consume for reproduction.
 \section{Evaluation}\label{sec:eval}
 \emph{Setup.} Targets are an instrumented GCC~16.1, a cross-GCC, and LLVM;
 ISAs are x86-64, AArch64, RISC-V, and LoongArch, with cross-architecture
-execution under QEMU user mode. We answer five research questions.
+execution under QEMU user mode. We report the two research questions the
+current artifact supports.
 
 \paragraph{RQ1 --- Real bugs} Across GCC, LLVM, \texttt{lld}, and
 \texttt{compiler-rt}, DeFuzz produced 29 distinct silent-failure defects that
@@ -560,20 +541,6 @@ Generic (ISA-independent) defects    & 12 \\
 produced 11 union invariants (5 intersection, 4 BM25-only, 2 embedding-only),
 all \texttt{is\_novel}; the analogy gate filtered roughly 94\% of BM25 hits as
 lexical collisions (Table~\ref{tab:retrieval}).
-
-\paragraph{RQ3 --- Ablation} We toggle coverage feedback, oracle grounding, and
-each inter-agent edge, and compare checker routing against a full Cartesian
-fan-out (Figure~\ref{fig:ablation}). \tbd{ablation numbers}
-\figplaceholder{ablation}{Ablation: contribution of oracle grounding, coverage
-feedback, each inter-agent edge, and checker routing to hit rate/cost.}
-
-\paragraph{RQ4 --- Explicit orchestration} Pinning a blackboard version
-reproduces a run's trajectory exactly; we compare stability and hit rate against
-free orchestration. \tbd{reproducibility numbers}
-
-\paragraph{RQ5 --- Agentic vs.\ fuzz loop} We measure the gain on ``reaching
-silent-failure bugs'' over the prior coverage-driven fuzz loop.
-\tbd{comparison numbers}
 
 \section{Discussion and Limitations}\label{sec:disc}
 DeFuzz describes only violated invariants and does not build exploits; the RAG

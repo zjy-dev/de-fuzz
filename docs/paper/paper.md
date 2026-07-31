@@ -149,14 +149,11 @@ On GCC, LLVM, lld, and compiler-rt, DeFuzz discovered 29 silent-failure defects 
 
 ## IX. Evaluation
 
-*Maps to: agentic-loop-redesign.md §8 (experimental hypotheses). Mirrors PropertyGPT §VIII (RQ1–4) and AgentFuzz §7.*
+*Maps to: agentic-loop-redesign.md §8 (experimental hypotheses). Mirrors PropertyGPT §VIII and AgentFuzz §7. Only RQ1–RQ2 are written; the ablation / reproducibility / vs-fuzz questions await the experimental run and are omitted.*
 
 - **Setup.** Targets (instrumented GCC 16.1, cross-gcc, LLVM); ISAs (x86-64, AArch64, RISC-V, LoongArch); toolchains and QEMU.
 - **RQ1 — Real bugs.** 29 confirmed silent-failure defects on GCC/LLVM/lld/compiler-rt (one retracted candidate excluded), spanning 17 defense mechanisms and 15 ISA targets; breakdown by toolchain / mechanism / ISA. `[[FIG:bug-stats]]` Findings are private under responsible disclosure (one reported upstream, rest pending), so no CVE identifiers or upstream-confirmation counts are claimed.
 - **RQ2 — Invariant generation quality.** Cross-mechanism recall; BM25 vs embedding contribution; novelty. (11 union invariants; 94% lexical-collision filtered by analogy.)
-- **RQ3 — Ablation.** Coverage feedback on/off; oracle grounding on/off; each inter-agent edge on/off; checker routing vs Cartesian full-fan-out. `[[FIG:ablation]]`
-- **RQ4 — Explicit orchestration.** Trajectory reproducibility under a fixed blackboard version; stability/hit-rate vs free orchestration.
-- **RQ5 — Agentic loop vs fuzz loop.** Gain on "reaching silent-failure bugs" over the prior coverage-driven fuzz loop.
 
 ## X. Discussion and Limitations
 
@@ -199,4 +196,3 @@ On GCC, LLVM, lld, and compiler-rt, DeFuzz discovered 29 silent-failure defects 
 | `blackboard` | §VII-B | shared-state linkage / moat |
 | `checker-routing` | §VII-D | checker-bound ISA fan-out |
 | `bug-stats` | §IX / RQ1 | silent-failure defects by toolchain / mechanism / ISA |
-| `ablation` | §IX | ablation results |
