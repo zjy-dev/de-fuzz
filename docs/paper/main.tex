@@ -286,10 +286,12 @@ schema---\texttt{ID}, \texttt{statement}, \texttt{compiler}, \texttt{version},
 \texttt{target}, \texttt{source\_kind}, evidence, \texttt{version\_sensitivity},
 and \texttt{observation}---so that a downstream consumer (oracle, static
 analysis, CI) can decide how to use each invariant independently. Because the
-corpus is too large to read into a model context in one pass, we combine a
-segmented, per-mechanism manual survey (this section) with a retrieval-augmented
-generation pass that cheaply harvests the root-cause-homologous slice first
-(\S\ref{sec:specgen}). The two are complementary rather than redundant.
+corpus is too large to read into a model context in one pass, we combine two
+passes: a retrieval-augmented generation pass that uses confirmed historical
+bugs to cheaply harvest the root-cause-homologous slice first
+(\S\ref{sec:specgen}), and a segmented pass in which the LLM reviews the corpus
+chunk by chunk to recover the remaining invariants. The two are complementary
+rather than redundant.
 
 \subsection{A bottom-up taxonomy}
 Rather than imposing a top-down category scheme, we cluster the 468 catalogued
@@ -321,15 +323,15 @@ The defense-relevant corpus---compiler source and its comments, ABI
 specifications, and confirmed historical bugs---is far too large to fit into a
 model context window, and an LLM asked to read it wholesale cannot reliably
 cluster the scattered, security-critical fragments that encode an invariant.
-Two complementary passes address this. The segmented, per-mechanism survey of
-\S\ref{sec:invariants} covers the corpus systematically but at high human cost.
-Retrieval-augmented generation supplies the cheap first pass: it uses a
-confirmed historical bug as a probe to pull in only the high-yield slice of the
-corpus that shares that bug's root cause, so that a defect homologous to a known
-one is unlikely to be missed even when the raw material never fits in context.
-The two passes are complementary---retrieval harvests the cost-effective,
-root-cause-homologous invariants first, and the segmented survey supplements the
-remainder.
+Two complementary passes address this. Retrieval-augmented generation supplies
+the cheap first pass: it uses a confirmed historical bug as a probe to pull in
+only the high-yield slice of the corpus that shares that bug's root cause, so
+that a defect homologous to a known one is unlikely to be missed even when the
+raw material never fits in context. A second pass then has the LLM review the
+corpus chunk by chunk, so that the remaining invariants---those with no
+homologous prior bug to serve as a probe---are still recovered. The two passes
+are complementary: retrieval harvests the cost-effective, root-cause-homologous
+invariants first, and the segmented LLM review supplements the remainder.
 
 Within the retrieval pass, we deliberately reject entity-driven retrieval
 (matching on API/symbol similarity): it would only rediscover the same
