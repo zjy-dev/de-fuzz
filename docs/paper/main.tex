@@ -107,8 +107,10 @@ through a versioned blackboard rather than free-form dialogue. Unlike
 free-running agent systems, this design yields reproducible traces, per-edge
 ablation, and bug claims that trace back to deterministic evidence; a
 checker-bound ISA routing scheme collapses the mechanism $\times$ ISA Cartesian
-product into a single semantic decision. On GCC and LLVM, DeFuzz discovered
-\tbd{N} silent-failure defects, of which \tbd{M} were confirmed upstream.
+product into a single semantic decision. On GCC, LLVM, \texttt{lld}, and
+\texttt{compiler-rt}, DeFuzz discovered 29 silent-failure defects spanning 17
+defense mechanisms and 15 instruction-set targets, each grounded in a
+deterministic binary or runtime signal.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -305,7 +307,11 @@ confirmed historical bugs and their patches. Every record carries a uniform
 schema---\texttt{ID}, \texttt{statement}, \texttt{compiler}, \texttt{version},
 \texttt{target}, \texttt{source\_kind}, evidence, \texttt{version\_sensitivity},
 and \texttt{observation}---so that a downstream consumer (oracle, static
-analysis, CI) can decide how to use each invariant independently.
+analysis, CI) can decide how to use each invariant independently. Because the
+corpus is too large to read into a model context in one pass, we combine a
+segmented, per-mechanism manual survey (this section) with a retrieval-augmented
+generation pass that cheaply harvests the root-cause-homologous slice first
+(\S\ref{sec:specgen}); the two are complementary rather than redundant.
 
 \subsection{A bottom-up taxonomy}
 Rather than imposing a top-down category scheme, we cluster the 468 catalogued
@@ -332,9 +338,22 @@ we split it into two checkers rather than forcing one classification.
 
 \section{Cross-Mechanism Invariant Generation}\label{sec:specgen}
 
-\subsection{Motivation: abstract-failure-mode transfer}
-The confirmed-bug seed pool is small, so we amplify it by transferring root
-causes \emph{across} mechanisms. We deliberately reject entity-driven retrieval
+\subsection{Motivation: why retrieval, and abstract-failure-mode transfer}
+The defense-relevant corpus---compiler source and its comments, ABI
+specifications, and confirmed historical bugs---is far too large to fit into a
+model context window, and an LLM asked to read it wholesale cannot reliably
+cluster the scattered, security-critical fragments that encode an invariant.
+Two complementary passes address this. The segmented, per-mechanism survey of
+\S\ref{sec:invariants} covers the corpus systematically but at high human cost.
+Retrieval-augmented generation supplies the cheap first pass: it uses a
+confirmed historical bug as a probe to pull in only the high-yield slice of the
+corpus that shares that bug's root cause, so that a defect homologous to a known
+one is unlikely to be missed even when the raw material never fits in context.
+The two passes are complementary---retrieval harvests the cost-effective,
+root-cause-homologous invariants first, and the segmented survey supplements the
+remainder.
+
+Within the retrieval pass, we deliberately reject entity-driven retrieval
 (matching on API/symbol similarity): it would only rediscover the same
 mechanism. Instead we retrieve on the \emph{abstract failure mode}---the shape
 of the root cause---so that a confirmed bug in one mechanism can point to an
@@ -493,8 +512,49 @@ subcommands consume for reproduction.
 ISAs are x86-64, AArch64, RISC-V, and LoongArch, with cross-architecture
 execution under QEMU user mode. We answer five research questions.
 
-\paragraph{RQ1 --- Real bugs} DeFuzz found \tbd{N} silent-failure defects on
-GCC/LLVM; \tbd{M} were confirmed upstream (\tbd{CVE IDs}).
+\paragraph{RQ1 --- Real bugs} Across GCC, LLVM, \texttt{lld}, and
+\texttt{compiler-rt}, DeFuzz produced 29 distinct silent-failure defects that
+cleared a five-item admission gate (concrete violated invariant, concrete
+impact, a source-level reason no later layer rescues the failure, at least one
+verbatim evidence site, and a reproduction recipe); one further candidate was
+retracted on closer inspection and is excluded from the count. Each defect is
+grounded in a deterministic binary or runtime signal rather than in model
+output. The corpus spans 17 defense mechanisms and 15 instruction-set targets,
+confirming that silent failures are not confined to a single cell of the
+mechanism~$\times$~ISA matrix. Figure~\ref{fig:bug-stats} breaks the corpus down
+by producing toolchain, defense mechanism, and affected ISA; GCC accounts for
+19 defects and LLVM-family projects for the remaining 10, and \texttt{ibt}
+(Intel CET / RISC-V Zicfilp landing pads) is the most frequently violated
+mechanism. Seventeen defects are ISA-specific and twelve are generic. The
+defects concentrate on x86-64, RISC-V, and AArch64, the three targets with the
+densest control-flow-integrity surface. Table~\ref{tab:corpus} summarizes the
+composition. Following the project's responsible-disclosure policy, findings
+remain private until the holder files upstream; at the time of writing one
+defect has been reported upstream and the rest are pending disclosure, so we
+report neither CVE identifiers nor upstream-confirmation counts here.
+\incfig{bug-stats}{Silent-failure defects found by DeFuzz across 29 confirmed
+findings: (a) by producing toolchain, (b) by defense mechanism, (c) by affected
+ISA. ISA counts sum over multi-ISA findings.}
+
+\begin{table}[t]
+\centering
+\caption{Composition of the DeFuzz silent-failure corpus (29 confirmed defects;
+one retracted candidate excluded).}
+\label{tab:corpus}
+\begin{tabular}{lc}
+\toprule
+Dimension & Count \\
+\midrule
+Confirmed defects                    & 29 \\
+\quad produced by GCC                & 19 \\
+\quad produced by LLVM / lld / compiler-rt & 10 \\
+Distinct defense mechanisms          & 17 \\
+Distinct ISA targets                 & 15 \\
+ISA-specific defects                 & 17 \\
+Generic (ISA-independent) defects    & 12 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \paragraph{RQ2 --- Invariant generation quality} The cross-mechanism pipeline
 produced 11 union invariants (5 intersection, 4 BM25-only, 2 embedding-only),

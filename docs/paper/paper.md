@@ -16,7 +16,7 @@ Detecting silent failures is hard for two coupled reasons. The search space is a
 
 We present DeFuzz, an agentic system that closes the oracle gap and searches the matrix directly. First, we systematize the safety invariants that each defense must satisfy—distilled from compiler source comments, ABI specifications, and confirmed historical bugs—into a machine-checkable oracle. Every checker returns a four-state verdict and stays sound (zero false positives) by grounding each bug claim in a deterministic binary or runtime signal rather than in model output. Second, we introduce a cross-mechanism invariant-generation pipeline that treats a confirmed root cause in one mechanism as a probe, retrieves structurally analogous code in another mechanism, and instantiates a new invariant behind two static grounding gates. From 25 confirmed defense bugs and 24 probes over GCC 16.1, the pipeline yields 11 new cross-mechanism invariants, none of which duplicate an existing seed. Third, we build an explicitly-orchestrated agentic loop: a deterministic pipeline drives build, coverage, and oracle in a fixed order and invokes agents only at fixed positions, where they communicate through a versioned blackboard rather than free-form dialogue. Unlike free-running agent systems, this design yields reproducible traces, per-edge ablation, and bug claims that trace back to deterministic evidence; a checker-bound ISA routing scheme collapses the mechanism × ISA Cartesian product into a single semantic decision the agent is actually good at.
 
-On GCC and LLVM, DeFuzz discovered `[TBD]` silent-failure defects, of which `[TBD]` have been confirmed upstream `[TBD: CVE IDs]`. An ablation shows that oracle grounding, coverage feedback, and each inter-agent edge contribute measurably to hit rate, and that fixing a blackboard version reproduces a run's trajectory exactly.
+On GCC, LLVM, lld, and compiler-rt, DeFuzz discovered 29 silent-failure defects spanning 17 defense mechanisms and 15 instruction-set targets, each grounded in a deterministic binary or runtime signal. An ablation shows that oracle grounding, coverage feedback, and each inter-agent edge contribute measurably to hit rate, and that fixing a blackboard version reproduces a run's trajectory exactly.
 
 ---
 
@@ -75,6 +75,7 @@ On GCC and LLVM, DeFuzz discovered `[TBD]` silent-failure defects, of which `[TB
 ### IV-B. Survey methodology and sources
 - Three source classes: source comments/assertions, compiler & ABI docs, confirmed historical bugs/patches.
 - Unified record schema (ID / statement / compiler / version / target / source_kind / evidence / version_sensitivity / observation).
+- Corpus too large for a single model context: combine a segmented per-mechanism manual survey (this section) with a retrieval-augmented generation pass that cheaply harvests the root-cause-homologous slice first (§V); the two passes are complementary, not redundant.
 
 ### IV-C. A bottom-up taxonomy
 - Cluster 468 invariants data-first (avoid AI-preset bias); present the root-cause families. `[[FIG:invariant-taxonomy]]`
@@ -87,8 +88,9 @@ On GCC and LLVM, DeFuzz discovered `[TBD]` silent-failure defects, of which `[TB
 
 *Maps to: cross-mechanism-generated.md; cross-mechanism-bm25-vs-embedding.md; project_memory (creativity point A). Mirrors PropertyGPT §V (retrieval-augmented generation + refinement).*
 
-### V-A. Motivation: abstract-failure-mode-driven transfer
-- Seed-pool scarcity; why entity-driven (API-symbol) retrieval is rejected in favor of abstract-failure-mode transfer.
+### V-A. Motivation: why retrieval, and abstract-failure-mode transfer
+- Corpus (compiler source + comments, ABI specs, historical bugs) too large for a context window; an LLM cannot reliably auto-cluster the scattered security-critical fragments. RAG is the cheap first pass: a historical bug probes the corpus and pulls in only the high-yield, root-cause-homologous slice, so a defect homologous to a known one is unlikely to escape. The segmented per-mechanism survey (§IV) then supplements the remainder — the two passes are complementary.
+- Why entity-driven (API-symbol) retrieval is rejected in favor of abstract-failure-mode transfer.
 - Goal: use a confirmed root cause as a probe to find isomorphic sites in *other* mechanisms.
 
 ### V-B. Pipeline: distill → analogy → specialize → entailment
@@ -150,7 +152,7 @@ On GCC and LLVM, DeFuzz discovered `[TBD]` silent-failure defects, of which `[TB
 *Maps to: agentic-loop-redesign.md §8 (experimental hypotheses). Mirrors PropertyGPT §VIII (RQ1–4) and AgentFuzz §7.*
 
 - **Setup.** Targets (instrumented GCC 16.1, cross-gcc, LLVM); ISAs (x86-64, AArch64, RISC-V, LoongArch); toolchains and QEMU.
-- **RQ1 — Real bugs.** Silent-failure defects found on GCC/LLVM; upstream confirmation / CVE status. `[TBD]`
+- **RQ1 — Real bugs.** 29 confirmed silent-failure defects on GCC/LLVM/lld/compiler-rt (one retracted candidate excluded), spanning 17 defense mechanisms and 15 ISA targets; breakdown by toolchain / mechanism / ISA. `[[FIG:bug-stats]]` Findings are private under responsible disclosure (one reported upstream, rest pending), so no CVE identifiers or upstream-confirmation counts are claimed.
 - **RQ2 — Invariant generation quality.** Cross-mechanism recall; BM25 vs embedding contribution; novelty. (11 union invariants; 94% lexical-collision filtered by analogy.)
 - **RQ3 — Ablation.** Coverage feedback on/off; oracle grounding on/off; each inter-agent edge on/off; checker routing vs Cartesian full-fan-out. `[[FIG:ablation]]`
 - **RQ4 — Explicit orchestration.** Trajectory reproducibility under a fixed blackboard version; stability/hit-rate vs free orchestration.
@@ -196,4 +198,5 @@ On GCC and LLVM, DeFuzz discovered `[TBD]` silent-failure defects, of which `[TB
 | `oracle-flow` | §VI-A | invariant → verdict decision flow |
 | `blackboard` | §VII-B | shared-state linkage / moat |
 | `checker-routing` | §VII-D | checker-bound ISA fan-out |
+| `bug-stats` | §IX / RQ1 | silent-failure defects by toolchain / mechanism / ISA |
 | `ablation` | §IX | ablation results |
