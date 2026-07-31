@@ -22,25 +22,25 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
-# ---- academic color palette (muted, print-friendly; one hue per panel) -----
-INK = "#1A1A1A"
-MID = "#7A7A7A"
-FILL = "#E3E3E3"
-LIGHT = "#F2F2F2"
+# ---- academic color palette (soft, print-friendly; one hue per panel) -------
+INK = "#333333"
+MID = "#8A8A8A"
+GRID = "#E8E8E8"
 
-# Per-panel (fill, edge) pairs. Muted blue / green / orange, the conventional
-# colorblind-safe academic trio; edges are a darker shade of the same hue.
+# Per-panel (fill, edge) pairs: soft, desaturated blue / green / amber, a
+# colorblind-safe trio. Edges are a slightly deeper shade of the same hue and
+# stay thin so the fill, not the outline, carries the figure.
 PANEL_COLORS = {
-    "toolchain": ("#4C72B0", "#2F4A75"),   # blue
-    "mechanism": ("#55A868", "#33683F"),    # green
-    "isa":       ("#DD8452", "#A85A2E"),    # orange
+    "toolchain": ("#6F9BC3", "#4E7CA6"),   # soft steel blue
+    "mechanism": ("#8DBF9A", "#639C77"),   # soft sage green
+    "isa":       ("#E7B26B", "#CE9040"),   # soft amber
 }
 
 rcParams.update({
     "font.family": "serif",
     "font.size": 8,
-    "axes.edgecolor": INK,
-    "axes.linewidth": 0.8,
+    "axes.edgecolor": "#CCCCCC",
+    "axes.linewidth": 0.6,
     "axes.labelcolor": INK,
     "text.color": INK,
     "xtick.color": INK,
@@ -102,22 +102,42 @@ def normalize_mechanism(m):
     return aliases.get(m, m)
 
 
-def hbar(ax, labels, counts, title, colors=(FILL, INK)):
+def hbar(ax, labels, counts, title, colors, nrows_max):
+    """Horizontal bars with rounded ends, thin edges, and a uniform row pitch.
+
+    nrows_max fixes the y-range across panels so bar thickness is identical
+    everywhere (panels with fewer rows simply get top/bottom padding).
+    """
     fill, edge = colors
-    y = range(len(labels))
-    ax.barh(list(y), counts, color=fill, edgecolor=edge, linewidth=0.8, height=0.68)
-    ax.set_yticks(list(y))
+    n = len(labels)
+    y = list(range(n))
+
+    # subtle vertical reference grid under the bars
+    ax.set_axisbelow(True)
+    ax.xaxis.grid(True, color=GRID, linewidth=0.6)
+
+    ax.barh(y, counts, color=fill, edgecolor=edge, linewidth=0.7,
+            height=0.62, zorder=3,
+            capstyle="round",
+            path_effects=None)
+    # round the bar ends
+    for patch in ax.patches:
+        patch.set_joinstyle("round")
+
+    ax.set_yticks(y)
     ax.set_yticklabels(labels)
-    ax.invert_yaxis()
-    ax.set_title(title, fontsize=8.5, pad=6, loc="left")
+    # pin every panel to the same row pitch, then invert
+    ax.set_ylim(nrows_max - 0.5, -0.5)
+    ax.set_title(title, fontsize=9, pad=8, loc="center", color=INK)
     ax.tick_params(length=0)
-    for spine in ("top", "right"):
+    for spine in ("top", "right", "left", "bottom"):
         ax.spines[spine].set_visible(False)
     xmax = max(counts) if counts else 1
-    ax.set_xlim(0, xmax * 1.18)
+    ax.set_xlim(0, xmax * 1.16)
     ax.set_xticks([])
     for yi, c in zip(y, counts):
-        ax.text(c + xmax * 0.02, yi, str(c), va="center", ha="left", fontsize=7.5)
+        ax.text(c + xmax * 0.025, yi, str(c), va="center", ha="left",
+                fontsize=7.5, color=INK)
 
 
 def main():
@@ -163,13 +183,15 @@ def main():
     isa_labels = [isa_disp.get(k, k) for k, _ in isa_top]
     isa_counts = [c for _, c in isa_top]
 
-    fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.5))
+    nrows_max = max(len(tool_labels_disp), len(mech_labels), len(isa_labels))
+
+    fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.7))
     hbar(axes[0], tool_labels_disp, tool_counts,
-         "(a) by toolchain", colors=PANEL_COLORS["toolchain"])
+         "(a) by toolchain", PANEL_COLORS["toolchain"], nrows_max)
     hbar(axes[1], mech_labels, mech_counts,
-         "(b) by defense mechanism", colors=PANEL_COLORS["mechanism"])
+         "(b) by defense mechanism", PANEL_COLORS["mechanism"], nrows_max)
     hbar(axes[2], isa_labels, isa_counts,
-         "(c) by affected ISA", colors=PANEL_COLORS["isa"])
+         "(c) by affected ISA", PANEL_COLORS["isa"], nrows_max)
 
     fig.text(0.5, -0.02,
              "%d confirmed silent-failure defects "
@@ -182,6 +204,8 @@ def main():
     fig.tight_layout(rect=(0, 0.04, 1, 1))
     fig.savefig(args.out + ".pdf", bbox_inches="tight")
     fig.savefig(args.out + ".svg", bbox_inches="tight")
+    if os.environ.get("BUGSTATS_PNG"):
+        fig.savefig(args.out + ".png", dpi=200, bbox_inches="tight")
 
     # echo the numbers so a caller can cross-check the paper text.
     print("valid=%d total=%d generic=%d" % (n_valid, n_total, n_generic))
