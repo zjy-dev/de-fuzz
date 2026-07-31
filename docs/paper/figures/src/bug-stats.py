@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Fig: bug-finding statistics over the DREV zero-day findings corpus.
-# Academic monochrome (greyscale), matches the d2 figures' palette.
+# Muted academic color palette (one hue per panel; colorblind-safe trio).
 #
 # Reads the findings corpus front matter directly so the figure is
 # regenerable from ground truth rather than hand-transcribed numbers.
@@ -22,11 +22,19 @@ matplotlib.use("pdf")
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
-# ---- academic monochrome palette (mirrors figures/src/*.d2) ----------------
+# ---- academic color palette (muted, print-friendly; one hue per panel) -----
 INK = "#1A1A1A"
 MID = "#7A7A7A"
 FILL = "#E3E3E3"
 LIGHT = "#F2F2F2"
+
+# Per-panel (fill, edge) pairs. Muted blue / green / orange, the conventional
+# colorblind-safe academic trio; edges are a darker shade of the same hue.
+PANEL_COLORS = {
+    "toolchain": ("#4C72B0", "#2F4A75"),   # blue
+    "mechanism": ("#55A868", "#33683F"),    # green
+    "isa":       ("#DD8452", "#A85A2E"),    # orange
+}
 
 rcParams.update({
     "font.family": "serif",
@@ -94,9 +102,10 @@ def normalize_mechanism(m):
     return aliases.get(m, m)
 
 
-def hbar(ax, labels, counts, title):
+def hbar(ax, labels, counts, title, colors=(FILL, INK)):
+    fill, edge = colors
     y = range(len(labels))
-    ax.barh(list(y), counts, color=FILL, edgecolor=INK, linewidth=0.8, height=0.68)
+    ax.barh(list(y), counts, color=fill, edgecolor=edge, linewidth=0.8, height=0.68)
     ax.set_yticks(list(y))
     ax.set_yticklabels(labels)
     ax.invert_yaxis()
@@ -156,11 +165,11 @@ def main():
 
     fig, axes = plt.subplots(1, 3, figsize=(7.1, 2.5))
     hbar(axes[0], tool_labels_disp, tool_counts,
-         "(a) by toolchain")
+         "(a) by toolchain", colors=PANEL_COLORS["toolchain"])
     hbar(axes[1], mech_labels, mech_counts,
-         "(b) by defense mechanism")
+         "(b) by defense mechanism", colors=PANEL_COLORS["mechanism"])
     hbar(axes[2], isa_labels, isa_counts,
-         "(c) by affected ISA")
+         "(c) by affected ISA", colors=PANEL_COLORS["isa"])
 
     fig.text(0.5, -0.02,
              "%d confirmed silent-failure defects "
