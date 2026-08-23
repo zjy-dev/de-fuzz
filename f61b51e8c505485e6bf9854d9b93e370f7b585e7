@@ -1,0 +1,430 @@
+docs/tech-docs/architecture/decisions/003-oracle-multi-invariant-redesign.md
+  3264f4a00c8d98cd 15-21 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[15,21]}]}]}
+docs/tech-docs/features/canary-oracle.md
+  3264f4a00c8d98cd 305 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Single":305}]}]}
+internal/oracle/mechanism.go
+  3264f4a00c8d98cd 19-21,27,30-36,86,89,92 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[19,21]},{"Single":27},{"Range":[30,36]},{"Single":86},{"Single":89},{"Single":92}]}]}
+internal/oracle/mechanism_test.go
+  3264f4a00c8d98cd 88 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Single":88}]}]}
+docs/tech-docs/architecture/oracle-mechanism-framework.md
+  3264f4a00c8d98cd 24,53,55-57,59-62,64,119-122,124,165 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Single":24},{"Single":53},{"Range":[55,57]},{"Range":[59,62]},{"Single":64},{"Range":[119,122]},{"Single":124},{"Single":165}]}]}
+docs/tech-docs/guides/adding-a-defense-mechanism.md
+  3264f4a00c8d98cd 39,41-44,46,53-54,89-90 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Single":39},{"Range":[41,44]},{"Single":46},{"Range":[53,54]},{"Range":[89,90]}]}]}
+internal/oracle/invariant.go
+  3264f4a00c8d98cd 51-56,58,60,63-68,72-73,107 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[51,56]},{"Single":58},{"Single":60},{"Range":[63,68]},{"Range":[72,73]},{"Single":107}]}]}
+docs/tech-docs/architecture/overview.md
+  3264f4a00c8d98cd 82 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a0f216f43159014bc4b1b2f","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Single":82}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "f61b51e8c505485e6bf9854d9b93e370f7b585e7",
+  "prompts": {
+    "3264f4a00c8d98cd": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a0f137908cbf7d031de06dc",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "张景耀 <zhangjingyao.666@bytedance.com>",
+      "messages": [],
+      "total_additions": 69,
+      "total_deletions": 90,
+      "accepted_lines": 69,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "docs/tech-docs/architecture/decisions/003-oracle-multi-invariant-redesign.md": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Range": [
+              15,
+              21
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  15,
+                  21
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/tech-docs/architecture/oracle-mechanism-framework.md": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Single": 24
+          },
+          {
+            "Single": 53
+          },
+          {
+            "Range": [
+              55,
+              57
+            ]
+          },
+          {
+            "Range": [
+              59,
+              62
+            ]
+          },
+          {
+            "Single": 64
+          },
+          {
+            "Range": [
+              119,
+              122
+            ]
+          },
+          {
+            "Single": 124
+          },
+          {
+            "Single": 165
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Single": 24
+              },
+              {
+                "Single": 53
+              },
+              {
+                "Range": [
+                  55,
+                  57
+                ]
+              },
+              {
+                "Range": [
+                  59,
+                  62
+                ]
+              },
+              {
+                "Single": 64
+              },
+              {
+                "Range": [
+                  119,
+                  122
+                ]
+              },
+              {
+                "Single": 124
+              },
+              {
+                "Single": 165
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/tech-docs/architecture/overview.md": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Single": 82
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Single": 82
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/tech-docs/features/canary-oracle.md": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Single": 305
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Single": 305
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "docs/tech-docs/guides/adding-a-defense-mechanism.md": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Single": 39
+          },
+          {
+            "Range": [
+              41,
+              44
+            ]
+          },
+          {
+            "Single": 46
+          },
+          {
+            "Range": [
+              53,
+              54
+            ]
+          },
+          {
+            "Range": [
+              89,
+              90
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Single": 39
+              },
+              {
+                "Range": [
+                  41,
+                  44
+                ]
+              },
+              {
+                "Single": 46
+              },
+              {
+                "Range": [
+                  53,
+                  54
+                ]
+              },
+              {
+                "Range": [
+                  89,
+                  90
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/invariant.go": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Range": [
+              51,
+              56
+            ]
+          },
+          {
+            "Single": 58
+          },
+          {
+            "Single": 60
+          },
+          {
+            "Range": [
+              63,
+              68
+            ]
+          },
+          {
+            "Range": [
+              72,
+              73
+            ]
+          },
+          {
+            "Single": 107
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  51,
+                  56
+                ]
+              },
+              {
+                "Single": 58
+              },
+              {
+                "Single": 60
+              },
+              {
+                "Range": [
+                  63,
+                  68
+                ]
+              },
+              {
+                "Range": [
+                  72,
+                  73
+                ]
+              },
+              {
+                "Single": 107
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/mechanism.go": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Range": [
+              19,
+              21
+            ]
+          },
+          {
+            "Single": 27
+          },
+          {
+            "Range": [
+              30,
+              36
+            ]
+          },
+          {
+            "Single": 86
+          },
+          {
+            "Single": 89
+          },
+          {
+            "Single": 92
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  19,
+                  21
+                ]
+              },
+              {
+                "Single": 27
+              },
+              {
+                "Range": [
+                  30,
+                  36
+                ]
+              },
+              {
+                "Single": 86
+              },
+              {
+                "Single": 89
+              },
+              {
+                "Single": 92
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/mechanism_test.go": [
+      {
+        "hash": "3264f4a00c8d98cd",
+        "line_ranges": [
+          {
+            "Single": 88
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a0f216f43159014bc4b1b2f",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Single": 88
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "3264f4a00c8d98cd": {
+      "tool": "trae",
+      "conversation_id": "6a0f137908cbf7d031de06dc",
+      "session_id": "6a0f137908cbf7d031de06dc",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}

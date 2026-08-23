@@ -1,0 +1,590 @@
+cmd/fortify-repro/main.go
+  96a092ff7b281607 1-152 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,152]}]}]}
+internal/prompt/mechanism/fortify.go
+  96a092ff7b281607 1-64 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,64]}]}]}
+initial_seeds/aarch64/fortify/understanding.md
+  96a092ff7b281607 1-8 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,8]}]}]}
+internal/oracle/fortify_oracle.go
+  96a092ff7b281607 1-93 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,93]}]}]}
+initial_seeds/x64/fortify/understanding.md
+  96a092ff7b281607 1-49 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,49]}]}]}
+internal/oracle/checker_static_fortify_objsize.go
+  96a092ff7b281607 1-261 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,261]}]}]}
+internal/oracle/checker_dynamic_fortify_readonly.go
+  96a092ff7b281607 1-101 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,101]}]}]}
+initial_seeds/x64/fortify/function_template.c
+  96a092ff7b281607 1-232 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,232]}]}]}
+internal/oracle/fortify_disasm.go
+  96a092ff7b281607 1-254 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,254]}]}]}
+internal/oracle/fortify_test.go
+  96a092ff7b281607 1-348 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,348]}]}]}
+initial_seeds/x64/fortify/id-000001-src-000000-cov-00000-fortify1/source.c
+  96a092ff7b281607 1-36 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,36]}]}]}
+internal/oracle/checker_dynamic_fortify_chknoreturn.go
+  96a092ff7b281607 1-101 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,101]}]}]}
+internal/oracle/checker_static_fortify_chkpresence.go
+  96a092ff7b281607 1-230 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,230]}]}]}
+initial_seeds/loongarch64/fortify/understanding.md
+  96a092ff7b281607 1-9 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,9]}]}]}
+internal/oracle/fortify_func_family.go
+  96a092ff7b281607 1-113 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,113]}]}]}
+internal/seed/defense_flags.go
+  96a092ff7b281607 21-32 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[21,32]}]}]}
+initial_seeds/riscv64/fortify/understanding.md
+  96a092ff7b281607 1-8 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,8]}]}]}
+internal/oracle/checker_dynamic_fortify_vfprintf.go
+  96a092ff7b281607 1-132 gitai:{"mixed_line_ranges":[],"operations":[{"operation_id":"6a1869e3726ad28a4dc7c755","tool_type":"agent","tool_id":"Edit","line_ranges":[{"Range":[1,132]}]}]}
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0730cacfb14f2933e649d760ab4c661d514ac8e1",
+  "prompts": {
+    "96a092ff7b281607": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a126e19c4a9d2801a8271e2",
+        "model": "openrouter-2o__dev"
+      },
+      "human_author": "张景耀 <zhangjingyao.666@bytedance.com>",
+      "messages": [],
+      "total_additions": 2219,
+      "total_deletions": 19,
+      "accepted_lines": 2203,
+      "overriden_lines": 0
+    }
+  },
+  "attestation_metadata": {
+    "cmd/fortify-repro/main.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              152
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  152
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "initial_seeds/aarch64/fortify/understanding.md": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              8
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  8
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "initial_seeds/loongarch64/fortify/understanding.md": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              9
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  9
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "initial_seeds/riscv64/fortify/understanding.md": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              8
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  8
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "initial_seeds/x64/fortify/function_template.c": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              232
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  232
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "initial_seeds/x64/fortify/id-000001-src-000000-cov-00000-fortify1/source.c": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              36
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  36
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "initial_seeds/x64/fortify/understanding.md": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              49
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  49
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/checker_dynamic_fortify_chknoreturn.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              101
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  101
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/checker_dynamic_fortify_readonly.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              101
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  101
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/checker_dynamic_fortify_vfprintf.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              132
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  132
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/checker_static_fortify_chkpresence.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              230
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  230
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/checker_static_fortify_objsize.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              261
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  261
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/fortify_disasm.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              254
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  254
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/fortify_func_family.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              113
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  113
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/fortify_oracle.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              93
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  93
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/oracle/fortify_test.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              348
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  348
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/prompt/mechanism/fortify.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              1,
+              64
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  1,
+                  64
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "internal/seed/defense_flags.go": [
+      {
+        "hash": "96a092ff7b281607",
+        "line_ranges": [
+          {
+            "Range": [
+              21,
+              32
+            ]
+          }
+        ],
+        "mixed_line_ranges": [],
+        "operations": [
+          {
+            "operation_id": "6a1869e3726ad28a4dc7c755",
+            "tool_type": "agent",
+            "tool_id": "Edit",
+            "line_ranges": [
+              {
+                "Range": [
+                  21,
+                  32
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "remote_transcripts": {
+    "96a092ff7b281607": {
+      "tool": "trae",
+      "conversation_id": "6a126e19c4a9d2801a8271e2",
+      "session_id": "6a126e19c4a9d2801a8271e2",
+      "status": "remote_only",
+      "message": "Remote transcript resolution is not implemented yet for TRAE prompts."
+    }
+  }
+}
