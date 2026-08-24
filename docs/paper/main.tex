@@ -6,6 +6,7 @@
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
+\usepackage{algorithm}
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
@@ -327,7 +328,7 @@ Segmented review affords broad corpus coverage, yet it frequently fails to clust
 The RAG process begins by distilling a confirmed bug into a mechanism-agnostic failure signature. Retrieval then scans the indexed middle-end and backend corpora for implementations sharing similar semantic structures. We deliberately eschew entity-centric retrieval (e.g., matching API or symbol names), as it tends to confine results within the original defense mechanism. Instead, queries are formulated around abstract operations, violated assumptions, and protected assets, allowing a single probe to uncover analogous vulnerabilities across diverse mechanisms and backends.
 
 \subsection{Pipeline: Distillation, Analogy, Specialization, and Entailment}
-The generalization pipeline operates in four stages. First, a confirmed root cause undergoes \emph{distillation} into an abstract description. Second, an \emph{analogy} filter evaluates whether a retrieved code block embodies the same structural failure, proactively rejecting superficial lexical matches. Third, \emph{specialization} instantiates the invariant within the concrete target source context. Finally, \emph{entailment} verifies that the resulting statement logically follows from the cited evidence. Figure~\ref{fig:specgen-pipeline} illustrates how segmented review and the RAG path converge into a shared grounding and novelty filter.
+The generalization pipeline operates in four stages. First, a confirmed root cause undergoes \emph{distillation} into an abstract description. For instance, using CVE-2023-4039 as a running example, the stack canary vulnerability is distilled from ``AArch64 VLA overrides canary'' into the abstract semantic signature ``dynamically sized local allocations bypass statically computed security boundaries.'' Second, an \emph{analogy} filter evaluates whether a retrieved code block embodies the same structural failure, proactively rejecting superficial lexical matches. Third, \emph{specialization} instantiates the invariant within the concrete target source context (e.g., mapping the abstract boundary to specific shadow-stack frame calculations). Finally, \emph{entailment} verifies that the resulting statement logically follows from the cited evidence. Figure~\ref{fig:specgen-pipeline} illustrates how segmented review and the RAG path converge into a shared grounding and novelty filter.
 \incfigh{specgen-pipeline}{Corpus-grounded invariant generation: segmented CoT
 review and historical-bug RAG feed a shared grounding and novelty filter;
 confirmed new findings return as retrieval probes.}{0.82}
@@ -374,7 +375,12 @@ further instances of that root cause.
 \section{Oracle: From Invariants to Verdicts}\label{sec:oracle}
 
 \subsection{Checker design}
-To operationalize an accepted invariant into an executable oracle, we define a checker contract that establishes the necessary preconditions, observable signals, applicable ISAs, and evidentiary requirements. Invariants decidable without execution are implemented as static checkers analyzing symbols, sections, or disassembly. Conversely, invariants requiring runtime context (e.g., exit status, memory states) are realized as dynamic checkers. Invariants amenable to both are implemented redundantly, preserving deterministic precision over heuristic approximation.
+To operationalize an accepted invariant into an executable oracle, we define a formal checker contract. Let $\mathcal{P}$ be the space of compiled programs, $\mathcal{I}$ be the set of target ISAs, and $\mathcal{S}$ be the set of accepted invariants. An oracle is defined as a deterministic function:
+\begin{equation}
+\mathcal{O}: \mathcal{P} \times \mathcal{I} \times \mathcal{S} \rightarrow \{\text{Pass}, \text{Fail}, \text{NA}, \text{Error}\}
+\end{equation}
+
+Invariants decidable without execution are implemented as static checkers analyzing symbols, sections, or disassembly. Conversely, invariants requiring runtime context (e.g., exit status, memory states) are realized as dynamic checkers. Invariants amenable to both are implemented redundantly, preserving deterministic precision over heuristic approximation.
 
 Each checker returns a four-state verdict
 (pass / fail / not-applicable / error). \texttt{NotApplicable} is returned
@@ -423,7 +429,32 @@ Generator proposes; the oracle stack adjudicates, and confirmed findings require
 deterministic evidence.
 
 \subsection{Explicit orchestration and the blackboard}
-The agents form a closed loop where feedback guides subsequent generation, the oracle adjudicates outcomes, non-violations update feedback parameters, and violations trigger minimization. Crucially, all inter-agent communication flows through a versioned blackboard rather than direct dialogue (Figure~\ref{fig:blackboard}). The blackboard maintains the current invariant--checker target, its applicable ISAs, seed lineage, cumulative coverage, and reduction results. This architecture enforces reproducibility (as pinning a blackboard version deterministically fixes agent inputs), ablatability (enabling independent toggling of linkage edges), and auditability (ensuring every bug claim traces back to deterministic execution evidence).
+The agents form a closed loop where feedback guides subsequent generation, the oracle adjudicates outcomes, non-violations update feedback parameters, and violations trigger minimization. Crucially, all inter-agent communication flows through a versioned blackboard rather than direct dialogue (Figure~\ref{fig:blackboard}). Algorithm~\ref{alg:orchestration} details this deterministic control flow.
+
+\begin{algorithm}[h]
+\caption{Explicitly Orchestrated Agentic Loop}
+\label{alg:orchestration}
+\begin{algorithmic}[1]
+\REQUIRE Queue $Q$ of invariant--checker targets, Budget $B$
+\STATE Initialize Blackboard $\mathcal{B}$
+\FOR{target $T \in Q$}
+  \WHILE{budget $B > 0$}
+    \STATE $\mathcal{B}.\text{seed} \leftarrow \text{Generator}(\mathcal{B}.\text{feedback})$
+    \STATE $\mathcal{B}.\text{binary} \leftarrow \text{Compile}(\mathcal{B}.\text{seed}, T.\text{ISA})$
+    \STATE $v, \text{cov} \leftarrow \mathcal{O}(\mathcal{B}.\text{binary}, T.\text{ISA}, T.\text{inv})$
+    \IF{$v == \text{Fail}$}
+      \STATE $\mathcal{B}.\text{poc} \leftarrow \text{Minimizer}(\mathcal{B}.\text{seed}, \mathcal{O})$
+      \STATE \textbf{yield} \text{BugFound}($\mathcal{B}.\text{poc}$)
+    \ELSIF{$v == \text{Pass} \lor v == \text{NA}$}
+      \STATE $\mathcal{B}.\text{feedback} \leftarrow \text{FeedbackAgent}(\text{cov}, v)$
+    \ENDIF
+    \STATE $B \leftarrow B - 1$
+  \ENDWHILE
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}
+
+This architecture enforces reproducibility (as pinning a blackboard version deterministically fixes agent inputs), ablatability (enabling independent toggling of linkage edges), and auditability (ensuring every bug claim traces back to deterministic execution evidence).
 \incfig{blackboard}{The blackboard: all inter-agent linkage flows through
 versioned shared state, enabling reproduce / ablate / audit.}
 
