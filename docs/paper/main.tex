@@ -185,33 +185,36 @@ coverage-guided fuzzing lacks the oracle to judge the security status of each
 cell.
 
 \subsection{Our approach}
-DeFuzz closes the oracle gap and searches the matrix directly by combining an
-invariant-grounded oracle with an explicitly-orchestrated agentic loop. We
-distill the safety invariants of each defense into machine-checkable checkers
-that form a sound oracle; we generate new cross-mechanism invariants by
-retrieval-augmented analogy transfer; and we drive seed generation with an
-agentic loop whose orchestration is deterministic and whose agents are grounded
-by that oracle. A checker-bound ISA routing scheme keeps the agent away from the
-raw ISA axis.
+DeFuzz combines three stages. First, it generates safety invariants through two
+complementary paths: a segmented chain-of-thought (CoT) review extracts
+candidates from defense-related corpora, while a RAG pass uses confirmed
+historical bugs as probes to find implementations with homologous root causes
+across mechanisms and compiler backends and generalize them into additional
+invariants. Second, accepted invariants are translated into static or dynamic
+checkers. Third, the
+orchestrator assigns one invariant--checker pair at a time, expands the pair to
+the ISAs declared by the checker, and runs an oracle-grounded agent loop. The
+model proposes seeds and feedback; deterministic binary or runtime evidence
+decides whether a bug exists.
 
 \subsection{Contributions}
 \begin{itemize}
-  \item \textbf{An oracle for silent failure (main line).} A sound,
-  machine-checkable oracle that fills the silent-failure oracle gap and supplies
-  false-positive-free ground truth for agentic bug hunting
+  \item \textbf{An oracle for silent failure.} A sound,
+  machine-checkable oracle that fills the silent-failure oracle gap and grounds
+  confirmed bug reports in reproducible evidence
   (\S\ref{sec:oracle}).
-  \item \textbf{Systematized security invariants (support).} A bottom-up
+  \item \textbf{Systematized security invariants.} A bottom-up
   taxonomy over 468 catalogued invariants across more than two dozen defenses,
-  each in a machine-decidable static/dynamic form, plus a cross-mechanism
-  generation pipeline that yields 11 new invariants
+  each in a machine-decidable static/dynamic form. Segmented CoT review provides
+  broad corpus coverage, while historical-bug RAG yields 11 new invariants
   (\S\ref{sec:invariants},~\S\ref{sec:specgen}).
-  \item \textbf{An explicitly-orchestrated agent system (moat).} A deterministic
+  \item \textbf{An explicitly-orchestrated agent system.} A deterministic
   pipeline with agents at fixed positions linked through a versioned blackboard,
   yielding reproducible, ablatable, and auditable runs---in contrast to
   free-running agent systems (\S\ref{sec:loop}).
-  \item \textbf{An agentic loop (vehicle).} Oracle-grounded, coverage-guided
-  seed generation with checker-bound ISA routing that collapses the Cartesian
-  product (\S\ref{sec:loop}).
+  \item \textbf{An agentic loop.} Oracle-grounded, coverage-guided
+  seed generation scheduled by invariant--checker pairs, with ISA applicability
+  derived from checker metadata (\S\ref{sec:loop}).
 \end{itemize}
 
 \section{Background and Motivation}\label{sec:bg}
@@ -258,31 +261,34 @@ pinned to GCC~16.1 to keep evidence and reproduction anchored to one tree.
 
 \section{System Overview}\label{sec:overview}
 
-DeFuzz shifts the paradigm from testing the program to testing the compiler itself. The
-orchestrator enumerates the entire checker catalog into a deterministic
-schedule; for each invariant a Generator agent produces a C seed; the seed runs
-through a hard-wired pipeline---routing $\rightarrow$ build $\rightarrow$
-coverage $\rightarrow$ oracle---that yields an invariant verdict; a violation is
-handed to a minimizer agent, a non-violation goes through a feedback agent back
-to the next round. The full trajectory is versioned into a per-run checkpoint
-chain, so it is reproducible, ablatable, and auditable.
+DeFuzz separates offline knowledge construction from online bug search. The
+offline stage reads compiler source, specifications, and historical bug records.
+A segmented CoT review provides broad candidate extraction, while historical-bug
+RAG targets implementations that may share a known root cause. Candidates that
+survive evidence grounding and deduplication enter the invariant catalog and are
+implemented as static or dynamic checkers. Confirmed findings can be added to
+the historical-bug pool as new retrieval probes.
 
-The system architecture is divided into two main components (Figure~\ref{fig:architecture}): a Go deterministic
-core that exposes both a gRPC adapter (deterministic build/coverage/oracle
-nodes) and an MCP adapter (read-only agent tools), and a Python orchestrator
-built on LangGraph that holds the control flow and the shared state. Both
-adapters read a single source of truth for checker metadata, so adjudication
-logic lives in exactly one place.
-\wincfig{architecture}{DeFuzz two-part architecture: Python LangGraph
-orchestrator (control flow + blackboard) over a Go core with gRPC (deterministic
-nodes) and MCP (read-only agent tools) adapters.}
+The online stage tests the compiler rather than the generated program. At run
+initialization, the orchestrator enumerates the checker catalog into a fixed
+queue. Each target denotes one invariant--checker pair; checker metadata supplies
+the applicable ISAs. The target remains fixed until its round or wall-clock budget is exhausted.
+Within each round, the Generator produces a C seed and a hard-wired
+pipeline executes routing $\rightarrow$ build $\rightarrow$ coverage
+$\rightarrow$ oracle. Pass, NotApplicable, and Error enter the Feedback branch
+before the next round; Error remains visible as an infrastructure diagnostic
+and consumes the current round without becoming a bug. A Fail invokes the
+Minimizer and is rechecked against the same checker. All intermediate states and
+results are versioned for replay and audit.
+\wincfig{architecture}{DeFuzz technical route: corpus-grounded invariant
+generation feeds programmatic checkers, which define the targets of an
+explicitly orchestrated agent loop.}
 
-Figure~\ref{fig:main-loop} shows a single iteration end to end and forward-references
-\S\ref{sec:invariants}--\S\ref{sec:loop}.
-\incfigh{main-loop}{Single-iteration data flow: START $\rightarrow$
-generator $\rightarrow$ routing $\rightarrow$ build $\rightarrow$ coverage
-$\rightarrow$ oracle $\rightarrow$ route (violated $\rightarrow$ minimize;
-otherwise feedback $\rightarrow$ bump $\rightarrow$ next round).}{0.62}
+Figure~\ref{fig:main-loop} shows one target-specific iteration end to end; the
+following sections detail each stage.
+\incfigh{main-loop}{Agent loop for one invariant--checker target and its
+applicable ISAs: generate $\rightarrow$ build $\rightarrow$ coverage
+$\rightarrow$ check $\rightarrow$ feedback or minimization.}{0.92}
 
 \section{Security Invariants for Compiler Defenses}\label{sec:invariants}
 
@@ -298,7 +304,7 @@ The separation of the phenomenon from its detection recipe is deliberate: ``the
 phenomenon, whereas ``look it up in the ELF \texttt{.dynsym}'' is a detection
 mechanism that belongs to the oracle implementation.
 
-\subsection{Survey methodology and sources}
+\subsection{Sources and segmented coarse extraction}
 The invariant archive draws on three source classes: (i) compiler source
 comments and assertions, (ii) compiler and ABI documentation, and (iii)
 confirmed historical bugs and their patches. Every record carries a uniform
@@ -306,6 +312,15 @@ schema---\texttt{ID}, \texttt{statement}, \texttt{compiler}, \texttt{version},
 \texttt{target}, \texttt{source\_kind}, evidence, \texttt{version\_sensitivity},
 and \texttt{observation}---so that a downstream consumer (oracle, static
 analysis, CI) can decide how to use each invariant independently.
+
+The corpus is too large for a single model context. Related evidence also lies
+in distant source files, specifications, and patches. We therefore partition
+the material by defense mechanism, compiler phase, and function boundary. A segmented CoT
+prompt~\cite{wei2022chain} asks the model to identify the protected asset, activation conditions,
+required security property, and externally observable violation in each segment.
+This pass produces candidates rather than accepted invariants. Every candidate
+must retain its source evidence and pass the grounding checks in
+\S\ref{sec:specgen}.
 
 \subsection{A bottom-up taxonomy}
 Rather than imposing a top-down category scheme, we cluster the 468 catalogued
@@ -330,32 +345,45 @@ observability, decisiveness, cost, and static/dynamic attribution. When an
 invariant has both a statically observable part and a more precise dynamic part,
 we split it into two checkers rather than forcing one classification.
 
-\section{Cross-Mechanism Invariant Generation}\label{sec:specgen}
+\section{Corpus-Grounded Invariant Generation}\label{sec:specgen}
 
-\subsection{Motivation: abstract-failure-mode transfer}
-The confirmed-bug seed pool is small, so we amplify it by transferring root
-causes \emph{across} mechanisms. We deliberately reject entity-driven retrieval
-(matching on API/symbol similarity): it would only rediscover the same
-mechanism. Instead we retrieve on the \emph{abstract failure mode}---the shape
-of the root cause---so that a confirmed bug in one mechanism can point to an
-isomorphic site in another.
+\subsection{Why direct review needs retrieval}
+Segmented review gives the LLM broad corpus coverage, but it does not reliably
+cluster fragments that encode the same root cause. The relevant evidence may be
+separated by mechanism names, compiler phases, target backends, or years of
+patch history. RAG~\cite{lewis2020retrieval} therefore provides a complementary
+high-yield path: a confirmed historical bug becomes an explicit probe for
+related implementations rather than an association the model must discover
+while reading unrelated segments. RAG raises the chance of recovering bugs that
+share a known root cause; it does not guarantee completeness. Segmented review
+covers the remaining corpus for invariants with no historical probe.
+
+\subsection{Historical-bug RAG and root-cause generalization}
+The RAG stage first distills a confirmed bug into a mechanism-agnostic failure
+signature. Retrieval then searches the indexed middle-end and target-backend
+corpus for structurally or semantically related implementations. We avoid
+entity-only retrieval based on API or symbol names because such queries tend to
+remain within the original mechanism. Instead, the query represents the
+abstract operation, violated assumption, and protected asset. This formulation
+allows one bug to expose analogous sites across mechanism and backend
+boundaries.
 
 \subsection{Pipeline: distill $\rightarrow$ analogy $\rightarrow$ specialize $\rightarrow$ entailment}
 A confirmed root cause is first \emph{distilled} into a mechanism-agnostic
-description; \emph{analogy} is a semantic-isomorphism gate that decides whether a
-retrieved code block instantiates the same failure shape; \emph{specialize}
-instantiates the invariant on the concrete target source; and \emph{entailment}
-checks that the instantiated statement actually follows
-(Figure~\ref{fig:specgen-pipeline}). The analogy gate is essential: roughly
-94\% of BM25 hits are lexical collisions, and only the semantic gate keeps
-generation quality up.
-\incfigh{specgen-pipeline}{SpecGen: distill (mechanism-agnostic root
-cause) $\rightarrow$ analogy (semantic gate) $\rightarrow$ specialize
-$\rightarrow$ entailment.}{0.82}
+description. The \emph{analogy} step decides whether a retrieved code block
+instantiates the same failure shape. The \emph{specialize} step instantiates the
+invariant on the concrete target source, and \emph{entailment} checks that the
+statement follows from the cited evidence. The analogy gate rejects lexical
+matches that do not share the root-cause structure before specialization.
+Figure~\ref{fig:specgen-pipeline} shows how segmented review and the RAG path
+feed a shared grounding and novelty filter.
+\incfigh{specgen-pipeline}{Corpus-grounded invariant generation: segmented CoT
+review and historical-bug RAG feed a shared grounding and novelty filter;
+confirmed new findings return as retrieval probes.}{0.82}
 
-\subsection{Retrieval: BM25 and embedding are complementary}
-We run the same pipeline twice, changing only the retrieval backend: sparse BM25
-and dense \texttt{doubao-embedding-vision}, over the same 24 probe seeds and the
+\subsection{Retrieval backends and current yield}
+Within this single RAG stage, we evaluate sparse BM25 and dense
+\texttt{doubao-embedding-vision} retrieval over the same 24 probe seeds and the
 same 4{,}496 GCC-16.1 source chunks. BM25 excels on distinctive identifiers
 (\texttt{ix86\_zero\_call\_used\_regs}, \texttt{SUBREG\_PROMOTED},
 \texttt{CONST\_HIGH\_PART}); the dense retriever pulls in semantically
@@ -370,10 +398,11 @@ a novelty check (threshold 85.0). Table~\ref{tab:retrieval} summarizes.
 
 \begin{table}[t]
 \centering
+\small
 \caption{Cross-mechanism invariants by retrieval backend (24 probes, 4{,}496
 GCC-16.1 chunks).}
 \label{tab:retrieval}
-\begin{tabular}{lcl}
+\begin{tabular}{@{}p{0.37\columnwidth}cp{0.43\columnwidth}@{}}
 \toprule
 Category & Count & Note \\
 \midrule
@@ -387,26 +416,46 @@ Embedding-only                   & 2  & BM25 missed; dense retrieval added \\
 \end{table}
 
 \subsection{Grounding gates and reproducibility}
-An invariant is accepted only after two static grounding gates confirm the
-retrieved evidence supports the statement, and after the novelty check
-(threshold 85.0) confirms it does not duplicate an existing seed or manual rule.
+Candidates from both segmented CoT review and historical-bug RAG enter the same
+acceptance path. An invariant is accepted only after two static grounding gates
+confirm the cited evidence supports its statement and observation, and after the
+novelty check (threshold 85.0) confirms it does not duplicate an existing seed
+or manual rule.
 Because the dense retriever returns slightly different vectors per call, we cache
 query vectors keyed by query text so that top-$k$ ordering---and hence the
-accepted set---reproduces across runs.
+accepted set---reproduces across runs. After a new finding, including a zero-day,
+is reproduced and its root cause is confirmed, we serialize it in the same
+schema and add it to the probe pool. The next campaign can then search for
+further instances of that root cause.
 
 \section{Oracle: From Invariants to Verdicts}\label{sec:oracle}
 
-\subsection{Checker design}
-Each invariant is realized by a checker that returns a four-state verdict
-(pass / fail / not-applicable / error); \texttt{NotApplicable} is returned
-honestly when the mechanism is off or the seed does not exercise it, and is
-ignored by the aggregation layer. Soundness is the central property: a bug is
-reported only when a deterministic checker fails or an execution differential
-reproduces, never on the strength of model output alone
+\subsection{From an invariant to a checker}
+An accepted invariant is not yet an oracle. We first derive a checker contract
+that fixes the preconditions, observable signal, applicable ISAs, and evidence
+required for a verdict. If the violation is decidable from an unexecuted binary,
+the invariant becomes a static checker over symbols, sections, or disassembly.
+If adjudication requires exit status, output, or register and memory state, it
+becomes a dynamic checker. When both views are useful, we keep two checkers
+rather than weakening a deterministic claim into a heuristic.
+
+Each checker returns a four-state verdict
+(pass / fail / not-applicable / error). \texttt{NotApplicable} is returned
+when the mechanism is off or the seed does not exercise it, and is
+ignored by the aggregation layer. A finding is counted as confirmed only when a
+deterministic checker fails or an execution differential reproduces, never on
+the strength of model output alone
 (Figure~\ref{fig:oracle-flow}).
-\incfigh{oracle-flow}{Invariant $\rightarrow$ verdict flow: four-state
-checkers, NotApplicable transparency, and a deterministic-evidence gate before
-any bug is reported.}{0.82}
+\incfigh{oracle-flow}{An accepted invariant is translated into a static or
+dynamic checker; four-state verdicts pass through a deterministic-evidence gate
+before any finding is confirmed.}{0.82}
+
+When a programmatic checker cannot decide an invariant--ISA cell and returns
+NotApplicable or Error, an optional LLM fallback can inspect extracted
+disassembly and symbol evidence. A high-confidence model Fail may promote the
+run's provisional aggregate to violated and send the seed to minimization. The
+result remains explicitly marked as LLM-derived and is excluded from confirmed
+findings until a deterministic checker or execution differential reproduces it.
 
 \subsection{Mechanism aggregator and flag profiles}
 A per-mechanism aggregator combines checker verdicts: any Fail raises a
@@ -425,22 +474,25 @@ agent decision.
 \section{Agentic Loop}\label{sec:loop}
 
 \subsection{Design principles}
-Four principles run through the design. (1) The pipeline is deterministic and
-hard-wired: generate $\rightarrow$ build $\rightarrow$ coverage $\rightarrow$
-oracle $\rightarrow$ route, in a fixed order. (2) Agents are invoked only at
-fixed positions and do semantic judgment; the pipeline keeps control. (3) Agents
-never call each other directly---they communicate through shared state. (4)
-Correctness is held by deterministic evidence: the agent proposes, the oracle
-adjudicates.
+The orchestrator, rather than an agent, owns target selection and control flow.
+At run initialization it constructs a fixed queue of invariant--checker pairs.
+For each target, checker metadata determines the applicable ISAs, and the target
+remains fixed for a configured round or time budget. Within a round, the
+pipeline follows the same order: generate $\rightarrow$ routing $\rightarrow$
+build $\rightarrow$ coverage $\rightarrow$ oracle $\rightarrow$ route. Agents
+are invoked only at fixed positions and communicate through shared state. The
+Generator proposes; the oracle stack adjudicates, and confirmed findings require
+deterministic evidence.
 
 \subsection{Explicit orchestration and the blackboard}
-The linkage between agents is a real closed loop---feedback guides the next
-Generator round, the oracle adjudicates, a non-violation returns to feedback, a
-violation goes to the minimizer---but all of it flows through a versioned
-blackboard rather than direct agent-to-agent messages
-(Figure~\ref{fig:blackboard}). The blackboard holds the seed corpus and lineage,
-cumulative coverage, the oracle verdict history, and the feedback agent's
-guidance. This design provides three critical properties that elevate agent-based bug hunting into a rigorous method: \emph{reproducibility} (pin a blackboard version and any agent's input is
+The agents form a closed loop: feedback guides the next Generator round, the
+oracle adjudicates, a non-violation returns to feedback, and a violation goes to
+the Minimizer. All communication flows through a versioned blackboard rather
+than direct agent-to-agent messages
+(Figure~\ref{fig:blackboard}). The blackboard holds the current
+invariant--checker target, its applicable ISAs and budget, the seed corpus and
+lineage, cumulative coverage, oracle verdicts, feedback guidance, and reduction
+results. This design provides three properties: \emph{reproducibility} (pin a blackboard version and any agent's input is
 fully determined), \emph{ablatability} (each linkage edge can be switched off
 independently), and \emph{auditability} (a bug claim traces back through the
 blackboard to a deterministic cause).
@@ -449,28 +501,34 @@ versioned shared state, enabling reproduce / ablate / audit.}
 
 \subsection{Three agents}
 The \textbf{Generator} (invoked at the start) carries read-only source-search and
-invariant-query tools and outputs a new seed plus the checker set it selects;
+invariant-query tools and outputs a seed for the assigned invariant--checker pair;
 coverage is not an agent-reportable tool but is measured by the coverage node and
 fed back, so the agent cannot fabricate coverage. The \textbf{feedback agent}
 (invoked on a non-violation) is a context-isolated subagent that turns the
-coverage delta and the Pass/NotApplicable verdict into next-round guidance
+coverage delta, checker identity, and the Pass/NotApplicable verdict into
+next-round guidance
 written back to the blackboard. The \textbf{minimizer} (invoked on a violation)
 shrinks the PoC with deterministic delta debugging (C-Reduce) as the workhorse
 and the LLM only for semantic guidance, so that reduction does not accidentally
-delete the structure that triggers the bug.
+delete the structure that triggers the bug. Each candidate reduction is compiled
+and rechecked with the same checker before it is retained.
 
-\subsection{Checker-routed seeds, ISA-bound checkers}
-Instead of letting the agent pick an ISA, we statically bind each checker to its applicable ISA set, restricting the agent to the semantic task for which it is well-suited: ``which checkers can this seed trigger?'' Choosing a checker
-automatically claims all ISAs bound to it, so the agent never touches the raw ISA
-axis (Figure~\ref{fig:checker-routing}). Two backstops keep this an optimization
-rather than a correctness risk: cheap static checkers are always on and never
-enter the agent's decision, and the agent selects a superset (``keep everything
-not obviously impossible''), never a precise set. Differential checkers carry the
-``multiple ISAs + differential verdict'' semantics, so once selected they force a
-full ISA fan-out and the cross-ISA silent-failure signal is preserved by
-metadata rather than by agent diligence.
-\incfig{checker-routing}{Checker-bound ISA routing: the agent selects
-checkers; each checker fans out to its bound ISAs; cheap checkers always on.}
+\subsection{Invariant--checker scheduling and ISA binding}
+Each target in the deterministic queue denotes one invariant and its checker.
+The routing node expands that checker to every ISA in its metadata; the Generator
+never chooses either the target invariant or an ISA
+(Figure~\ref{fig:checker-routing}). A differential checker always expands to its
+full ISA set so that a cross-ISA signal cannot be pruned by model behavior. Cheap
+static checkers remain enabled as a side path, but they do not change the
+Generator's assigned target. When a checker returns Pass or NotApplicable, the
+Feedback agent records the relevant context and the same pair continues until
+its budget expires. Error follows the same non-bug path, remains visible as an
+infrastructure diagnostic, and consumes the current round. A Fail transfers the
+seed and deterministic evidence to the Minimizer. The blackboard records both
+branches before the orchestrator advances.
+\incfig{checker-routing}{Deterministic target scheduling: one
+invariant--checker pair remains fixed for its budget, while checker metadata
+expands the applicable ISAs and cheap static checkers remain enabled.}
 
 \section{Implementation}\label{sec:impl}
 The Go core (\texttt{cmd/defuzz-core}) exposes \texttt{grpc\_server.go} (build,
@@ -487,6 +545,9 @@ directory with \texttt{checkpoints.sqlite} (the versioned state chain) and
 \texttt{manifest.json} (git SHA, toolchains, checker catalog, LLM config,
 ablation flags), which the \texttt{inspect} / \texttt{replay} / \texttt{trace-bug}
 subcommands consume for reproduction.
+The target queue stores checker IDs, each of which names the corresponding
+invariant--checker pair; the cursor advances only after that target's round or
+time budget is exhausted.
 
 \section{Evaluation}\label{sec:eval}
 \emph{Setup.} Targets are an instrumented GCC~16.1, a cross-GCC, and LLVM;
@@ -496,7 +557,7 @@ execution under QEMU user mode. We answer five research questions.
 \paragraph{RQ1 --- Real bugs} DeFuzz found \tbd{N} silent-failure defects on
 GCC/LLVM; \tbd{M} were confirmed upstream (\tbd{CVE IDs}).
 
-\paragraph{RQ2 --- Invariant generation quality} The cross-mechanism pipeline
+\paragraph{RQ2 --- Invariant generation quality} The historical-bug RAG path
 produced 11 union invariants (5 intersection, 4 BM25-only, 2 embedding-only),
 all \texttt{is\_novel}; the analogy gate filtered roughly 94\% of BM25 hits as
 lexical collisions (Table~\ref{tab:retrieval}).

@@ -1,33 +1,19 @@
-# Fig: the blackboard - all inter-agent linkage via versioned shared state (academic monochrome)
+# Fig: versioned blackboard records every task state and result (academic monochrome)
 # render: d2 --theme=0 --pad=8 blackboard.d2 ../blackboard.svg
 
 classes: {
-  agent: { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  actor: { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
   bb:    { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
   prop:  { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; font-color: "#333333" } }
 }
 
-direction: right
+direction: down
 
-gen: "Generator" { class: agent; width: 130 }
-feedback: "Feedback\nagent" { class: agent; width: 130 }
-minim: "Minimizer" { class: agent; width: 130 }
+actors: "Orchestrator scheduler · Generator\nRouting / Build / Coverage / Checker\nFeedback · Minimizer + C-Reduce" { class: actor }
 
-bb: "Versioned blackboard  (shared state)\n\nseed corpus & lineage\ncumulative coverage\noracle verdict history\nfeedback guidance" { class: bb; width: 260 }
+bb: "Versioned blackboard  (only linkage channel)\n\nlocked invariant–checker pair · applicable ISAs · budget\nseed corpus and lineage · routing/build artifacts · cumulative coverage\nfour-state verdict history · deterministic evidence · feedback guidance\nminimized PoC · revalidation result · review-ready finding record" { class: bb }
 
-props: "" {
-  grid-rows: 3
-  grid-columns: 1
-  grid-gap: 8
-  style: { fill: transparent; stroke: transparent }
-  reproduce: "Reproducible\npin a version -> agent input fully determined" { class: prop; width: 260 }
-  ablate: "Ablatable\neach linkage edge switched off independently" { class: prop; width: 260 }
-  audit: "Auditable\nbug claim traces back to deterministic cause" { class: prop; width: 260 }
-}
+props: "REPRODUCIBLE  pin a version → inputs fixed\nABLATABLE  switch each linkage edge independently\nAUDITABLE  trace every claim to deterministic evidence" { class: prop }
 
-gen -> bb: "read / write" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
-feedback -> bb: "read / write" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
-minim -> bb: "read / write" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
-bb -> props.reproduce: "" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4 } }
-bb -> props.ablate: "" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4 } }
-bb -> props.audit: "" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4 } }
+actors -> bb: "all read/write through state; every result appended" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+bb -> props: "versioned replay · explicit edges · provenance" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }

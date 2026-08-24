@@ -1,32 +1,31 @@
-# Fig: checker-bound ISA routing (academic monochrome)
+# Fig: orchestrator-owned invariant-checker routing (academic monochrome)
 # render: d2 --theme=0 --pad=8 checker-routing.d2 ../checker-routing.svg
 
 classes: {
-  agent:  { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
-  checker:{ style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
-  always: { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; font-color: "#333333" } }
-  isa:    { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  state: { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; font-color: "#333333" } }
+  key:   { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  node:  { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  note:  { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#333333" } }
 }
 
-direction: right
+direction: down
 
-agent: "Generator agent\nselects a checker superset\n('which checkers can\nthis seed trigger?')" { class: agent }
+queue: "Orchestrator target queue\n(INV-A, Checker A) · (INV-B, Checker B) · …" { class: state }
+meta: "Checker-metadata SSOT\napplicable ISAs · mode · cost" { class: state }
+lock: "Locked directed task\none invariant–checker pair\n+ applicable ISAs + budget" { class: key }
+gen: "Generator agent\nconstruct seed for the assigned invariant\n(no checker or ISA selection)" { class: node }
+routing: "Deterministic routing\nseed × fixed checker × bound ISAs" { class: node }
+x86: "Checker A × x86-64" { class: node }
+arm: "Checker A × AArch64" { class: node }
+rv: "Checker A × RISC-V" { class: node }
+rule: "Differential checker: every bound ISA is mandatory" { class: note }
 
-cA: "Checker A (differential)\nbinds {x86-64, AArch64, RISC-V}" { class: checker }
-cB: "Checker B (single-ISA)\nbinds {AArch64}" { class: checker }
-cheap: "Cheap static checkers\nalways on, not routed" { class: always }
-
-x86: "x86-64" { class: isa }
-arm: "AArch64" { class: isa }
-rv: "RISC-V" { class: isa }
-
-agent -> cA: "select" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
-agent -> cB: "select" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
-
-cA -> x86: "fan-out (forced)" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
-cA -> arm: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
-cA -> rv: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
-cB -> arm: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
-cheap -> x86: "always" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }
-cheap -> arm: "" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4 } }
-cheap -> rv: "" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4 } }
+queue -> lock: "fixed cursor" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+meta -> lock: "metadata lookup" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+lock -> gen: "assign invariant" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+lock -> routing: "fix checker + ISAs" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+gen -> routing: "seed only" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+routing -> x86: "fan-out" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+routing -> arm: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+routing -> rv: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+routing -> rule: "constraint" { style: { stroke: "#7A7A7A"; stroke-width: 1; stroke-dash: 4; font-color: "#555555" } }
