@@ -330,46 +330,17 @@ address/offset shifts the computed address.
 invariants; three families recur across mechanism and ISA.}
 
 \subsection{Machine-checkable form: static vs dynamic}
-Each invariant is classified by whether its violation can be decided from the
-un-executed binary (symbols, sections, disassembly, strings)---\emph{static}---or
-only by running it and observing exit status, output flags, or register/memory
-snapshots---\emph{dynamic}. The choice is guided by four dimensions:
-observability, decisiveness, cost, and static/dynamic attribution. When an
-invariant has both a statically observable part and a more precise dynamic part,
-we split it into two checkers rather than forcing one classification.
+Each invariant is classified by whether its violation can be observed in the un-executed binary (e.g., symbols, sections, disassembly, strings) or if it strictly requires execution traces (e.g., exit status, output flags, register snapshots). This classification is guided by observability, decisiveness, computational cost, and attribution capability. To maintain precision, invariants exhibiting both static and dynamic violation signals are bifurcated into distinct checkers rather than being merged into a single heuristic.
 
 \section{Corpus-Grounded Invariant Generation}\label{sec:specgen}
 
-\subsection{Why direct review needs retrieval}
-Segmented review gives the LLM broad corpus coverage, but it does not reliably
-cluster fragments that encode the same root cause. The relevant evidence may be
-separated by mechanism names, compiler phases, target backends, or years of
-patch history. RAG~\cite{lewis2020retrieval} therefore provides a complementary
-high-yield path: a confirmed historical bug becomes an explicit probe for
-related implementations rather than an association the model must discover
-while reading unrelated segments. RAG raises the chance of recovering bugs that
-share a known root cause; it does not guarantee completeness. Segmented review
-covers the remaining corpus for invariants with no historical probe.
+\subsection{Generalizing root causes via retrieval-augmented generation}
+Segmented review affords broad corpus coverage, yet it frequently fails to cluster isolated fragments that encode identical root causes, especially when the relevant evidence is fragmented across different mechanism names, compiler phases, or target backends. To bridge this gap, retrieval-augmented generation (RAG)~\cite{lewis2020retrieval} provides a complementary, high-yield path. By treating a confirmed historical bug as an explicit probe, the RAG phase actively searches for structurally related implementations. While this approach does not guarantee completeness, it significantly increases the probability of uncovering analogous defects that share a known root cause.
 
-\subsection{Historical-bug RAG and root-cause generalization}
-The RAG stage first distills a confirmed bug into a mechanism-agnostic failure
-signature. Retrieval then searches the indexed middle-end and target-backend
-corpus for structurally or semantically related implementations. We avoid
-entity-only retrieval based on API or symbol names because such queries tend to
-remain within the original mechanism. Instead, the query represents the
-abstract operation, violated assumption, and protected asset. This formulation
-allows one bug to expose analogous sites across mechanism and backend
-boundaries.
+The RAG process begins by distilling a confirmed bug into a mechanism-agnostic failure signature. Retrieval then scans the indexed middle-end and backend corpora for implementations sharing similar semantic structures. We deliberately eschew entity-centric retrieval (e.g., matching API or symbol names), as it tends to confine results within the original defense mechanism. Instead, queries are formulated around abstract operations, violated assumptions, and protected assets, allowing a single probe to uncover analogous vulnerabilities across diverse mechanisms and backends.
 
-\subsection{Pipeline: distill $\rightarrow$ analogy $\rightarrow$ specialize $\rightarrow$ entailment}
-A confirmed root cause is first \emph{distilled} into a mechanism-agnostic
-description. The \emph{analogy} step decides whether a retrieved code block
-instantiates the same failure shape. The \emph{specialize} step instantiates the
-invariant on the concrete target source, and \emph{entailment} checks that the
-statement follows from the cited evidence. The analogy gate rejects lexical
-matches that do not share the root-cause structure before specialization.
-Figure~\ref{fig:specgen-pipeline} shows how segmented review and the RAG path
-feed a shared grounding and novelty filter.
+\subsection{Pipeline: Distillation, Analogy, Specialization, and Entailment}
+The generalization pipeline operates in four stages. First, a confirmed root cause undergoes \emph{distillation} into an abstract description. Second, an \emph{analogy} filter evaluates whether a retrieved code block embodies the same structural failure, proactively rejecting superficial lexical matches. Third, \emph{specialization} instantiates the invariant within the concrete target source context. Finally, \emph{entailment} verifies that the resulting statement logically follows from the cited evidence. Figure~\ref{fig:specgen-pipeline} illustrates how segmented review and the RAG path converge into a shared grounding and novelty filter.
 \incfigh{specgen-pipeline}{Corpus-grounded invariant generation: segmented CoT
 review and historical-bug RAG feed a shared grounding and novelty filter;
 confirmed new findings return as retrieval probes.}{0.82}
@@ -423,14 +394,8 @@ further instances of that root cause.
 
 \section{Oracle: From Invariants to Verdicts}\label{sec:oracle}
 
-\subsection{From an invariant to a checker}
-An accepted invariant is not yet an oracle. We first derive a checker contract
-that fixes the preconditions, observable signal, applicable ISAs, and evidence
-required for a verdict. If the violation is decidable from an unexecuted binary,
-the invariant becomes a static checker over symbols, sections, or disassembly.
-If adjudication requires exit status, output, or register and memory state, it
-becomes a dynamic checker. When both views are useful, we keep two checkers
-rather than weakening a deterministic claim into a heuristic.
+\subsection{Operationalizing invariants into checkers}
+To operationalize an accepted invariant into an executable oracle, we define a checker contract that establishes the necessary preconditions, observable signals, applicable ISAs, and evidentiary requirements. Invariants decidable without execution are implemented as static checkers analyzing symbols, sections, or disassembly. Conversely, invariants requiring runtime context (e.g., exit status, memory states) are realized as dynamic checkers. Invariants amenable to both are implemented redundantly, preserving deterministic precision over heuristic approximation.
 
 Each checker returns a four-state verdict
 (pass / fail / not-applicable / error). \texttt{NotApplicable} is returned
@@ -479,17 +444,7 @@ Generator proposes; the oracle stack adjudicates, and confirmed findings require
 deterministic evidence.
 
 \subsection{Explicit orchestration and the blackboard}
-The agents form a closed loop: feedback guides the next Generator round, the
-oracle adjudicates, a non-violation returns to feedback, and a violation goes to
-the Minimizer. All communication flows through a versioned blackboard rather
-than direct agent-to-agent messages
-(Figure~\ref{fig:blackboard}). The blackboard holds the current
-invariant--checker target, its applicable ISAs and budget, the seed corpus and
-lineage, cumulative coverage, oracle verdicts, feedback guidance, and reduction
-results. This design provides three properties: \emph{reproducibility} (pin a blackboard version and any agent's input is
-fully determined), \emph{ablatability} (each linkage edge can be switched off
-independently), and \emph{auditability} (a bug claim traces back through the
-blackboard to a deterministic cause).
+The agents form a closed loop where feedback guides subsequent generation, the oracle adjudicates outcomes, non-violations update feedback parameters, and violations trigger minimization. Crucially, all inter-agent communication flows through a versioned blackboard rather than direct dialogue (Figure~\ref{fig:blackboard}). The blackboard maintains the current invariant--checker target, its applicable ISAs, seed lineage, cumulative coverage, and reduction results. This architecture enforces reproducibility (as pinning a blackboard version deterministically fixes agent inputs), ablatability (enabling independent toggling of linkage edges), and auditability (ensuring every bug claim traces back to deterministic execution evidence).
 \incfig{blackboard}{The blackboard: all inter-agent linkage flows through
 versioned shared state, enabling reproduce / ablate / audit.}
 
