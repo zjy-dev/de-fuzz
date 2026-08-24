@@ -98,7 +98,7 @@ each bug claim in a deterministic binary or runtime signal rather than in model
 output. Second, we introduce a cross-mechanism invariant-generation pipeline
 that treats a confirmed root cause in one mechanism as a probe, retrieves
 structurally analogous code in another mechanism, and instantiates a new
-invariant behind two static grounding gates; from 25 confirmed defense bugs and
+invariant behind an analogy filter and an entailment verification gate; from 25 confirmed defense bugs and
 24 probes over GCC~16.1 it yields 11 new cross-mechanism invariants, none
 duplicating an existing seed. Third, we build an explicitly-orchestrated
 agentic loop: a deterministic pipeline drives build, coverage, and oracle in a
@@ -185,17 +185,10 @@ coverage-guided fuzzing lacks the oracle to judge the security status of each
 cell.
 
 \subsection{Our approach}
-DeFuzz combines three stages. First, it generates safety invariants through two
-complementary paths: a segmented chain-of-thought (CoT) review extracts
-candidates from defense-related corpora, while a RAG pass uses confirmed
-historical bugs as probes to find implementations with homologous root causes
-across mechanisms and compiler backends and generalize them into additional
-invariants. Second, accepted invariants are translated into static or dynamic
-checkers. Third, the
-orchestrator assigns one invariant--checker pair at a time, expands the pair to
-the ISAs declared by the checker, and runs an oracle-grounded agent loop. The
-model proposes seeds and feedback; deterministic binary or runtime evidence
-decides whether a bug exists.
+DeFuzz closes the oracle gap and searches the matrix directly through three components.
+First, it systematizes security invariants into a machine-checkable oracle; every checker returns a four-state verdict and stays sound by grounding each bug claim in a deterministic binary or runtime signal rather than in model output.
+Second, it introduces a cross-mechanism invariant-generation pipeline that combines segmented chain-of-thought (CoT) review for broad extraction with a RAG pass that uses historical bugs as probes to generalize root causes across mechanisms.
+Third, the orchestrator assigns one invariant--checker pair at a time and runs an explicitly orchestrated agent loop. The model proposes seeds and feedback, while deterministic evidence strictly dictates the control flow and adjudicates findings.
 
 \subsection{Contributions}
 \begin{itemize}
@@ -450,12 +443,13 @@ the strength of model output alone
 dynamic checker; four-state verdicts pass through a deterministic-evidence gate
 before any finding is confirmed.}{0.82}
 
-When a programmatic checker cannot decide an invariant--ISA cell and returns
-NotApplicable or Error, an optional LLM fallback can inspect extracted
-disassembly and symbol evidence. A high-confidence model Fail may promote the
-run's provisional aggregate to violated and send the seed to minimization. The
-result remains explicitly marked as LLM-derived and is excluded from confirmed
-findings until a deterministic checker or execution differential reproduces it.
+When a programmatic checker cannot decide an invariant--ISA cell, it returns
+NotApplicable or Error. The LLM is strictly prohibited from inferring or
+overriding verdicts based on disassembly or symbol evidence; all Fails must
+derive from deterministic execution or static analysis rules. Consequently,
+no provisional aggregate is ever promoted to violated by model output alone,
+ensuring that minimization and final bug claims are strictly grounded in
+reproducible evidence.
 
 \subsection{Mechanism aggregator and flag profiles}
 A per-mechanism aggregator combines checker verdicts: any Fail raises a
