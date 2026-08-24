@@ -284,7 +284,7 @@ The separation of the phenomenon from its detection recipe is deliberate: ``the
 phenomenon, whereas ``look it up in the ELF \texttt{.dynsym}'' is a detection
 mechanism that belongs to the oracle implementation.
 
-\subsection{Sources and segmented coarse extraction}
+\subsection{Survey methodology and sources}
 The invariant archive draws on three source classes: (i) compiler source
 comments and assertions, (ii) compiler and ABI documentation, and (iii)
 confirmed historical bugs and their patches. Every record carries a uniform
@@ -319,9 +319,9 @@ invariants; three families recur across mechanism and ISA.}
 \subsection{Machine-checkable form: static vs dynamic}
 Each invariant is classified by whether its violation can be observed in the un-executed binary (e.g., symbols, sections, disassembly, strings) or if it strictly requires execution traces (e.g., exit status, output flags, register snapshots). This classification is guided by observability, decisiveness, computational cost, and attribution capability. To maintain precision, invariants exhibiting both static and dynamic violation signals are bifurcated into distinct checkers rather than being merged into a single heuristic.
 
-\section{Corpus-Grounded Invariant Generation}\label{sec:specgen}
+\section{Cross-Mechanism Invariant Generation}\label{sec:specgen}
 
-\subsection{Generalizing root causes via retrieval-augmented generation}
+\subsection{Motivation: abstract-failure-mode transfer}
 Segmented review affords broad corpus coverage, yet it frequently fails to cluster isolated fragments that encode identical root causes, especially when the relevant evidence is fragmented across different mechanism names, compiler phases, or target backends. To bridge this gap, retrieval-augmented generation (RAG)~\cite{lewis2020retrieval} provides a complementary, high-yield path. By treating a confirmed historical bug as an explicit probe, the RAG phase actively searches for structurally related implementations. While this approach does not guarantee completeness, it significantly increases the probability of uncovering analogous defects that share a known root cause.
 
 The RAG process begins by distilling a confirmed bug into a mechanism-agnostic failure signature. Retrieval then scans the indexed middle-end and backend corpora for implementations sharing similar semantic structures. We deliberately eschew entity-centric retrieval (e.g., matching API or symbol names), as it tends to confine results within the original defense mechanism. Instead, queries are formulated around abstract operations, violated assumptions, and protected assets, allowing a single probe to uncover analogous vulnerabilities across diverse mechanisms and backends.
@@ -332,18 +332,10 @@ The generalization pipeline operates in four stages. First, a confirmed root cau
 review and historical-bug RAG feed a shared grounding and novelty filter;
 confirmed new findings return as retrieval probes.}{0.82}
 
-\subsection{Retrieval backends and current yield}
-Within this single RAG stage, we evaluate sparse BM25 and dense
-\texttt{doubao-embedding-vision} retrieval over the same 24 probe seeds and the
-same 4{,}496 GCC-16.1 source chunks. BM25 excels on distinctive identifiers
-(\texttt{ix86\_zero\_call\_used\_regs}, \texttt{SUBREG\_PROMOTED},
-\texttt{CONST\_HIGH\_PART}); the dense retriever pulls in semantically
-isomorphic blocks whose lexical anchors are weak (the CMSE clear-set constructor,
-the RISC-V saturating truncation). Deduplicating by \texttt{(seed\_id,
-chunk\_id)} and statement, the two paths yield 5 in the intersection, 4
-BM25-only, and 2 embedding-only, for 11 in the union
-(Figure~\ref{fig:bm25-vs-embedding}); all 11 are marked \texttt{is\_novel} after
-a novelty check (threshold 85.0). Table~\ref{tab:retrieval} summarizes.
+\subsection{Retrieval: BM25 and embedding are complementary}
+To effectively query the codebase, each distilled root cause is synthesized into a dual-aspect query structure: a \texttt{root\_cause\_phrase} that provides an abstract semantic summary for dense embeddings, and \texttt{critical\_tokens} that capture mechanism-specific identifiers (e.g., register names, macro flags) for sparse retrieval.
+
+Within this hybrid RAG stage, we evaluate sparse BM25 and dense \texttt{doubao-embedding-vision} retrieval over the same 24 probe seeds and the same 4{,}496 GCC-16.1 source chunks. BM25 excels on the \texttt{critical\_tokens} (\texttt{ix86\_zero\_call\_used\_regs}, \texttt{SUBREG\_PROMOTED}, \texttt{CONST\_HIGH\_PART}); the dense retriever utilizes the \texttt{root\_cause\_phrase} to pull in semantically isomorphic blocks whose lexical anchors are weak (the CMSE clear-set constructor, the RISC-V saturating truncation). Deduplicating by \texttt{(seed\_id, chunk\_id)} and statement, the two paths yield 5 in the intersection, 4 BM25-only, and 2 embedding-only, for 11 in the union (Figure~\ref{fig:bm25-vs-embedding}); all 11 are marked \texttt{is\_novel} after a novelty check (threshold 85.0). Table~\ref{tab:retrieval} summarizes.
 \incfig{bm25-vs-embedding}{Union/dedup of BM25 and embedding retrieval:
 5 intersection, 4 BM25-only, 2 embedding-only, 11 union.}
 
@@ -381,7 +373,7 @@ further instances of that root cause.
 
 \section{Oracle: From Invariants to Verdicts}\label{sec:oracle}
 
-\subsection{Operationalizing invariants into checkers}
+\subsection{Checker design}
 To operationalize an accepted invariant into an executable oracle, we define a checker contract that establishes the necessary preconditions, observable signals, applicable ISAs, and evidentiary requirements. Invariants decidable without execution are implemented as static checkers analyzing symbols, sections, or disassembly. Conversely, invariants requiring runtime context (e.g., exit status, memory states) are realized as dynamic checkers. Invariants amenable to both are implemented redundantly, preserving deterministic precision over heuristic approximation.
 
 Each checker returns a four-state verdict
@@ -449,7 +441,7 @@ and the LLM only for semantic guidance, so that reduction does not accidentally
 delete the structure that triggers the bug. Each candidate reduction is compiled
 and rechecked with the same checker before it is retained.
 
-\subsection{Invariant--checker scheduling and ISA binding}
+\subsection{Checker-routed seeds, ISA-bound checkers}
 Each target in the deterministic queue denotes one invariant and its checker.
 The routing node expands that checker to every ISA in its metadata; the Generator
 never chooses either the target invariant or an ISA
@@ -474,29 +466,17 @@ The orchestrator governs the explicit agentic loop, maintaining the strict topol
 \section{Evaluation}\label{sec:eval}
 \emph{Setup.} Targets are an instrumented GCC~16.1, a cross-GCC, and LLVM;
 ISAs are x86-64, AArch64, RISC-V, and LoongArch, with cross-architecture
-execution under QEMU user mode. We answer five research questions.
+execution under QEMU user mode. We answer four research questions.
 
 \paragraph{RQ1 --- Real bugs} DeFuzz found \tbd{N} silent-failure defects on
 GCC/LLVM; \tbd{M} were confirmed upstream (\tbd{CVE IDs}).
 
-\paragraph{RQ2 --- Invariant generation quality} The historical-bug RAG path
-produced 11 union invariants (5 intersection, 4 BM25-only, 2 embedding-only),
-all \texttt{is\_novel}; the analogy gate filtered roughly 94\% of BM25 hits as
-lexical collisions (Table~\ref{tab:retrieval}).
+\paragraph{RQ2 --- Invariant generation quality} To evaluate the quality of the generated invariants in the absence of a comprehensive ground-truth dataset, we sample \tbd{100} invariants from the catalog of 486 across diverse mechanisms. Multiple compiler security experts classify each invariant into one of four categories: \emph{True Security Property}, \emph{Reasonable but Non-essential}, \emph{Trivial}, or \emph{Incorrect}. We report the overall accuracy and calculate Cohen's $\kappa$ to measure inter-rater agreement.
 
-\paragraph{RQ3 --- Ablation} We toggle coverage feedback, oracle grounding, and
-each inter-agent edge, and compare checker routing against a full Cartesian
-fan-out (Figure~\ref{fig:ablation}). \tbd{ablation numbers}
-\figplaceholder{ablation}{Ablation: contribution of oracle grounding, coverage
-feedback, each inter-agent edge, and checker routing to hit rate/cost.}
+\paragraph{RQ3 --- Ablation} We evaluate the impact of explicit orchestration by comparing the hit rate and stability against a free-running (unorchestrated) agent baseline. We also toggle coverage feedback and oracle grounding to measure their respective contributions to the discovery rate (Figure~\ref{fig:ablation}). \tbd{ablation numbers}
+\figplaceholder{ablation}{Ablation: contribution of explicit orchestration (vs. free-running agents), oracle grounding, and coverage feedback to hit rate and cost.}
 
-\paragraph{RQ4 --- Explicit orchestration} Pinning a blackboard version
-reproduces a run's trajectory exactly; we compare stability and hit rate against
-free orchestration. \tbd{reproducibility numbers}
-
-\paragraph{RQ5 --- Agentic vs.\ fuzz loop} We measure the gain on ``reaching
-silent-failure bugs'' over the prior coverage-driven fuzz loop.
-\tbd{comparison numbers}
+\paragraph{RQ4 --- Cross-ISA generalization} We assess the ability of the pipeline to discover homologous silent failures across different architectures, quantifying how effectively an invariant derived from a vulnerability on one ISA identifies analogous defects on other targets. \tbd{cross-ISA numbers}
 
 \section{Discussion and Limitations}\label{sec:disc}
 DeFuzz describes only violated invariants and does not build exploits; the RAG
