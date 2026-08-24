@@ -192,22 +192,9 @@ Third, the orchestrator assigns one invariant--checker pair at a time and runs a
 
 \subsection{Contributions}
 \begin{itemize}
-  \item \textbf{An oracle for silent failure.} A sound,
-  machine-checkable oracle that fills the silent-failure oracle gap and grounds
-  confirmed bug reports in reproducible evidence
-  (\S\ref{sec:oracle}).
-  \item \textbf{Systematized security invariants.} A bottom-up
-  taxonomy over 468 catalogued invariants across more than two dozen defenses,
-  each in a machine-decidable static/dynamic form. Segmented CoT review provides
-  broad corpus coverage, while historical-bug RAG yields 11 new invariants
-  (\S\ref{sec:invariants},~\S\ref{sec:specgen}).
-  \item \textbf{An explicitly-orchestrated agent system.} A deterministic
-  pipeline with agents at fixed positions linked through a versioned blackboard,
-  yielding reproducible, ablatable, and auditable runs---in contrast to
-  free-running agent systems (\S\ref{sec:loop}).
-  \item \textbf{An agentic loop.} Oracle-grounded, coverage-guided
-  seed generation scheduled by invariant--checker pairs, with ISA applicability
-  derived from checker metadata (\S\ref{sec:loop}).
+  \item \textbf{An oracle for silent failure.} A sound, machine-checkable oracle framework that fills the silent-failure gap and strictly grounds confirmed bug reports in reproducible execution or static evidence (\S\ref{sec:oracle}).
+  \item \textbf{Cross-mechanism invariant generation.} A retrieval-augmented generation pipeline that leverages confirmed historical bugs as probes to generalize root causes across diverse mechanisms and ISAs, yielding 11 novel cross-mechanism invariants (\S\ref{sec:invariants},~\S\ref{sec:specgen}).
+  \item \textbf{An explicitly orchestrated agentic loop.} A deterministic pipeline where agents operate at fixed positions and communicate through a versioned blackboard. This design guarantees reproducibility, enables precise ablation, and explicitly binds checker metadata to ISA routing (\S\ref{sec:loop}).
 \end{itemize}
 
 \section{Background and Motivation}\label{sec:bg}
@@ -262,7 +249,7 @@ survive evidence grounding and deduplication enter the invariant catalog and are
 implemented as static or dynamic checkers. Confirmed findings can be added to
 the historical-bug pool as new retrieval probes.
 
-The online stage tests the compiler rather than the generated program. At run
+The online stage evaluates the compiler's defense emission by orchestrating the compilation and subsequent execution of generated seeds. At run
 initialization, the orchestrator enumerates the checker catalog into a fixed
 queue. Each target denotes one invariant--checker pair; checker metadata supplies
 the applicable ISAs. The target remains fixed until its round or wall-clock budget is exhausted.
@@ -480,23 +467,9 @@ invariant--checker pair remains fixed for its budget, while checker metadata
 expands the applicable ISAs and cheap static checkers remain enabled.}
 
 \section{Implementation}\label{sec:impl}
-The Go core (\texttt{cmd/defuzz-core}) exposes \texttt{grpc\_server.go} (build,
-coverage, oracle, and checker-metadata services) and \texttt{mcp\_server.go}
-(the read-only tools \texttt{search\_source}, \texttt{query\_invariants},
-\texttt{coverage\_diff}, \texttt{creduce\_run}, \texttt{compile\_exec}); the
-oracle, checkers, and metadata SSOT live under \texttt{internal/oracle}. The
-Python orchestrator (\texttt{defuzz\_loop}) holds \texttt{graph.py} (fixed edge
-order + conditional routing + enumeration cursor), \texttt{state.py} (the
-blackboard), \texttt{audit.py} (per-run directory + checkpointer),
-\texttt{routing.py} (the checker~$\rightarrow$~ISA matrix expansion), the three
-agents, and the deterministic node wrappers. Each execution generates a dedicated per-run
-directory with \texttt{checkpoints.sqlite} (the versioned state chain) and
-\texttt{manifest.json} (git SHA, toolchains, checker catalog, LLM config,
-ablation flags), which the \texttt{inspect} / \texttt{replay} / \texttt{trace-bug}
-subcommands consume for reproduction.
-The target queue stores checker IDs, each of which names the corresponding
-invariant--checker pair; the cursor advances only after that target's round or
-time budget is exhausted.
+The DeFuzz architecture is decoupled into a high-performance evaluation core and a Python-based agentic orchestrator. The core service, implemented in Go, provides deterministic build execution, coverage tracking, and oracle adjudication. It exposes these capabilities to the orchestrator via gRPC for high-throughput programmatic access, and via the Model Context Protocol (MCP) to provide agents with read-only tools for source code search, invariant querying, and delta debugging (C-Reduce) invocation. Crucially, the oracle definitions, static/dynamic checkers, and ISA applicability rules are centralized within the Go core, serving as the single source of truth for all metadata.
+
+The orchestrator governs the explicit agentic loop, maintaining the strict topological order of generation, routing, build, and oracle adjudication. It manages the versioned blackboard, which tracks the lineage of seed corpora, cumulative coverage metrics, and feedback guidance. To ensure rigorous auditability, every execution persists a dedicated artifact bundle containing a serialized state chain, full toolchain configurations, and LLM hyperparameters. This design enables deterministic replay and post-hoc attribution of any confirmed bug claim.
 
 \section{Evaluation}\label{sec:eval}
 \emph{Setup.} Targets are an instrumented GCC~16.1, a cross-GCC, and LLVM;
@@ -547,9 +520,7 @@ greybox fuzzing to LLM agents; in contrast, our agents are explicitly
 orchestrated rather than free-running.
 
 \section{Conclusion}\label{sec:concl}
-An invariant-grounded oracle turns ``agents can find bugs'' from a one-off demo
-into a reproducible method for silent defense failures across the mechanism
-$\times$ ISA matrix. By pairing a sound oracle with an explicitly-orchestrated
+An invariant-grounded oracle transitions agentic bug discovery from an ad-hoc exploration into a systematic, reproducible methodology for uncovering silent defense failures across the mechanism $\times$ ISA matrix. By pairing a sound oracle with an explicitly-orchestrated
 agentic loop and checker-bound ISA routing, DeFuzz makes such bugs both findable
 and auditable.
 
