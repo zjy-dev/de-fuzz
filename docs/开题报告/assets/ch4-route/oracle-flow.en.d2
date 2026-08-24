@@ -1,67 +1,91 @@
-# Figure 5 — defense invariant oracle decision flow (English)
+# Figure 5 — deterministic invariant-checker flow (English)
 # render: d2 --layout=dagre --pad=24 oracle-flow.en.d2 oracle-flow.en.svg
 
 direction: down
 
-start: "seed (source/asm/binary)" {
+invariant: "Reviewed Safety Invariant\nfalsifiable defense contract" {
   shape: oval
-  style: {
-    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
-    font-color: "#111827"
-  }
-}
-
-static: "Static Checker\n(assembly analysis · byte checks)" {
-  style: {
-    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-    font-color: "#0D47A1"; border-radius: 8
-  }
-}
-
-dynamic: "Dynamic Checker\n(instrumentation checks · binary search)" {
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"; border-radius: 8
-  }
-}
-
-verdict: "Aggregate Verdict\nPass · Fail · Error" {
   style: {
     fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
-    font-color: "#7D4E00"; border-radius: 8; bold: true
+    font-color: "#7D4E00"; bold: true; font-size: 22
   }
 }
 
-bug: "Bug" {
-  shape: oval
+signals: "Observable Signals\nsource / assembly / ELF · runtime behavior · cross-ISA diff" {
   style: {
-    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
-    font-color: "#7F2615"; bold: true
+    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
+    font-color: "#374151"; border-radius: 8; font-size: 22
   }
 }
 
-nobug: "OK" {
-  shape: oval
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"
-  }
-}
-
-cache: "Metadata Cache" {
+metadata: "Checker Metadata\napplicable ISAs\nmode · cost · category" {
   shape: cylinder
   style: {
-    fill: "#F4F8FB"; stroke: "#9CA3AF"; stroke-width: 2
-    font-color: "#374151"
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"; font-size: 22
   }
 }
 
-start -> static  { style: { stroke: "#1976D2"; stroke-width: 2 } }
-start -> dynamic { style: { stroke: "#228833"; stroke-width: 2 } }
-static  -> verdict { style: { stroke: "#1976D2"; stroke-width: 2 } }
-dynamic -> verdict { style: { stroke: "#228833"; stroke-width: 2 } }
-verdict -> bug:   "any Fail" { style: { stroke: "#CC3311"; stroke-width: 2 } }
-verdict -> nobug: "all Pass" { style: { stroke: "#228833"; stroke-width: 2 } }
+checkers: "Checker Execution" {
+  direction: right
+  style: {
+    fill: "#FAFAFA"; stroke: "#9CA3AF"; stroke-width: 1
+    stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 22
+  }
 
-static  -> cache: "reuse" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
-dynamic -> cache: "reuse" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+  static: "Static Checkers\nassembly · symbols · binary properties" {
+    style: {
+      fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+      font-color: "#0D47A1"; border-radius: 8; font-size: 22
+    }
+  }
+
+  dynamic: "Dynamic Checkers\nexecution · instrumentation · differential behavior" {
+    style: {
+      fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+      font-color: "#195C24"; border-radius: 8; font-size: 22
+    }
+  }
+}
+
+verdict: "Four-State Verdict\nPass · Fail · NotApplicable · Error" {
+  style: {
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    font-color: "#7D4E00"; border-radius: 8; bold: true; font-size: 22
+  }
+}
+
+evidence: "Deterministic Checker Evidence\nchecker ID · ISA · verdict\nobservations / reason / structured details\nonly Fail can establish a reproducible candidate" {
+  shape: cylinder
+  style: {
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
+    font-color: "#195C24"; bold: true; font-size: 22
+  }
+}
+
+invariant -> signals: "defines required observations" {
+  style: { stroke: "#F5A623"; stroke-width: 2; font-size: 22 }
+}
+signals -> checkers.static: "static signals" {
+  style: { stroke: "#1976D2"; stroke-width: 2; font-size: 22 }
+}
+signals -> checkers.dynamic: "dynamic signals" {
+  style: { stroke: "#228833"; stroke-width: 2; font-size: 22 }
+}
+metadata -> checkers.static: "bind applicable ISAs" {
+  style: {
+    stroke: "#CC3311"; stroke-width: 2; stroke-dash: 4
+    font-color: "#7F2615"; font-size: 22
+  }
+}
+metadata -> checkers.dynamic: "bind applicable ISAs" {
+  style: {
+    stroke: "#CC3311"; stroke-width: 2; stroke-dash: 4
+    font-color: "#7F2615"; font-size: 22
+  }
+}
+checkers.static -> verdict: { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 22 } }
+checkers.dynamic -> verdict: { style: { stroke: "#228833"; stroke-width: 2; font-size: 22 } }
+verdict -> evidence: "persist per checker" {
+  style: { stroke: "#228833"; stroke-width: 2; font-size: 22 }
+}

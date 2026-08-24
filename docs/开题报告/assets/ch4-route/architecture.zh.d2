@@ -1,80 +1,127 @@
 # 图 4 — DeFuzz 总体架构（中文版）
 # 渲染：d2 --layout=elk --pad=24 architecture.zh.d2 architecture.zh.svg
-# 节点收紧：仅保留 引擎 / 编译器 / 大模型 / 预言机 / 语料库 / 调度器 6 个核心模块。
 
-direction: right
+direction: down
 
-scheduler: "配置模块\n（防御机制 · ISA · flag）" {
+route: "DeFuzz 技术路线" {
+  grid-rows: 2
   style: {
-    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
-    font-color: "#7F2615"; border-radius: 8; font-size: 24
-  }
-}
-
-engine: "Fuzz 引擎\n（主循环 · 提示词组装）" {
-  style: {
-    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
-    font-color: "#0D47A1"; border-radius: 8; bold: true; font-size: 24
-  }
-}
-
-subsystems: "子系统" {
-  style: {
-    fill: "#FAFAFA"; stroke: "#9CA3AF"; stroke-width: 1
-    stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 24
+    fill: "#FFFFFF"; stroke: "#9CA3AF"; stroke-width: 1
+    font-color: "#374151"; border-radius: 12; font-size: 24
   }
 
-  llm: "LLM 变异子系统" {
-    shape: cloud
+  offline: "离线知识构建（跨编译器后端）" {
+    grid-columns: 3
     style: {
-      fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-      font-color: "#0D47A1"; bold: true; font-size: 24
+      fill: "#FAFAFA"; stroke: "#D1D5DB"; stroke-width: 1
+      stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 24
+    }
+
+    corpus: "研究语料\n源码注释 · 官方文档\n已确认历史缺陷" {
+      shape: cylinder
+      style: {
+        fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
+        font-color: "#374151"; bold: true; font-size: 24
+      }
+    }
+
+    mining: "LLM 候选挖掘（仅产出待复核候选）" {
+      grid-rows: 2
+      style: {
+        fill: "#FFFFFF"; stroke: "#9CA3AF"; stroke-width: 1
+        stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 24
+      }
+
+      cot: "分段 CoT 粗提\n定位防御语义与候选约束" {
+        style: {
+          fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+          font-color: "#0D47A1"; border-radius: 8; font-size: 24
+        }
+      }
+
+      rag: "历史缺陷 RAG\n跨编译器后端类比泛化" {
+        style: {
+          fill: "#EDE7F6"; stroke: "#5E35B1"; stroke-width: 2
+          font-color: "#311B92"; border-radius: 8; font-size: 24
+        }
+      }
+    }
+
+    library: "不变量候选库\n待人工 / 确定性复核" {
+      shape: cylinder
+      style: {
+        fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+        font-color: "#7D4E00"; bold: true; font-size: 24
+      }
     }
   }
 
-  compiler: "编译器子系统\n（GCC / LLVM · 覆盖率插桩）" {
+  # 反向排列形成蛇形两行：候选库向下进入 Checker，再由右向左完成在线闭环。
+  online: "在线验证与发现（Checker → ISA）" {
+    grid-columns: 4
     style: {
-      fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-      font-color: "#195C24"; border-radius: 8; font-size: 24
+      fill: "#FAFAFA"; stroke: "#D1D5DB"; stroke-width: 1
+      stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 24
+    }
+
+    findings: "可复现缺陷候选\n确定性 Checker 证据\n+ 最小 PoC · 可审计轨迹\n确认后回流为历史缺陷语料" {
+      shape: cylinder
+      style: {
+        fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
+        font-color: "#195C24"; bold: true; font-size: 24
+      }
+    }
+
+    agent_loop: "Agent Loop\nGenerator · Feedback · Minimizer\n确定性 Build / Checker" {
+      style: {
+        fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
+        font-color: "#0D47A1"; border-radius: 8; bold: true; font-size: 24
+      }
+    }
+
+    scheduler: "Pair 调度\n锁定 Invariant–Checker Pair\n按 Checker 元数据展开适用 ISA" {
+      style: {
+        fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+        font-color: "#7F2615"; border-radius: 8; font-size: 24
+      }
+    }
+
+    checkers: "确定性 Checker" {
+      grid-rows: 2
+      style: {
+        fill: "#FFFFFF"; stroke: "#9CA3AF"; stroke-width: 1
+        stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 24
+      }
+
+      static: "静态 Checker\n汇编 · ELF · 二进制属性" {
+        style: {
+          fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+          font-color: "#0D47A1"; border-radius: 8; font-size: 24
+        }
+      }
+
+      dynamic: "动态 Checker\n执行 · 插桩 · 跨 ISA 差分" {
+        style: {
+          fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+          font-color: "#195C24"; border-radius: 8; font-size: 24
+        }
+      }
     }
   }
 
-  oracle: "预言机子系统\n（静态 · 动态 · 聚合）" {
-    style: {
-      fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
-      font-color: "#7D4E00"; border-radius: 8; font-size: 24
-    }
+  offline.corpus -> offline.mining.cot: { style: { stroke: "#1976D2"; stroke-width: 2 } }
+  offline.corpus -> offline.mining.rag: { style: { stroke: "#5E35B1"; stroke-width: 2 } }
+  offline.mining.cot -> offline.library: { style: { stroke: "#1976D2"; stroke-width: 2 } }
+  offline.mining.rag -> offline.library: { style: { stroke: "#5E35B1"; stroke-width: 2 } }
+
+  offline.library -> online.checkers.static: { style: { stroke: "#1976D2"; stroke-width: 2 } }
+  offline.library -> online.checkers.dynamic: { style: { stroke: "#228833"; stroke-width: 2 } }
+  online.checkers.static -> online.scheduler: { style: { stroke: "#1976D2"; stroke-width: 2 } }
+  online.checkers.dynamic -> online.scheduler: { style: { stroke: "#228833"; stroke-width: 2 } }
+  online.scheduler -> online.agent_loop: { style: { stroke: "#CC3311"; stroke-width: 2 } }
+  online.agent_loop -> online.findings: { style: { stroke: "#228833"; stroke-width: 2 } }
+
+  online.findings -> offline.corpus: {
+    style: { stroke: "#6B7280"; stroke-width: 2; stroke-dash: 5 }
   }
-}
-
-corpus: "种子语料库" {
-  shape: cylinder
-  style: {
-    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
-    font-color: "#374151"; bold: true; font-size: 24
-  }
-}
-
-# 主数据流：引擎与三大子系统双向交互
-engine <-> subsystems.llm: "提示词/种子" {
-  style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 }
-}
-engine <-> subsystems.compiler: "种子/覆盖率" {
-  style: { stroke: "#228833"; stroke-width: 2; font-size: 24 }
-}
-engine <-> subsystems.oracle: "二进制/判定" {
-  style: { stroke: "#F5A623"; stroke-width: 2; font-size: 24 }
-}
-
-# 持久化
-engine -> corpus: "持久化" {
-  style: { stroke: "#6B7280"; stroke-width: 2; font-size: 24 }
-}
-
-# 配置注入（控制平面，虚线区分）
-scheduler -> subsystems.compiler: "编译器/FLAG" {
-  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 4; font-size: 24 }
-}
-scheduler -> subsystems.oracle: "QEMU" {
-  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 4; font-size: 24 }
 }

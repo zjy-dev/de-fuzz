@@ -1,68 +1,117 @@
-# Figure 6 — LLM constraint-solving main loop (English)
+# Figure 6 — invariant-driven agent loop (English)
 # render: d2 --layout=dagre --pad=24 main-loop.en.d2 main-loop.en.svg
 
 direction: down
 
-pick: "Pick Target BB\n(uncovered · high relevance)" {
+target: "Task Scheduler\nlocks an Invariant–Checker Pair\n+ checker-applicable ISAs" {
   style: {
-    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-    font-color: "#0D47A1"; border-radius: 8
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
+    font-color: "#7F2615"; border-radius: 8; bold: true; font-size: 22
   }
 }
 
-build: "Build Prompt\n(fn source · cov marks · predecessor seeds)" {
-  style: {
-    fill: "#EDE7F6"; stroke: "#5E35B1"; stroke-width: 2
-    font-color: "#311B92"; border-radius: 8
-  }
-}
-
-llm: "LLM Mutation\n(emit new C seed)" {
+generator: "Generator\nconstructs a violation-seeking seed" {
   shape: cloud
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
-    font-color: "#0D47A1"; bold: true
+    font-color: "#0D47A1"; bold: true; font-size: 22
   }
 }
 
-compile: "Compile" {
-  shape: diamond
-  style: {
-    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
-    font-color: "#7F2615"
-  }
-}
-
-oracle: "Oracle Verdict" {
+build: "Deterministic Build\ncompile for applicable ISAs" {
   style: {
     fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"; border-radius: 8
+    font-color: "#195C24"; border-radius: 8; font-size: 22
   }
 }
 
-decision: "Result Analysis\ncov gain · bug trigger check" {
+coverage: "Deterministic Coverage\nmeasures and records coverage feedback" {
+  style: {
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"; border-radius: 8; font-size: 22
+  }
+}
+
+checker: "Deterministic Checkers\nrun static / dynamic validation" {
+  style: {
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"; border-radius: 8; font-size: 22
+  }
+}
+
+decision: "Invariant violated?" {
   shape: diamond
   style: {
-    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
-    font-color: "#7D4E00"
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    font-color: "#7D4E00"; bold: true; font-size: 22
   }
 }
 
-keep: "Keep in Corpus" {
+feedback: "Feedback\nrecords coverage delta · verdict · checker context\nproduces next-round guidance" {
+  style: {
+    fill: "#EDE7F6"; stroke: "#5E35B1"; stroke-width: 2
+    font-color: "#311B92"; border-radius: 8; font-size: 22
+  }
+}
+
+minimizer: "Minimizer\nsemantically guides PoC reduction\nC-Reduce + deterministic rechecks" {
+  shape: cloud
+  style: {
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
+    font-color: "#0D47A1"; bold: true; font-size: 22
+  }
+}
+
+recheck: "Deterministic Recheck\nstill violates after reduction?" {
+  shape: diamond
+  style: {
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    font-color: "#7D4E00"; font-size: 22
+  }
+}
+
+finding: "Review-Ready Defect Candidate\nminimized PoC + deterministic evidence" {
   shape: oval
   style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
-    font-color: "#195C24"; bold: true
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
+    font-color: "#7F2615"; bold: true; font-size: 22
   }
 }
 
-pick -> build: { style: { stroke: "#1976D2"; stroke-width: 2 } }
-build -> llm:   { style: { stroke: "#1976D2"; stroke-width: 2 } }
-llm -> compile: { style: { stroke: "#1976D2"; stroke-width: 2 } }
-compile -> oracle:    "ok" { style: { stroke: "#228833"; stroke-width: 2 } }
-oracle -> decision:   { style: { stroke: "#228833"; stroke-width: 2 } }
-decision -> keep:     "keep" { style: { stroke: "#228833"; stroke-width: 2 } }
-keep -> pick:         "next iter" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+audit: "Versioned Blackboard / Audit Trail\npair · seed · build / checker results\nfeedback context · reduction and recheck traces" {
+  shape: cylinder
+  style: {
+    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
+    font-color: "#374151"; bold: true; font-size: 22
+  }
+}
 
-compile -> build:  "compile-error feedback"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615" } }
-decision -> build: "divergence feedback"     { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00" } }
+target -> generator: "round target" { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 22 } }
+generator -> build: "violation-seeking seed" { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 22 } }
+build -> coverage: "build artifacts" { style: { stroke: "#228833"; stroke-width: 2; font-size: 22 } }
+coverage -> checker: "coverage + build artifacts" { style: { stroke: "#228833"; stroke-width: 2; font-size: 22 } }
+checker -> decision: "four-state verdict + evidence" { style: { stroke: "#228833"; stroke-width: 2; font-size: 22 } }
+decision -> feedback: "not triggered" { style: { stroke: "#5E35B1"; stroke-width: 2; font-size: 22 } }
+feedback -> target: "write context · next round" {
+  style: {
+    stroke: "#5E35B1"; stroke-width: 2; stroke-dash: 5
+    font-color: "#311B92"; font-size: 22
+  }
+}
+decision -> minimizer: "triggered" { style: { stroke: "#CC3311"; stroke-width: 2; font-size: 22 } }
+minimizer -> recheck: "reduced PoC" { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 22 } }
+recheck -> finding: "still triggers · checker evidence holds" { style: { stroke: "#CC3311"; stroke-width: 2; font-size: 22 } }
+recheck -> feedback: "not reproduced · resume search" {
+  style: {
+    stroke: "#5E35B1"; stroke-width: 2; stroke-dash: 5
+    font-color: "#311B92"; font-size: 22
+  }
+}
+
+# Every result and agent/tool trace is stored in one versioned state for replay.
+target -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+checker -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+coverage -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+feedback -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+minimizer -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+finding -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }

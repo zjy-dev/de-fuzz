@@ -1,67 +1,91 @@
-# 图 5 — 防御机制不变量预言机判定流程（中文版）
+# 图 5 — 不变量 Checker 确定性判定流程（中文版）
 # 渲染：d2 --layout=dagre --pad=24 oracle-flow.zh.d2 oracle-flow.zh.svg
 
 direction: down
 
-start: "种子(源码/汇编/二进制)" {
+invariant: "经复核安全不变量\n可证伪的防御契约" {
   shape: oval
-  style: {
-    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
-    font-color: "#111827"
-  }
-}
-
-static: "静态检查器\n(汇编分析 · 字节检查)" {
-  style: {
-    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-    font-color: "#0D47A1"; border-radius: 8
-  }
-}
-
-dynamic: "动态检查器\n(插桩检测 · 二分搜索)" {
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"; border-radius: 8
-  }
-}
-
-verdict: "聚合判定\nPass · Fail · Error" {
   style: {
     fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
-    font-color: "#7D4E00"; border-radius: 8; bold: true
+    font-color: "#7D4E00"; bold: true; font-size: 24
   }
 }
 
-bug: "Bug" {
-  shape: oval
+signals: "观测信号\n源码 / 汇编 / ELF · 运行时行为 · 跨 ISA 差分" {
   style: {
-    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
-    font-color: "#7F2615"; bold: true
+    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
+    font-color: "#374151"; border-radius: 8; font-size: 24
   }
 }
 
-nobug: "正常" {
-  shape: oval
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"
-  }
-}
-
-cache: "元信息缓存" {
+metadata: "Checker 元数据\n适用 ISA（applicable_isas）\n模式 · 成本 · 类别" {
   shape: cylinder
   style: {
-    fill: "#F4F8FB"; stroke: "#9CA3AF"; stroke-width: 2
-    font-color: "#374151"
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"; font-size: 24
   }
 }
 
-start -> static  { style: { stroke: "#1976D2"; stroke-width: 2 } }
-start -> dynamic { style: { stroke: "#228833"; stroke-width: 2 } }
-static  -> verdict { style: { stroke: "#1976D2"; stroke-width: 2 } }
-dynamic -> verdict { style: { stroke: "#228833"; stroke-width: 2 } }
-verdict -> bug:   "任一 Fail" { style: { stroke: "#CC3311"; stroke-width: 2 } }
-verdict -> nobug: "全部 Pass" { style: { stroke: "#228833"; stroke-width: 2 } }
+checkers: "Checker 执行" {
+  direction: right
+  style: {
+    fill: "#FAFAFA"; stroke: "#9CA3AF"; stroke-width: 1
+    stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 24
+  }
 
-static  -> cache: "复用" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
-dynamic -> cache: "复用" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+  static: "静态 Checker\n汇编 · 符号 · 二进制属性" {
+    style: {
+      fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+      font-color: "#0D47A1"; border-radius: 8; font-size: 24
+    }
+  }
+
+  dynamic: "动态 Checker\n执行 · 插桩 · 差分行为" {
+    style: {
+      fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+      font-color: "#195C24"; border-radius: 8; font-size: 24
+    }
+  }
+}
+
+verdict: "四态 Verdict\nPass · Fail · NotApplicable · Error" {
+  style: {
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    font-color: "#7D4E00"; border-radius: 8; bold: true; font-size: 24
+  }
+}
+
+evidence: "确定性 Checker 证据\nChecker ID · ISA · Verdict\n观测值 / Reason / 结构化明细\n仅 Fail 可形成可复现缺陷候选" {
+  shape: cylinder
+  style: {
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
+    font-color: "#195C24"; bold: true; font-size: 24
+  }
+}
+
+invariant -> signals: "定义所需观测" {
+  style: { stroke: "#F5A623"; stroke-width: 2; font-size: 24 }
+}
+signals -> checkers.static: "静态信号" {
+  style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 }
+}
+signals -> checkers.dynamic: "动态信号" {
+  style: { stroke: "#228833"; stroke-width: 2; font-size: 24 }
+}
+metadata -> checkers.static: "绑定适用 ISA" {
+  style: {
+    stroke: "#CC3311"; stroke-width: 2; stroke-dash: 4
+    font-color: "#7F2615"; font-size: 24
+  }
+}
+metadata -> checkers.dynamic: "绑定适用 ISA" {
+  style: {
+    stroke: "#CC3311"; stroke-width: 2; stroke-dash: 4
+    font-color: "#7F2615"; font-size: 24
+  }
+}
+checkers.static -> verdict: { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 } }
+checkers.dynamic -> verdict: { style: { stroke: "#228833"; stroke-width: 2; font-size: 24 } }
+verdict -> evidence: "逐 Checker 留存" {
+  style: { stroke: "#228833"; stroke-width: 2; font-size: 24 }
+}

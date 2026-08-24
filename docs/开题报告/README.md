@@ -13,25 +13,27 @@
   - `_archive/`       — 老版 mermaid `*.mmd` / nano-banana `*.prompt.md` / 已弃用的 `silent-failure.*` 归档。
 - `scripts/render_figures.sh`：一键渲染全部配图为 SVG + PNG（中英文各一版）。依赖 `d2`（`go install oss.terrastruct.com/d2@latest`）与 `rsvg-convert`（系统包 `librsvg`）。
 - `DeFuzz-开题报告.docx`：最终交付的 Word 稿（由 `scripts/inject.py` 把 `chapters/*.txt` 注入 `template.docx` 生成）。
-- `scripts/inject.py`：把 chapters 注入到模板 docx 的脚本；任何修改 chapters 或图后都需重新跑一次。脚本按 `[[FIG:stem]]` 占位行把图插到正文对应位置，并维护一张统一的 stem → (PNG 路径 / rId / 题注 / docPr id) 注册表，不会触碰封面。
+- `scripts/inject.py`：把 chapters 注入到模板 docx 的脚本；任何修改 chapters 或图后都需重新跑一次。脚本按 `[[FIG:stem]]` 占位行把图插到正文对应位置，并维护一张统一的 stem → (PNG 路径 / rId / 题注 / docPr id) 注册表。正文和进度表会重新生成，封面个人信息保持模板中的原值，论文题目会同步为脚本中的 `THESIS_TITLE`。
 
 ## 重新生成 docx
 
 ```bash
 # 1. 拷贝模板（封面已固定）→ 输出文件
-cp /home/yall/project/de-fuzz/docs/开题报告/template.docx \
-   /home/yall/project/de-fuzz/docs/开题报告/DeFuzz-开题报告.docx
+repo_root="$(git rev-parse --show-toplevel)"
+report_dir="$repo_root/docs/开题报告"
+docx_skill=/absolute/path/to/docx-skill
+cp "$report_dir/template.docx" "$report_dir/DeFuzz-开题报告.docx"
 
 # 2. unpack → 注入 → pack
 rm -rf /tmp/defuzz-kaiti/work
-python /home/yall/project/de-fuzz/.windsurf/skills/docx/scripts/office/unpack.py \
-    /home/yall/project/de-fuzz/docs/开题报告/DeFuzz-开题报告.docx \
+python "$docx_skill/scripts/office/unpack.py" \
+    "$report_dir/DeFuzz-开题报告.docx" \
     /tmp/defuzz-kaiti/work/
-python3 /home/yall/project/de-fuzz/docs/开题报告/scripts/inject.py
-python /home/yall/project/de-fuzz/.windsurf/skills/docx/scripts/office/pack.py \
+python3 "$report_dir/scripts/inject.py"
+python "$docx_skill/scripts/office/pack.py" \
     /tmp/defuzz-kaiti/work/ \
-    /home/yall/project/de-fuzz/docs/开题报告/DeFuzz-开题报告.docx \
-    --original /home/yall/project/de-fuzz/docs/开题报告/template.docx
+    "$report_dir/DeFuzz-开题报告.docx" \
+    --original "$report_dir/template.docx"
 ```
 
 ## 配图
@@ -43,9 +45,9 @@ python /home/yall/project/de-fuzz/.windsurf/skills/docx/scripts/office/pack.py \
 | 图 1 | §1 第一段末 | `ch1-background/` | `stack-layout`   | CVE-2023-4039 buggy 栈帧布局 |
 | 图 2 | §1 二维矩阵段末 | `ch1-background/` | `defense-matrix` | 防御机制 × ISA 二维研究空间 |
 | 图 3 | §3.2 首段末 | `ch3-objective/`  | `pipeline`       | 研究内容工作链条（不变量 → 预言机 → 主循环 → bug） |
-| 图 4 | §4.1 总体架构末 | `ch4-route/`      | `architecture`   | DeFuzz 总体架构 |
-| 图 5 | §4.2 预言机框架末 | `ch4-route/`      | `oracle-flow`    | 不变量预言机判定流程 |
-| 图 6 | §4.3 主循环末 | `ch4-route/`      | `main-loop`      | 大模型约束求解主循环 |
+| 图 4 | §4.1 不变量生成末 | `ch4-route/`      | `architecture`   | DeFuzz 技术路线总体架构 |
+| 图 5 | §4.2 检查器转换末 | `ch4-route/`      | `oracle-flow`    | 不变量到检查器的转换与判定流程 |
+| 图 6 | §4.3 智能体闭环末 | `ch4-route/`      | `main-loop`      | 面向不变量—检查器对的智能体闭环 |
 | 图 7 | §5.1 案例一末 | `ch5-experiment/` | `fortify-path`   | \_FORTIFY\_SOURCE 优化路径与 size 静默放宽 |
 
 每个 stem 在 `chapters/*.txt` 中以 `[[FIG:stem]]` 占位行表示插图位置，正文段落用"如图 N 所示"显式指引读者；`inject.py` 按 `FIGURES` 注册表把占位行展开为图+题注。
@@ -62,4 +64,4 @@ bash docs/开题报告/scripts/render_figures.sh
 
 ## 封面信息
 
-封面表格中的学号 / 研究生姓名 / 学院 / 学位类别 / 专业领域 / 校内导师 / 校外导师 / 论文题目 / 开题日期等字段已在 `template.docx` 内手工填好，构建时原样保留。如以后需要更新这些信息，请直接用 Word 打开 `template.docx` 修改并保存。
+封面表格中的学号 / 研究生姓名 / 学院 / 学位类别 / 专业领域 / 校内导师 / 校外导师 / 开题日期等字段已在 `template.docx` 内手工填好，构建时原样保留；论文题目由注入脚本统一更新。如以后需要修改其他封面信息，请直接用 Word 打开 `template.docx` 修改并保存。
