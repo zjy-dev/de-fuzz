@@ -8,12 +8,11 @@ import shutil
 import struct
 from pathlib import Path
 
-REPORT_DIR = Path(__file__).resolve().parent.parent
 WORK = Path("/tmp/defuzz-kaiti/work")
 DOC = WORK / "word" / "document.xml"
 STYLES = WORK / "word" / "styles.xml"
-CHAPTERS = REPORT_DIR / "chapters"
-ASSETS = REPORT_DIR / "assets"
+CHAPTERS = Path("/home/yall/project/de-fuzz/docs/开题报告/chapters")
+ASSETS = Path("/home/yall/project/de-fuzz/docs/开题报告/assets")
 
 # Page layout constants (from template.docx pgSz / pgMar)
 # Page width = 11906 twips, left+right margins = 1134+1134 = 2268 twips
@@ -28,9 +27,9 @@ FIGURES = {
     "stack-layout":   ("ch1-background/stack-layout.zh.png",   "rId21", "图 1  CVE-2023-4039 buggy 栈帧布局",                        21),
     "defense-matrix": ("ch1-background/defense-matrix.zh.png", "rId22", "图 2  防御机制 × ISA 二维研究空间",                       22),
     "pipeline":       ("ch3-objective/pipeline.zh.png",        "rId23", "图 3  研究内容工作链条",                                   23),
-    "architecture":   ("ch4-route/architecture.zh.png",        "rId24", "图 4  DeFuzz 技术路线总体架构",                        24),
-    "oracle-flow":    ("ch4-route/oracle-flow.zh.png",         "rId25", "图 5  不变量到程序化检查器的转换与判定流程",          25),
-    "main-loop":      ("ch4-route/main-loop.zh.png",           "rId26", "图 6  面向不变量—检查器对的智能体闭环",              26),
+    "architecture":   ("ch4-route/architecture.zh.png",        "rId24", "图 4  DeFuzz 总体架构",                                  24),
+    "oracle-flow":    ("ch4-route/oracle-flow.zh.png",         "rId25", "图 5  防御机制不变量预言机判定流程",                  25),
+    "main-loop":      ("ch4-route/main-loop.zh.png",           "rId26", "图 6  大语言模型驱动的种子变异主循环",                26),
     "fortify-path":   ("ch5-experiment/fortify-path.zh.png",   "rId27", "图 7  _FORTIFY_SOURCE 优化路径与 size 静默放宽",         27),
 }
 

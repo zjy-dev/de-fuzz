@@ -1,127 +1,79 @@
 # Figure 4 — DeFuzz overall architecture (English)
 # render: d2 --layout=elk --pad=24 architecture.en.d2 architecture.en.svg
 
-direction: down
+direction: right
 
-route: "DeFuzz Technical Route" {
-  grid-rows: 2
+scheduler: "Strategy Scheduler\n(ISA · compiler options)" {
   style: {
-    fill: "#FFFFFF"; stroke: "#9CA3AF"; stroke-width: 1
-    font-color: "#374151"; border-radius: 12; font-size: 22
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"; border-radius: 8
+  }
+}
+
+engine: "Fuzz Engine\n(main loop · prompt assembly)" {
+  style: {
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
+    font-color: "#0D47A1"; border-radius: 8; bold: true
+  }
+}
+
+subsystems: "Subsystems" {
+  style: {
+    fill: "#FAFAFA"; stroke: "#9CA3AF"; stroke-width: 1
+    stroke-dash: 3; font-color: "#6B7280"; border-radius: 12
   }
 
-  offline: "Offline Knowledge Construction (Cross-Compiler-Backend)" {
-    grid-columns: 3
+  llm: "LLM Mutation Subsystem" {
+    shape: cloud
     style: {
-      fill: "#FAFAFA"; stroke: "#D1D5DB"; stroke-width: 1
-      stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 22
-    }
-
-    corpus: "Research Corpus\nsource comments · official docs\nconfirmed historical bugs" {
-      shape: cylinder
-      style: {
-        fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
-        font-color: "#374151"; bold: true; font-size: 22
-      }
-    }
-
-    mining: "LLM Candidate Mining (Review Required)" {
-      grid-rows: 2
-      style: {
-        fill: "#FFFFFF"; stroke: "#9CA3AF"; stroke-width: 1
-        stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 22
-      }
-
-      cot: "Segmented CoT Coarse Extraction\ndefense semantics · candidate constraints" {
-        style: {
-          fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-          font-color: "#0D47A1"; border-radius: 8; font-size: 22
-        }
-      }
-
-      rag: "Historical-Bug RAG\ncross-compiler-backend generalization" {
-        style: {
-          fill: "#EDE7F6"; stroke: "#5E35B1"; stroke-width: 2
-          font-color: "#311B92"; border-radius: 8; font-size: 22
-        }
-      }
-    }
-
-    library: "Invariant Candidate Library\npending human / deterministic review" {
-      shape: cylinder
-      style: {
-        fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
-        font-color: "#7D4E00"; bold: true; font-size: 22
-      }
+      fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+      font-color: "#0D47A1"; bold: true
     }
   }
 
-  # Reverse ordering creates a two-row snake: down into checkers, then right-to-left.
-  online: "Online Verification & Discovery (Checker → ISA)" {
-    grid-columns: 4
+  compiler: "Compiler Subsystem\n(GCC / LLVM · cov instr.)" {
     style: {
-      fill: "#FAFAFA"; stroke: "#D1D5DB"; stroke-width: 1
-      stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 22
-    }
-
-    findings: "Reproducible Defect Candidates\ndeterministic checker evidence\n+ minimized PoCs · auditable traces\nconfirmed results feed the bug corpus" {
-      shape: cylinder
-      style: {
-        fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
-        font-color: "#195C24"; bold: true; font-size: 22
-      }
-    }
-
-    agent_loop: "Agent Loop\nGenerator · Feedback · Minimizer\ndeterministic Build / Checker" {
-      style: {
-        fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
-        font-color: "#0D47A1"; border-radius: 8; bold: true; font-size: 22
-      }
-    }
-
-    scheduler: "Pair Scheduler\nlocks an Invariant–Checker Pair\nexpands ISAs from checker metadata" {
-      style: {
-        fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
-        font-color: "#7F2615"; border-radius: 8; font-size: 22
-      }
-    }
-
-    checkers: "Deterministic Checkers" {
-      grid-rows: 2
-      style: {
-        fill: "#FFFFFF"; stroke: "#9CA3AF"; stroke-width: 1
-        stroke-dash: 3; font-color: "#6B7280"; border-radius: 12; font-size: 22
-      }
-
-      static: "Static Checkers\nassembly · ELF · binary properties" {
-        style: {
-          fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
-          font-color: "#0D47A1"; border-radius: 8; font-size: 22
-        }
-      }
-
-      dynamic: "Dynamic Checkers\nexecution · instrumentation · cross-ISA diff" {
-        style: {
-          fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-          font-color: "#195C24"; border-radius: 8; font-size: 22
-        }
-      }
+      fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+      font-color: "#195C24"; border-radius: 8
     }
   }
 
-  offline.corpus -> offline.mining.cot: { style: { stroke: "#1976D2"; stroke-width: 2 } }
-  offline.corpus -> offline.mining.rag: { style: { stroke: "#5E35B1"; stroke-width: 2 } }
-  offline.mining.cot -> offline.library: { style: { stroke: "#1976D2"; stroke-width: 2 } }
-  offline.mining.rag -> offline.library: { style: { stroke: "#5E35B1"; stroke-width: 2 } }
-
-  offline.library -> online.checkers.static: { style: { stroke: "#1976D2"; stroke-width: 2 } }
-  offline.library -> online.checkers.dynamic: { style: { stroke: "#228833"; stroke-width: 2 } }
-  online.checkers.static -> online.scheduler: { style: { stroke: "#1976D2"; stroke-width: 2 } }
-  online.checkers.dynamic -> online.scheduler: { style: { stroke: "#228833"; stroke-width: 2 } }
-  online.scheduler -> online.agent_loop: { style: { stroke: "#CC3311"; stroke-width: 2 } }
-  online.agent_loop -> online.findings: { style: { stroke: "#228833"; stroke-width: 2 } }
-
-  online.findings -> offline.corpus: {
-    style: { stroke: "#6B7280"; stroke-width: 2; stroke-dash: 5 }
+  oracle: "Oracle Subsystem\n(static · dynamic · aggregate)" {
+    style: {
+      fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
+      font-color: "#7D4E00"; border-radius: 8
+    }
   }
+}
+
+corpus: "Seed Corpus" {
+  shape: cylinder
+  style: {
+    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
+    font-color: "#374151"; bold: true
+  }
+}
+
+# Main data plane: engine exchanges with each subsystem
+engine <-> subsystems.llm: "prompt / new seed" {
+  style: { stroke: "#1976D2"; stroke-width: 2 }
+}
+engine <-> subsystems.compiler: "seed / cov feedback" {
+  style: { stroke: "#228833"; stroke-width: 2 }
+}
+engine <-> subsystems.oracle: "binary / verdict" {
+  style: { stroke: "#F5A623"; stroke-width: 2 }
+}
+
+# Persistence
+engine -> corpus: "persist" {
+  style: { stroke: "#6B7280"; stroke-width: 2 }
+}
+
+# Control plane (dashed): scheduler injects config
+scheduler -> subsystems.compiler: "toolchain (compiler) / flag" {
+  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
+}
+scheduler -> subsystems.oracle: "toolchain (qemu)" {
+  style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5 }
 }

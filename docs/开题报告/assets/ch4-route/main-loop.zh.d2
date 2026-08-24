@@ -1,60 +1,23 @@
-# 图 6 — 不变量驱动的 Agent 主循环（中文版）
+# 图 6 — 大模型约束求解主循环（中文版）
 # 渲染：d2 --layout=dagre --pad=24 main-loop.zh.d2 main-loop.zh.svg
 
 direction: down
 
-target: "任务调度\n锁定 Invariant–Checker Pair\n+ Checker 适配的 ISA 集" {
+pick: "选取目标基本块\n（未覆盖 · 相关性高）" {
   style: {
-    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
-    font-color: "#7F2615"; border-radius: 8; bold: true; font-size: 24
+    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 2
+    font-color: "#0D47A1"; border-radius: 8; font-size: 24
   }
 }
 
-generator: "Generator\n围绕目标不变量构造违例种子" {
-  shape: cloud
-  style: {
-    fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
-    font-color: "#0D47A1"; bold: true; font-size: 24
-  }
-}
-
-build: "确定性 Build\n按适用 ISA 编译种子" {
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"; border-radius: 8; font-size: 24
-  }
-}
-
-coverage: "确定性 Coverage\n测量并记录覆盖反馈" {
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"; border-radius: 8; font-size: 24
-  }
-}
-
-checker: "确定性 Checker\n执行静态 / 动态验证" {
-  style: {
-    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
-    font-color: "#195C24"; border-radius: 8; font-size: 24
-  }
-}
-
-decision: "触发不变量违例？" {
-  shape: diamond
-  style: {
-    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
-    font-color: "#7D4E00"; bold: true; font-size: 24
-  }
-}
-
-feedback: "Feedback\n记录覆盖增量 · Verdict · Checker 信息\n形成下一轮 Guidance" {
+build: "构造提示词\n（函数源码 · 覆盖标注 · 前驱种子）" {
   style: {
     fill: "#EDE7F6"; stroke: "#5E35B1"; stroke-width: 2
     font-color: "#311B92"; border-radius: 8; font-size: 24
   }
 }
 
-minimizer: "Minimizer\n语义引导缩减 PoC\nC-Reduce + 确定性复验" {
+llm: "大模型变异\n（生成新种子）" {
   shape: cloud
   style: {
     fill: "#E3F2FD"; stroke: "#1976D2"; stroke-width: 3
@@ -62,56 +25,45 @@ minimizer: "Minimizer\n语义引导缩减 PoC\nC-Reduce + 确定性复验" {
   }
 }
 
-recheck: "确定性复验\n缩减后仍触发？" {
+compile: "编译" {
   shape: diamond
   style: {
-    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 3
+    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 2
+    font-color: "#7F2615"; font-size: 24
+  }
+}
+
+oracle: "预言机判定" {
+  style: {
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 2
+    font-color: "#195C24"; border-radius: 8; font-size: 24
+  }
+}
+
+decision: "结果分析\n覆盖增量 · bug 触发检查" {
+  shape: diamond
+  style: {
+    fill: "#FFF8E1"; stroke: "#F5A623"; stroke-width: 2
     font-color: "#7D4E00"; font-size: 24
   }
 }
 
-finding: "待人工复核的缺陷候选\n最小 PoC + 确定性证据" {
+keep: "纳入语料库" {
   shape: oval
   style: {
-    fill: "#F4DFD8"; stroke: "#CC3311"; stroke-width: 3
-    font-color: "#7F2615"; bold: true; font-size: 24
+    fill: "#E3F1E7"; stroke: "#228833"; stroke-width: 3
+    font-color: "#195C24"; bold: true; font-size: 24
   }
 }
 
-audit: "版本化共享状态 / 审计轨迹\nPair · Seed · Build / Checker 结果\nFeedback 上下文 · 缩减与复验轨迹" {
-  shape: cylinder
-  style: {
-    fill: "#F4F8FB"; stroke: "#6B7280"; stroke-width: 2
-    font-color: "#374151"; bold: true; font-size: 24
-  }
-}
+pick -> build: { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 } }
+build -> llm:   { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 } }
+llm -> compile: { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 } }
+compile -> oracle:    "成功" { style: { stroke: "#228833"; stroke-width: 2; font-size: 24 } }
+oracle -> decision:   { style: { stroke: "#228833"; stroke-width: 2; font-size: 24 } }
+decision -> keep:     "保留" { style: { stroke: "#228833"; stroke-width: 2; font-size: 24 } }
+keep -> pick:         "下一轮" { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4; font-size: 24 } }
 
-target -> generator: "本轮目标" { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 } }
-generator -> build: "违例种子" { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 } }
-build -> coverage: "编译产物" { style: { stroke: "#228833"; stroke-width: 2; font-size: 24 } }
-coverage -> checker: "覆盖结果 + 编译产物" { style: { stroke: "#228833"; stroke-width: 2; font-size: 24 } }
-checker -> decision: "四态 Verdict + 证据" { style: { stroke: "#228833"; stroke-width: 2; font-size: 24 } }
-decision -> feedback: "未触发" { style: { stroke: "#5E35B1"; stroke-width: 2; font-size: 24 } }
-feedback -> target: "上下文写回 · 下一轮" {
-  style: {
-    stroke: "#5E35B1"; stroke-width: 2; stroke-dash: 5
-    font-color: "#311B92"; font-size: 24
-  }
-}
-decision -> minimizer: "触发" { style: { stroke: "#CC3311"; stroke-width: 2; font-size: 24 } }
-minimizer -> recheck: "缩减 PoC" { style: { stroke: "#1976D2"; stroke-width: 2; font-size: 24 } }
-recheck -> finding: "仍触发 · Checker 证据成立" { style: { stroke: "#CC3311"; stroke-width: 2; font-size: 24 } }
-recheck -> feedback: "未复现 · 恢复探索" {
-  style: {
-    stroke: "#5E35B1"; stroke-width: 2; stroke-dash: 5
-    font-color: "#311B92"; font-size: 24
-  }
-}
-
-# 所有结果和 agent/tool 轨迹都写入同一版本化状态，供重放与审计。
-target -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
-checker -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
-coverage -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
-feedback -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
-minimizer -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
-finding -> audit: { style: { stroke: "#9CA3AF"; stroke-width: 2; stroke-dash: 4 } }
+# 反馈：编译失败 / 未命中目标 → 回到提示词组装
+compile -> build:  "编译错误回喂"  { style: { stroke: "#CC3311"; stroke-width: 2; stroke-dash: 5; font-color: "#7F2615"; font-size: 24 } }
+decision -> build: "发散反馈"    { style: { stroke: "#F5A623"; stroke-width: 2; stroke-dash: 5; font-color: "#7D4E00"; font-size: 24 } }
