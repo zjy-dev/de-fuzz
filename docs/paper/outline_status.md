@@ -22,10 +22,12 @@ This document tracks the completion status of the DeFuzz paper outline, ensuring
   - *Refined to 3 core bullets: Oracle, RAG Pipeline, Agentic Loop.*
 
 ## 2. Background and Motivation
-- [x] 2.1 Compiler defenses and the mechanism × ISA matrix
-- [x] 2.2 Silent failure: a real case
-- [x] 2.3 Why existing methods miss it
-- [x] 2.4 Scope and threat model
+- [x] 2.1 Compiler Defenses in the Backend Lowering Pipeline
+  - *Added deep compiler backend theory (IR vs. RTL/SelectionDAG).*
+- [x] 2.2 Silent Failure: A Representative Case
+- [x] 2.3 Why Existing Methods Miss It
+- [x] 2.4 Threat Model and Scope
+  - *Added formal Assumptions, In-scope, and Out-of-scope boundaries.*
 
 ## 3. System Overview
 - [x] System Overview
@@ -64,24 +66,28 @@ This document tracks the completion status of the DeFuzz paper outline, ensuring
 
 ## 9. Evaluation
 - [ ] Setup
-  - *Drafted, but requires final environment specs.*
+  - *DEFERRED: Needs LLM parameters, baseline configs, and exact computational budget.*
 - [ ] RQ1 — Real bugs
-  - *Placeholder: Needs final bug counts and CVE IDs.*
+  - *DEFERRED: Needs confirmed bug counts and CVE IDs.*
 - [ ] RQ2 — Invariant generation quality
-  - *Methodology designed (Expert sampling, True Security Property grading, Cohen's Kappa). Needs execution.*
+  - *DEFERRED: Needs expert grading and Cohen's Kappa.*
 - [ ] RQ3 — Ablation
-  - *Methodology designed (Free-running vs. Orchestrated, Coverage, Oracle). Needs numbers.*
+  - *DEFERRED: Needs numbers for explicit orchestration vs. free-running.*
 - [ ] RQ4 — Cross-ISA generalization
-  - *Methodology designed. Needs numbers.*
+  - *DEFERRED: Needs numbers.*
 
 ## 10. Discussion and Limitations
-- [x] Discussion and Limitations
+- [ ] Discussion and Limitations
+  - *DEFERRED: Needs manual effort, LLM cost, and false positive analysis.*
 
 ## 11. Related Work
-- [x] Compiler bug finding
-- [x] Silent/security bugs in compilers
-- [x] LLM/RAG property generation
-- [x] LLM-agent fuzzing
+- [x] Compiler Bug Finding and The Oracle Gap
+  - *Critiqued Csmith/YARPGen's structural blind spots.*
+- [x] Silent and Security Bugs in Compilers
+- [x] LLM and RAG-based Property Generation
+  - *Contrasted entity-centric retrieval vs. our abstract-failure-mode transfer.*
+- [x] LLM-Agent Fuzzing: Hallucination vs. Determinism
+  - *Critiqued free-running agent hallucinations.*
 
 ## 12. Conclusion
 - [x] Conclusion
