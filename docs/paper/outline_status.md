@@ -19,7 +19,7 @@ This document tracks the completion status of the DeFuzz paper outline, ensuring
 - [x] 1.2 Two coupled challenges
 - [x] 1.3 Our approach
 - [x] 1.4 Contributions
-  - *Refined to 3 core bullets: Oracle, RAG Pipeline, Agentic Loop.*
+  - *Added strong hooks, formalized the 'double-silent' definition, and inserted [DEFERRED: N] placeholders for final quantitative claims.*
 
 ## 2. Background and Motivation
 - [x] 2.1 Compiler Defenses in the Backend Lowering Pipeline
@@ -91,3 +91,4 @@ This document tracks the completion status of the DeFuzz paper outline, ensuring
 
 ## 12. Conclusion
 - [x] Conclusion
+  - *Rewritten to summarize the oracle gap, the deterministic orchestration solution, and the final impact placeholders.*
