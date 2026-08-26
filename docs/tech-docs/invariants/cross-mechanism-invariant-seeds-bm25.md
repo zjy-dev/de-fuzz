@@ -243,4 +243,4 @@ generated_from: orchestrator/runs/specgen_inv_bm25 (git 90125f582273)
 - 本轮产物：`orchestrator/runs/specgen_inv_bm25/`（`candidates.jsonl` 6 条 · `accepted/001.md`~`005.md` · `rejected.jsonl` 74 条 · `reach.json` · `transcript.json` · `manifest.json`）
 - 可达性探针脚本：`orchestrator/scripts/probe_invariant_reach.py`
 - 判断 author 脚本：`orchestrator/scripts/author_inv_transcript.py`
-- 前两轮 XINV 正文与对照：[cross-mechanism-generated.md](file:///Users/bytedance/projects/de-fuzz-orchestration-research/docs/tech-docs/invariants/cross-mechanism-generated.md)（XINV-001~009）、[cross-mechanism-bm25-vs-embedding.md](file:///Users/bytedance/projects/de-fuzz-orchestration-research/docs/tech-docs/invariants/cross-mechanism-bm25-vs-embedding.md)（XINV-010~011）
+- 前两轮 XINV 正文与对照：[cross-mechanism-generated.md](file:///Users/bytedance/projects/research/de-fuzz/feat-specgen-rag-invariants/docs/tech-docs/invariants/cross-mechanism-generated.md)（XINV-001~009）、[cross-mechanism-bm25-vs-embedding.md](file:///Users/bytedance/projects/research/de-fuzz/feat-specgen-rag-invariants/docs/tech-docs/invariants/cross-mechanism-bm25-vs-embedding.md)（XINV-010~011）

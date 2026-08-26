@@ -18,7 +18,7 @@ from .embedding import EmbeddingConfig
 from .pipeline import PipelineConfig, run_pipeline
 
 # Sibling repo holding the DREV findings + historical bug corpus + survey docs.
-_DEFAULT_DR_ROOT = Path("/Users/bytedance/projects/defend-reviewer-invariants")
+_DEFAULT_DR_ROOT = Path("/Users/bytedance/projects/research/defend-reviewer/feat-merge-invariants")
 _RUNS_ROOT = Path(__file__).resolve().parents[2] / "runs"
 
 

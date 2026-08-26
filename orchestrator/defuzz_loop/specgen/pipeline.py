@@ -199,7 +199,9 @@ def render_candidate_md(c: Candidate, index: int) -> str:
     )
 
 
-async def run_pipeline(cfg: PipelineConfig) -> PipelineResult:
+async def run_pipeline(
+    cfg: PipelineConfig, *, judge_override: Judge | None = None
+) -> PipelineResult:
     cfg.out_dir.mkdir(parents=True, exist_ok=True)
     cfg.cache_root.mkdir(parents=True, exist_ok=True)
 
@@ -241,7 +243,10 @@ async def run_pipeline(cfg: PipelineConfig) -> PipelineResult:
             if c.metadata.symbol:
                 by_sym.setdefault(c.metadata.symbol, []).append(c)
 
-    judge, tj = build_judge(transcript=cfg.transcript, llm_config=cfg.llm_config)
+    if judge_override is None:
+        judge, tj = build_judge(transcript=cfg.transcript, llm_config=cfg.llm_config)
+    else:
+        judge, tj = judge_override, None
 
     result = PipelineResult(seeds=seeds, corpus_size=len(chunks))
 
@@ -271,9 +276,9 @@ async def run_pipeline(cfg: PipelineConfig) -> PipelineResult:
         invariants_root=cfg.invariants_root, findings_root=cfg.findings_root
     )
     assess_novelty(baseline, result.accepted, threshold=cfg.dedup_threshold)
-    for c in result.accepted:
-        if c.novelty is not None and not c.novelty.is_novel:
-            result.demoted.append(c)
+    for candidate in result.accepted:
+        if candidate.novelty is not None and not candidate.novelty.is_novel:
+            result.demoted.append(candidate)
 
     _write_staging(cfg, result, corpus_path, tj, retriever_name)
     return result

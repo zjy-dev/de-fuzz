@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from .. import binary_evidence
 from ..invariants_kb import brief_for, llm_oracle_target_ids
-from ..llm import LLMConfig, build_chat_model
+from ..llm import LLMConfig, ainvoke_structured, build_chat_model
 from ..state import Blackboard, InvariantResult, OracleVerdict, Verdict
 
 # Only a FAIL at or above this confidence flips the aggregate to violated. Kept
@@ -180,10 +180,13 @@ class LLMOracleAgent:
                 ),
             ),
         ]
-        structured = self._model.with_structured_output(
-            LLMOracleVerdict, method="function_calling"
+        return await ainvoke_structured(
+            self._model,
+            LLMOracleVerdict,
+            messages,
+            stage="judge",
+            agent="llm_oracle",
         )
-        return await structured.ainvoke(messages)
 
     async def adjudicate(self, bb: Blackboard) -> list[InvariantResult]:
         """Return one LLM InvariantResult per undecided target invariant."""

@@ -12,7 +12,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from ..clients.mcp_client import MCPClient
-from ..llm import LLMConfig, build_chat_model
+from ..llm import LLMConfig, ainvoke_structured, build_chat_model
 from ..state import Blackboard, Guidance
 
 _SYSTEM_PROMPT = """You are a fuzzing feedback strategist for ONE defense mechanism.
@@ -87,10 +87,13 @@ class FeedbackAgent:
             ),
         ]
 
-        structured = self._model.with_structured_output(
-            FeedbackOutput, method="function_calling"
+        result = await ainvoke_structured(
+            self._model,
+            FeedbackOutput,
+            messages,
+            stage="summarize",
+            agent="feedback",
         )
-        result: FeedbackOutput = await structured.ainvoke(messages)
 
         return Guidance(
             round=bb.round,

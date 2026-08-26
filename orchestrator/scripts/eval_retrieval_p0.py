@@ -44,7 +44,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNS = ROOT / "runs"
 FULL = RUNS / "specgen_full"       # BM25 run
 EMBED = RUNS / "specgen_embed"     # dense run (has the vector caches)
-DR_ROOT = Path("/Users/bytedance/projects/defend-reviewer-invariants")
+DR_ROOT = Path("/Users/bytedance/projects/research/defend-reviewer/feat-merge-invariants")
 
 TOP_KS = [8, 16, 25]
 OVER_FETCH = 4

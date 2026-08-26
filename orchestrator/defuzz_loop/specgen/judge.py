@@ -31,7 +31,7 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from ..llm import LLMConfig, build_chat_model
+from ..llm import LLMConfig, ainvoke_structured, build_chat_model
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -67,8 +67,13 @@ class LLMJudge:
     async def complete(
         self, *, task: str, key: str, system: str, user: str, output_model: type[T]
     ) -> T:
-        structured = self._model.with_structured_output(output_model, method="function_calling")
-        return await structured.ainvoke([("system", system), ("user", user)])
+        return await ainvoke_structured(
+            self._model,
+            output_model,
+            [("system", system), ("user", user)],
+            stage=task,
+            agent=key,
+        )
 
 
 class TranscriptJudge:

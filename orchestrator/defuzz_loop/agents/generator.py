@@ -16,7 +16,7 @@ import uuid
 from pydantic import BaseModel, Field
 
 from ..clients.mcp_client import MCPClient
-from ..llm import LLMConfig, build_chat_model
+from ..llm import LLMConfig, ainvoke_structured, build_chat_model
 from ..state import Blackboard, Seed, SeedOrigin, ToolCall
 
 _SYSTEM_PROMPT = """You are a compiler-hardening fuzzing seed generator.
@@ -118,14 +118,17 @@ class GeneratorAgent:
             ),
         ]
 
-        structured = self._model.with_structured_output(
-            GeneratorOutput, method="function_calling"
+        result = await ainvoke_structured(
+            self._model,
+            GeneratorOutput,
+            messages,
+            stage="generate",
+            agent="generator",
         )
-        result: GeneratorOutput = await structured.ainvoke(messages)
 
         # The seed's target is the orchestrator-assigned invariant, not an LLM
         # choice (kept only when it is a real catalog ID).
-        selected = [target] if target in by_id else []
+        selected = [target] if target is not None and target in by_id else []
 
         return Seed(
             id=uuid.uuid4().hex[:12],

@@ -21,7 +21,7 @@ from defuzz_loop.specgen.schema import Chunk
 from defuzz_loop.specgen.seeds import load_findings
 
 FULL = Path("runs/specgen_full")
-DR = Path("/Users/bytedance/projects/defend-reviewer-invariants")
+DR = Path("/Users/bytedance/projects/research/defend-reviewer/feat-merge-invariants")
 
 
 async def main() -> None:

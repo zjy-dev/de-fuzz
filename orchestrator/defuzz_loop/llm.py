@@ -8,12 +8,16 @@ from configs/llm.yaml; the API key resolves from the env var named by `api_key_e
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Mapping
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel
+
+from .token_usage import TokenUsageContext, current_token_usage_sink
 
 _DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs" / "llm.yaml"
 
@@ -81,3 +85,70 @@ def build_chat_model(config: LLMConfig | None = None) -> Any:
             timeout=cfg.timeout,
         )
     raise ValueError(f"unsupported provider: {cfg.provider}")
+
+
+async def ainvoke_structured[T: BaseModel](
+    model: Any,
+    output_model: type[T],
+    messages: Any,
+    *,
+    stage: str,
+    agent: str | None = None,
+    method: str = "function_calling",
+) -> T:
+    """Invoke one structured completion, recording usage when a sink is active.
+
+    With no ambient sink this deliberately follows the pre-integration call
+    shape: ``include_raw`` is not supplied and LangChain returns the parsed
+    Pydantic model directly. With a sink, the provider's raw AI message is kept
+    long enough to record usage, then only ``parsed`` is returned to callers.
+    """
+
+    sink = current_token_usage_sink()
+    if sink is None:
+        structured = model.with_structured_output(output_model, method=method)
+        return await structured.ainvoke(messages)
+
+    sink.check_budget()
+    context: TokenUsageContext = sink.context.with_overrides(stage=stage, agent=agent)
+    started = time.perf_counter()
+    response: Any = None
+    response_received = False
+    try:
+        structured = model.with_structured_output(
+            output_model, method=method, include_raw=True
+        )
+        response = await structured.ainvoke(messages)
+        response_received = True
+        if not isinstance(response, Mapping):
+            raise TypeError(
+                "structured output with include_raw=True must return a mapping"
+            )
+        parsing_error = response.get("parsing_error")
+        if parsing_error is not None:
+            if isinstance(parsing_error, BaseException):
+                raise parsing_error
+            raise ValueError(f"structured output parsing failed: {parsing_error}")
+        parsed = response.get("parsed")
+        if not isinstance(parsed, output_model):
+            parsed = output_model.model_validate(parsed)
+    except Exception as exc:
+        failed_response = None
+        if response_received:
+            failed_response = response
+            if isinstance(response, Mapping) and response.get("raw") is not None:
+                failed_response = response["raw"]
+        sink.record_failure(
+            exc,
+            response=failed_response,
+            context=context,
+            latency_ms=(time.perf_counter() - started) * 1000,
+        )
+        raise
+
+    sink.record_response(
+        response.get("raw"),
+        context=context,
+        latency_ms=(time.perf_counter() - started) * 1000,
+    )
+    return parsed

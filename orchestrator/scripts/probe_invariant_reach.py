@@ -34,7 +34,7 @@ from defuzz_loop.specgen.retriever import BM25Retriever, retrieve
 from defuzz_loop.specgen.schema import SeedQuery
 from defuzz_loop.specgen.seeds import load_invariants
 
-_DR_ROOT = Path("/Users/bytedance/projects/defend-reviewer-invariants")
+_DR_ROOT = Path("/Users/bytedance/projects/research/defend-reviewer/feat-merge-invariants")
 _INV_ROOT = _DR_ROOT / "docs" / "invariants"
 _CORPUS = Path("runs/specgen_full/cache/corpus.jsonl")
 _OUT = Path("runs/specgen_inv_bm25")

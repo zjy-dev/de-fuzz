@@ -30,7 +30,7 @@ from defuzz_loop.specgen.seeds import load_findings
 
 ROOT = Path(__file__).resolve().parents[1]
 FULL = ROOT / "runs" / "specgen_full"
-DR_ROOT = Path("/Users/bytedance/projects/defend-reviewer-invariants")
+DR_ROOT = Path("/Users/bytedance/projects/research/defend-reviewer/feat-merge-invariants")
 TOP_K = 8
 OVER_FETCH = 4
 

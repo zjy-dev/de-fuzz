@@ -329,6 +329,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
+    { name = "rank-bm25" },
 ]
 
 [package.optional-dependencies]
@@ -337,9 +338,6 @@ anthropic = [
 ]
 openai = [
     { name = "langchain-openai" },
-]
-specgen = [
-    { name = "rank-bm25" },
 ]
 
 [package.dev-dependencies]
@@ -363,9 +361,9 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7.0" },
     { name = "pydantic-settings", specifier = ">=2.3.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rank-bm25", marker = "extra == 'specgen'", specifier = ">=0.2.2" },
+    { name = "rank-bm25", specifier = ">=0.2.2" },
 ]
-provides-extras = ["openai", "anthropic", "specgen"]
+provides-extras = ["openai", "anthropic"]
 
 [package.metadata.requires-dev]
 dev = [

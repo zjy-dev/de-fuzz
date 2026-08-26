@@ -35,7 +35,7 @@ BM25 路径共 9 条，embedding 路径共 7 条；其中 5 条重合，故并�
 
 ## 一、两种检索的交集（5 条 · 稳健信号）
 
-这 5 条不变量在词法与语义两种排序下都能浮出水面，说明它们的根因特征在源码里既有强词面锚点、又有强语义相似度，是跨机制迁移里最可靠的一批。它们的完整条目已收录在 [cross-mechanism-generated.md](file:///Users/bytedance/projects/de-fuzz-orchestration-research/docs/tech-docs/invariants/cross-mechanism-generated.md)，此处只列对照索引。
+这 5 条不变量在词法与语义两种排序下都能浮出水面，说明它们的根因特征在源码里既有强词面锚点、又有强语义相似度，是跨机制迁移里最可靠的一批。它们的完整条目已收录在 [cross-mechanism-generated.md](file:///Users/bytedance/projects/research/de-fuzz/feat-specgen-rag-invariants/docs/tech-docs/invariants/cross-mechanism-generated.md)，此处只列对照索引。
 
 | 种子 | 命中机制 | 命中块 | 对应 XINV |
 | --- | --- | --- | --- |
@@ -179,5 +179,5 @@ BM25 路径共 9 条，embedding 路径共 7 条；其中 5 条重合，故并�
 
 - BM25 路径产物：`orchestrator/runs/specgen_full/`（`candidates.jsonl` 9 条 · `transcript.json` · `manifest.json`）
 - Embedding 路径产物：`orchestrator/runs/specgen_embed/`（`candidates.jsonl` 7 条 · `accepted/001.md`~`007.md` · `cache/query_vectors.json`）
-- BM25 不变量正文：[cross-mechanism-generated.md](file:///Users/bytedance/projects/de-fuzz-orchestration-research/docs/tech-docs/invariants/cross-mechanism-generated.md)（XINV-001~009）
-- 中文摘要：[cross-mechanism-generated-zh-summary.md](file:///Users/bytedance/projects/de-fuzz-orchestration-research/docs/tech-docs/invariants/cross-mechanism-generated-zh-summary.md)
+- BM25 不变量正文：[cross-mechanism-generated.md](file:///Users/bytedance/projects/research/de-fuzz/feat-specgen-rag-invariants/docs/tech-docs/invariants/cross-mechanism-generated.md)（XINV-001~009）
+- 中文摘要：[cross-mechanism-generated-zh-summary.md](file:///Users/bytedance/projects/research/de-fuzz/feat-specgen-rag-invariants/docs/tech-docs/invariants/cross-mechanism-generated-zh-summary.md)

@@ -69,6 +69,44 @@ uv run defuzz-loop replay    --run-dir <dir> --checkpoint <id>
 uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # back to deterministic evidence
 ```
 
+The paper experiments have a separate, stable command surface. The launcher is
+wired to the Part I, Part II, and Part III runners, creates an isolated artifact
+tree and token summary for every repetition, and writes a final run manifest.
+`--show-plan` remains side-effect free and reports whether the selected agent
+binary is available:
+
+```sh
+cd orchestrator
+uv run defuzz-experiment --help
+uv run defuzz-experiment invariant-generation --help
+uv run defuzz-experiment checker-authoring --from-run <part-i-run> --show-plan
+uv run defuzz-experiment agent-audit --target-tree <compiler-tree> --show-plan
+uv run defuzz-experiment ablation --help
+```
+
+The ablation suite is fixed to `without-rag`, `without-oracle`, and
+`bare-agent`. A real run still depends on the selected `traex` or `codex`
+binary, model credentials, source/reference trees, and compiler toolchain being
+available in the launch environment. The reviewer corpus defaults to
+`/Users/bytedance/projects/research/defend-reviewer/main` and can be overridden
+with `DEFUZZ_REFERENCE_ROOT` or `--reference-root`. Execution validates required
+inputs before creating a run: Part II needs `--inputs` or `--from-run`, Part III
+needs `--target-tree` and complete reference documents, and Part I needs an
+explicit, existing `--corpus-root`. Existing run IDs are refused unless
+`--resume` is given; upstream artifacts and input snapshots are hash-checked.
+Part III uses a sanitized source copy and, on supported macOS hosts, an OS-level
+read-deny sandbox for the reference checkout. Full audit runs require a
+candidate-bound `--online-oracle-command`; `without-oracle` removes that feedback
+loop. Missing commands and checker `ERROR` verdicts fail a Full repetition.
+Structured-output failures retain provider-reported token usage, while calls
+that never receive usage remain explicitly non-comparable. Every ablation
+requires `--baseline-run`. `--demo-parity` writes an
+orchestrator-only comparison after workers exit. For exploratory planning over
+very large untracked trees, `DEFUZZ_FAST_PLAN=1` skips the recursive snapshot;
+formal runs should not use that shortcut. See
+[`docs/paper/experiment_status.md`](docs/paper/experiment_status.md) for the
+experiment contract and implementation status.
+
 The instrumented GCC under test is built out-of-tree; see
 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md).
 ISA→toolchain paths live in [`configs/toolchains.yaml`](configs/toolchains.yaml).
