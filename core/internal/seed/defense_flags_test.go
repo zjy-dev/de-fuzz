@@ -6,8 +6,8 @@ import (
 
 func TestFindDefenseDisablingFlags_Canary(t *testing.T) {
 	tests := []struct {
-		name       string
-		cflags     []string
+		name          string
+		cflags        []string
 		wantViolation bool
 	}{
 		{

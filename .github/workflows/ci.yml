@@ -5,68 +5,80 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
+    # Keep this name stable for existing branch-protection rules.
     name: Run Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          clean: true # Force clean workspace
-          fetch-depth: 0 # Get full history to ensure latest
-          persist-credentials: false # Avoid credential persistence
-
-      - name: Complete workspace cleanup
-        run: |
-          echo "🧹 Performing complete workspace cleanup..."
-          # Clean all possible cache files
-          rm -rf ~/.cache/go-build || true
-          rm -rf ~/go/pkg/mod || true
-          rm -rf ./bin/ || true
-          rm -rf ./logs/ || true
-          rm -rf ./.env* || true
-          rm -rf ./coverage.* || true
-          # Force reset all config files
-          git reset --hard HEAD
-          git clean -fdx
-          echo "✅ Workspace completely cleaned"
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v7
         with:
-          go-version: "1.24.2"
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
 
-      # Disable cache, force re-download all dependencies
-      - name: Force clean Go modules
+      - name: Verify Go dependencies
+        working-directory: core
         run: |
-          echo "🔄 Force cleaning Go modules and build cache..."
-          go clean -modcache || true
-          go clean -cache || true
-          echo "✅ Go caches cleared"
-
-      - name: Download dependencies (force fresh)
-        run: |
-          echo "📦 Force downloading fresh dependencies..."
-          go mod download -x
+          go mod download
           go mod verify
-          echo "✅ Fresh dependencies downloaded and verified"
 
-      # Run unit tests and generate logs
-      - name: Run unit tests
+      - name: Check Go formatting
+        working-directory: core
         run: |
-          mkdir -p artifacts
-          echo "=== Running unit tests ==="
-          make test-unit 2>&1 | tee artifacts/unit-test.log
-        continue-on-error: true
+          unformatted="$(gofmt -l ./cmd ./internal)"
+          if [[ -n "$unformatted" ]]; then
+            echo "The following Go files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
 
-      # Upload test logs (even on failure)
-      - name: Upload unit test logs
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Run Go vet
+        working-directory: core
+        run: go vet ./...
+
+      - name: Run Go tests
+        working-directory: core
+        run: go test -short -race ./...
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
         with:
-          name: unit-test-logs-${{ github.run_number }}
-          path: artifacts/unit-test.log
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          version: "0.11.14"
+          enable-cache: true
+          cache-dependency-glob: orchestrator/uv.lock
+
+      - name: Install Python dependencies
+        working-directory: orchestrator
+        run: uv sync --locked --dev --python 3.12
+
+      - name: Run Python lint
+        working-directory: orchestrator
+        run: uv run ruff check defuzz_loop tests
+
+      - name: Run Python tests
+        working-directory: orchestrator
+        run: uv run pytest -q
+
+      - name: Build Python package
+        working-directory: orchestrator
+        run: uv build
