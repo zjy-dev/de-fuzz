@@ -305,7 +305,14 @@ async def test_exec_backend_checks_token_budget_before_starting_process(
     assert not marker.exists()
 
 
-def test_exec_backend_wraps_host_read_denials_with_os_sandbox(tmp_path: Path) -> None:
+def test_exec_backend_wraps_host_read_denials_with_os_sandbox(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        ExecAgentBackend,
+        "supports_host_read_isolation",
+        property(lambda _backend: True),
+    )
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     denied = tmp_path / "reference"
@@ -321,12 +328,33 @@ def test_exec_backend_wraps_host_read_denials_with_os_sandbox(tmp_path: Path) ->
 
     argv = backend.launch_argv_for(request)
 
-    if backend.supports_host_read_isolation:
-        assert argv[:2] == ["/usr/bin/sandbox-exec", "-p"]
-        assert "deny file-read*" in argv[2]
-        assert str(denied.resolve()) in argv[2]
-    else:
-        pytest.fail("this platform is expected to expose the configured host sandbox")
+    assert argv[:2] == ["/usr/bin/sandbox-exec", "-p"]
+    assert "deny file-read*" in argv[2]
+    assert str(denied.resolve()) in argv[2]
+
+
+def test_exec_backend_fails_closed_when_host_read_isolation_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        ExecAgentBackend,
+        "supports_host_read_isolation",
+        property(lambda _backend: False),
+    )
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    denied = tmp_path / "reference"
+    denied.mkdir()
+    request = AgentRequest(
+        prompt="audit",
+        cwd=workspace,
+        output_dir=tmp_path / "out",
+        deny_read_paths=[denied],
+        require_host_read_isolation=True,
+    )
+
+    with pytest.raises(RuntimeError, match="host read isolation is unavailable"):
+        ExecAgentBackend("traex").launch_argv_for(request)
 
 
 @pytest.mark.asyncio
