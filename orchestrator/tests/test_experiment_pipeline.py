@@ -572,6 +572,9 @@ def test_formal_plan_records_compiler_driver_identity(
         "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
         lambda paths, *, output_root: None,
     )
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__
+    )
     monkeypatch.setattr("defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__)
 
     plan = build_pipeline_plan(config, config_path=path)

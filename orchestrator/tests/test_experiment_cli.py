@@ -273,7 +273,8 @@ def test_show_plan_is_side_effect_free_and_reports_backend_availability(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     output_root = tmp_path / "does-not-exist"
-    monkeypatch.setattr(cli.shutil, "which", lambda binary: f"/bin/{binary}")
+    resolved_codex = str((tmp_path / "bin" / "codex").resolve())
+    monkeypatch.setattr(cli.shutil, "which", lambda _binary: resolved_codex)
 
     result = cli.main(
         [
@@ -305,7 +306,7 @@ def test_show_plan_is_side_effect_free_and_reports_backend_availability(
     assert plan["backend"] == {
         "available": True,
         "binary": "codex",
-        "resolved_path": "/bin/codex",
+        "resolved_path": resolved_codex,
     }
     assert plan["parameters"]["agent_binary"] == "codex"
     assert plan["parameters"]["model"] == "test-model"
