@@ -48,7 +48,7 @@ from defuzz_loop.token_usage import (
 from .agent_backend import AgentRequest, AgentResult, ExecAgentBackend
 
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
-ContinuationMode = Literal["full_input", "previous_response_id"]
+ContinuationMode = Literal["full_input"]
 
 _RETRYABLE_STATUS_CODES = frozenset({408, 409, 429, 500, 502, 503, 504})
 _USAGE_FIELDS = (
@@ -62,6 +62,8 @@ _USAGE_FIELDS = (
 _ENVIRONMENT_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SCHEMA_NAME_CHARACTER = re.compile(r"[^A-Za-z0-9_-]+")
 _MAX_ERROR_BODY_BYTES = 64 * 1024
+_MAX_RESPONSE_BODY_BYTES = 16 * 1024 * 1024
+_MAX_RUN_RAW_RESPONSE_BYTES = 32 * 1024 * 1024
 _MAX_SEARCH_FILE_BYTES = 2 * 1024 * 1024
 _MAX_WRITE_BYTES = 1024 * 1024
 _MAX_SCHEMA_REPAIR_ERROR_CHARS = 2000
@@ -91,7 +93,10 @@ class HTTPAgentConfig(BaseModel):
     """Validated, secret-free configuration for a Responses API backend."""
 
     model_config = ConfigDict(
-        extra="forbid", str_strip_whitespace=True, hide_input_in_errors=True
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+        hide_input_in_errors=True,
     )
 
     base_url: str
@@ -144,6 +149,12 @@ class HTTPAgentConfig(BaseModel):
             loopback = hostname.casefold() == "localhost"
         if parsed.scheme == "http" and not loopback:
             raise ValueError("plain HTTP is permitted only for loopback endpoints")
+        normalized_path = parsed.path.rstrip("/")
+        if not (
+            normalized_path.endswith("/v1")
+            or normalized_path.endswith("/v1/responses")
+        ):
+            raise ValueError("base_url must end with /v1 or /v1/responses")
         return value.rstrip("/")
 
     @field_validator("model", "user_agent")
@@ -715,7 +726,6 @@ class HTTPResponsesAgentBackend:
     # The remote model has no process or unrestricted host-filesystem primitive.
     # Every local read/write goes through LocalWorkspaceToolExecutor, which
     # resolves containment, denies configured roots, and rejects symlinks.
-    supports_host_read_isolation = True
     provider = "http-responses"
 
     def __init__(
@@ -730,6 +740,12 @@ class HTTPResponsesAgentBackend:
     @property
     def model(self) -> str:
         return self.config.model
+
+    @property
+    def supports_host_read_isolation(self) -> bool:
+        """Return true only for the built-in workspace-confined executor."""
+
+        return self._tool_executor_factory is None
 
     @classmethod
     def from_config(
@@ -790,6 +806,7 @@ class HTTPResponsesAgentBackend:
         deadline = time.monotonic() + timeout
         events: list[Any] = []
         raw_responses: list[str] = []
+        raw_response_bytes = 0
         usage_parts: list[Mapping[str, Any]] = []
         schema_retries = 0
         schema, schema_error = self._load_schema(request.schema_path)
@@ -811,9 +828,21 @@ class HTTPResponsesAgentBackend:
                     payload, api_key=api_key, deadline=deadline
                 )
                 latency_ms = (time.monotonic() - started) * 1000.0
-                raw_responses.append(self._redact(raw_response, api_key))
                 usage = self._normalize_response_usage(response)
                 usage_parts.append(usage)
+                raw_response_bytes += len(raw_response.encode("utf-8"))
+                if raw_response_bytes > _MAX_RUN_RAW_RESPONSE_BYTES:
+                    self._record_usage(
+                        usage,
+                        request,
+                        latency_ms=latency_ms,
+                        success=False,
+                        error_type="ResponseLimitExceeded",
+                    )
+                    raise _HTTPAgentError(
+                        "Responses API cumulative response size exceeded the safety limit"
+                    )
+                raw_responses.append(self._redact(raw_response, api_key))
                 response_id_value = response.get("id")
                 response_id = response_id_value if isinstance(response_id_value, str) else None
                 events.append(
@@ -1197,15 +1226,8 @@ class HTTPResponsesAgentBackend:
         schema_path: Path | None,
     ) -> dict[str, Any]:
         payload = self._common_payload(tools, schema, schema_path)
-        if self.config.continuation_mode == "previous_response_id":
-            if response_id is None:
-                raise _HTTPAgentError(
-                    "Responses API omitted id required for previous_response_id continuation"
-                )
-            payload["previous_response_id"] = response_id
-            payload["input"] = list(delta)
-        else:
-            payload["input"] = list(conversation)
+        del delta, response_id
+        payload["input"] = list(conversation)
         return payload
 
     def _common_payload(
@@ -1304,11 +1326,20 @@ class HTTPResponsesAgentBackend:
             },
         )
         try:
-            opener = urllib.request.build_opener(_NoRedirectHandler())
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({}), _NoRedirectHandler()
+            )
             with opener.open(request, timeout=timeout) as response:  # noqa: S310
-                raw_bytes = response.read()
+                raw_bytes = response.read(_MAX_RESPONSE_BODY_BYTES + 1)
+                if len(raw_bytes) > _MAX_RESPONSE_BODY_BYTES:
+                    raise _HTTPAgentError(
+                        "Responses API response exceeded the configured safety limit"
+                    )
         except urllib.error.HTTPError as exc:
-            raw_bytes = exc.read(_MAX_ERROR_BODY_BYTES)
+            try:
+                raw_bytes = exc.read(_MAX_ERROR_BODY_BYTES)
+            except OSError:
+                raw_bytes = b""
             detail = self._http_error_detail(raw_bytes)
             raise _HTTPAgentError(
                 f"Responses API HTTP {exc.code}: {detail}",

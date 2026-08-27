@@ -59,6 +59,19 @@ class _ResponseHandler(BaseHTTPRequestHandler):
         del format, args
 
 
+class _RedirectHandler(BaseHTTPRequestHandler):
+    server: Any
+
+    def do_POST(self) -> None:  # noqa: N802
+        self.server.authorizations.append(self.headers.get("Authorization"))
+        self.send_response(307)
+        self.send_header("Location", self.server.redirect_location)
+        self.end_headers()
+
+    def log_message(self, format: str, *args: Any) -> None:
+        del format, args
+
+
 @contextmanager
 def _response_server(
     responses: list[tuple[int, Mapping[str, Any]]], *, delay_seconds: float = 0
@@ -69,6 +82,21 @@ def _response_server(
     server.authorizations = []
     server.idempotency_keys = []
     server.delay_seconds = delay_seconds
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+@contextmanager
+def _redirect_server(location: str) -> Iterator[Any]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _RedirectHandler)
+    server.redirect_location = location
+    server.authorizations = []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -159,7 +187,7 @@ http_agent:
   max_tool_output_chars: 20000
   search_max_matches: 25
   read_content_chars: 16000
-  continuation_mode: previous_response_id
+  continuation_mode: full_input
 """.lstrip(),
         encoding="utf-8",
     )
@@ -171,7 +199,14 @@ http_agent:
     assert loaded.max_tool_output_chars == 20_000
     assert loaded.search_max_matches == 25
     assert loaded.read_content_chars == 16_000
-    assert loaded.continuation_mode == "previous_response_id"
+    assert loaded.continuation_mode == "full_input"
+    with pytest.raises(ValidationError):
+        HTTPAgentConfig(
+            base_url="https://api.openai.com/v1",
+            model="gpt-test",
+            api_key_env="OPENAI_API_KEY",
+            continuation_mode="previous_response_id",  # type: ignore[arg-type]
+        )
 
     json_path = tmp_path / "agent.json"
     json_path.write_text(
@@ -227,6 +262,116 @@ http_agent:
                     field: 0,
                 }
             )
+
+
+@pytest.mark.asyncio
+async def test_http_backend_never_forwards_authorization_across_redirects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEFUZZ_TEST_API_KEY", "redirect-secret")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with _response_server([(200, _finish_response("must not arrive"))]) as target:
+        location = f"http://127.0.0.1:{target.server_port}/v1/responses"
+        with _redirect_server(location) as redirect:
+            config = HTTPAgentConfig(
+                base_url=f"http://127.0.0.1:{redirect.server_port}/v1",
+                model="test-model",
+                api_key_env="DEFUZZ_TEST_API_KEY",
+                max_retries=0,
+            )
+            result = await HTTPResponsesAgentBackend(config).run(
+                AgentRequest(
+                    prompt="do not follow",
+                    cwd=workspace,
+                    output_dir=tmp_path / "out",
+                )
+            )
+
+    assert not result.success
+    assert "HTTP 307" in (result.error or "")
+    assert redirect.authorizations == ["Bearer redirect-secret"]
+    assert target.requests == []
+    assert target.authorizations == []
+
+
+def test_custom_tool_executor_does_not_claim_formal_host_isolation(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    request = AgentRequest(prompt="test", cwd=workspace, output_dir=tmp_path / "out")
+    executor = LocalWorkspaceToolExecutor(request)
+    config = HTTPAgentConfig(
+        base_url="http://127.0.0.1:1/v1",
+        model="test",
+        api_key_env="DEFUZZ_TEST_API_KEY",
+    )
+
+    backend = HTTPResponsesAgentBackend(config, tool_executor_factory=lambda _: executor)
+
+    assert backend.supports_host_read_isolation is False
+
+
+@pytest.mark.asyncio
+async def test_http_response_body_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEFUZZ_TEST_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.http_agent_backend._MAX_RESPONSE_BODY_BYTES", 64
+    )
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with _response_server([(200, _final_response("x" * 256))]) as server:
+        result = await HTTPResponsesAgentBackend(_config(server)).run(
+            AgentRequest(
+                prompt="bounded", cwd=workspace, output_dir=tmp_path / "out"
+            )
+        )
+
+    assert not result.success
+    assert "safety limit" in (result.error or "")
+
+
+@pytest.mark.asyncio
+async def test_http_run_cumulative_response_size_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEFUZZ_TEST_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.http_agent_backend._MAX_RUN_RAW_RESPONSE_BYTES",
+        350,
+    )
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "source.c").write_text("int main(void) {}\n", encoding="utf-8")
+    tool_response = {
+        "id": "resp-tool",
+        "status": "completed",
+        "output": [
+            {
+                "type": "function_call",
+                "call_id": "call-read",
+                "name": "read_file",
+                "arguments": json.dumps(
+                    {"path": "source.c", "start_line": 1, "end_line": 0}
+                ),
+            }
+        ],
+        "usage": _usage(3, 1),
+    }
+    with _response_server(
+        [(200, tool_response), (200, _finish_response("x" * 256))]
+    ) as server:
+        result = await HTTPResponsesAgentBackend(_config(server)).run(
+            AgentRequest(
+                prompt="bounded run", cwd=workspace, output_dir=tmp_path / "out"
+            )
+        )
+
+    assert not result.success
+    assert "cumulative response size" in (result.error or "")
 
 
 @pytest.mark.asyncio
@@ -328,8 +473,9 @@ async def test_responses_function_loop_reads_then_returns_structured_output_and_
         "reasoning_tokens": 5,
         "usage_missing": False,
     }
-    assert HTTPResponsesAgentBackend.supports_host_read_isolation
-    assert HTTPResponsesAgentBackend(_config(server)).model == "test-model"
+    backend = HTTPResponsesAgentBackend(_config(server))
+    assert backend.supports_host_read_isolation
+    assert backend.model == "test-model"
     assert HTTPResponsesAgentBackend.provider == "http-responses"
     assert server.authorizations == [f"Bearer {key}", f"Bearer {key}"]
     first, second = server.requests
@@ -362,48 +508,6 @@ async def test_responses_function_loop_reads_then_returns_structured_output_and_
     persisted = (tmp_path / "out" / "events.jsonl").read_text()
     assert key not in persisted
     assert key not in result.raw_stdout
-
-
-@pytest.mark.asyncio
-async def test_previous_response_id_continuation_sends_only_delta(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("DEFUZZ_TEST_API_KEY", "test-key")
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    (workspace / "source.c").write_text("int main(void) {}\n")
-    tool_response = {
-        "id": "resp-tool",
-        "status": "completed",
-        "output": [
-            {
-                "type": "function_call",
-                "call_id": "call-read",
-                "name": "read_file",
-                "arguments": json.dumps(
-                    {"path": "source.c", "start_line": 1, "end_line": 0}
-                ),
-            }
-        ],
-        "usage": _usage(3, 1),
-    }
-    with _response_server([(200, tool_response), (200, _finish_response("inspected"))]) as server:
-        result = await HTTPResponsesAgentBackend(
-            _config(server, continuation_mode="previous_response_id")
-        ).run(
-            AgentRequest(
-                prompt="inspect", cwd=workspace, output_dir=tmp_path / "out"
-            )
-        )
-
-    assert result.success
-    assert result.final == {"summary": "inspected"}
-    first, second = server.requests
-    assert "previous_response_id" not in first
-    assert second["previous_response_id"] == "resp-tool"
-    assert len(second["input"]) == 1
-    assert second["input"][0]["type"] == "function_call_output"
-    assert all(item.get("role") != "user" for item in second["input"])
 
 
 @pytest.mark.asyncio
