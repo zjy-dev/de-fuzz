@@ -6,7 +6,7 @@ import fnmatch
 import hashlib
 import os
 import shutil
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -16,6 +16,81 @@ from .models import ArtifactRef
 
 class WorkspaceSecurityError(ValueError):
     """Raised when a source entry can escape or contaminate the workspace."""
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def validate_agent_path_isolation(
+    *,
+    cwd: str | os.PathLike[str],
+    output_dir: str | os.PathLike[str],
+    deny_read_paths: Sequence[str | os.PathLike[str]],
+    schema_path: str | os.PathLike[str] | None = None,
+) -> list[Path]:
+    """Resolve and validate an agent request's host-read boundary.
+
+    A deny root must never contain a path the request needs in order to start or
+    return evidence.  Treat either-direction overlap with cwd/output as a
+    configuration error: denying a cwd parent makes the request unusable, while
+    denying a cwd child would make the advertised workspace only partially
+    readable.  Schema files need only remain outside denied subtrees.
+    """
+
+    resolved_cwd = Path(cwd).expanduser().resolve(strict=True)
+    if not resolved_cwd.is_dir():
+        raise WorkspaceSecurityError(f"agent cwd is not a directory: {resolved_cwd}")
+    resolved_output = Path(output_dir).expanduser().resolve(strict=False)
+    required: list[tuple[str, Path, bool]] = [
+        ("cwd", resolved_cwd, True),
+        ("output_dir", resolved_output, True),
+    ]
+    if schema_path is not None:
+        required.append(
+            ("schema_path", Path(schema_path).expanduser().resolve(strict=False), False)
+        )
+
+    denied = list(
+        dict.fromkeys(
+            Path(item).expanduser().resolve(strict=False) for item in deny_read_paths
+        )
+    )
+    for deny_root in denied:
+        if deny_root == Path("/"):
+            raise WorkspaceSecurityError("refusing to deny the filesystem root")
+        for label, required_path, reject_descendant in required:
+            collides = _is_within(required_path, deny_root) or (
+                reject_descendant and _is_within(deny_root, required_path)
+            )
+            if collides:
+                raise WorkspaceSecurityError(
+                    f"deny_read_path {deny_root} collides with agent {label} "
+                    f"{required_path}"
+                )
+    return denied
+
+
+def validate_disjoint_input_roots(
+    roots: Sequence[tuple[str, str | os.PathLike[str]]],
+) -> list[Path]:
+    """Reject original input roots whose containment would mix treatments."""
+
+    resolved = [
+        (label, Path(path).expanduser().resolve(strict=False)) for label, path in roots
+    ]
+    for index, (label, path) in enumerate(resolved):
+        for other_label, other in resolved[index + 1 :]:
+            if _is_within(path, other) or _is_within(other, path):
+                raise WorkspaceSecurityError(
+                    f"original input roots overlap: {label} {path} and "
+                    f"{other_label} {other}"
+                )
+    return [path for _, path in resolved]
 
 
 class WorkspaceManifest(BaseModel):
@@ -178,4 +253,10 @@ class WorkspaceBuilder:
                 shutil.copymode(source, output, follow_symlinks=True)
 
 
-__all__ = ["WorkspaceBuilder", "WorkspaceManifest", "WorkspaceSecurityError"]
+__all__ = [
+    "WorkspaceBuilder",
+    "WorkspaceManifest",
+    "WorkspaceSecurityError",
+    "validate_agent_path_isolation",
+    "validate_disjoint_input_roots",
+]

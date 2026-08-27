@@ -6,6 +6,7 @@
 #
 # Per ISA:
 #   gcc_path     : (cross-)gcc executable
+#   clang_path   : (cross-)clang executable for LLVM campaign targets
 #   prefix       : -B prefix for compiler components (cc1, as, ld); optional
 #   sysroot      : --sysroot for cross builds; optional (native omits it)
 #   cflags       : mechanism/ISA flags injected into every compile

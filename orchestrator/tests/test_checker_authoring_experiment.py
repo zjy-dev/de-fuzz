@@ -4,6 +4,7 @@ import errno
 import hashlib
 import inspect
 import json
+import re
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from typing import Any
 import pytest
 
 import defuzz_loop.experiment_engine.checker_authoring as checker_authoring
+from defuzz_loop.checker_bundle import load_checker_bundle
 from defuzz_loop.experiment_engine import AgentResult, ExperimentPlan
 from defuzz_loop.experiment_engine.checker_authoring import (
     RESULTS_FILENAME,
@@ -30,9 +32,7 @@ from defuzz_loop.token_usage import (
 
 
 def _git(*argv: str, cwd: Path) -> str:
-    completed = subprocess.run(
-        ("git", *argv), cwd=cwd, check=True, capture_output=True, text=True
-    )
+    completed = subprocess.run(("git", *argv), cwd=cwd, check=True, capture_output=True, text=True)
     return completed.stdout.strip()
 
 
@@ -60,9 +60,7 @@ def source_checkout(tmp_path: Path) -> Path:
     return root
 
 
-def _write_invariants(
-    path: Path, invariant_ids: tuple[str, ...] = ("INV-TEST-001",)
-) -> None:
+def _write_invariants(path: Path, invariant_ids: tuple[str, ...] = ("INV-TEST-001",)) -> None:
     rows = [
         {
             "schema_version": 1,
@@ -114,8 +112,9 @@ class FakeWorkspaceFactory:
 
 
 class FakeCommandExecutor:
-    def __init__(self, outcomes: list[bool]) -> None:
+    def __init__(self, outcomes: list[bool], *, build_outcome: bool = True) -> None:
         self.outcomes = outcomes
+        self.build_outcome = build_outcome
         self.calls: list[tuple[tuple[str, ...], Path]] = []
         self.round = 0
 
@@ -124,6 +123,47 @@ class FakeCommandExecutor:
     ) -> CommandResult:
         del timeout_seconds
         self.calls.append((tuple(command), cwd))
+        if len(command) >= 2 and command[:2] == ("go", "build"):
+            if self.build_outcome and "-o" in command:
+                output = Path(command[command.index("-o") + 1])
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(b"fixture dispatcher\n")
+            return CommandResult(
+                argv=tuple(command),
+                cwd=str(cwd),
+                exit_code=0 if self.build_outcome else 1,
+                stderr="fixture build failure" if not self.build_outcome else "",
+            )
+        if len(command) >= 3 and command[-2:] == ("--mode", "catalog"):
+            invariant_ids: set[str] = set()
+            for path in (cwd / "internal" / "oracle").glob("checker_*.go"):
+                invariant_ids.update(
+                    match.group(0)
+                    for match in re.finditer(r"INV-[A-Z0-9-]+", path.read_text(encoding="utf-8"))
+                )
+            payload = {
+                "schema_version": 1,
+                "kind": "defuzz-checker-catalog",
+                "checkers": [
+                    {
+                        "id": invariant_id,
+                        "oracle": "canary",
+                        "mechanism": "canary",
+                        "requires": [],
+                        "applicable_isas": ["aarch64"],
+                        "mode": "single",
+                        "cost": "cheap",
+                        "category": "static",
+                    }
+                    for invariant_id in sorted(invariant_ids)
+                ],
+            }
+            return CommandResult(
+                argv=tuple(command),
+                cwd=str(cwd),
+                exit_code=0,
+                stdout=json.dumps(payload),
+            )
         # Three default commands make one validation round.
         outcome = self.outcomes[min(self.round // 3, len(self.outcomes) - 1)]
         self.round += 1
@@ -154,9 +194,16 @@ class FakeAgentBackend:
     async def run(self, request: Any) -> AgentResult:
         self.requests.append(request)
         oracle = request.cwd / "core" / "internal" / "oracle"
-        checker = oracle / "checker_test_001.go"
+        invariant_id = request.metadata["invariant_id"]
+        checker_name = (
+            "checker_test_001.go"
+            if invariant_id == "INV-TEST-001"
+            else f"checker_{invariant_id.lower().replace('-', '_')}.go"
+        )
+        checker = oracle / checker_name
         checker.write_text(
-            "package oracle\n\ntype Test001Checker struct{}\n", encoding="utf-8"
+            f"package oracle\n\ntype Test001Checker struct{{}}\n// {invariant_id}\n",
+            encoding="utf-8",
         )
         if len(self.requests) == 1:
             checker.write_text(checker.read_text(encoding="utf-8") + "// first\n")
@@ -179,11 +226,76 @@ class RecordingFakeAgentBackend(FakeAgentBackend):
                 "type": "turn.completed",
                 "usage": result.usage,
             },
-            context=request.token_sink.context.with_overrides(
-                stage=request.metadata["stage"]
-            ),
+            context=request.token_sink.context.with_overrides(stage=request.metadata["stage"]),
         )
         return result
+
+
+class CumulativeAgentBackend:
+    provider = "fake"
+    model = "fake-model"
+
+    def __init__(
+        self,
+        *,
+        corrupt_owner_for: str | None = None,
+        expected_files: dict[str, set[str]] | None = None,
+    ) -> None:
+        self.requests: list[Any] = []
+        self.corrupt_owner_for = corrupt_owner_for
+        self.expected_files = expected_files or {}
+
+    async def run(self, request: Any) -> AgentResult:
+        self.requests.append(request)
+        invariant_id = request.metadata["invariant_id"]
+        oracle = request.cwd / "core" / "internal" / "oracle"
+        present = {path.name for path in oracle.glob("checker_generated_*.go")}
+        assert present == self.expected_files.get(invariant_id, present)
+        suffix = invariant_id.rsplit("-", 1)[-1].lower()
+        (oracle / f"checker_generated_{suffix}.go").write_text(
+            f"package oracle\n\n// {invariant_id}\n", encoding="utf-8"
+        )
+        metadata = oracle / "metadata.go"
+        metadata.write_text(
+            metadata.read_text(encoding="utf-8") + f"// metadata {invariant_id}\n",
+            encoding="utf-8",
+        )
+        if invariant_id == self.corrupt_owner_for:
+            (oracle / "checker_generated_a.go").write_text(
+                "package oracle\n\n// corrupted by later invariant\n",
+                encoding="utf-8",
+            )
+        return AgentResult(
+            success=True,
+            final={"summary": f"implemented {invariant_id}"},
+            usage={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        )
+
+
+class SharedIntegrationAgentBackend(CumulativeAgentBackend):
+    async def run(self, request: Any) -> AgentResult:
+        result = await super().run(request)
+        registry = request.cwd / "core" / "internal" / "oracle" / "canary_oracle.go"
+        registry.write_text(
+            registry.read_text(encoding="utf-8")
+            + f"// register {request.metadata['invariant_id']}\n",
+            encoding="utf-8",
+        )
+        return result
+
+
+class RecordingIsolationCheckerBackend(FakeAgentBackend):
+    supports_host_read_isolation = True
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.deny_read_paths: list[list[Path]] = []
+        self.host_isolation: list[bool] = []
+
+    async def run(self, request: Any) -> AgentResult:
+        self.deny_read_paths.append(list(request.deny_read_paths))
+        self.host_isolation.append(bool(request.require_host_read_isolation))
+        return await super().run(request)
 
 
 def _plan(
@@ -378,33 +490,234 @@ async def test_token_budget_stops_before_next_agent_attempt(
 
 
 @pytest.mark.asyncio
-async def test_mixed_outcomes_return_partial(
-    source_checkout: Path, tmp_path: Path
-) -> None:
+async def test_mixed_outcomes_return_partial(source_checkout: Path, tmp_path: Path) -> None:
     invariants = tmp_path / "accepted-invariants.jsonl"
     _write_invariants(invariants, ("INV-PASS", "INV-FAIL"))
     output = tmp_path / "output"
     runner = CheckerAuthoringRunner(
         backend=FakeAgentBackend(),
         workspace_factory=FakeWorkspaceFactory(),
-        command_executor=FakeCommandExecutor([True, False]),
+        command_executor=FakeCommandExecutor([True, False, True]),
     )
 
-    result = await runner.run(
-        _plan(source_checkout, invariants, max_attempts=1), 1, output
-    )
+    result = await runner.run(_plan(source_checkout, invariants, max_attempts=1), 1, output)
 
-    assert not result.success
-    assert result.status == "partial"
+    assert result.success
+    assert result.status == "completed"
     assert result.metrics["final_passed"] == 1
     assert result.metrics["failed"] == 1
     assert result.metrics["budget_exhausted"] == 0
 
 
 @pytest.mark.asyncio
-async def test_ambient_sink_is_the_only_token_ledger(
+async def test_emits_cumulative_ready_bundle_in_deterministic_input_order(
     source_checkout: Path, tmp_path: Path
 ) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants, ("INV-GEN-B", "INV-GEN-A"))
+    output = tmp_path / "output"
+    workspace_factory = FakeWorkspaceFactory()
+    backend = CumulativeAgentBackend(
+        expected_files={
+            "INV-GEN-A": set(),
+            "INV-GEN-B": {"checker_generated_a.go"},
+        }
+    )
+    executor = FakeCommandExecutor([True, True, True])
+    runner = CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=workspace_factory,
+        command_executor=executor,
+    )
+
+    result = await runner.run(_plan(source_checkout, invariants, max_attempts=1), 1, output)
+
+    assert result.success
+    assert len(workspace_factory.roots) == 1
+    rows = [json.loads(line) for line in (output / RESULTS_FILENAME).read_text().splitlines()]
+    assert [row["invariant_id"] for row in rows] == ["INV-GEN-A", "INV-GEN-B"]
+    assert rows[0]["parent_tree_sha256"] != rows[0]["result_tree_sha256"]
+    assert rows[1]["parent_tree_sha256"] == rows[0]["result_tree_sha256"]
+    assert rows[1]["result_tree_sha256"] != rows[1]["parent_tree_sha256"]
+    assert rows[0]["included_in_bundle"] is True
+    assert rows[1]["included_in_bundle"] is True
+
+    bundle_patch = output / "checker-bundle.patch"
+    patch_text = bundle_patch.read_text(encoding="utf-8")
+    assert "checker_generated_a.go" in patch_text
+    assert "checker_generated_b.go" in patch_text
+
+    catalog = json.loads((output / "checker-catalog.json").read_text())
+    assert [item["invariant_id"] for item in catalog["checkers"]] == [
+        "INV-GEN-A",
+        "INV-GEN-B",
+    ]
+    assert catalog["source_tree_sha256"] == rows[0]["parent_tree_sha256"]
+    assert catalog["result_tree_sha256"] == rows[1]["result_tree_sha256"]
+
+    manifest = json.loads((output / "checker-bundle-manifest.json").read_text())
+    assert manifest["kind"] == "defuzz-checker-bundle"
+    assert manifest["status"] == "ready"
+    assert manifest["coverage_complete"] is True
+    assert manifest["included_invariant_ids"] == ["INV-GEN-A", "INV-GEN-B"]
+    assert manifest["failed_invariant_ids"] == []
+    assert manifest["source_tree_sha256"] == rows[0]["parent_tree_sha256"]
+    assert [item["invariant_id"] for item in manifest["invariants"]] == [
+        "INV-GEN-A",
+        "INV-GEN-B",
+    ]
+    assert manifest["validation"]["status"] == "passed"
+    assert manifest["validation"]["build"]["status"] == "passed"
+    assert manifest["artifacts"]["cumulative_patch"]["path"] == ("checker-bundle.patch")
+    assert manifest["artifacts"]["catalog"]["path"] == "checker-catalog.json"
+    assert manifest["artifacts"]["dispatcher"]["path"] == ("bin/defuzz-candidate-dispatcher")
+    assert any(artifact.path == "checker-bundle-manifest.json" for artifact in result.artifacts)
+    loaded = load_checker_bundle(output)
+    assert loaded.manifest.bundle_id == manifest["bundle_id"]
+    assert loaded.dispatcher == output / "bin/defuzz-candidate-dispatcher"
+    build_call = next(call for call in executor.calls if call[0][:2] == ("go", "build"))
+    assert build_call[0][:4] == ("go", "build", "-trimpath", "-buildvcs=false")
+    assert build_call[0][-1] == "./cmd/defuzz-candidate-dispatcher"
+    assert build_call[1] == workspace_factory.roots[0] / "core"
+
+
+@pytest.mark.asyncio
+async def test_failed_invariant_rolls_back_and_ready_bundle_records_partial_coverage(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants, ("INV-GEN-A", "INV-GEN-B", "INV-GEN-C"))
+    output = tmp_path / "output"
+    backend = CumulativeAgentBackend(
+        expected_files={
+            "INV-GEN-A": set(),
+            "INV-GEN-B": {"checker_generated_a.go"},
+            "INV-GEN-C": {"checker_generated_a.go"},
+        }
+    )
+    executor = FakeCommandExecutor([True, False, True, True])
+    runner = CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=FakeWorkspaceFactory(),
+        command_executor=executor,
+    )
+
+    result = await runner.run(_plan(source_checkout, invariants, max_attempts=1), 1, output)
+
+    assert result.status == "completed"
+    assert result.metrics["final_passed"] == 2
+    assert result.metrics["failed"] == 1
+    manifest = json.loads((output / "checker-bundle-manifest.json").read_text())
+    assert manifest["status"] == "ready"
+    assert manifest["coverage_complete"] is False
+    assert manifest["included_invariant_ids"] == ["INV-GEN-A", "INV-GEN-C"]
+    assert manifest["failed_invariant_ids"] == ["INV-GEN-B"]
+    rows = [json.loads(line) for line in (output / RESULTS_FILENAME).read_text().splitlines()]
+    assert rows[1]["included_in_bundle"] is False
+    assert rows[1]["result_tree_sha256"] == rows[1]["parent_tree_sha256"]
+    assert rows[2]["parent_tree_sha256"] == rows[0]["result_tree_sha256"]
+    patch_text = (output / "checker-bundle.patch").read_text(encoding="utf-8")
+    assert "checker_generated_a.go" in patch_text
+    assert "checker_generated_b.go" not in patch_text
+    assert "checker_generated_c.go" in patch_text
+
+
+@pytest.mark.asyncio
+async def test_later_invariant_cannot_modify_owned_checker_file(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants, ("INV-GEN-A", "INV-GEN-B"))
+    output = tmp_path / "output"
+    backend = CumulativeAgentBackend(
+        corrupt_owner_for="INV-GEN-B",
+        expected_files={
+            "INV-GEN-A": set(),
+            "INV-GEN-B": {"checker_generated_a.go"},
+        },
+    )
+    runner = CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=FakeWorkspaceFactory(),
+        command_executor=FakeCommandExecutor([True, True, True]),
+    )
+
+    result = await runner.run(_plan(source_checkout, invariants, max_attempts=1), 1, output)
+
+    assert result.status == "completed"
+    rows = [json.loads(line) for line in (output / RESULTS_FILENAME).read_text().splitlines()]
+    assert rows[1]["final_status"] == "failed"
+    assert rows[1]["included_in_bundle"] is False
+    assert rows[1]["attempts"][0]["policy_errors"] == [
+        {
+            "type": "owned-file-modified",
+            "path": "core/internal/oracle/checker_generated_a.go",
+            "owner_invariant_id": "INV-GEN-A",
+            "message": "later invariants may not modify files owned by an accepted checker",
+        }
+    ]
+    patch_text = (output / "checker-bundle.patch").read_text(encoding="utf-8")
+    assert "corrupted by later invariant" not in patch_text
+    assert "checker_generated_b.go" not in patch_text
+
+
+@pytest.mark.asyncio
+async def test_later_invariant_may_extend_shared_integration_files(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    oracle = source_checkout / "core" / "internal" / "oracle"
+    (oracle / "canary_oracle.go").write_text("package oracle\n", encoding="utf-8")
+    _git("add", ".", cwd=source_checkout)
+    _git("commit", "-m", "add integration file", cwd=source_checkout)
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants, ("INV-GEN-A", "INV-GEN-B"))
+    output = tmp_path / "output"
+    runner = CheckerAuthoringRunner(
+        backend=SharedIntegrationAgentBackend(
+            expected_files={
+                "INV-GEN-A": set(),
+                "INV-GEN-B": {"checker_generated_a.go"},
+            }
+        ),
+        workspace_factory=FakeWorkspaceFactory(),
+        command_executor=FakeCommandExecutor([True, True, True]),
+    )
+
+    result = await runner.run(_plan(source_checkout, invariants, max_attempts=1), 1, output)
+
+    assert result.success
+    rows = [json.loads(line) for line in (output / RESULTS_FILENAME).read_text().splitlines()]
+    assert rows[1]["attempts"][0]["policy_errors"] == []
+    patch_text = (output / "checker-bundle.patch").read_text(encoding="utf-8")
+    assert "register INV-GEN-A" in patch_text
+    assert "register INV-GEN-B" in patch_text
+
+
+@pytest.mark.asyncio
+async def test_final_validation_failure_marks_bundle_incomplete(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants, ("INV-GEN-A",))
+    output = tmp_path / "output"
+    runner = CheckerAuthoringRunner(
+        backend=CumulativeAgentBackend(),
+        workspace_factory=FakeWorkspaceFactory(),
+        command_executor=FakeCommandExecutor([True, False]),
+    )
+
+    result = await runner.run(_plan(source_checkout, invariants, max_attempts=1), 1, output)
+
+    assert result.status == "partial"
+    manifest = json.loads((output / "checker-bundle-manifest.json").read_text())
+    assert manifest["status"] == "incomplete"
+    assert manifest["coverage_complete"] is True
+    assert manifest["validation"]["status"] == "failed"
+    assert manifest["validation"]["build"] is None
+
+
+@pytest.mark.asyncio
+async def test_ambient_sink_is_the_only_token_ledger(source_checkout: Path, tmp_path: Path) -> None:
     invariants = tmp_path / "accepted-invariants.jsonl"
     _write_invariants(invariants)
     output = tmp_path / "rep-001" / "artifacts"
@@ -493,12 +806,8 @@ async def test_workspace_cleanup_retries_transient_enotempty(
         (destination / "created-by-provider").write_text("fixture\n", encoding="utf-8")
         return SimpleNamespace(root=destination)
 
-    runner = CheckerAuthoringRunner(
-        backend=FakeAgentBackend(), workspace_factory=create_workspace
-    )
-    lease = await runner._workspace(
-        source_checkout, tmp_path / "output", invariant, ("core",)
-    )
+    runner = CheckerAuthoringRunner(backend=FakeAgentBackend(), workspace_factory=create_workspace)
+    lease = await runner._workspace(source_checkout, tmp_path / "output", invariant, ("core",))
     workspace_root = lease.root
     real_rmtree = checker_authoring.shutil.rmtree
     tombstone_prefix = f".{workspace_root.name}.cleanup-"
@@ -506,9 +815,7 @@ async def test_workspace_cleanup_retries_transient_enotempty(
 
     def transient_enotempty(path: Any, *args: Any, **kwargs: Any) -> None:
         target = Path(path).resolve(strict=False)
-        if target.parent == workspace_root.parent and target.name.startswith(
-            tombstone_prefix
-        ):
+        if target.parent == workspace_root.parent and target.name.startswith(tombstone_prefix):
             tombstone_attempts.append(target)
             if len(tombstone_attempts) == 1:
                 raise OSError(errno.ENOTEMPTY, "Directory not empty", str(path))
@@ -525,6 +832,83 @@ async def test_workspace_cleanup_retries_transient_enotempty(
     assert not workspace_root.exists()
     assert all(not tombstone.exists() for tombstone in tombstone_attempts)
     assert not list(workspace_root.parent.glob(f"{tombstone_prefix}*"))
+
+
+@pytest.mark.asyncio
+async def test_checker_authoring_denies_findings_reads(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants)
+    reference = tmp_path / "reference"
+    (reference / "findings").mkdir(parents=True)
+    output = tmp_path / "output"
+    backend = RecordingIsolationCheckerBackend()
+    backend.workspace_factory = FakeWorkspaceFactory()
+    backend.command_executor = FakeCommandExecutor([True])
+
+    result = await run(
+        ExperimentPlan.from_dict(
+            {
+                **_plan(source_checkout, invariants, max_attempts=1).model_dump(mode="json"),
+                "parameters": {
+                    **_plan(source_checkout, invariants, max_attempts=1).parameters,
+                    "reference_root": str(reference),
+                    "require_host_read_isolation": True,
+                },
+            }
+        ),
+        1,
+        output,
+        backend=backend,
+    )
+
+    assert result.success
+    assert backend.deny_read_paths
+    expected = [source_checkout.resolve(), reference.resolve()]
+    assert all(paths == expected for paths in backend.deny_read_paths)
+    assert backend.host_isolation == [True]
+
+
+@pytest.mark.asyncio
+async def test_checker_authoring_rejects_deny_path_containing_agent_workspace(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants)
+    output = tmp_path / "output"
+
+    def fixed_workspace(
+        *, source_root: Path, destination: Path, invariant: dict[str, Any]
+    ) -> SimpleNamespace:
+        del source_root, destination, invariant
+        workspace = output / "checker-authoring" / ".workspaces" / "fixed"
+        (workspace / "core/internal/oracle").mkdir(parents=True)
+        return SimpleNamespace(root=workspace)
+
+    backend = FakeAgentBackend(command_executor=FakeCommandExecutor([True]))
+    backend.workspace_factory = fixed_workspace  # type: ignore[assignment]
+    plan = _plan(source_checkout, invariants, max_attempts=1).model_copy(
+        update={
+            "parameters": {
+                **_plan(source_checkout, invariants, max_attempts=1).parameters,
+                "deny_read_paths": [
+                    str(output / "checker-authoring" / ".workspaces")
+                ],
+            }
+        }
+    )
+
+    result = await CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=backend.workspace_factory,
+        command_executor=backend.command_executor,
+    ).run(plan, 1, output)
+
+    assert not result.success
+    rows = [json.loads(line) for line in (output / RESULTS_FILENAME).read_text().splitlines()]
+    assert "collides with agent cwd" in rows[0]["attempts"][0]["agent_error"]
+    assert backend.requests == []
 
 
 @pytest.mark.asyncio
@@ -548,12 +932,8 @@ async def test_provider_cleanup_error_still_removes_local_workspace(
         (destination / "created-by-provider").write_text("fixture\n", encoding="utf-8")
         return SimpleNamespace(root=destination, cleanup=provider_cleanup)
 
-    runner = CheckerAuthoringRunner(
-        backend=FakeAgentBackend(), workspace_factory=create_workspace
-    )
-    lease = await runner._workspace(
-        source_checkout, tmp_path / "output", invariant, ("core",)
-    )
+    runner = CheckerAuthoringRunner(backend=FakeAgentBackend(), workspace_factory=create_workspace)
+    lease = await runner._workspace(source_checkout, tmp_path / "output", invariant, ("core",))
     workspace_root = lease.root
 
     assert lease.cleanup is not None
@@ -588,9 +968,7 @@ async def test_workspace_factory_error_does_not_leak_destination(
     )
 
     with pytest.raises(RuntimeError, match="workspace creation failed"):
-        await runner._workspace(
-            source_checkout, tmp_path / "output", invariant, ("core",)
-        )
+        await runner._workspace(source_checkout, tmp_path / "output", invariant, ("core",))
 
     assert len(destinations) == 1
     assert not destinations[0].exists()

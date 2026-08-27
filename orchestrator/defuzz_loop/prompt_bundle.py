@@ -10,6 +10,7 @@ explicitly supplied checker/oracle artifacts.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
@@ -22,6 +23,7 @@ from .audit_schema import (
     AuditVariant,
     audit_report_json_schema,
     canonical_family,
+    normalize_mechanism,
 )
 
 _DOCTRINE_PATH = Path(".claude/agents/defend-reviewer.md")
@@ -44,20 +46,59 @@ _SURVEY_FILES: dict[str, tuple[str, ...]] = {
     "strict-flex-arrays": ("bounds-safety.md",),
     "zero-init-padding": ("auto-var-init.md",),
     "source-annotations": ("bounds-safety.md",),
+    "codegen": ("gcc-llvm-defense-invariant-source-survey.md",),
     "cet": ("endbr-ibt.md", "shadow-stack.md"),
     "ibt": ("endbr-ibt.md",),
     "shstk": ("shadow-stack.md",),
     "bti": ("bti.md",),
     "pac": ("pointer-authentication.md",),
-    "return-address-signing": ("pointer-authentication.md",),
     "cmse": (),
+    "riscv-cfi": ("riscv-cfi.md",),
+    "ret-hardening": ("gcc-llvm-defense-invariant-source-survey.md",),
     "asan": ("sanitizers.md",),
     "ubsan": ("sanitizers.md",),
     "tsan": ("sanitizers.md",),
     "lsan": ("sanitizers.md",),
     "auto-var-init": ("auto-var-init.md",),
     "fhardened": ("hardened.md",),
+    "zero-call-used-regs": ("zero-call-used-regs.md",),
 }
+
+_HISTORICAL_MECHANISM_DIRS: dict[str, tuple[str, ...]] = {
+    "ibt": ("cet",),
+    "pac": ("return-address-signing",),
+    "ret-hardening": ("codegen",),
+    # The corpus currently keeps these bugs under codegen until dedicated
+    # mechanism directories exist.
+    "zero-call-used-regs": ("codegen",),
+}
+
+_MECHANISM_PROMPT_GUIDANCE: dict[str, str] = {
+    "codegen": (
+        "Audit security-relevant backend lowering and late optimization. Check that "
+        "control-flow, unwind, and hardening metadata remain consistent with emitted code."
+    ),
+    "zero-call-used-regs": (
+        "Audit the documented -fzero-call-used-regs contract across applicable exit forms, "
+        "target backends, function attributes, and interactions with other epilogue passes."
+    ),
+    "riscv-cfi": (
+        "Audit RISC-V Zicfilp/Zicfiss landing-pad and shadow-stack semantics across compiler, "
+        "assembler, linker metadata, and mixed-mode code."
+    ),
+    "ibt": (
+        "Audit Intel CET/IBT target marking and property propagation across all indirect "
+        "control-flow entry forms and link stages."
+    ),
+    "ret-hardening": (
+        "Audit return-thunk, speculation-barrier, and LVI return-hardening semantics across "
+        "late lowering, target-specific epilogues, and linker-visible code paths."
+    ),
+}
+
+# Compatibility name retained for callers of the first prompt-overlay API; the
+# implementation and alias table now live exclusively in audit_schema.
+normalize_prompt_mechanism = normalize_mechanism
 
 
 class AuditVisibilityPolicy(BaseModel):
@@ -271,15 +312,19 @@ def _family_section(template: str, family: AuditFamily) -> str:
 
 
 def _scoped_documents(
-    root: Path, family: AuditFamily, toolchains: Sequence[str]
+    root: Path,
+    family: AuditFamily,
+    toolchains: Sequence[str],
+    mechanisms: Sequence[str] | None = None,
 ) -> list[tuple[Path, str]]:
     paths: list[tuple[Path, str]] = []
     invariant_root = root / "docs" / "invariants"
     index = invariant_root / "README.md"
     if index.is_file():
         paths.append((index, "invariant-index"))
+    scoped_mechanisms = tuple(mechanisms or family.mechanisms)
     survey_names = {
-        name for mechanism in family.mechanisms for name in _SURVEY_FILES.get(mechanism, ())
+        name for mechanism in scoped_mechanisms for name in _SURVEY_FILES.get(mechanism, ())
     }
     for name in sorted(survey_names):
         path = invariant_root / name
@@ -288,14 +333,19 @@ def _scoped_documents(
 
     bug_root = root / "docs" / "bugs"
     for toolchain in sorted(set(toolchains)):
-        for mechanism in family.mechanisms:
-            directory = bug_root / toolchain / mechanism
-            if directory.is_dir():
-                paths.extend((path, "historical-bug") for path in sorted(directory.rglob("*.md")))
+        for mechanism in scoped_mechanisms:
+            directory_names = (mechanism, *_HISTORICAL_MECHANISM_DIRS.get(mechanism, ()))
+            for directory_name in dict.fromkeys(directory_names):
+                directory = bug_root / toolchain / directory_name
+                if directory.is_dir():
+                    paths.extend(
+                        (path, "historical-bug")
+                        for path in sorted(directory.rglob("*.md"))
+                    )
     cross = bug_root / "cross"
     if cross.is_dir():
         paths.extend((path, "historical-bug") for path in sorted(cross.rglob("*.md")))
-    return paths
+    return list(dict.fromkeys(paths))
 
 
 def _render_documents(documents: Iterable[PromptDocument]) -> str:
@@ -306,6 +356,69 @@ def _render_documents(documents: Iterable[PromptDocument]) -> str:
             f"sha256={document.sha256!r}>\n{document.content.rstrip()}\n</document>"
         )
     return "\n\n".join(chunks)
+
+
+def _mechanism_guidance_document(mechanisms: Sequence[str]) -> PromptDocument | None:
+    lines = [
+        f"- {mechanism}: {_MECHANISM_PROMPT_GUIDANCE[mechanism]}"
+        for mechanism in mechanisms
+        if mechanism in _MECHANISM_PROMPT_GUIDANCE
+    ]
+    if not lines:
+        return None
+    content = "Mechanism scope overlay for this worker:\n" + "\n".join(lines)
+    return PromptDocument(
+        path="builtin/mechanism-scope-overlay",
+        content=content,
+        sha256=_sha256(content),
+        kind="mechanism-guidance",
+    )
+
+
+def _generated_invariant_document(
+    records: Sequence[Mapping[str, Any]], mechanisms: Sequence[str]
+) -> PromptDocument | None:
+    """Render the Part I handoff without leaking its host path or raw provenance."""
+
+    wanted = {normalize_mechanism(value) for value in mechanisms}
+    safe_fields = (
+        "invariant_id",
+        "statement",
+        "observation",
+        "compiler",
+        "version",
+        "target",
+        "mechanism",
+        "protected_asset",
+        "activation_condition",
+        "version_sensitivity",
+        "falsifiability",
+        "grounding",
+        "novelty",
+    )
+    selected = []
+    for record in records:
+        mechanism = normalize_mechanism(str(record.get("mechanism", "")))
+        if wanted and mechanism not in wanted:
+            continue
+        item = {key: record[key] for key in safe_fields if key in record}
+        item["mechanism"] = mechanism
+        selected.append(item)
+    if not selected:
+        return None
+    content = json.dumps(
+        {"schema_version": 1, "accepted_invariants": selected},
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+    assert_no_findings_leak(content)
+    return PromptDocument(
+        path="pipeline/accepted-invariants.json",
+        content=content,
+        sha256=_sha256(content),
+        kind="generated-invariants",
+    )
 
 
 def build_worker_prompt_bundle(
@@ -322,6 +435,7 @@ def build_worker_prompt_bundle(
     hypotheses: str = "",
     oracle_documents: Sequence[str | Path] = (),
     extra_documents: Sequence[str | Path] = (),
+    generated_invariants: Sequence[Mapping[str, Any]] = (),
 ) -> WorkerPromptBundle:
     """Build one self-contained worker prompt under a strict input allowlist."""
 
@@ -332,10 +446,16 @@ def build_worker_prompt_bundle(
         if policy.variant is AuditVariant.BARE_AGENT
         else canonical_family(family)
     )
+    requested_mechanisms = {
+        normalize_mechanism(mechanism) for mechanism in mechanisms or ()
+    }
+    family_mechanisms = tuple(
+        dict.fromkeys(normalize_mechanism(item) for item in selected_family.mechanisms)
+    )
     selected_mechanisms = tuple(
         mechanism
-        for mechanism in selected_family.mechanisms
-        if not mechanisms or mechanism in mechanisms
+        for mechanism in family_mechanisms
+        if not requested_mechanisms or mechanism in requested_mechanisms
     )
     if policy.variant is not AuditVariant.BARE_AGENT and not selected_mechanisms:
         raise ValueError(f"family {selected_family.key} has no mechanisms in the requested scope")
@@ -395,13 +515,22 @@ def build_worker_prompt_bundle(
                 kind="family-instructions",
             )
         )
+        guidance = _mechanism_guidance_document(selected_mechanisms)
+        if guidance is not None:
+            documents.append(guidance)
     if policy.include_invariants or policy.include_historical_bugs:
-        for path, kind in _scoped_documents(root, selected_family, toolchains):
+        for path, kind in _scoped_documents(
+            root, selected_family, toolchains, selected_mechanisms
+        ):
             if kind.startswith("invariant") and not policy.include_invariants:
                 continue
             if kind == "historical-bug" and not policy.include_historical_bugs:
                 continue
             documents.append(_document(root, path, kind))
+    if policy.include_invariants:
+        generated = _generated_invariant_document(generated_invariants, selected_mechanisms)
+        if generated is not None:
+            documents.append(generated)
     if policy.include_online_oracle:
         for index, value in enumerate(oracle_documents, start=1):
             documents.append(
@@ -459,6 +588,9 @@ def build_worker_prompt_bundle(
             "mechanisms": list(selected_mechanisms),
             "findings_access": "denied",
             "online_oracle": policy.include_online_oracle,
+            "generated_invariant_count": sum(
+                document.kind == "generated-invariants" for document in documents
+            ),
         },
     )
 

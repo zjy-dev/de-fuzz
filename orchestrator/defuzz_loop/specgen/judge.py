@@ -36,7 +36,8 @@ from ..llm import LLMConfig, ainvoke_structured, build_chat_model
 T = TypeVar("T", bound=BaseModel)
 
 # The four judgment tasks. Keys are deterministic so a transcript is stable
-# across runs: distill is keyed by seed_id, the per-hit tasks by seed_id:chunk_id.
+# across runs: distill is keyed by the seed's stable identity, the per-hit tasks
+# by identity:chunk_id. Unique legacy seeds retain ``identity == seed_id``.
 TASK_DISTILL = "distill_query"
 TASK_ANALOGY = "analogy"
 TASK_SPECIALIZE = "specialize"

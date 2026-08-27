@@ -1,7 +1,7 @@
 """specgen subcommand handler — invoked by ``../cli.py``'s ``main()``.
 
 Builds a ``PipelineConfig`` from parsed args and runs the offline invariant
-generation pipeline (plan §CLI). The corpus root points at a GCC source tree;
+generation pipeline (plan §CLI). The corpus root points at a compiler source tree;
 seed / baseline roots default to the sibling ``defend-reviewer-invariants`` repo
 but can be overridden. The run is offline by default (``--transcript`` replays
 authored judgments); passing no transcript uses the live ``LLMJudge``.
@@ -32,22 +32,33 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sg = sub.add_parser("specgen", help="offline RAG cross-mechanism invariant generation")
     sg.add_argument(
         "--seed-source",
-        default="findings",
-        help="comma list of seed pools: findings,bugs,invariants (default: findings)",
+        default="bugs",
+        help="comma list of seed pools: findings,bugs,invariants (default: bugs)",
+    )
+    sg.add_argument(
+        "--compiler",
+        choices=["gcc", "llvm"],
+        default="gcc",
+        help="target compiler family for corpus and historical-bug selection",
     )
     sg.add_argument(
         "--corpus-root",
         required=False,
         default=None,
-        help="path to the GCC source tree's gcc/ dir (the retrieval corpus); "
+        help="path to the selected compiler source tree (GCC's gcc/ dir or llvm-project); "
         "optional when --reuse-corpus finds a cached corpus.jsonl",
+    )
+    sg.add_argument(
+        "--compiler-version",
+        default=None,
+        help="compiler version/revision recorded in chunk metadata and cache identity",
     )
     sg.add_argument(
         "--reuse-corpus",
         action="store_true",
         help="reuse <cache-root>/corpus.jsonl verbatim instead of rescanning "
         "--corpus-root (keeps line-exact evidence anchors pinned to the cached "
-        "GCC version; required for re-running slices against the same corpus)",
+        "compiler revision; required for re-running slices against the same corpus)",
     )
     sg.add_argument(
         "--retriever",
@@ -114,7 +125,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
         "(calibrated from the baseline's p95 intra nearest-neighbor score)",
     )
     sg.add_argument(
-        "--no-bugzilla", action="store_true", help="skip live Bugzilla fetch (source-only corpus)"
+        "--no-bugzilla",
+        action="store_true",
+        help="skip live GCC Bugzilla fetch (LLVM never fetches GCC Bugzilla)",
     )
     sg.add_argument(
         "--transcript",
@@ -140,7 +153,11 @@ def _cfg_from_args(args: argparse.Namespace) -> PipelineConfig:
     sources = [s.strip() for s in args.seed_source.split(",") if s.strip()]
 
     findings_root = Path(args.findings_root) if args.findings_root else dr_root / "findings"
-    bugs_root = Path(args.bugs_root) if args.bugs_root else dr_root / "docs" / "bugs"
+    bugs_root = (
+        Path(args.bugs_root)
+        if args.bugs_root
+        else dr_root / "docs" / "bugs" / args.compiler
+    )
     invariants_root = (
         Path(args.invariants_root)
         if args.invariants_root
@@ -161,7 +178,9 @@ def _cfg_from_args(args: argparse.Namespace) -> PipelineConfig:
 
     return PipelineConfig(
         seed_sources=sources,
-        gcc_root=Path(args.corpus_root) if args.corpus_root else Path("."),
+        corpus_root=Path(args.corpus_root) if args.corpus_root else Path("."),
+        compiler=args.compiler,
+        version=args.compiler_version,
         findings_root=findings_root,
         bugs_root=bugs_root,
         invariants_root=invariants_root,

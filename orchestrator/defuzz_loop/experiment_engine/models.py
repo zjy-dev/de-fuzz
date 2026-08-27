@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, m
 
 VariantName = Literal["full", "without-rag", "without-oracle", "bare-agent"]
 StageStatus = Literal["pending", "running", "completed", "succeeded", "failed", "skipped"]
+ExecutionStatus = Literal["completed", "failed", "skipped"]
 
 
 class _CompatModel(BaseModel):
@@ -157,6 +158,13 @@ class StageResult(_CompatModel):
     messages: list[str] = Field(default_factory=list)
     error: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    # These axes intentionally remain independent. ``status`` is retained for
+    # compatibility with the original stage runners; pipeline consumers should
+    # prefer the explicit fields when they are present.
+    execution_status: ExecutionStatus | None = None
+    result_valid: bool | None = None
+    continuation_ready: bool | None = None
+    outcome: str | None = None
 
     @model_validator(mode="after")
     def _normalize_error(self) -> StageResult:
@@ -264,3 +272,18 @@ class ExperimentPlan(_CompatModel):
             payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
         )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def canonical_variant_order(
+    variants: list[VariantName] | tuple[VariantName, ...],
+) -> list[VariantName]:
+    """Keep campaign arms in one scientific comparison order."""
+
+    order: tuple[VariantName, ...] = (
+        "full",
+        "without-rag",
+        "without-oracle",
+        "bare-agent",
+    )
+    wanted = set(variants)
+    return [variant for variant in order if variant in wanted]

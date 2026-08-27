@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -14,7 +15,11 @@ import (
 // missing ISA is not a crash: BuildService emits an error cell (R8).
 type Toolchain struct {
 	// GCCPath is the (cross-)gcc executable for this ISA.
+	// It remains the default used by the legacy BuildService and MCP paths.
 	GCCPath string `yaml:"gcc_path"`
+	// ClangPath is the (cross-)clang executable for this ISA. Candidate
+	// dispatch selects it only when the trusted compiler family is LLVM.
+	ClangPath string `yaml:"clang_path"`
 	// Prefix is the -B prefix path for compiler components (cc1, as, ld).
 	Prefix string `yaml:"prefix"`
 	// Sysroot is the --sysroot for cross-compilation; empty for native.
@@ -52,7 +57,9 @@ func LoadToolchains(path string) (*Toolchains, error) {
 		return nil, fmt.Errorf("read toolchains config %s: %w", path, err)
 	}
 	var tc Toolchains
-	if err := yaml.Unmarshal(data, &tc); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&tc); err != nil {
 		return nil, fmt.Errorf("parse toolchains config %s: %w", path, err)
 	}
 	if tc.Toolchains == nil {

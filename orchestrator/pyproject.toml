@@ -9,6 +9,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=2.0.0",
     "grpcio>=1.60.0",
     "grpcio-tools>=1.60.0",
+    "jsonschema>=4.0",
     "mcp>=1.0.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.3.0",

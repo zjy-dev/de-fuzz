@@ -42,6 +42,8 @@ fuzz_out/
 workspace/
 logs/
 experiments/
+!configs/experiments/
+!configs/experiments/*.yaml
 
 # Orchestrator per-run audit dirs and checkpoints
 orchestrator/runs/

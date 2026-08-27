@@ -12,10 +12,11 @@ import shlex
 import shutil
 import subprocess
 import sys
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
+from defuzz_loop.audit_schema import normalize_isa, normalize_mechanism
 from defuzz_loop.experiment_engine import (
     AgentBackend,
     AgentRequest,
@@ -33,18 +34,23 @@ EXIT_CONFIGURATION_ERROR = 2
 # Kept as a compatibility name for callers of the former scaffold CLI.
 EXIT_BACKEND_UNAVAILABLE = EXIT_RUNTIME_FAILURE
 _DEFAULT_OUTPUT_ROOT_DISPLAY = "orchestrator/runs/experiments"
-_DEFAULT_REFERENCE_ROOT = Path(
-    "/Users/bytedance/projects/research/defend-reviewer/main"
-)
+_DEFAULT_REFERENCE_ROOT = Path("/Users/bytedance/projects/research/defend-reviewer/main")
 _REQUIRED_REFERENCE_PATHS = (
     Path(".claude/agents/defend-reviewer.md"),
     Path("docs/prompts/full-review.md"),
     Path("docs/bugs"),
     Path("docs/invariants"),
 )
-_StageRunner = Callable[
-    [ExperimentPlan, int, Path, AgentBackend | None], Awaitable[StageResult]
-]
+_CHECKER_BUNDLE_MANIFEST = "checker-bundle-manifest.json"
+_StageRunner = Callable[[ExperimentPlan, int, Path, AgentBackend | None], Awaitable[StageResult]]
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, (str, Path)):
+        return [value]
+    return list(value)
 
 
 class _LazyStageModule:
@@ -64,12 +70,8 @@ class _LazyStageModule:
         return await module.run(plan, repetition, output_dir, backend)
 
 
-invariant_generation = _LazyStageModule(
-    "defuzz_loop.experiment_engine.invariant_generation"
-)
-checker_authoring = _LazyStageModule(
-    "defuzz_loop.experiment_engine.checker_authoring"
-)
+invariant_generation = _LazyStageModule("defuzz_loop.experiment_engine.invariant_generation")
+checker_authoring = _LazyStageModule("defuzz_loop.experiment_engine.checker_authoring")
 agent_audit = _LazyStageModule("defuzz_loop.agent_audit")
 
 
@@ -250,6 +252,62 @@ def _add_invariant_arguments(
         default="gcc",
         help="compiler corpus to study (default: gcc)",
     )
+    selection = parser.add_argument_group(
+        "segmented corpus selection",
+        description=(
+            "Partial ranges, shards, and caps are for pilots or distributed shards only. "
+            "Formal full-corpus evidence requires a complete, non-overlapping shard union."
+        ),
+    )
+    selection.add_argument(
+        "--segment-start",
+        type=int,
+        default=0,
+        metavar="INDEX",
+        help="zero-based inclusive global segment index (default: 0)",
+    )
+    selection.add_argument(
+        "--segment-end",
+        type=int,
+        default=None,
+        metavar="INDEX",
+        help="exclusive global segment index; selecting a range is pilot-only",
+    )
+    selection.add_argument(
+        "--shard-index",
+        type=int,
+        default=0,
+        metavar="INDEX",
+        help="zero-based deterministic shard index (default: 0)",
+    )
+    selection.add_argument(
+        "--shard-count",
+        type=int,
+        default=1,
+        metavar="N",
+        help="number of deterministic shards; formal evidence requires their complete union",
+    )
+    selection.add_argument(
+        "--max-segments",
+        type=int,
+        default=None,
+        metavar="N",
+        help="cap selected segments for a pilot; a capped run is not full-corpus evidence",
+    )
+    selection.add_argument(
+        "--minimum-segments",
+        type=int,
+        default=1,
+        metavar="N",
+        help="minimum expected selected segments used by preflight validation (default: 1)",
+    )
+    selection.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=1,
+        metavar="N",
+        help="maximum concurrent segmented-review workers (default: 1)",
+    )
 
 
 def _add_invariant_generation_parser(subparsers: Any) -> None:
@@ -299,6 +357,16 @@ def _add_checker_arguments(parser: argparse.ArgumentParser) -> None:
     )
     specific = parser.add_argument_group("checker authoring")
     specific.add_argument(
+        "--reference-root",
+        type=Path,
+        default=_default_reference_root(),
+        metavar="PATH",
+        help=(
+            "reviewer corpus whose findings subtree is denied to the authoring agent "
+            "(default: DEFUZZ_REFERENCE_ROOT or defend-reviewer checkout)"
+        ),
+    )
+    specific.add_argument(
         "--source-root",
         type=Path,
         default=Path("."),
@@ -343,12 +411,30 @@ def _add_audit_arguments(
     *,
     allow_pipeline_inputs: bool = True,
     allow_online_oracle: bool = True,
+    allow_checker_bundle: bool = True,
 ) -> None:
     if allow_pipeline_inputs:
         _add_pipeline_input_arguments(
             parser,
             inputs_help="checker or oracle document (repeat option for multiple inputs)",
             repeatable=True,
+        )
+    if allow_checker_bundle:
+        bundle = parser.add_argument_group("validated checker bundle")
+        bundle.add_argument(
+            "--checker-bundle-manifest",
+            type=Path,
+            metavar="JSON",
+            help=(
+                "ready Part II checker-bundle manifest; supplies Full online feedback "
+                "and the shared offline verification dispatcher"
+            ),
+        )
+        bundle.add_argument(
+            "--toolchains-config",
+            type=Path,
+            metavar="YAML",
+            help="toolchain configuration used by the checker-bundle dispatcher",
         )
     scope = parser.add_argument_group("audit scope")
     scope.add_argument(
@@ -419,13 +505,38 @@ def _add_audit_arguments(
     evaluation.add_argument(
         "--demo-parity",
         action="store_true",
-        help="compare structurally admitted candidates with demo findings after workers exit",
+        help=(
+            "compare verified candidates with the selected evaluator-only demo "
+            "profile after workers exit"
+        ),
+    )
+    evaluation.add_argument(
+        "--parity-profile",
+        choices=("demo-workset", "poc-verified"),
+        default="demo-workset",
+        help=(
+            "demo corpus profile: demo-workset is the engineering parity/superset "
+            "workset (schema-valid, non-retracted, including drafts); poc-verified "
+            "is the stronger-evidence subset and is not a formal paper result "
+            "(default: demo-workset)"
+        ),
     )
     evaluation.add_argument(
         "--parity-threshold",
         type=float,
         metavar="RATIO",
-        help="record whether demo-parity F1 reaches RATIO (0 to 1; non-blocking)",
+        help=(
+            "record whether the selected demo-parity metric reaches RATIO (0 to 1; non-blocking)"
+        ),
+    )
+    evaluation.add_argument(
+        "--parity-threshold-metric",
+        choices=("recall", "f1"),
+        default="recall",
+        help=(
+            "metric used by --parity-threshold: recall measures selected-profile "
+            "superset coverage; f1 is retained for compatibility (default: recall)"
+        ),
     )
     evaluation.add_argument(
         "--verification-command",
@@ -459,9 +570,7 @@ def _add_agent_audit_parser(subparsers: Any) -> None:
 
 
 _ABLATION_DESCRIPTIONS = {
-    "without-rag": (
-        "Run Part I with Segmented CoT only; historical-bug RAG is disabled."
-    ),
+    "without-rag": ("Run Part I with Segmented CoT only; historical-bug RAG is disabled."),
     "without-oracle": (
         "Run Part III without online dedicated-checker feedback; admission remains isolated."
     ),
@@ -490,11 +599,27 @@ def _add_ablation_parser(subparsers: Any) -> None:
         required=True,
     )
     for name, description in _ABLATION_DESCRIPTIONS.items():
+        example_arguments = {
+            "without-rag": (
+                "--baseline-run FULL_RUN --corpus-root CORPUS "
+                "--reference-root REFERENCE_ROOT --show-plan"
+            ),
+            "without-oracle": (
+                "--baseline-run FULL_RUN --target-tree TARGET_TREE "
+                "--reference-root REFERENCE_ROOT "
+                "--checker-bundle-manifest CHECKER_BUNDLE "
+                "--toolchains-config TOOLCHAINS --show-plan"
+            ),
+            "bare-agent": (
+                "--baseline-run FULL_RUN --target-tree TARGET_TREE "
+                "--reference-root REFERENCE_ROOT --show-plan"
+            ),
+        }[name]
         variant = variants.add_parser(
             name,
             help=description,
             description=f"Ablation — {name}\n\n{description}",
-            epilog=f"example: defuzz-experiment ablation {name} --show-plan",
+            epilog=(f"example: defuzz-experiment ablation {name} {example_arguments}"),
             formatter_class=_HelpFormatter,
         )
         _add_common_arguments(variant)
@@ -515,7 +640,47 @@ def _add_ablation_parser(subparsers: Any) -> None:
                 variant,
                 allow_pipeline_inputs=name != "bare-agent",
                 allow_online_oracle=False,
+                allow_checker_bundle=name != "bare-agent",
             )
+
+
+def _configure_pipeline_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--config",
+        type=Path,
+        required=True,
+        metavar="YAML",
+        help="versioned pipeline configuration (paths resolve relative to this file)",
+    )
+    controls = parser.add_mutually_exclusive_group()
+    controls.add_argument(
+        "--show-plan",
+        action="store_true",
+        help="validate inputs and print the frozen content-hashed plan without writes",
+    )
+    controls.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume an identical pipeline and skip hash-valid completed lanes",
+    )
+
+
+def _add_pipeline_parser(subparsers: Any) -> None:
+    parser = subparsers.add_parser(
+        "pipeline",
+        help="run Parts I--III from one typed YAML configuration",
+        description=(
+            "Run the complete Part I -> Part II -> Part III experiment pipeline from "
+            "one typed YAML configuration. Each target/repetition pair is an "
+            "independent, content-addressed lane."
+        ),
+        epilog=(
+            "example: defuzz-experiment pipeline "
+            "--config configs/experiments/example.yaml --show-plan"
+        ),
+        formatter_class=_HelpFormatter,
+    )
+    _configure_pipeline_parser(parser)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -528,18 +693,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "examples:\n"
+            "  defuzz-experiment pipeline --config "
+            "configs/experiments/example.yaml --show-plan\n"
             "  defuzz-experiment invariant-generation --show-plan\n"
             "  defuzz-experiment checker-authoring --from-run RUN_DIR --show-plan\n"
             "  defuzz-experiment agent-audit --target-tree GCC_TREE --show-plan\n"
-            "  defuzz-experiment ablation without-oracle --repetitions 5 --show-plan"
+            "  defuzz-experiment ablation without-oracle --baseline-run FULL_RUN "
+            "--target-tree TARGET_TREE --reference-root REFERENCE_ROOT "
+            "--checker-bundle-manifest CHECKER_BUNDLE "
+            "--toolchains-config TOOLCHAINS --repetitions 5 --show-plan"
         ),
     )
     subparsers = parser.add_subparsers(
         dest="experiment",
         title="experiments",
-        description="three pipeline parts plus the fixed ablation suite",
+        description="complete pipeline, individual parts, and the fixed ablation suite",
         required=True,
     )
+    _add_pipeline_parser(subparsers)
     _add_invariant_generation_parser(subparsers)
     _add_checker_authoring_parser(subparsers)
     _add_agent_audit_parser(subparsers)
@@ -547,12 +718,75 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_pipeline_parser() -> argparse.ArgumentParser:
+    parser = _parser(
+        prog="defuzz-experiment pipeline",
+        description=(
+            "Run the complete Part I -> Part II -> Part III experiment pipeline from "
+            "one typed YAML configuration. Each target/repetition pair is an "
+            "independent, content-addressed lane."
+        ),
+        epilog=(
+            "example: defuzz-experiment pipeline "
+            "--config configs/experiments/example.yaml --show-plan"
+        ),
+    )
+    _configure_pipeline_parser(parser)
+    return parser
+
+
+def _pipeline_main(argv: Sequence[str]) -> int:
+    from defuzz_loop.experiment_engine.pipeline import (
+        build_pipeline_plan,
+        load_pipeline_config,
+        run_pipeline_sync,
+    )
+
+    parser = _build_pipeline_parser()
+    args = parser.parse_args(argv)
+    config_path = args.config.expanduser().resolve(strict=False)
+    try:
+        config = load_pipeline_config(config_path)
+        if args.show_plan:
+            plan = build_pipeline_plan(config, config_path=config_path)
+            print(json.dumps(plan, indent=2, sort_keys=True))
+            return 0
+        result = run_pipeline_sync(config, resume=bool(args.resume), config_path=config_path)
+        label = "completed" if result.result_valid else "failed"
+        print(f"{label}: {result.manifest_path}")
+        return 0 if result.result_valid else EXIT_RUNTIME_FAILURE
+    except (TypeError, ValueError) as exc:
+        print(f"defuzz-experiment: configuration error: {exc}", file=sys.stderr)
+        return EXIT_CONFIGURATION_ERROR
+    except (OSError, RuntimeError) as exc:
+        print(f"defuzz-experiment: runtime failure: {exc}", file=sys.stderr)
+        return EXIT_RUNTIME_FAILURE
+
+
 def _resolved_path(path: Path) -> str:
     return str(path.expanduser().resolve(strict=False))
 
 
+def _resolve_agent_binary(binary: str) -> tuple[str | None, bool]:
+    """Resolve a PATH name or validate an explicitly addressed executable."""
+
+    has_path_separator = os.sep in binary or (os.altsep is not None and os.altsep in binary)
+    candidate = Path(binary).expanduser()
+    if candidate.is_absolute() or has_path_separator:
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (OSError, RuntimeError):
+            return None, False
+        return str(resolved), resolved.is_file() and os.access(resolved, os.X_OK)
+
+    located = shutil.which(binary)
+    if located is None:
+        return None, False
+    return str(Path(located).expanduser().resolve(strict=False)), True
+
+
 def _binary_available(binary: str) -> bool:
-    return shutil.which(binary) is not None
+    return _resolve_agent_binary(binary)[1]
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -563,9 +797,7 @@ def _is_within(path: Path, parent: Path) -> bool:
     return True
 
 
-def _tree_metadata_manifest(
-    root: Path, *, exclude: Path | None = None
-) -> dict[str, Any]:
+def _tree_metadata_manifest(root: Path, *, exclude: Path | None = None) -> dict[str, Any]:
     """Metadata manifest for untracked trees.
 
     It fingerprints every relative path, size, and nanosecond mtime. Formal
@@ -588,9 +820,7 @@ def _tree_metadata_manifest(
                 continue
             relative = path.relative_to(root).as_posix()
             stat_result = path.lstat()
-            record = (
-                f"{relative}\0{stat_result.st_size}\0{stat_result.st_mtime_ns}\n"
-            )
+            record = f"{relative}\0{stat_result.st_size}\0{stat_result.st_mtime_ns}\n"
             digest.update(record.encode("utf-8", errors="surrogateescape"))
             files += 1
             total_bytes += stat_result.st_size
@@ -729,21 +959,21 @@ def _input_snapshot(plan: ExperimentPlan) -> dict[str, Any]:
                 for repetition in range(1, plan.repetitions + 1)
             ],
         }
+    checker_manifest = plan.parameters.get("checker_bundle_manifest")
+    if checker_manifest:
+        snapshot["checker_bundle_manifest"] = _snapshot_path(checker_manifest)
+    toolchains_config = plan.parameters.get("toolchains_config")
+    if toolchains_config:
+        snapshot["toolchains_config"] = _snapshot_path(toolchains_config)
 
     roots: dict[str, dict[str, Any]] = {}
     if stage == "invariant-generation" and plan.parameters.get("corpus_root"):
-        roots["corpus_root"] = _snapshot_path(
-            plan.parameters["corpus_root"], exclude=output_root
-        )
+        roots["corpus_root"] = _snapshot_path(plan.parameters["corpus_root"], exclude=output_root)
     elif plan.source_root is not None:
-        roots["source_root"] = _snapshot_path(
-            plan.source_root, exclude=output_root
-        )
+        roots["source_root"] = _snapshot_path(plan.source_root, exclude=output_root)
     reference_root = plan.parameters.get("reference_root")
     if reference_root:
-        roots["reference_root"] = _snapshot_path(
-            reference_root, exclude=output_root
-        )
+        roots["reference_root"] = _snapshot_path(reference_root, exclude=output_root)
     if roots:
         snapshot["roots"] = roots
 
@@ -755,6 +985,21 @@ def _input_snapshot(plan: ExperimentPlan) -> dict[str, Any]:
             "plan": _snapshot_path(root / "plan.json"),
             "manifest": _snapshot_path(root / "manifest.json"),
         }
+        if stage == "agent-audit" and plan.variant == "bare-agent":
+            frozen_verifiers = []
+            for repetition in range(1, plan.repetitions + 1):
+                resolved = _checker_bundle_inputs(plan, repetition)
+                if resolved is None:
+                    continue
+                manifest, toolchains = resolved
+                frozen_verifiers.append(
+                    {
+                        "repetition": repetition,
+                        "checker_bundle_manifest": _snapshot_path(manifest),
+                        "toolchains_config": _snapshot_path(toolchains),
+                    }
+                )
+            snapshot["baseline_verifiers"] = frozen_verifiers
     return snapshot
 
 
@@ -774,6 +1019,7 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
     output_root = Path(values["output_root"]).expanduser().resolve(strict=False)
     repetitions = int(values["repetitions"])
     binary = str(values.get("agent_binary") or values["backend"])
+    binary_resolved, binary_available = _resolve_agent_binary(binary)
 
     common_keys = {
         "experiment",
@@ -792,8 +1038,7 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
         key: (
             value.as_posix()
             if key == "checker_root" and isinstance(value, Path)
-            else
-            [_resolved_path(item) for item in value]
+            else [_resolved_path(item) for item in value]
             if isinstance(value, list) and value and all(isinstance(item, Path) for item in value)
             else _resolved_path(value)
             if isinstance(value, Path)
@@ -803,9 +1048,12 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
         if key not in common_keys and value is not None
     }
     parameters["agent_binary"] = binary
-    if variant == "bare-agent" and (
-        parameters.get("inputs") or parameters.get("from_run")
-    ):
+    parameters["backend"] = str(values["backend"])
+    # Standalone stage commands are production experiment entry points. Keep
+    # their host-read boundary fail closed; fixture semantics belong to the
+    # explicitly configured pipeline command.
+    parameters["require_host_read_isolation"] = True
+    if variant == "bare-agent" and (parameters.get("inputs") or parameters.get("from_run")):
         raise ValueError("bare-agent does not accept --inputs or --from-run")
     if experiment == "ablation" and variant == "without-rag":
         parameters["generation_path"] = "segmented-cot"
@@ -815,7 +1063,13 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
     plan: dict[str, Any] = {
         "schema_version": 1,
         "status": "ready",
-        "backend_available": _binary_available(binary),
+        # Retain the original scalar for consumers of the pre-resolution plan.
+        "backend_available": binary_available,
+        "backend": {
+            "binary": binary,
+            "resolved_path": binary_resolved,
+            "available": binary_available,
+        },
         "experiment": experiment,
         "variant": variant,
         "run": {
@@ -847,9 +1101,7 @@ def _stage_selection(plan: ExperimentPlan) -> tuple[str, str, _StageRunner]:
     return "III", "agent-audit", agent_audit.run
 
 
-def _from_run_artifact(
-    run_dir: str | os.PathLike[str], repetition: int, filename: str
-) -> Path:
+def _from_run_artifact(run_dir: str | os.PathLike[str], repetition: int, filename: str) -> Path:
     root = Path(run_dir).expanduser().resolve(strict=False)
     candidates = (
         root / f"rep-{repetition:03d}" / "artifacts" / filename,
@@ -884,7 +1136,7 @@ def _expected_upstream(stage: str) -> tuple[str, str]:
     if stage == "checker-authoring":
         return "invariant-generation", "accepted-invariants.jsonl"
     if stage == "agent-audit":
-        return "checker-authoring", "results.jsonl"
+        return "checker-authoring", _CHECKER_BUNDLE_MANIFEST
     raise ValueError(f"stage {stage!r} does not consume --from-run")
 
 
@@ -895,9 +1147,7 @@ def _validate_from_run(plan: ExperimentPlan, stage: str) -> None:
     root = Path(str(value)).expanduser().resolve(strict=False)
     root_manifest = _read_json_object(root / "manifest.json", "upstream manifest")
     if root_manifest.get("status") != "completed":
-        raise ValueError(
-            f"upstream run is not completed: {root_manifest.get('status')!r}"
-        )
+        raise ValueError(f"upstream run is not completed: {root_manifest.get('status')!r}")
 
     expected_stage, filename = _expected_upstream(stage)
     for repetition in range(1, plan.repetitions + 1):
@@ -907,8 +1157,7 @@ def _validate_from_run(plan: ExperimentPlan, stage: str) -> None:
         )
         if manifest.get("status") != "completed":
             raise ValueError(
-                f"upstream repetition {repetition} is not completed: "
-                f"{manifest.get('status')!r}"
+                f"upstream repetition {repetition} is not completed: {manifest.get('status')!r}"
             )
         if manifest.get("stage") != expected_stage:
             raise ValueError(
@@ -917,9 +1166,7 @@ def _validate_from_run(plan: ExperimentPlan, stage: str) -> None:
             )
         result_name = manifest.get("stage_result")
         if not isinstance(result_name, str) or not result_name:
-            raise ValueError(
-                f"upstream repetition {repetition} has no stage_result"
-            )
+            raise ValueError(f"upstream repetition {repetition} has no stage_result")
         result_path = (rep_dir / result_name).resolve(strict=False)
         try:
             result_path.relative_to(rep_dir.resolve())
@@ -929,9 +1176,7 @@ def _validate_from_run(plan: ExperimentPlan, stage: str) -> None:
             ) from exc
         try:
             result = StageResult.model_validate(
-                _read_json_object(
-                    result_path, f"upstream repetition {repetition} stage result"
-                )
+                _read_json_object(result_path, f"upstream repetition {repetition} stage result")
             )
         except (TypeError, ValueError) as exc:
             raise ValueError(
@@ -952,11 +1197,143 @@ def _validate_from_run(plan: ExperimentPlan, stage: str) -> None:
         artifact_ref = next(
             (ref for ref in result.artifacts if Path(ref.path).name == filename), None
         )
-        if artifact_ref is not None and artifact_ref.sha256 != actual_hash:
+        if artifact_ref is None:
+            raise ValueError(
+                f"upstream repetition {repetition} stage result does not declare "
+                f"required artifact {filename!r}"
+            )
+        if artifact_ref.sha256 != actual_hash:
             raise ValueError(
                 f"upstream artifact hash mismatch for {artifact}: "
                 f"expected {artifact_ref.sha256}, got {actual_hash}"
             )
+        if artifact_ref.size_bytes != artifact.stat().st_size:
+            raise ValueError(
+                f"upstream artifact size mismatch for {artifact}: "
+                f"expected {artifact_ref.size_bytes}, got {artifact.stat().st_size}"
+            )
+
+
+def _baseline_plan(plan: ExperimentPlan) -> ExperimentPlan:
+    root = Path(str(plan.parameters["baseline_run"])).expanduser().resolve(strict=False)
+    try:
+        return ExperimentPlan.from_mapping(_read_json_object(root / "plan.json", "baseline plan"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"baseline plan is invalid: {exc}") from exc
+
+
+def _root_snapshot(plan: ExperimentPlan, key: str) -> Mapping[str, Any] | None:
+    raw_snapshot = plan.parameters.get("input_snapshot")
+    if raw_snapshot is None:
+        return None
+    if not isinstance(raw_snapshot, Mapping):
+        raise ValueError("baseline input_snapshot must be an object")
+    raw_roots = raw_snapshot.get("roots")
+    if raw_roots is None:
+        return None
+    if not isinstance(raw_roots, Mapping):
+        raise ValueError("baseline input_snapshot.roots must be an object")
+    value = raw_roots.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError(f"baseline input_snapshot root {key!r} must be an object")
+    return value
+
+
+def _snapshot_content_identity(value: Any) -> Any:
+    """Discard location-only fields while retaining the frozen content identity."""
+
+    if isinstance(value, Mapping):
+        return {
+            key: _snapshot_content_identity(item)
+            for key, item in sorted(value.items())
+            if key not in {"path", "repository", "warning"}
+        }
+    if isinstance(value, list):
+        return [_snapshot_content_identity(item) for item in value]
+    return value
+
+
+def _add_root_fairness_comparison(
+    comparisons: dict[str, tuple[Any, Any]],
+    *,
+    label: str,
+    key: str,
+    current_plan: ExperimentPlan,
+    baseline_plan: ExperimentPlan,
+    current_path: Any,
+    baseline_path: Any,
+) -> None:
+    frozen_snapshot = _root_snapshot(baseline_plan, key)
+    if frozen_snapshot is not None:
+        current_snapshot = _root_snapshot(current_plan, key)
+        comparisons[f"{label} content"] = (
+            _snapshot_content_identity(current_snapshot),
+            _snapshot_content_identity(frozen_snapshot),
+        )
+        return
+
+    # Compatibility for runs produced before root snapshots were persisted.
+    comparisons[label] = (
+        str(Path(current_path).expanduser().resolve(strict=False))
+        if current_path is not None
+        else None,
+        str(Path(baseline_path).expanduser().resolve(strict=False))
+        if baseline_path is not None
+        else None,
+    )
+
+
+def _checker_bundle_inputs(
+    plan: ExperimentPlan, repetition: int, *, derive_baseline: bool = True
+) -> tuple[Path, Path] | None:
+    parameters = plan.parameters
+    explicit = parameters.get("checker_bundle_manifest")
+    from_run = parameters.get("from_run")
+    if explicit and from_run:
+        raise ValueError("--checker-bundle-manifest and --from-run are mutually exclusive")
+    if explicit:
+        manifest = Path(str(explicit)).expanduser().resolve(strict=False)
+    elif from_run:
+        manifest = _from_run_artifact(str(from_run), repetition, _CHECKER_BUNDLE_MANIFEST)
+    elif plan.variant == "bare-agent" and derive_baseline:
+        return _checker_bundle_inputs(_baseline_plan(plan), repetition, derive_baseline=False)
+    else:
+        return None
+
+    raw_toolchains = parameters.get("toolchains_config")
+    if not raw_toolchains:
+        raise ValueError("checker-bundle execution requires --toolchains-config")
+    toolchains = Path(str(raw_toolchains)).expanduser().resolve(strict=False)
+    return manifest, toolchains
+
+
+def _validated_checker_bundle_inputs(
+    plan: ExperimentPlan, repetition: int
+) -> tuple[Path, Path, str, str] | None:
+    resolved = _checker_bundle_inputs(plan, repetition)
+    if resolved is None:
+        return None
+    manifest, toolchains = resolved
+    from defuzz_loop.checker_bundle import load_checker_bundle
+
+    bundle = load_checker_bundle(manifest, require_ready=True)
+    if not toolchains.is_file():
+        raise ValueError(f"toolchains config is not an existing file: {toolchains}")
+    manifest_hash = _sha256_file(bundle.manifest_path)
+    configured_hash = plan.parameters.get("checker_bundle_sha256")
+    if configured_hash and configured_hash != manifest_hash:
+        raise ValueError(
+            "checker bundle manifest SHA-256 mismatch: "
+            f"expected {configured_hash}, got {manifest_hash}"
+        )
+    return (
+        bundle.manifest_path,
+        toolchains.resolve(strict=True),
+        manifest_hash,
+        _sha256_file(toolchains),
+    )
 
 
 def _validate_baseline_run(plan: ExperimentPlan, stage: str) -> None:
@@ -967,12 +1344,7 @@ def _validate_baseline_run(plan: ExperimentPlan, stage: str) -> None:
     manifest = _read_json_object(root / "manifest.json", "baseline manifest")
     if manifest.get("status") != "completed":
         raise ValueError(f"baseline run is not completed: {manifest.get('status')!r}")
-    try:
-        baseline = ExperimentPlan.from_mapping(
-            _read_json_object(root / "plan.json", "baseline plan")
-        )
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"baseline plan is invalid: {exc}") from exc
+    baseline = _baseline_plan(plan)
     if baseline.variant != "full":
         raise ValueError("--baseline-run must refer to a full-arm run")
 
@@ -986,9 +1358,7 @@ def _validate_baseline_run(plan: ExperimentPlan, stage: str) -> None:
         )
 
     current_source = (
-        plan.parameters.get("corpus_root")
-        if stage == "invariant-generation"
-        else plan.source_root
+        plan.parameters.get("corpus_root") if stage == "invariant-generation" else plan.source_root
     )
     baseline_source = (
         baseline.parameters.get("corpus_root")
@@ -1006,29 +1376,67 @@ def _validate_baseline_run(plan: ExperimentPlan, stage: str) -> None:
             plan.budget.time_budget_minutes,
             baseline.budget.time_budget_minutes,
         ),
-        "source": (
-            str(Path(current_source).expanduser().resolve(strict=False))
-            if current_source is not None
-            else None,
-            str(Path(baseline_source).expanduser().resolve(strict=False))
-            if baseline_source is not None
-            else None,
-        ),
         "repetitions": (plan.repetitions, baseline.repetitions),
     }
+    source_key = "corpus_root" if stage == "invariant-generation" else "source_root"
+    _add_root_fairness_comparison(
+        comparisons,
+        label="source",
+        key=source_key,
+        current_plan=plan,
+        baseline_plan=baseline,
+        current_path=current_source,
+        baseline_path=baseline_source,
+    )
+    _add_root_fairness_comparison(
+        comparisons,
+        label="reference root",
+        key="reference_root",
+        current_plan=plan,
+        baseline_plan=baseline,
+        current_path=plan.parameters.get("reference_root"),
+        baseline_path=baseline.parameters.get("reference_root"),
+    )
     if stage == "agent-audit":
-        for name in (
-            "compiler",
-            "mechanism",
-            "isa",
-            "max_concurrency",
-            "toolchain_versions",
-            "reference_root",
-            "verification_command",
-        ):
+        for name in ("compiler", "max_concurrency", "toolchain_versions"):
             comparisons[name.replace("_", " ")] = (
                 plan.parameters.get(name),
                 baseline.parameters.get(name),
+            )
+        for plural, singular in (("mechanisms", "mechanism"), ("isas", "isa")):
+            current_scope = plan.parameters.get(
+                plural, plan.parameters.get(singular, [])
+            )
+            baseline_scope = baseline.parameters.get(
+                plural, baseline.parameters.get(singular, [])
+            )
+            normalize = normalize_mechanism if plural == "mechanisms" else normalize_isa
+            comparisons[plural] = (
+                sorted(normalize(str(item)) for item in _as_list(current_scope)),
+                sorted(normalize(str(item)) for item in _as_list(baseline_scope)),
+            )
+        if plan.variant in {"without-oracle", "bare-agent"}:
+            # Both ablations retain the full arm's frozen post-run verifier.
+            # The bare worker never receives these paths or checker material.
+            current_bundles = [
+                _validated_checker_bundle_inputs(plan, repetition)
+                for repetition in range(1, plan.repetitions + 1)
+            ]
+            baseline_bundles = [
+                _validated_checker_bundle_inputs(baseline, repetition)
+                for repetition in range(1, baseline.repetitions + 1)
+            ]
+            if not all(current_bundles) or not all(baseline_bundles):
+                raise ValueError(
+                    f"{plan.variant} baseline must freeze a checker bundle and toolchains config"
+                )
+            comparisons["checker bundle manifest hashes"] = (
+                [cast(tuple[Path, Path, str, str], item)[2] for item in current_bundles],
+                [cast(tuple[Path, Path, str, str], item)[2] for item in baseline_bundles],
+            )
+            comparisons["toolchains config hashes"] = (
+                [cast(tuple[Path, Path, str, str], item)[3] for item in current_bundles],
+                [cast(tuple[Path, Path, str, str], item)[3] for item in baseline_bundles],
             )
     mismatches = [
         f"{name}: requested={current!r}, baseline={frozen!r}"
@@ -1036,14 +1444,10 @@ def _validate_baseline_run(plan: ExperimentPlan, stage: str) -> None:
         if current != frozen
     ]
     if mismatches:
-        raise ValueError(
-            "ablation does not match its full-arm baseline: " + "; ".join(mismatches)
-        )
+        raise ValueError("ablation does not match its full-arm baseline: " + "; ".join(mismatches))
 
 
-def _plan_for_repetition(
-    plan: ExperimentPlan, repetition: int, stage: str
-) -> ExperimentPlan:
+def _plan_for_repetition(plan: ExperimentPlan, repetition: int, stage: str) -> ExperimentPlan:
     parameters = dict(plan.parameters)
     from_run = parameters.get("from_run")
     inputs = parameters.get("inputs")
@@ -1055,13 +1459,44 @@ def _plan_for_repetition(
         elif inputs:
             parameters["accepted_invariants"] = inputs
     elif stage == "agent-audit":
-        if from_run:
-            parameters["checker_artifacts"] = [
-                str(_from_run_artifact(from_run, repetition, "results.jsonl"))
-            ]
+        checker_bundle = _validated_checker_bundle_inputs(plan, repetition)
+        if checker_bundle is not None:
+            manifest, toolchains, manifest_hash, toolchains_hash = checker_bundle
+            parameters.update(
+                {
+                    "checker_bundle_manifest": str(manifest),
+                    "checker_bundle_sha256": manifest_hash,
+                    "toolchains_config": str(toolchains),
+                    "toolchains_config_sha256": toolchains_hash,
+                    "require_verified_candidates": True,
+                }
+            )
+            # Bare workers remain blind to the bundle. agent_audit only uses it
+            # after structural admission for the common offline verify policy.
+            parameters.pop("checker_artifacts", None)
         elif inputs:
             parameters["checker_artifacts"] = inputs
     return plan.model_copy(update={"parameters": parameters})
+
+
+def _assert_frozen_bundle_inputs(plan: ExperimentPlan) -> None:
+    manifest = plan.parameters.get("checker_bundle_manifest")
+    expected_manifest = plan.parameters.get("checker_bundle_sha256")
+    toolchains = plan.parameters.get("toolchains_config")
+    expected_toolchains = plan.parameters.get("toolchains_config_sha256")
+    pairs = (
+        (manifest, expected_manifest, "checker bundle manifest"),
+        (toolchains, expected_toolchains, "toolchains config"),
+    )
+    for raw_path, expected, label in pairs:
+        if raw_path is None:
+            continue
+        path = Path(str(raw_path)).expanduser().resolve(strict=False)
+        if not path.is_file():
+            raise ValueError(f"frozen {label} does not exist: {path}")
+        actual = _sha256_file(path)
+        if not expected or actual != expected:
+            raise ValueError(f"frozen {label} SHA-256 mismatch: expected {expected}, got {actual}")
 
 
 def _require_directory(value: Any, label: str) -> Path:
@@ -1122,12 +1557,30 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
         threshold = plan.parameters.get("parity_threshold")
         if threshold is not None and not 0.0 <= float(threshold) <= 1.0:
             raise ValueError("parity threshold must be between 0 and 1")
-        if plan.variant == "full" and not plan.parameters.get(
+        if plan.parameters.get("toolchains_config") and not (
+            plan.parameters.get("checker_bundle_manifest") or plan.parameters.get("from_run")
+        ):
+            raise ValueError("--toolchains-config requires --checker-bundle-manifest or --from-run")
+        bundle_inputs = [
+            _validated_checker_bundle_inputs(plan, repetition)
+            for repetition in range(1, plan.repetitions + 1)
+        ]
+        if plan.variant in {"without-oracle", "bare-agent"} and plan.parameters.get(
             "online_oracle_command"
         ):
+            raise ValueError(f"{plan.variant} forbids online oracle commands")
+        if (
+            plan.variant == "full"
+            and not all(bundle_inputs)
+            and not plan.parameters.get("online_oracle_command")
+        ):
             raise ValueError(
-                "full agent-audit requires --online-oracle-command; "
-                "use the without-oracle ablation to disable online feedback"
+                "full agent-audit requires --checker-bundle-manifest/--from-run "
+                "or the legacy --online-oracle-command"
+            )
+        if plan.variant in {"without-oracle", "bare-agent"} and not all(bundle_inputs):
+            raise ValueError(
+                f"{plan.variant} requires a frozen checker bundle for offline verification"
             )
 
     _validate_from_run(plan, stage)
@@ -1155,16 +1608,39 @@ def _completed_repetition(store: RunStore, repetition: int, stage: str) -> bool:
         _read_json_object(result_path, f"completed repetition {repetition} stage result")
     )
     if result.stage != stage or not result.success:
-        raise ValueError(
-            f"completed repetition {repetition} has an inconsistent stage result"
-        )
+        raise ValueError(f"completed repetition {repetition} has an inconsistent stage result")
     return True
 
 
-async def _execute(plan: ExperimentPlan, *, resume: bool = False) -> int:
+def _standalone_backend(plan: ExperimentPlan) -> ExecAgentBackend:
+    """Build and capability-check the backend before entering asyncio."""
+
+    backend = ExecAgentBackend(
+        binary=str(plan.parameters.get("agent_binary", "traex")),
+        model=cast(str | None, plan.parameters.get("model")),
+        provider=cast(
+            Literal["traex", "codex"],
+            plan.parameters.get("backend", "traex"),
+        ),
+    )
+    if plan.parameters.get("require_host_read_isolation") and not bool(
+        getattr(backend, "supports_host_read_isolation", False)
+    ):
+        raise ValueError(
+            "standalone experiments require host read isolation; run on macOS "
+            "with sandbox-exec or inside an equivalent container"
+        )
+    return backend
+
+
+async def _execute(
+    plan: ExperimentPlan,
+    *,
+    backend_impl: ExecAgentBackend,
+    resume: bool = False,
+) -> int:
     if plan.output_root is None:
         raise ValueError("output_root is required")
-    _validate_execution_inputs(plan)
     run_root = plan.output_root / plan.run_id
     if resume:
         if not run_root.is_dir() or not all(
@@ -1172,9 +1648,7 @@ async def _execute(plan: ExperimentPlan, *, resume: bool = False) -> int:
         ):
             raise ValueError(f"cannot resume missing or incomplete run: {run_root}")
     elif run_root.exists():
-        raise ValueError(
-            f"run already exists: {run_root}; pass --resume to continue it"
-        )
+        raise ValueError(f"run already exists: {run_root}; pass --resume to continue it")
     store = RunStore(run_root, plan)
     part, stage_name, runner = _stage_selection(plan)
     successes: list[int] = []
@@ -1200,17 +1674,18 @@ async def _execute(plan: ExperimentPlan, *, resume: bool = False) -> int:
             token_budget=plan.budget.token_budget,
         )
         backend = _TokenSinkBackend(
-            ExecAgentBackend(
-                binary=str(plan.parameters.get("agent_binary", "traex")),
-                model=cast(str | None, plan.parameters.get("model")),
-            ),
+            backend_impl,
             sink,
         )
         stage_plan = _plan_for_repetition(plan, repetition, stage_name)
         try:
+            if stage_name == "agent-audit":
+                _assert_frozen_bundle_inputs(stage_plan)
             with use_token_usage(sink):
                 async with asyncio.timeout(plan.budget.timeout_seconds):
                     result = await runner(stage_plan, repetition, output_dir, backend)
+            if stage_name == "agent-audit":
+                _assert_frozen_bundle_inputs(stage_plan)
         except TimeoutError:
             result = StageResult(
                 stage=stage_name,
@@ -1227,15 +1702,10 @@ async def _execute(plan: ExperimentPlan, *, resume: bool = False) -> int:
         result_path = store.write_stage_result(repetition, result)
         summary_json_path = rep_dir / "token_usage_summary.json"
         summary_csv_path = rep_dir / "token_usage_summary.csv"
-        summary_rows = sink.finalize(
-            json_path=summary_json_path, csv_path=summary_csv_path
-        )
+        summary_rows = sink.finalize(json_path=summary_json_path, csv_path=summary_csv_path)
         usage_missing = sum(int(row["usage_missing_count"]) for row in summary_rows)
         consumed_tokens = sink.consumed_total_tokens
-        budget_overshot = (
-            consumed_tokens is not None
-            and consumed_tokens > plan.budget.token_budget
-        )
+        budget_overshot = consumed_tokens is not None and consumed_tokens > plan.budget.token_budget
         token_comparable = bool(summary_rows) and usage_missing == 0 and not budget_overshot
         if result.success and not token_comparable:
             reasons = []
@@ -1245,8 +1715,7 @@ async def _execute(plan: ExperimentPlan, *, resume: bool = False) -> int:
                 reasons.append(f"{usage_missing} calls have missing provider usage")
             if budget_overshot:
                 reasons.append(
-                    f"provider total {consumed_tokens} exceeded budget "
-                    f"{plan.budget.token_budget}"
+                    f"provider total {consumed_tokens} exceeded budget {plan.budget.token_budget}"
                 )
             result = result.model_copy(
                 update={
@@ -1296,18 +1765,23 @@ async def _execute(plan: ExperimentPlan, *, resume: bool = False) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse ``argv``, show a pure plan, or execute every repetition."""
 
+    selected_argv = list(sys.argv[1:] if argv is None else argv)
+    if selected_argv[:1] == ["pipeline"]:
+        return _pipeline_main(selected_argv[1:])
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(selected_argv)
     try:
         mapping = _resolved_plan(args)
         plan = _with_input_snapshot(ExperimentPlan.from_mapping(mapping))
         if args.show_plan:
-            mapping["parameters"]["input_snapshot"] = plan.parameters[
-                "input_snapshot"
-            ]
+            _, stage, _ = _stage_selection(plan)
+            _validate_baseline_run(plan, stage)
+            mapping["parameters"]["input_snapshot"] = plan.parameters["input_snapshot"]
             print(json.dumps(mapping, indent=2, sort_keys=True))
             return 0
-        return asyncio.run(_execute(plan, resume=bool(args.resume)))
+        _validate_execution_inputs(plan)
+        backend = _standalone_backend(plan)
+        return asyncio.run(_execute(plan, backend_impl=backend, resume=bool(args.resume)))
     except (TypeError, ValueError) as exc:
         print(f"defuzz-experiment: configuration error: {exc}", file=sys.stderr)
         return EXIT_CONFIGURATION_ERROR

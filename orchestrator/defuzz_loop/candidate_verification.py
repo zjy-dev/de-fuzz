@@ -14,10 +14,10 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,7 +28,9 @@ ADMISSION_SCOPE = "structural-completeness-only"
 CANDIDATE_FINGERPRINT_PLACEHOLDER = "{candidate_fingerprint}"
 CANDIDATE_JSON_PLACEHOLDER = "{candidate_json}"
 
-VerificationStatus = Literal["verified", "unverified", "invalid"]
+VerificationStatus = Literal["verified", "unverified", "invalid", "rejected"]
+VerificationProtocol = Literal["fingerprint", "dispatcher-verify"]
+_DISPATCHER_VERDICTS = frozenset(("PASS", "FAIL", "NOT_APPLICABLE", "ERROR"))
 _CITATION = re.compile(
     r"^(?P<path>.+):(?P<start>[1-9]\d*)(?:(?:-|:)(?P<end>[1-9]\d*))?$"
 )
@@ -65,6 +67,7 @@ class VerificationCommand:
     cwd: str = "."
     timeout_seconds: float | None = 300.0
     source_root_index: int = 0
+    protocol: VerificationProtocol = "fingerprint"
 
     def __post_init__(self) -> None:
         if not self.argv or any(not item or "\x00" in item for item in self.argv):
@@ -77,6 +80,8 @@ class VerificationCommand:
             raise ValueError("verification timeout must be positive")
         if self.source_root_index < 0:
             raise ValueError("verification source_root_index cannot be negative")
+        if self.protocol not in {"fingerprint", "dispatcher-verify"}:
+            raise ValueError("unknown verification command protocol")
         _validate_relative_path(self.cwd, description="verification cwd")
 
 
@@ -94,6 +99,9 @@ class VerificationExecutionRecord(BaseModel):
     timed_out: bool = False
     expected_candidate_fingerprint: str = ""
     echoed_candidate_fingerprint: str | None = None
+    verdict: str | None = None
+    execution_completed: bool
+    result_valid: bool
     passed: bool
 
 
@@ -103,12 +111,14 @@ class CandidateVerificationResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     status: VerificationStatus
+    candidate_fingerprint: str
     admission_scope: str = ADMISSION_SCOPE
     completeness: AdmissionResult
     evidence_checks: list[EvidenceCheck] = Field(default_factory=list)
     execution_records: list[VerificationExecutionRecord] = Field(default_factory=list)
     artifact_hashes: dict[str, str] = Field(default_factory=dict)
     issues: list[str] = Field(default_factory=list)
+    original_poc_verified_claim: bool
 
     @property
     def confirmed(self) -> bool:
@@ -437,11 +447,15 @@ def _coerce_command(value: Any) -> VerificationCommand:
         raw_argv = _value(value, "argv", _value(value, "command"))
         if isinstance(raw_argv, str) or raw_argv is None:
             raise TypeError("verification command argv must be an argument sequence")
+        raw_protocol = str(_value(value, "protocol", "fingerprint"))
+        if raw_protocol not in {"fingerprint", "dispatcher-verify"}:
+            raise ValueError("unknown verification command protocol")
         return VerificationCommand(
             tuple(str(item) for item in raw_argv),
             cwd=str(_value(value, "cwd", ".")),
             timeout_seconds=_value(value, "timeout_seconds", 300.0),
             source_root_index=int(_value(value, "source_root_index", 0)),
+            protocol=cast(VerificationProtocol, raw_protocol),
         )
     return VerificationCommand(tuple(str(item) for item in value))
 
@@ -497,6 +511,11 @@ def _echoed_fingerprint(raw: Any, stdout: str) -> str | None:
     if not isinstance(payload, Mapping):
         return None
     echoed = payload.get("echoed_candidate_fingerprint")
+    if echoed is None:
+        # The checker-bundle dispatcher uses the same candidate fingerprint key
+        # in online and verify mode.  Manual verification adapters may continue
+        # to use the legacy echoed_candidate_fingerprint spelling.
+        echoed = payload.get("candidate_fingerprint")
     return echoed if isinstance(echoed, str) else None
 
 
@@ -518,6 +537,42 @@ def _normalize_execution_result(
         stderr = str(_value(raw, "stderr", _value(raw, "error", "")) or "")
         timed_out = bool(_value(raw, "timed_out", False))
     echoed_fingerprint = _echoed_fingerprint(raw, stdout)
+    verdict: str | None = None
+    try:
+        payload = json.loads(stdout)
+    except (json.JSONDecodeError, TypeError):
+        payload = None
+    if isinstance(payload, Mapping) and isinstance(payload.get("verdict"), str):
+        verdict = payload["verdict"]
+    execution_completed = not timed_out
+    if command.protocol == "dispatcher-verify":
+        computed_fingerprint = (
+            payload.get("candidate_fingerprint")
+            if isinstance(payload, Mapping)
+            else None
+        )
+        expected_exit_code = {
+            "FAIL": 0,
+            "PASS": 1,
+            "NOT_APPLICABLE": 1,
+            "ERROR": 2,
+        }.get(verdict or "")
+        protocol_valid = (
+            execution_completed
+            and verdict in _DISPATCHER_VERDICTS
+            and exit_code == expected_exit_code
+            and computed_fingerprint == expected_fingerprint
+            and echoed_fingerprint == expected_fingerprint
+        )
+        result_valid = protocol_valid and verdict != "ERROR"
+        passed = protocol_valid and verdict == "FAIL"
+    else:
+        result_valid = (
+            execution_completed
+            and exit_code == 0
+            and echoed_fingerprint == expected_fingerprint
+        )
+        passed = result_valid
     return VerificationExecutionRecord(
         argv=executed_argv,
         cwd=command.cwd,
@@ -528,11 +583,10 @@ def _normalize_execution_result(
         timed_out=timed_out,
         expected_candidate_fingerprint=expected_fingerprint,
         echoed_candidate_fingerprint=echoed_fingerprint,
-        passed=(
-            exit_code == 0
-            and not timed_out
-            and echoed_fingerprint == expected_fingerprint
-        ),
+        verdict=verdict,
+        execution_completed=execution_completed,
+        result_valid=result_valid,
+        passed=passed,
     )
 
 
@@ -551,6 +605,8 @@ async def verify_candidate(
     source_roots: Sequence[str | os.PathLike[str]] | str | os.PathLike[str],
     executor: VerificationExecutor | None = None,
     commands: Sequence[VerificationCommand | Sequence[str] | Mapping[str, Any]] = (),
+    allowed_checker_ids: Collection[str] | None = None,
+    require_checker_ids: bool = False,
 ) -> CandidateVerificationResult:
     """Verify one candidate against trusted source roots and frozen commands.
 
@@ -566,6 +622,7 @@ async def verify_candidate(
     )
     roots = _normalize_roots(source_roots)
     completeness = evaluate_candidate(item)
+    fingerprint = candidate_fingerprint(item)
 
     evidence_checks: list[EvidenceCheck] = []
     artifact_hashes: dict[str, str] = {}
@@ -587,34 +644,65 @@ async def verify_candidate(
         )
         return CandidateVerificationResult(
             status="invalid",
+            candidate_fingerprint=fingerprint,
             completeness=completeness,
             evidence_checks=evidence_checks,
             artifact_hashes=artifact_hashes,
             issues=invalid_issues,
+            original_poc_verified_claim=item.poc_verified,
         )
 
+    if require_checker_ids and not item.checker_ids:
+        return CandidateVerificationResult(
+            status="invalid",
+            candidate_fingerprint=fingerprint,
+            completeness=completeness,
+            evidence_checks=evidence_checks,
+            artifact_hashes=artifact_hashes,
+            issues=["verification requires at least one checker_id"],
+            original_poc_verified_claim=item.poc_verified,
+        )
+
+    if allowed_checker_ids is not None:
+        unknown_checker_ids = sorted(set(item.checker_ids) - set(allowed_checker_ids))
+        if unknown_checker_ids:
+            return CandidateVerificationResult(
+                status="invalid",
+                candidate_fingerprint=fingerprint,
+                completeness=completeness,
+                evidence_checks=evidence_checks,
+                artifact_hashes=artifact_hashes,
+                issues=[
+                    "candidate requested checker_ids absent from trusted catalog: "
+                    f"{unknown_checker_ids}"
+                ],
+                original_poc_verified_claim=item.poc_verified,
+            )
     try:
         frozen_commands = tuple(_coerce_command(command) for command in commands)
     except (TypeError, ValueError) as exc:
         return CandidateVerificationResult(
             status="invalid",
+            candidate_fingerprint=fingerprint,
             completeness=completeness,
             evidence_checks=evidence_checks,
             artifact_hashes=artifact_hashes,
             issues=[f"invalid verification command configuration: {exc}"],
+            original_poc_verified_claim=item.poc_verified,
         )
     if not frozen_commands:
         return CandidateVerificationResult(
             status="unverified",
+            candidate_fingerprint=fingerprint,
             completeness=completeness,
             evidence_checks=evidence_checks,
             artifact_hashes=artifact_hashes,
             issues=["no orchestrator-supplied verification command was executed"],
+            original_poc_verified_claim=item.poc_verified,
         )
 
     runner = executor or SubprocessVerificationExecutor()
     records: list[VerificationExecutionRecord] = []
-    fingerprint = candidate_fingerprint(item)
     artifact_hashes["candidate.json"] = fingerprint
     with tempfile.TemporaryDirectory(prefix="defuzz-candidate-verification-") as temp_dir:
         candidate_json = Path(temp_dir) / "candidate.json"
@@ -644,30 +732,49 @@ async def verify_candidate(
                     exit_code=1,
                     stderr=f"executor raised {type(exc).__name__}: {exc}",
                     expected_candidate_fingerprint=fingerprint,
+                    verdict=None,
+                    execution_completed=False,
+                    result_valid=False,
                     passed=False,
                 )
             records.append(record)
             artifact_hashes[f"execution-record-{index:04d}.json"] = _record_hash(record)
 
+    execution_completed = all(record.execution_completed for record in records)
     all_commands_passed = all(record.passed for record in records)
-    verified = item.poc_verified and all_commands_passed
+    dispatcher_unverified = any(
+        command.protocol == "dispatcher-verify" and not record.result_valid
+        for command, record in zip(frozen_commands, records, strict=True)
+    )
+    rejected_by_checker = (
+        len(records) == 1
+        and records[0].execution_completed
+        and records[0].result_valid
+        and records[0].verdict in {"PASS", "NOT_APPLICABLE"}
+    )
     issues: list[str] = []
-    if not item.poc_verified:
-        issues.append("candidate.poc_verified is false; execution cannot promote it")
     issues.extend(
         f"verification command {index} timed out"
         for index, record in enumerate(records, 1)
         if record.timed_out
     )
+    if rejected_by_checker:
+        issues.append(
+            "deterministic verification did not reproduce the candidate: "
+            f"verdict {records[0].verdict}"
+        )
     issues.extend(
         f"verification command {index} failed with exit code {record.exit_code}"
         for index, record in enumerate(records, 1)
-        if not record.passed and not record.timed_out and record.exit_code != 0
+        if not record.result_valid
+        and not record.timed_out
+        and record.exit_code != 0
+        and record.verdict not in {"PASS", "NOT_APPLICABLE"}
     )
     issues.extend(
         f"verification command {index} did not echo the expected candidate fingerprint"
         for index, record in enumerate(records, 1)
-        if not record.passed
+        if not record.result_valid
         and not record.timed_out
         and record.exit_code == 0
         and record.echoed_candidate_fingerprint is None
@@ -675,18 +782,31 @@ async def verify_candidate(
     issues.extend(
         f"verification command {index} echoed the wrong candidate fingerprint"
         for index, record in enumerate(records, 1)
-        if not record.passed
+        if not record.result_valid
         and not record.timed_out
         and record.exit_code == 0
         and record.echoed_candidate_fingerprint is not None
     )
     return CandidateVerificationResult(
-        status="verified" if verified else "unverified",
+        # A command was executed, so this is a terminal deterministic outcome.
+        # The worker's poc_verified field remains recorded as an original claim
+        # but has no authority over the verdict.
+        status=(
+            "verified"
+            if all_commands_passed
+            else "rejected"
+            if rejected_by_checker
+            else "unverified"
+            if dispatcher_unverified or not execution_completed
+            else "invalid"
+        ),
+        candidate_fingerprint=fingerprint,
         completeness=completeness,
         evidence_checks=evidence_checks,
         execution_records=records,
         artifact_hashes=artifact_hashes,
         issues=issues,
+        original_poc_verified_claim=item.poc_verified,
     )
 
 

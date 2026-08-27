@@ -84,3 +84,17 @@ async def test_exact_anchors_injected_from_seed_not_judge() -> None:
     # ...but those anchors never enter the retrieval bag of terms.
     assert "INV-FORT-O02" not in sq.query_terms()
     assert "access_with_size_object_size" not in sq.query_terms()
+
+
+async def test_duplicate_seed_identity_is_used_only_for_judgment_keys() -> None:
+    seed = _SEED.model_copy(update={"identity": "DREV-2026-025::gcc::fortify"})
+    clean = QueryDistillation(
+        root_cause_phrase="a value is narrowed", agnostic_tokens=["narrow"]
+    )
+    judge = _StubJudge(clean)
+
+    query = await distill_query(judge, seed)
+
+    assert judge.calls == [("distill_query", seed.identity)]
+    assert query.seed_id == seed.seed_id
+    assert query.identity == seed.identity

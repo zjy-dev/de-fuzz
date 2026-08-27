@@ -10,6 +10,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 
+from langchain_core.runnables import RunnableConfig
+
 from .agents.feedback import FeedbackAgent
 from .agents.generator import GeneratorAgent
 from .agents.llm_oracle import LLMOracleAgent
@@ -133,7 +135,7 @@ async def _run(args: argparse.Namespace) -> None:
             app = graph.compile(checkpointer=saver)
             # Worst case: every target runs its full round budget; ~8 nodes/round.
             max_iters = max(1, len(target_queue)) * max(1, args.budget_rounds)
-            config = {
+            config: RunnableConfig = {
                 "configurable": {"thread_id": thread_id(args.experiment, args.mechanism)},
                 "recursion_limit": 8 * max_iters + 10,
             }

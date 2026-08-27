@@ -148,13 +148,14 @@ async def distill_query(judge: Judge, seed: Seed) -> SeedQuery:
     )
     out: QueryDistillation = await judge.complete(
         task=TASK_DISTILL,
-        key=seed.seed_id,
+        key=seed.identity or seed.seed_id,
         system=_SYSTEM_PROMPT,
         user=user,
         output_model=QueryDistillation,
     )
     return SeedQuery(
         seed_id=seed.seed_id,
+        identity=seed.identity or seed.seed_id,
         origin_mechanism=seed.origin_mechanism,
         origin_isas=list(seed.origin_isas),
         violated_invariant=seed.violated_invariant,
@@ -247,13 +248,14 @@ async def distill_signature_query(
     )
     out: SignatureDistillation = await judge.complete(
         task=TASK_DISTILL,
-        key=seed.seed_id,
+        key=seed.identity or seed.seed_id,
         system=_SIGNATURE_SYSTEM,
         user=user,
         output_model=SignatureDistillation,
     )
     return SeedQuery(
         seed_id=seed.seed_id,
+        identity=seed.identity or seed.seed_id,
         origin_mechanism=seed.origin_mechanism,
         origin_isas=list(seed.origin_isas),
         violated_invariant=seed.violated_invariant,

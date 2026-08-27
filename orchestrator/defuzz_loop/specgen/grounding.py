@@ -137,7 +137,7 @@ async def ground_candidate(judge: Judge, candidate: Candidate) -> GroundingResul
     try:
         verdict: EntailmentJudgment = await judge.complete(
             task=TASK_ENTAILMENT,
-            key=f"{candidate.seed_id}::{candidate.chunk_id}",
+            key=f"{candidate.seed_identity or candidate.seed_id}::{candidate.chunk_id}",
             system=entail_system,
             user=entail_user,
             output_model=EntailmentJudgment,

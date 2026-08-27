@@ -246,7 +246,7 @@ async def generate_candidates(
         try:
             judg: AnalogyJudgment = await judge.complete(
                 task=TASK_ANALOGY,
-                key=key(sq.seed_id, hit.chunk_id),
+                key=key(sq.identity or sq.seed_id, hit.chunk_id),
                 system=analogy_system,
                 user=analogy_user,
                 output_model=AnalogyJudgment,
@@ -296,7 +296,7 @@ async def generate_candidates(
         try:
             draft: CandidateDraft = await judge.complete(
                 task=TASK_SPECIALIZE,
-                key=key(sq.seed_id, hit.chunk_id),
+                key=key(sq.identity or sq.seed_id, hit.chunk_id),
                 system=spec_system,
                 user=spec_user,
                 output_model=CandidateDraft,
@@ -321,6 +321,7 @@ async def generate_candidates(
         candidates.append(
             Candidate(
                 seed_id=sq.seed_id,
+                seed_identity=sq.identity or sq.seed_id,
                 origin_mechanism=sq.origin_mechanism,
                 hit_mechanism=meta.mechanism,
                 statement=draft.statement.strip(),

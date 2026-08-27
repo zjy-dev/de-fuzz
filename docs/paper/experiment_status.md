@@ -1,7 +1,7 @@
 ---
 title: DeFuzz 论文实验结构与进度
 description: 按 DeFuzz 主流程组织的三个主实验 Part 与独立消融实验
-last_updated: 2026-08-26
+last_updated: 2026-08-27
 status: DRAFT
 ---
 
@@ -28,6 +28,7 @@ Experimental Setup 是所有实验共享的设置，不单独算一个实验。�
 
 ```text
 defuzz-experiment
+├── pipeline
 ├── invariant-generation
 ├── checker-authoring
 ├── agent-audit
@@ -37,12 +38,20 @@ defuzz-experiment
     └── bare-agent
 ```
 
-每一级命令均提供独立的 `--help`。统一入口现已接线到 Part I、Part II 和 Part III 的 stage runner；`without-rag` 调度 Part I 的 Segmented CoT-only 路径，`without-oracle` 与 `bare-agent` 调度 Part III 的对应策略。每个 repetition 都生成独立 artifact 目录、stage result、Token 明细/汇总和 manifest，顶层 manifest 汇总全部 repetition 的最终状态。`--show-plan` 保持无副作用，并显示所选 agent binary 在当前环境是否可用。
+每一级命令均提供独立的 `--help`。`pipeline` 从一份 typed YAML 运行完整三阶段证据链，也可以在同一 campaign 中运行 `full`、`without-rag`、`without-oracle` 和 `bare-agent` 四个 arm。`without-rag` 仍完整运行 Part I -> Part II -> Part III，只把 Part I 固定为 Segmented CoT-only；后两项复用 Full 的冻结 Part I/II artifact，只改变 Part III 暴露给 worker 的信息。每个 repetition 都生成独立 artifact 目录、stage result、Token 明细/汇总和 manifest，顶层 manifest 汇总全部 lane 的最终状态。`--show-plan` 保持无副作用，并显示所选 agent binary 在当前环境是否可用。
 
-接线完成不等于正式实验已经运行。真实执行仍依赖当前环境中可用的 `traex`/`codex` 二进制、模型凭据、reference/source tree 和编译器工具链；本轮验证仅使用 fake backend/stage，不调用昂贵模型。
+工程闭环已经跑通，但这不等于正式论文实验结果已经产生。当前已有三层验证：无模型四臂 smoke 验证 pipeline 与 resume；跨语言 E2E 验证 Python orchestrator -> Part II bundle -> Go dispatcher -> Clang -> online feedback -> offline verification；有界真实 TraeX Part I pilot 验证真实 backend、严格结构化输出、grounding 与 Token 采集。正式全量 campaign 仍需在冻结、干净的 compiler/reference checkout 与完整工具链上执行重复实验。
 默认 reference root 是 `/Users/bytedance/projects/research/defend-reviewer/main`，也可通过 `DEFUZZ_REFERENCE_ROOT` 或 `--reference-root` 覆盖。CLI 会在创建 run 或启动 Agent 前执行输入检查：Part I 要求显式提供且存在的 `--corpus-root`，Part II 要求 `--inputs`/`--from-run`，Part III 要求 `--target-tree` 与完整 reference docs；配置错误返回 exit code 2。
-同一 `run-id` 默认拒绝覆盖；`--resume` 会比对冻结的输入快照并跳过已成功 repetition。`--from-run` 会核验上游 manifest、stage result 与 artifact SHA-256。Part III 先复制 sanitized、只读源码 workspace；在支持的 macOS 主机上，真实外部 backend 还通过 OS sandbox 拒绝读取 reference checkout。demo `findings/` 只在 worker 退出后的 `--demo-parity` 阶段由 orchestrator 读取。
+同一 `run-id` 默认拒绝覆盖；`--resume` 会比对冻结的输入快照和跨阶段 hash chain，并跳过已成功 lane。`--from-run` 会核验上游 manifest、stage result、checker bundle 及其 artifact SHA-256。Part I/II/III 都把 demo `findings/` 置于 OS 级 deny-read 边界；Part III 还先复制 sanitized、只读源码 workspace。demo `findings/` 只在 worker 退出后的 `--demo-parity` 阶段由 evaluator 读取。若宿主无法提供该隔离能力，formal run 会 fail closed。
 正式实验不得设置 `DEFUZZ_FAST_PLAN=1`；该开关仅用于对超大未跟踪源码树快速查看 plan，会跳过递归输入快照。
+
+## Formal 与 Fixture / Pilot 的边界
+
+- `configs/experiments/example.yaml` 仅用于 fixture smoke。它运行 `mode: fixture` 的内建无模型 runner，验证 typed YAML、三阶段 handoff、四臂 lane 编排、hash chain 与 resume。该路径不产生论文实验数据。
+- `configs/experiments/formal.example.yaml` 是 formal campaign 模板。它显式固定 `mode: formal`，要求填写真实 `backend.model`、clean Git 输入目录、完整 reference 文档和绝对 toolchain driver 路径；若条件不满足会直接失败，不会静默退回 fixture。
+- 当前唯一可提及的真实执行证据是有界 pilot 与工程 E2E。它们只能作为“链路已跑通”的工程证据，不能被表述成正式论文结果、正式 finding 统计或最终对比结论。
+- partial range / shard / `max_segments` 仅可用于 pilot；当前 formal YAML 只接受单个完整、未分片的 Part I corpus（`shard_count: 1`、`max_segments: null`）。在实现可验证的 shard-union manifest 之前，分布式分片不能写成正式 full-corpus 结果。
+- `demo-parity` 是工程 parity / coverage 对照，不是正式论文结果；`poc-verified` profile 证据更强，但同样不等于正式主实验统计。
 
 ## 正式实验前的代码前置：统一 Token 统计
 
@@ -70,16 +79,18 @@ defuzz-experiment
 
 模块支持逐调用 JSONL，以及按 `run × part × stage × model` 聚合的 JSON/CSV；统一 CLI 会把汇总路径写入每次 repetition 的 manifest。若 Provider 不返回 usage，该次调用必须标记为 `usage_missing`，不能静默记为 0。
 如果 Provider 已返回响应、但结构化解析或 schema 校验失败，该次调用仍按 raw response 中的实际 Token 计费，并记录 `success=false`；只有在收到响应前失败时 usage 才保持缺失。缺失 usage、没有 usage 记录或最终预算超限都会使 repetition 标记为不可比较并失败，避免失败重试绕过预算。
+正式汇报时，Token 可比性必须按 repetition 判定，而不是按单个成功 finding 选取样本。只有 `usage_missing_count == 0` 且未超预算的 repetition 才能进入 Full / ablation 间的 Token 或成本比较。
 
 ## 主实验
 
 | Part | 输入 | 实验要回答的问题 | 实验内容 | 主要输出与指标 | 当前进度 |
 | --- | --- | --- | --- | --- | --- |
 | **Part I：不变量生成实验** | 编译器源码、规格与 ABI 文档、历史漏洞及补丁 | DeFuzz 能否从大规模语料中生成正确、有安全意义、可证伪且不重复的安全不变量？Segmented CoT 与 RAG 是否互补？ | 运行两条互补路径：① Segmented CoT 对完整语料分段审阅，保证广度；② RAG 以历史漏洞根因为 probe，检索并迁移高价值同构模式。两路候选进入相同的 grounding 与 novelty 过滤。 | CoT/RAG 各自产出数、交集与增量；候选接受率；专家判定的有效率与 Cohen's kappa；novelty；每条有效不变量的 Token、时间和人工成本。 | **部分完成。** RAG 已有 24 probes、4,496 个 GCC 16.1 chunks，BM25 9 条、dense 7 条、去重并集 11 条的历史结果；Segmented CoT 的统一结果表、两路最终合并结果和专家盲评尚未完成。 |
-| **Part II：Checker 编写实验** | Part I 通过验证的不变量，以及对应 statement、observation、evidence、target/ISA 信息 | 生成的不变量能否稳定转化为可执行、可复用且判定准确的 static/dynamic checker？编写 checker 需要多少自动化与人工修正？ | 逐条将 accepted invariant 转为 checker，并补齐注册信息、ISA metadata、正例、负例和 vulnerable/fixed 回归样本；在统一 checker contract 下执行编译、测试和语义验证。 | checker 转换成功率；一次编译/测试通过率；最终通过率；static/dynamic 分布；TP/FN/FP/TN 与 Pass/Fail/NA/Error 分布；人工修改次数与时间；每个 checker 的 Token/运行成本。 | **实现素材已有，正式实验未做。** 当前 Canary、IBT、FORTIFY 已有 28 个 checker metadata 和较多测试，但没有记录“哪个 invariant 如何生成 checker”、一次通过率、人工修改量和统一准确率结果。 |
-| **Part III：Agent 审计实验** | 目标编译器与防御机制、Part I 的不变量、Part II 的 executable checkers | 在不变量与 checker 的指导下，Agent 能否系统审计编译器防御并发现真实静默失效？ | Agent 按机制与 ISA 审计目标源码、构造或迭代触发样例；checker 提供确定性裁决；对 Fail 结果进行最小化、去重、人工复核和上游报告。 | 审计的 compiler/mechanism/ISA 覆盖；候选数；checker-confirmed 数；PoC verified 数；去重后的真实缺陷数；假阳性率；上游 reported/confirmed/fixed/CVE 数；time-to-first-finding、Token 与总审计成本。 | **已有 finding 与复现素材，最终统计未冻结。** DREV corpus、独立 repro 和部分上游材料已存在，但还需统一“审计 run -> checker 证据 -> PoC -> finding -> upstream 状态”的 provenance，才能形成论文结果。 |
+| **Part II：Checker 编写实验** | Part I 通过验证的不变量，以及对应 statement、observation、evidence、target/ISA 信息 | 生成的不变量能否稳定转化为可执行、可复用且判定准确的 static/dynamic checker？编写 checker 需要多少自动化与人工修正？ | 逐条在同一个累计 workspace 中将 accepted invariant 转为 checker；每项失败回滚，成功项保留；最后全树验证并构建 content-addressed checker bundle。 | checker 转换成功率；一次编译/测试通过率；最终通过率；static/dynamic 分布；TP/FN/FP/TN 与 Pass/Fail/NA/Error 分布；人工修改次数与时间；每个 checker 的 Token/运行成本。 | **工程实现完成，正式实验未运行。** 已输出 `results.jsonl`、累计 patch、runtime catalog、可执行 dispatcher 和 manifest，并校验文件 ownership、依赖闭包、tree hash 与 artifact hash。 |
+| **Part III：Agent 审计实验** | 目标编译器与防御机制、Part I 的不变量、Part II 的 executable checkers | 在不变量与 checker 的指导下，Agent 能否系统审计编译器防御并发现真实静默失效？ | Agent 按机制与 ISA 审计目标源码、构造或迭代触发样例；Full 使用 checker 在线反馈；所有 arm 在 worker 结束后由同一冻结 dispatcher 独立验证。 | 审计的 compiler/mechanism/ISA 覆盖；候选数；checker-confirmed 数；PoC verified 数；去重后的真实缺陷数；假阳性率；上游 reported/confirmed/fixed/CVE 数；time-to-first-finding、Token 与总审计成本。 | **工程实现完成，正式结果未冻结。** 已跑通 x86_64 IBT 的真实 Clang E2E，得到 deterministic `FAIL` 并形成 `verified-findings`；该结果只证明链路，不作为正式论文缺陷统计。 |
 
 三个 Part 必须按同一条证据链衔接：Part I 的输出是 accepted invariants；Part II 只统计由这些 invariants 转换并验证的 checkers；Part III 的五项 gate 仅表示候选结构完整。最终 finding 还必须通过独立的源码 excerpt 核验和由 orchestrator 冻结命令驱动的离线 checker/PoC 验证；Agent 自报的 `poc_verified` 不构成确认。
+Formal clean-room 要求同样适用于“发现集”边界：历史 bug 文档与 reference docs 可用于 Invariant Generation / Checker Writing / Agent Audit，但 evaluator-only `findings/` 不得暴露给 worker。这样 Part III 的有效 finding 只能来自当前 campaign 的审计与独立复核，不能从既有 findings 库中直接复用答案。
 
 ## 独立消融实验
 
@@ -98,14 +109,35 @@ defuzz-experiment
 - 三个消融组都可以自由提出候选，但最终结果必须经过同一套隔离的准入标准和确定性复现，不能直接采用 Agent 的自报结论。
 - 报告去重后的有效 finding 数、候选到有效 finding 的转化率、假阳性率、PoC verified 数、time-to-first-finding、Token 和总耗时。
 
-当前状态：**代码入口与变体策略已实现，正式实验尚未运行。** `w/o RAG` 已固定为 Segmented CoT-only；Full Part III 要求配置 candidate-bound `--online-oracle-command` 并运行“候选 → checker → 反馈 → 复审”回合，缺少命令或任一 Oracle 调用返回 `ERROR` 时整个 repetition fail closed；`w/o Oracle` 完全跳过该在线反馈回路。裸 Agent 已改为单个中性审计 worker，不接收 DeFuzz doctrine、机制分片、历史 RAG、不变量或专用 checker。所有消融必须提供 `--baseline-run`，冻结完整组的 backend、模型、预算、源码、机制/ISA、版本、并发与离线验证命令。
+当前状态：**完整工程路径已实现并通过 fixture/真实最小 pilot，正式实验尚未运行。** Part III 显式、哈希绑定地消费 Part I accepted invariants；Full 和 `w/o Oracle` 对 worker 暴露同一份裁剪后的不变量，裸 Agent 不接收该输入。Full 同时消费 Part II bundle，并自动用同一个 dispatcher 执行 online 与 offline 模式；`w/o Oracle` 完全跳过在线反馈，但保留相同的隔离离线验证；裸 Agent 是单个中性 worker，不接收 DeFuzz doctrine、机制分片、历史 RAG、不变量或 checker 指引。Typed pipeline 的 `variants` 可一次运行四个 arm，并把 variant 写入 lane 身份和 hash chain。Standalone 消融仍要求 `--baseline-run`，并冻结模型、预算、源码/reference 内容快照、机制/ISA、bundle 和 toolchains。
+
+## 数据产物
+
+统一 pipeline 除每个 lane 的 stage artifact 外，还会在 campaign 根目录生成四个聚合文件：
+
+- `campaign-results.json`
+- `campaign-results.csv`
+- `campaign-comparison.json`
+- `campaign-comparison.csv`
+
+前两者保留每个 `target × variant × repetition × part` 的 long-form 记录，包括失败、跳过和 `usage_missing_count`；后两者只汇总 complete、valid 且对应指标非缺失的 repetition。正式作图或论文表格应从 comparison 文件取均值/方差，从 results 文件追溯异常 repetition 与 provenance。
+
+## 工程验收记录（非论文结果）
+
+| 验证层 | 2026-08-27 结果 | 说明 |
+| --- | --- | --- |
+| 四臂 pipeline smoke | 通过 | `full`、`without-rag`、`without-oracle`、`bare-agent` 四条 lane 均跑完 Part III，resume 通过；fixture 只验证编排，不计入论文数据。 |
+| 跨语言 E2E | 通过 | 真实 Part II bundle 构建、Go dispatcher、Clang x86_64 ELF、online/verify 双模式和 Part III `verified-findings` 全链路通过。 |
+| 真实 Agent 有界 pilot | 通过 | 最新 `real-agent-cleanroom-v5` 使用 `GPT-5.6-Terra`，在隔离的单 segment Segmented CoT 中生成 1 条 accepted invariant，并经独立 entailment grounding；2 次调用共记录 16,824 tokens，`usage_missing_count=0`。该 pilot 不代表全语料结果。 |
+| Demo parity corpus | 解析通过 | 当前只读 demo corpus 共 30 条；`demo-workset` 为 27 条，排除 retracted `DREV-2026-015` 以及 schema-invalid `DREV-2026-021`、`DREV-2026-030`；`poc-verified` 为 20 条。draft 条目仍纳入工程 workset，但正式报告必须披露 profile 与 status 分布。 |
+| 发布回归 | 通过 | Python 全量 `456 passed`、Go race/vet、Ruff、mypy、wheel/sdist 构建和 fresh-wheel CLI smoke 均通过；GitHub CI 结果以对应提交为准。 |
 
 ## 当前进度
 
 | 实验 | 状态 | 下一关键动作 |
 | --- | --- | --- |
-| 共同前置：统一 CLI 与 Token 统计 | 已接线，待真实环境运行 | 在具备 agent binary、模型凭据、source/reference tree 与编译工具链的环境中冻结配置并执行正式重复实验。 |
-| Part I：不变量生成 | 部分完成 | 汇总 Segmented CoT 结果，与 RAG 合并后进行专家盲评。 |
-| Part II：Checker 编写 | Runner 已实现，正式实验未运行 | 用 Part I 的冻结输出运行独立 workspace authoring，采集一次通过率、最终通过率与人工复核成本。 |
-| Part III：Agent 审计 | Runner、结构准入、在线 Oracle 闭环与 demo parity 已实现 | 在隔离实验机上验证 OS 级文件读取隔离，配置真实 candidate-bound checker/PoC 命令并执行正式重复实验。 |
-| 消融：w/o RAG、w/o Oracle、裸 Agent | 三个入口与策略已实现，正式实验未运行 | 绑定同一 full-arm baseline 后执行重复实验并汇总置信区间。 |
+| 共同前置：统一 CLI、Token 统计与数据隔离 | **工程完成** | 冻结正式 YAML、compiler revision、模型与预算后执行重复实验。 |
+| Part I：不变量生成 | **Runner 与真实 Agent pilot 通过；正式数据未完成** | 对完整语料运行 Segmented CoT + RAG，并进行专家盲评。 |
+| Part II：Checker 编写 | **累计 bundle 工程与跨语言 E2E 通过；正式数据未完成** | 使用 Part I 正式输出执行，统计首次/最终通过率和人工复核成本。 |
+| Part III：Agent 审计 | **online/offline checker 闭环与真实 Clang E2E 通过；正式数据未完成** | 在冻结 toolchain/source 上进行重复审计，汇总 verified findings 与上游状态。 |
+| 消融：w/o RAG、w/o Oracle、裸 Agent | **四臂一键 pipeline smoke 通过；正式数据未完成** | 运行固定重复次数并报告均值、方差或置信区间。 |

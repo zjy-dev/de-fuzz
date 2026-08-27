@@ -13,19 +13,84 @@ import json
 import os
 import shutil
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .audit_schema import AuditCandidate
+from .checker_bundle import ValidatedCheckerBundle
 
 OnlineOracleVerdict = Literal["PASS", "FAIL", "NOT_APPLICABLE", "ERROR"]
 _FINGERPRINT_PLACEHOLDER = "{candidate_fingerprint}"
 _CANDIDATE_JSON_PLACEHOLDER = "{candidate_json}"
 _ALLOWED_VERDICTS = frozenset(("PASS", "FAIL", "NOT_APPLICABLE", "ERROR"))
+DispatcherMode = Literal["online", "verify"]
+CompilerName = Literal["gcc", "llvm"]
+_COMPILER_ALIASES: dict[str, CompilerName] = {
+    "gcc": "gcc",
+    "gnu-gcc": "gcc",
+    "llvm": "llvm",
+    "clang": "llvm",
+    "compiler-rt": "llvm",
+    "lld": "llvm",
+}
+
+
+def normalize_compiler(value: str) -> CompilerName:
+    """Return the canonical compiler family accepted by the dispatcher."""
+
+    if not isinstance(value, str):
+        raise TypeError("compiler must be a string")
+    normalized = value.strip().casefold()
+    try:
+        return cast(CompilerName, _COMPILER_ALIASES[normalized])
+    except KeyError as exc:
+        raise ValueError(
+            f"unknown compiler {value!r}; expected gcc, gnu-gcc, llvm, clang, "
+            "compiler-rt, or lld"
+        ) from exc
+
+
+def checker_bundle_dispatcher_argv(
+    bundle: ValidatedCheckerBundle,
+    toolchains_config: str | os.PathLike[str],
+    *,
+    mode: DispatcherMode,
+    compiler: str,
+) -> tuple[str, ...]:
+    """Build the one trusted dispatcher invocation used for each candidate.
+
+    All executable/configuration paths come from the already validated bundle or
+    the orchestrator configuration. Candidate-controlled data remains confined
+    to the content-addressed JSON and fingerprint placeholders.
+    """
+
+    canonical_compiler = normalize_compiler(compiler)
+    config = Path(toolchains_config).expanduser().resolve(strict=True)
+    if not config.is_file():
+        raise ValueError(f"toolchains config is not a regular file: {config}")
+    if bundle.dispatcher is None or bundle.catalog is None:
+        raise ValueError("ready checker bundle requires dispatcher and catalog artifacts")
+    return (
+        os.fspath(bundle.dispatcher),
+        "--mode",
+        mode,
+        "--compiler",
+        canonical_compiler,
+        "--bundle-manifest",
+        os.fspath(bundle.manifest_path),
+        "--catalog",
+        os.fspath(bundle.catalog),
+        "--toolchains",
+        os.fspath(config),
+        "--candidate-json",
+        _CANDIDATE_JSON_PLACEHOLDER,
+        "--candidate-fingerprint",
+        _FINGERPRINT_PLACEHOLDER,
+    )
 
 
 def _canonical_candidate_bytes(candidate: AuditCandidate) -> bytes:
@@ -34,6 +99,7 @@ def _canonical_candidate_bytes(candidate: AuditCandidate) -> bytes:
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
+        allow_nan=False,
     ).encode("utf-8")
 
 
@@ -187,13 +253,9 @@ def _parse_checker_stdout(stdout: str, fingerprint: str) -> OnlineOracleResult:
 
     echoed = payload.get("candidate_fingerprint")
     if not isinstance(echoed, str):
-        return _error_result(
-            fingerprint, "online oracle candidate_fingerprint echo is missing"
-        )
+        return _error_result(fingerprint, "online oracle candidate_fingerprint echo is missing")
     if echoed != fingerprint:
-        return _error_result(
-            fingerprint, "online oracle candidate_fingerprint echo does not match"
-        )
+        return _error_result(fingerprint, "online oracle candidate_fingerprint echo does not match")
 
     verdict = payload.get("verdict")
     if not isinstance(verdict, str) or verdict not in _ALLOWED_VERDICTS:
@@ -231,6 +293,8 @@ class CommandOnlineOracle:
         *,
         timeout_seconds: float | None = 300.0,
         executor: OnlineOracleExecutor | None = None,
+        allowed_checker_ids: Collection[str] | None = None,
+        require_dispatcher_echo: bool = False,
     ) -> None:
         if isinstance(argv_template, (str, bytes)):
             raise TypeError("online oracle argv template must be a sequence of arguments")
@@ -238,24 +302,36 @@ class CommandOnlineOracle:
         if not frozen or any(
             not isinstance(item, str) or not item or "\x00" in item for item in frozen
         ):
-            raise ValueError(
-                "online oracle argv template requires non-empty, NUL-free strings"
-            )
+            raise ValueError("online oracle argv template requires non-empty, NUL-free strings")
         if not any(_FINGERPRINT_PLACEHOLDER in item for item in frozen):
-            raise ValueError(
-                "online oracle argv template must contain {candidate_fingerprint}"
-            )
+            raise ValueError("online oracle argv template must contain {candidate_fingerprint}")
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ValueError("online oracle timeout must be positive")
         self.argv_template = frozen
         self.timeout_seconds = timeout_seconds
         self.executor = executor or SubprocessOnlineOracleExecutor()
+        self.allowed_checker_ids = (
+            None if allowed_checker_ids is None else frozenset(allowed_checker_ids)
+        )
+        self.require_dispatcher_echo = require_dispatcher_echo
 
     async def evaluate(
         self, candidate: AuditCandidate, workspace: str | os.PathLike[str]
     ) -> OnlineOracleResult:
         candidate_bytes = _canonical_candidate_bytes(candidate)
         fingerprint = hashlib.sha256(candidate_bytes).hexdigest()
+        if self.allowed_checker_ids is not None and not candidate.checker_ids:
+            return _error_result(
+                fingerprint,
+                "bundle-backed online oracle requires at least one checker_id",
+            )
+        if self.allowed_checker_ids is not None:
+            unknown = sorted(set(candidate.checker_ids) - self.allowed_checker_ids)
+            if unknown:
+                return _error_result(
+                    fingerprint,
+                    f"candidate requested checker_ids absent from trusted catalog: {unknown}",
+                )
         try:
             cwd = Path(workspace).expanduser().resolve(strict=True)
         except OSError as exc:
@@ -280,9 +356,7 @@ class CommandOnlineOracle:
                 for item in self.argv_template
             )
             try:
-                pending = self.executor.run(
-                    argv, cwd=cwd, timeout_seconds=self.timeout_seconds
-                )
+                pending = self.executor.run(argv, cwd=cwd, timeout_seconds=self.timeout_seconds)
                 raw_result = (
                     await pending
                     if self.timeout_seconds is None
@@ -306,7 +380,23 @@ class CommandOnlineOracle:
                     fingerprint,
                     f"online oracle exited with status {execution.exit_code}",
                 )
-            return _parse_checker_stdout(execution.stdout, fingerprint)
+            result = _parse_checker_stdout(execution.stdout, fingerprint)
+            if self.require_dispatcher_echo and result.verdict != "ERROR":
+                try:
+                    payload = json.loads(execution.stdout)
+                except (TypeError, json.JSONDecodeError):
+                    payload = None
+                echoed = (
+                    payload.get("echoed_candidate_fingerprint")
+                    if isinstance(payload, Mapping)
+                    else None
+                )
+                if echoed != fingerprint:
+                    return _error_result(
+                        fingerprint,
+                        "online oracle echoed_candidate_fingerprint does not match",
+                    )
+            return result
         except OSError as exc:
             return _error_result(
                 fingerprint, f"online oracle candidate JSON could not be written: {exc}"

@@ -1,0 +1,73 @@
+# Formal experiment template for the paper-facing DeFuzz pipeline.
+#
+# This file is intentionally non-runnable until you replace every placeholder
+# path, command, and model value with real environment-specific values.
+# It stays in mode=formal, so the launcher will fail closed instead of falling
+# back to the fixture runners used by configs/experiments/example.yaml.
+#
+# Validate without writes:
+#   cd orchestrator
+#   uv run defuzz-experiment pipeline --config ../configs/experiments/formal.example.yaml --show-plan
+#
+# Execute after replacing placeholders:
+#   cd orchestrator
+#   uv run defuzz-experiment pipeline --config ../configs/experiments/formal.example.yaml
+schema_version: 1
+run_id: formal-gcc-canary-campaign
+mode: formal
+output_root: ../../orchestrator/runs/pipelines
+repetitions: 3
+variants: [full, without-rag, without-oracle, bare-agent]
+
+backend:
+  kind: traex
+  binary: traex
+  model: REPLACE_WITH_PINNED_PROVIDER_MODEL
+  extra_args: []
+
+budgets:
+  part_i:
+    token_budget: 120000
+    time_budget_minutes: 90
+  part_ii:
+    token_budget: 120000
+    time_budget_minutes: 90
+  part_iii:
+    token_budget: 120000
+    time_budget_minutes: 90
+
+generation:
+  path: combined
+  reference_root: /ABS/PATH/TO/defend-reviewer/main
+  document_roots: []
+  max_segments: null
+  shard_index: 0
+  shard_count: 1
+
+toolchains_config: /ABS/PATH/TO/de-fuzz/main/configs/toolchains.formal.yaml
+
+targets:
+  - id: gcc-canary-main
+    compiler: gcc
+    version: gcc-16.1.0
+    corpus_root: /ABS/PATH/TO/gcc/source/for/part1
+    audit_source_roots:
+      - /ABS/PATH/TO/gcc/source/for/part3
+    mechanisms:
+      - canary
+    isas:
+      - x86_64
+
+checker:
+  source_root: /ABS/PATH/TO/de-fuzz/main
+  checker_root: core/internal/oracle
+  max_attempts: 3
+
+audit:
+  max_concurrency: 1
+  oracle_rounds: 1
+  demo_parity: false
+  parity_profile: demo-workset
+  parity_threshold: null
+  parity_threshold_metric: recall
+  require_verified_candidates: true

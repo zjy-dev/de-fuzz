@@ -27,6 +27,8 @@ that function is in the corpus, so the anchors are what stop the rule from
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -178,8 +180,13 @@ def _seed_from_data(data: dict[str, Any], source_kind: str, source_path: Path) -
         val = data.get(key, "")
         return val.strip() if isinstance(val, str) else ""
 
+    raw_compiler = data.get("toolchain", data.get("compiler", ""))
+    compiler = str(raw_compiler).strip().lower() if raw_compiler is not None else ""
+    if compiler == "clang":
+        compiler = "llvm"
     return Seed(
         seed_id=seed_id.strip(),
+        compiler=compiler,
         origin_mechanism=mechanism.strip(),
         origin_isas=[i.lower() for i in _as_list(data.get("isa"))],
         source_kind=source_kind,
@@ -326,6 +333,7 @@ def load_seeds(
     findings_root: Path | None = None,
     bugs_root: Path | None = None,
     invariants_root: Path | None = None,
+    compiler: str | None = None,
 ) -> list[Seed]:
     """Load seeds from the requested pools (``findings`` / ``bugs`` / ``invariants``)."""
     seeds: list[Seed] = []
@@ -335,4 +343,51 @@ def load_seeds(
         seeds.extend(load_bugs(bugs_root))
     if "invariants" in sources and invariants_root is not None:
         seeds.extend(load_invariants(invariants_root))
+
+    normalized_compiler = compiler.strip().lower() if compiler is not None else None
+    if normalized_compiler == "clang":
+        normalized_compiler = "llvm"
+    if normalized_compiler is not None:
+        if normalized_compiler not in {"gcc", "llvm"}:
+            raise ValueError("compiler must be 'gcc', 'llvm', or None")
+        # Missing toolchain metadata is retained for legacy seed documents.
+        # Compiler-tagged documents, however, may never cross target families.
+        seeds = [
+            seed
+            for seed in seeds
+            if not seed.compiler or seed.compiler == normalized_compiler
+        ]
+
+    by_id: dict[str, list[Seed]] = {}
+    for seed in seeds:
+        by_id.setdefault(seed.seed_id, []).append(seed)
+    for seed_id, group in by_id.items():
+        if len(group) == 1:
+            group[0].identity = seed_id
+            continue
+        bases = [
+            f"{seed_id}::{seed.compiler or 'unknown'}::{seed.origin_mechanism}"
+            for seed in group
+        ]
+        base_counts = {base: bases.count(base) for base in set(bases)}
+        fingerprints: dict[str, set[str]] = {}
+        for seed, base in zip(group, bases, strict=True):
+            if base_counts[base] == 1:
+                seed.identity = base
+                continue
+            payload = seed.model_dump(
+                mode="json", exclude={"identity", "source_path"}
+            )
+            digest = hashlib.sha256(
+                json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()[:12]
+            if digest in fingerprints.setdefault(base, set()):
+                raise ValueError(
+                    f"duplicate seed {seed_id!r} has indistinguishable definitions"
+                )
+            fingerprints[base].add(digest)
+            seed.identity = f"{base}::{digest}"
+    identities = [seed.identity for seed in seeds]
+    if len(identities) != len(set(identities)):
+        raise ValueError("duplicate seed identity remains after deterministic disambiguation")
     return seeds

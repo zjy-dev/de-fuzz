@@ -63,6 +63,33 @@ _HEADERS: tuple[tuple[str, str, str], ...] = (
     ("config/i386/cet.h", "cet", "x86_64"),
 )
 
+# LLVM files are selected from the evidence paths named by the curated LLVM
+# historical-bug corpus.  This is intentionally a small, explicit adapter: a
+# recursive llvm-project walk would mix tests, vendored code, and unrelated
+# subsystems into the retrieval index.
+_LLVM_SOURCES: tuple[tuple[str, str, str], ...] = (
+    ("llvm/lib/CodeGen/StackProtector.cpp", "stack-protector", ""),
+    ("llvm/lib/CodeGen/SafeStack.cpp", "safestack", ""),
+    ("llvm/lib/CodeGen/SelectionDAG/SelectionDAGBuilder.cpp", "bti", ""),
+    ("llvm/lib/Target/AArch64/AArch64BranchTargets.cpp", "bti", "aarch64"),
+    ("llvm/lib/Target/AArch64/AArch64PrologueEpilogue.cpp", "return-address-signing", "aarch64"),
+    ("llvm/lib/Target/ARM/ARMISelLowering.cpp", "cmse", ""),
+    ("llvm/lib/Target/ARM/ARMExpandPseudoInsts.cpp", "cmse", ""),
+    ("llvm/lib/Target/ARM/ARMFrameLowering.cpp", "codegen", ""),
+    ("llvm/lib/Target/ARM/ARMLoadStoreOptimizer.cpp", "codegen", ""),
+    ("llvm/lib/Target/RISCV/RISCVTargetObjectFile.cpp", "codegen", ""),
+    ("llvm/lib/Target/X86/X86ISelLowering.cpp", "codegen", "x86_64"),
+    ("llvm/lib/Target/X86/X86IndirectBranchTracking.cpp", "ibt", "x86_64"),
+    ("clang/lib/CodeGen/Targets/AArch64.cpp", "return-address-signing", "aarch64"),
+    ("clang/lib/CodeGen/Targets/ARM.cpp", "bti", ""),
+    ("compiler-rt/lib/sanitizer_common/sanitizer_file.cpp", "asan", ""),
+    ("compiler-rt/lib/sanitizer_common/sanitizer_posix_libcdep.cpp", "asan", ""),
+)
+_LLVM_HEADERS: tuple[tuple[str, str, str], ...] = (
+    ("clang/include/clang/Basic/TargetInfo.h", "bti", ""),
+)
+_LLVM_CHUNK_LINES = 80
+
 # --- Bugzilla whitelist ----------------------------------------------------
 # GCC PR id -> mechanism, taken from the local bug corpus front-matter plus the
 # survey's silent-bypass anchor table (§"已知 silent-bypass 锚点").
@@ -134,7 +161,13 @@ def _extract_symbol(sig: str) -> str:
     return m.group(1) if m else ""
 
 
-def _chunk_c_functions(text: str, path: str, mechanism: str, isa: str) -> list[Chunk]:
+def _chunk_c_functions(
+    text: str,
+    path: str,
+    mechanism: str,
+    isa: str,
+    version: str = GCC_VERSION,
+) -> list[Chunk]:
     lines = text.split("\n")
     n = len(lines)
     chunks: list[Chunk] = []
@@ -201,7 +234,7 @@ def _chunk_c_functions(text: str, path: str, mechanism: str, isa: str) -> list[C
                     source_kind="source",
                     mechanism=mech,
                     compiler="GCC",
-                    version=GCC_VERSION,
+                    version=version,
                     isa=isa,
                     path=path,
                     line=start + 1,
@@ -217,7 +250,13 @@ def _chunk_c_functions(text: str, path: str, mechanism: str, isa: str) -> list[C
 _MD_DEFINE = re.compile(r'^\(define_\w+\s+"?([^"\s\)]*)"?')
 
 
-def _chunk_md(text: str, path: str, mechanism: str, isa: str) -> list[Chunk]:
+def _chunk_md(
+    text: str,
+    path: str,
+    mechanism: str,
+    isa: str,
+    version: str = GCC_VERSION,
+) -> list[Chunk]:
     lines = text.split("\n")
     n = len(lines)
     chunks: list[Chunk] = []
@@ -238,7 +277,7 @@ def _chunk_md(text: str, path: str, mechanism: str, isa: str) -> list[Chunk]:
                     source_kind="source",
                     mechanism=mech,
                     compiler="GCC",
-                    version=GCC_VERSION,
+                    version=version,
                     isa=isa,
                     path=path,
                     line=start + 1,
@@ -249,7 +288,13 @@ def _chunk_md(text: str, path: str, mechanism: str, isa: str) -> list[Chunk]:
     return chunks
 
 
-def _chunk_whole(text: str, path: str, mechanism: str, isa: str) -> list[Chunk]:
+def _chunk_whole(
+    text: str,
+    path: str,
+    mechanism: str,
+    isa: str,
+    version: str = GCC_VERSION,
+) -> list[Chunk]:
     return [
         Chunk(
             chunk_id=f"{path}:1",
@@ -258,13 +303,58 @@ def _chunk_whole(text: str, path: str, mechanism: str, isa: str) -> list[Chunk]:
                 source_kind="source",
                 mechanism=mechanism,
                 compiler="GCC",
-                version=GCC_VERSION,
+                version=version,
                 isa=isa,
                 path=path,
                 line=1,
             ),
         )
     ]
+
+
+def _chunk_llvm_lines(
+    text: str,
+    path: str,
+    mechanism: str,
+    isa: str,
+    version: str,
+    *,
+    source_kind: str = "source",
+) -> list[Chunk]:
+    """Split LLVM C++ into exact, bounded line windows.
+
+    LLVM source mixes free functions, class bodies, lambdas, preprocessor
+    branches, and generated fragments. A regex claiming to find function
+    boundaries silently mislabels nested calls as symbols. Fixed line windows
+    are deliberately less clever: every byte is covered once, every starting
+    line is exact, and chunk sizes remain bounded and replayable.
+    """
+    lines = text.splitlines()
+    chunks: list[Chunk] = []
+    for start in range(0, len(lines), _LLVM_CHUNK_LINES):
+        end = min(start + _LLVM_CHUNK_LINES, len(lines))
+        body = "\n".join(lines[start:end])
+        if not body.strip():
+            continue
+        first_line = start + 1
+        last_line = end
+        chunks.append(
+            Chunk(
+                chunk_id=f"{path}:{first_line}:lines-{first_line}-{last_line}",
+                text=body,
+                metadata=ChunkMeta(
+                    source_kind=source_kind,
+                    mechanism=_classify_mechanism("", body, mechanism),
+                    compiler="LLVM",
+                    version=version,
+                    isa=isa,
+                    path=path,
+                    line=first_line,
+                    symbol="",
+                ),
+            )
+        )
+    return chunks
 
 
 def _read(path: Path) -> str | None:
@@ -332,11 +422,12 @@ def _bugzilla_chunk(bug_id: int, mechanism: str, cache_root: Path) -> Chunk:
 
 
 # --- top-level build -------------------------------------------------------
-def build_corpus(
+def _build_gcc_corpus(
     gcc_root: Path,
     *,
     cache_root: Path,
     include_bugzilla: bool = True,
+    version: str = GCC_VERSION,
 ) -> list[Chunk]:
     """Chunk the whitelisted GCC files (+ Bugzilla) into the retrieval corpus."""
     chunks: list[Chunk] = []
@@ -344,15 +435,15 @@ def build_corpus(
     for rel, mech, isa in _MIDDLE_END + _BACKEND_CC:
         text = _read(gcc_root / rel)
         if text is not None:
-            chunks.extend(_chunk_c_functions(text, rel, mech, isa))
+            chunks.extend(_chunk_c_functions(text, rel, mech, isa, version))
     for rel, mech, isa in _BACKEND_MD:
         text = _read(gcc_root / rel)
         if text is not None:
-            chunks.extend(_chunk_md(text, rel, mech, isa))
+            chunks.extend(_chunk_md(text, rel, mech, isa, version))
     for rel, mech, isa in _HEADERS:
         text = _read(gcc_root / rel)
         if text is not None:
-            chunks.extend(_chunk_whole(text, rel, mech, isa))
+            chunks.extend(_chunk_whole(text, rel, mech, isa, version))
 
     if include_bugzilla:
         for bug_id, mech in sorted(_BUGZILLA.items()):
@@ -363,6 +454,64 @@ def build_corpus(
                 continue
 
     return chunks
+
+
+def _build_llvm_corpus(llvm_root: Path, *, version: str) -> list[Chunk]:
+    chunks: list[Chunk] = []
+    for rel, mechanism, isa in _LLVM_SOURCES:
+        text = _read(llvm_root / rel)
+        if text is not None:
+            chunks.extend(_chunk_llvm_lines(text, rel, mechanism, isa, version))
+    for rel, mechanism, isa in _LLVM_HEADERS:
+        text = _read(llvm_root / rel)
+        if text is not None:
+            chunks.extend(
+                _chunk_llvm_lines(
+                    text, rel, mechanism, isa, version, source_kind="header"
+                )
+            )
+    return chunks
+
+
+def curated_source_paths(corpus_root: Path, compiler: str) -> list[Path]:
+    """Return the ordered, explicit source inputs used by an adapter."""
+
+    normalized = compiler.strip().lower()
+    if normalized == "gcc":
+        entries = _MIDDLE_END + _BACKEND_CC + _BACKEND_MD + _HEADERS
+    elif normalized == "llvm":
+        entries = _LLVM_SOURCES + _LLVM_HEADERS
+    else:
+        raise ValueError("compiler must be 'gcc' or 'llvm'")
+    return [corpus_root / rel for rel, _mechanism, _isa in entries]
+
+
+def build_corpus(
+    corpus_root: Path,
+    *,
+    cache_root: Path,
+    include_bugzilla: bool = True,
+    compiler: str = "gcc",
+    version: str | None = None,
+) -> list[Chunk]:
+    """Build the curated corpus for one compiler family.
+
+    The default call is byte-for-byte compatible with the original GCC
+    adapter. LLVM has its own explicit whitelist and never contacts GCC
+    Bugzilla.
+    """
+
+    normalized = compiler.strip().lower()
+    if normalized == "gcc":
+        return _build_gcc_corpus(
+            corpus_root,
+            cache_root=cache_root,
+            include_bugzilla=include_bugzilla,
+            version=version or GCC_VERSION,
+        )
+    if normalized == "llvm":
+        return _build_llvm_corpus(corpus_root, version=version or "")
+    raise ValueError("compiler must be 'gcc' or 'llvm'")
 
 
 def write_corpus(chunks: list[Chunk], out_path: Path) -> None:

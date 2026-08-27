@@ -1,6 +1,9 @@
 package oracle
 
-import "sort"
+import (
+	"fmt"
+	"sort"
+)
 
 // CheckerMetadata is the single source of truth (SSOT) for per-checker
 // routing attributes (research R4, data-model §CheckerMetadata).
@@ -23,11 +26,14 @@ import "sort"
 // Unbuildable toolchains do not need pruning here: a missing cross-gcc yields an
 // error cell at build time (R8), never a crash.
 type CheckerMetadata struct {
-	ID             string
-	ApplicableISAs []string
-	Mode           CheckerMode
-	Cost           CheckerCost
-	Category       InvariantCategory
+	ID             string            `json:"id"`
+	Oracle         string            `json:"oracle"`
+	Mechanism      string            `json:"mechanism"`
+	Requires       []string          `json:"requires"`
+	ApplicableISAs []string          `json:"applicable_isas"`
+	Mode           CheckerMode       `json:"mode"`
+	Cost           CheckerCost       `json:"cost"`
+	Category       InvariantCategory `json:"category"`
 }
 
 // CheckerMode is the single vs. cross-ISA differential dimension (FR-014/016).
@@ -134,6 +140,38 @@ var checkerMetadata = map[string]CheckerMetadata{
 	"INV-FORT-C01": {ID: "INV-FORT-C01", ApplicableISAs: fortifyISAs, Mode: ModeSingle, Cost: CostExpensive, Category: CategoryDynamic},
 }
 
+// init attaches the routing identity shared by each established mechanism.
+// Keeping the verbose checker table above focused on the research attributes
+// makes it harder to accidentally assign one checker to the wrong mechanism,
+// while AllCheckerMetadata still exposes a complete, self-contained row.
+func init() {
+	setCheckerRoute("canary", "stack-protector", "INV-SP-")
+	setCheckerRoute("ibt", "ibt", "INV-IBT-")
+	setCheckerRoute("fortify", "fortify-source", "INV-FORT-")
+
+	// These checkers consume the dynamic binary-search fact produced by L01.
+	for _, id := range []string{"INV-SP-V02", "INV-SP-L02", "INV-SP-L03", "INV-SP-L04"} {
+		m := checkerMetadata[id]
+		m.Requires = []string{"INV-SP-L01"}
+		checkerMetadata[id] = m
+	}
+
+	if err := ValidateCheckerCatalog(AllCheckerMetadata()); err != nil {
+		panic(fmt.Sprintf("invalid checker metadata: %v", err))
+	}
+}
+
+func setCheckerRoute(oracleName, mechanism, idPrefix string) {
+	for id, metadata := range checkerMetadata {
+		if len(id) < len(idPrefix) || id[:len(idPrefix)] != idPrefix {
+			continue
+		}
+		metadata.Oracle = oracleName
+		metadata.Mechanism = mechanism
+		checkerMetadata[id] = metadata
+	}
+}
+
 // AllCheckerMetadata returns every checker's metadata in deterministic
 // (ID-sorted) order. Consumed by CheckerMetadataService and query_invariants.
 func AllCheckerMetadata() []CheckerMetadata {
@@ -144,7 +182,13 @@ func AllCheckerMetadata() []CheckerMetadata {
 	sort.Strings(ids)
 	out := make([]CheckerMetadata, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, checkerMetadata[id])
+		m := checkerMetadata[id]
+		m.ApplicableISAs = append([]string(nil), m.ApplicableISAs...)
+		m.Requires = append([]string(nil), m.Requires...)
+		if m.Requires == nil {
+			m.Requires = []string{}
+		}
+		out = append(out, m)
 	}
 	return out
 }
@@ -152,5 +196,68 @@ func AllCheckerMetadata() []CheckerMetadata {
 // LookupCheckerMetadata returns the metadata for a checker ID, if registered.
 func LookupCheckerMetadata(id string) (CheckerMetadata, bool) {
 	m, ok := checkerMetadata[id]
+	m.ApplicableISAs = append([]string(nil), m.ApplicableISAs...)
+	m.Requires = append([]string(nil), m.Requires...)
 	return m, ok
+}
+
+// ValidateCheckerCatalog verifies that checker routing and dependency metadata
+// form a complete directed acyclic graph. It is exported so generated checker
+// bundles can validate a prospective catalog before publishing it.
+func ValidateCheckerCatalog(catalog []CheckerMetadata) error {
+	byID := make(map[string]CheckerMetadata, len(catalog))
+	for _, metadata := range catalog {
+		if metadata.ID == "" {
+			return fmt.Errorf("checker id is empty")
+		}
+		if _, duplicate := byID[metadata.ID]; duplicate {
+			return fmt.Errorf("duplicate checker id %q", metadata.ID)
+		}
+		if metadata.Oracle == "" || metadata.Mechanism == "" {
+			return fmt.Errorf("checker %q has an incomplete oracle/mechanism route", metadata.ID)
+		}
+		byID[metadata.ID] = metadata
+	}
+
+	for _, metadata := range catalog {
+		for _, required := range metadata.Requires {
+			dependency, ok := byID[required]
+			if !ok {
+				return fmt.Errorf("checker %q requires unknown checker %q", metadata.ID, required)
+			}
+			if dependency.Oracle != metadata.Oracle {
+				return fmt.Errorf("checker %q requires %q from a different oracle", metadata.ID, required)
+			}
+		}
+	}
+
+	const (
+		_ = iota
+		visiting
+		visited
+	)
+	state := make(map[string]int, len(catalog))
+	var visit func(string) error
+	visit = func(id string) error {
+		switch state[id] {
+		case visiting:
+			return fmt.Errorf("checker dependency cycle includes %q", id)
+		case visited:
+			return nil
+		}
+		state[id] = visiting
+		for _, required := range byID[id].Requires {
+			if err := visit(required); err != nil {
+				return err
+			}
+		}
+		state[id] = visited
+		return nil
+	}
+	for id := range byID {
+		if err := visit(id); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -8,6 +8,8 @@ with a stub judge so the test stays deterministic (no API).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from defuzz_loop.specgen.pipeline import PipelineConfig, _bodies_for_symbols, _distill
 from defuzz_loop.specgen.query import QueryDistillation, SignatureDistillation
 from defuzz_loop.specgen.schema import Chunk, ChunkMeta, Seed
@@ -41,8 +43,9 @@ def _chunk(sym: str, text: str) -> Chunk:
 
 def _cfg(query_mode: str) -> PipelineConfig:
     return PipelineConfig(
-        seed_sources=[], gcc_root=".", findings_root=None, bugs_root=None,
-        invariants_root=None, out_dir=".", cache_root=".", query_mode=query_mode,
+        seed_sources=[], gcc_root=Path("."), findings_root=None, bugs_root=None,
+        invariants_root=None, out_dir=Path("."), cache_root=Path("."),
+        query_mode=query_mode,
     )
 
 

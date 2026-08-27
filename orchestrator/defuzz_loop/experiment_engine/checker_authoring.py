@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import difflib
 import errno
+import fnmatch
 import hashlib
 import inspect
 import json
@@ -23,8 +24,13 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, cast
 
+from defuzz_loop.checker_bundle import (
+    CHECKER_BUNDLE_MANIFEST_FILENAME,
+    CheckerBundleManifest,
+    compute_bundle_id,
+)
 from defuzz_loop.token_usage import (
     BudgetExceeded,
     TokenUsageContext,
@@ -34,10 +40,24 @@ from defuzz_loop.token_usage import (
 
 from .agent_backend import AgentBackend, AgentRequest, AgentResult, ExecAgentBackend
 from .models import ArtifactRef, ExperimentPlan, StageResult
-from .workspace import WorkspaceBuilder
+from .workspace import (
+    WorkspaceBuilder,
+    validate_agent_path_isolation,
+    validate_disjoint_input_roots,
+)
 
 RESULTS_FILENAME = "results.jsonl"
+CHECKER_BUNDLE_PATCH_FILENAME = "checker-bundle.patch"
+CHECKER_CATALOG_FILENAME = "checker-catalog.json"
+DEFAULT_DISPATCHER_PATH = "bin/defuzz-candidate-dispatcher"
 DEFAULT_CHECKER_ROOT = "core/internal/oracle"
+DEFAULT_SHARED_INTEGRATION_PATHS = (
+    "core/internal/oracle/metadata.go",
+    "core/internal/oracle/registry.go",
+    "core/internal/oracle/canary_oracle.go",
+    "core/internal/oracle/ibt_oracle.go",
+    "core/internal/oracle/fortify_oracle.go",
+)
 DEFAULT_VALIDATION_COMMANDS: tuple[ValidationCommand, ...]
 
 
@@ -106,6 +126,32 @@ class CommandResult:
         return self.exit_code == 0 and not self.timed_out
 
 
+def _resolve_agent_deny_paths(
+    parameters: Mapping[str, Any], source_root: Path,
+) -> tuple[list[Path], bool]:
+    raw_paths = parameters.get("deny_read_paths")
+    if raw_paths is None:
+        raw_paths = []
+    elif isinstance(raw_paths, (str, os.PathLike)):
+        raw_paths = [raw_paths]
+    else:
+        raw_paths = list(raw_paths)
+    raw_reference = parameters.get("reference_root")
+    if raw_reference is None and parameters.get("findings_deny_path") is not None:
+        raw_reference = Path(parameters["findings_deny_path"]).parent
+    mandatory = [source_root]
+    if raw_reference is not None:
+        mandatory.append(Path(raw_reference))
+        validate_disjoint_input_roots(
+            [("source_root", source_root), ("reference_root", raw_reference)]
+        )
+    paths = list(
+        dict.fromkeys([*mandatory, *(Path(item) for item in raw_paths)])
+    )
+    paths = [path.expanduser().resolve(strict=False) for path in paths]
+    return paths, bool(parameters.get("require_host_read_isolation", False))
+
+
 class CommandExecutor(Protocol):
     async def run(
         self, command: Sequence[str], *, cwd: Path, timeout_seconds: float | None = None
@@ -131,9 +177,7 @@ class SubprocessCommandExecutor:
 
         timed_out = False
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(), timeout=timeout_seconds
-            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
         except TimeoutError:
             timed_out = True
             process.kill()
@@ -154,9 +198,7 @@ class _WorkspaceLease:
     cleanup: Callable[[], Any] | None = None
 
 
-_TRANSIENT_CLEANUP_ERRNOS = frozenset(
-    {errno.EACCES, errno.EBUSY, errno.ENOTEMPTY, errno.EPERM}
-)
+_TRANSIENT_CLEANUP_ERRNOS = frozenset({errno.EACCES, errno.EBUSY, errno.ENOTEMPTY, errno.EPERM})
 _CLEANUP_ATTEMPTS = 6
 
 
@@ -193,9 +235,7 @@ async def _remove_workspace_tree(path: Path) -> None:
 
     for attempt in range(_CLEANUP_ATTEMPTS):
         if original.exists():
-            tombstone = original.with_name(
-                f".{original.name}.cleanup-{uuid.uuid4().hex}"
-            )
+            tombstone = original.with_name(f".{original.name}.cleanup-{uuid.uuid4().hex}")
             try:
                 os.replace(original, tombstone)
             except FileNotFoundError:
@@ -224,18 +264,12 @@ async def _remove_workspace_tree(path: Path) -> None:
         # Require a short quiet period before declaring success.  This catches
         # late bookkeeping writes from a hook that started before the rename.
         await asyncio.sleep(min(0.02 * (2**attempt), 0.20))
-        remaining = [
-            candidate
-            for candidate in (original, *cleanup_targets)
-            if candidate.exists()
-        ]
+        remaining = [candidate for candidate in (original, *cleanup_targets) if candidate.exists()]
         if not remaining:
             return
 
     remaining_text = ", ".join(
-        os.fspath(candidate)
-        for candidate in (original, *cleanup_targets)
-        if candidate.exists()
+        os.fspath(candidate) for candidate in (original, *cleanup_targets) if candidate.exists()
     )
     detail = f": {last_error}" if last_error is not None else ""
     raise OSError(f"workspace cleanup left residual paths: {remaining_text}{detail}")
@@ -245,6 +279,7 @@ async def _remove_workspace_tree(path: Path) -> None:
 class _FileState:
     content: bytes
     sha256: str
+    mode: int
 
 
 def _first_text(record: Mapping[str, Any], names: Sequence[str]) -> str | None:
@@ -312,9 +347,7 @@ def normalize_invariant(
         "schema_version": int(record.get("schema_version", 1)),
         "invariant_id": invariant_id,
         "statement": statement,
-        "observation": _first_text(
-            record, ("observation", "evidence", "observed_behavior")
-        ),
+        "observation": _first_text(record, ("observation", "evidence", "observed_behavior")),
         "generation_path": _first_text(record, ("generation_path",)) or "unknown",
         "provenance": provenance,
         "compiler": record.get("compiler"),
@@ -376,7 +409,7 @@ def render_checker_prompt(
 
     payload = json.dumps(invariant.value, ensure_ascii=False, indent=2, sort_keys=True)
     return f"""You are implementing exactly one DeFuzz invariant checker in an isolated,
-disposable copy.
+disposable cumulative checker tree. Earlier accepted checkers may already be present.
 
 Accepted invariant (preserve its ID and semantics):
 ```json
@@ -402,6 +435,8 @@ Required implementation and tests:
 3. Keep the checker deterministic and safe to call repeatedly. Put expensive per-analysis
    state in `CheckContext.Cache`, never mutable receiver state.
 4. Format Go files. Do not weaken or delete existing checks/tests to obtain a pass.
+5. Existing checker implementation and test files belong to earlier accepted invariants and
+   are immutable. You may extend shared metadata and mechanism registration files only.
 
 Implement and test the checker now. Do not edit the source checkout outside this workspace.
 """
@@ -414,7 +449,8 @@ def _repair_prompt(
     return f"""Repair the current implementation for invariant {invariant.invariant_id}.
 This is bounded repair attempt {attempt}. Keep the existing InvariantChecker, metadata SSOT,
 mechanism registration, and mandatory Pass/Fail/NotApplicable/Error/nil tests intact.
-Do not edit outside core/internal/oracle and do not weaken tests.
+Do not edit outside core/internal/oracle, do not alter earlier checker-owned files, and do not
+weaken tests. Shared metadata and mechanism registration files may be extended.
 
 Deterministic validation feedback from the previous attempt:
 ```json
@@ -439,17 +475,66 @@ def _is_within(path: Path, root: Path) -> bool:
     return True
 
 
-def _snapshot(root: Path) -> dict[str, _FileState]:
+def _snapshot(root: Path, *, exclude_roots: Sequence[Path] = ()) -> dict[str, _FileState]:
     result: dict[str, _FileState] = {}
+    resolved_excludes = tuple(path.resolve(strict=False) for path in exclude_roots)
     for path in sorted(candidate for candidate in root.rglob("*") if candidate.is_file()):
+        resolved = path.resolve(strict=False)
+        if any(_is_within(resolved, excluded) for excluded in resolved_excludes):
+            continue
         relative = path.relative_to(root)
         if relative.parts and relative.parts[0] in {".git", ".defuzz-agent"}:
             continue
         content = path.read_bytes()
         result[relative.as_posix()] = _FileState(
-            content=content, sha256=hashlib.sha256(content).hexdigest()
+            content=content,
+            sha256=hashlib.sha256(content).hexdigest(),
+            mode=stat.S_IMODE(path.stat().st_mode),
         )
     return result
+
+
+def _tree_sha256(snapshot: Mapping[str, _FileState]) -> str:
+    """Hash a tree from sorted relative paths and file-content digests."""
+
+    aggregate = hashlib.sha256()
+    for path in sorted(snapshot):
+        aggregate.update(path.encode("utf-8"))
+        aggregate.update(b"\0")
+        aggregate.update(snapshot[path].sha256.encode("ascii"))
+        aggregate.update(b"\n")
+    return aggregate.hexdigest()
+
+
+def _restore_snapshot(root: Path, target: Mapping[str, _FileState]) -> None:
+    """Restore all snapshotted files, including additions and deletions."""
+
+    current = _snapshot(root)
+    for relative in sorted(set(current) - set(target), reverse=True):
+        path = root / relative
+        path.unlink(missing_ok=True)
+    for relative, state in target.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            path.unlink()
+        path.write_bytes(state.content)
+        path.chmod(state.mode)
+    for directory in sorted(
+        (path for path in root.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    ):
+        directory_relative = directory.relative_to(root)
+        if directory_relative.parts and directory_relative.parts[0] in {
+            ".git",
+            ".defuzz-agent",
+        }:
+            continue
+        try:
+            directory.rmdir()
+        except OSError:
+            pass
 
 
 def _changes(
@@ -507,6 +592,13 @@ def _atomic_write(path: Path, text: str) -> None:
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _atomic_write_json(path: Path, value: Mapping[str, Any]) -> None:
+    _atomic_write(
+        path,
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+    )
 
 
 def _artifact(path: Path, output_dir: Path, kind: str) -> dict[str, Any]:
@@ -582,9 +674,7 @@ def _command_specs(parameters: Mapping[str, Any]) -> tuple[ValidationCommand, ..
         if isinstance(item, Mapping):
             raw_argv = item.get("argv", item.get("command"))
             argv = (
-                tuple(shlex.split(raw_argv))
-                if isinstance(raw_argv, str)
-                else tuple(raw_argv or ())
+                tuple(shlex.split(raw_argv)) if isinstance(raw_argv, str) else tuple(raw_argv or ())
             )
             commands.append(
                 ValidationCommand(
@@ -598,6 +688,148 @@ def _command_specs(parameters: Mapping[str, Any]) -> tuple[ValidationCommand, ..
     if not commands:
         raise ValueError("at least one validation command is required")
     return tuple(commands)
+
+
+def _configured_command(
+    value: Any,
+    *,
+    default: Sequence[str],
+    default_cwd: str = "core",
+    substitutions: Mapping[str, str] | None = None,
+) -> ValidationCommand:
+    raw = default if value is None else value
+    cwd = default_cwd
+    if isinstance(raw, ValidationCommand):
+        spec = raw
+    elif isinstance(raw, str):
+        spec = ValidationCommand(tuple(shlex.split(raw)), cwd=cwd)
+    elif isinstance(raw, Mapping):
+        raw_argv = raw.get("argv", raw.get("command"))
+        argv = (
+            tuple(shlex.split(raw_argv))
+            if isinstance(raw_argv, str)
+            else tuple(str(item) for item in (raw_argv or ()))
+        )
+        spec = ValidationCommand(argv, cwd=str(raw.get("cwd", cwd)))
+    elif isinstance(raw, Sequence) and not isinstance(raw, (bytes, bytearray)):
+        spec = ValidationCommand(tuple(str(item) for item in raw), cwd=cwd)
+    else:
+        raise TypeError("configured command must be argv, a string, or a mapping")
+    replacements = dict(substitutions or {})
+    return ValidationCommand(
+        tuple(argument.format_map(replacements) for argument in spec.argv),
+        cwd=spec.cwd,
+        require_empty_stdout=spec.require_empty_stdout,
+    )
+
+
+def _matches_any_path(path: str, patterns: Sequence[str]) -> bool:
+    return any(
+        path == pattern.rstrip("/")
+        or path.startswith(pattern.rstrip("/") + "/")
+        or fnmatch.fnmatchcase(path, pattern)
+        for pattern in patterns
+    )
+
+
+def _normalize_path_patterns(values: Sequence[Any], *, field: str) -> tuple[str, ...]:
+    result: list[str] = []
+    for value in values:
+        text = str(value).strip().replace(os.sep, "/").strip("/")
+        relative = PurePosixPath(text)
+        if not text or relative.is_absolute() or ".." in relative.parts or "\x00" in text:
+            raise ValueError(f"{field} entries must be safe relative paths or globs")
+        result.append(text)
+    return tuple(result)
+
+
+def _diagnostic_catalog_entry(
+    invariant: NormalizedInvariant, row: Mapping[str, Any]
+) -> dict[str, Any]:
+    return {
+        "id": invariant.invariant_id,
+        "checker_id": invariant.invariant_id,
+        "invariant_id": invariant.invariant_id,
+        "statement": invariant.value.get("statement"),
+        "mechanism": invariant.value.get("mechanism"),
+        "target": invariant.value.get("target"),
+        "lineage": invariant.lineage,
+        "parent_tree_sha256": row.get("parent_tree_sha256"),
+        "result_tree_sha256": row.get("result_tree_sha256"),
+        "files": [
+            {
+                "path": change["path"],
+                "sha256": change["sha256_after"],
+                "size_bytes": change["size_after"],
+            }
+            for change in row.get("file_changes", [])
+            if change.get("sha256_after") is not None
+        ],
+    }
+
+
+def _runtime_catalog(
+    stdout: str,
+    *,
+    included: Sequence[tuple[NormalizedInvariant, Mapping[str, Any]]],
+    source_tree_sha256: str,
+    final_tree_sha256: str,
+) -> dict[str, Any]:
+    """Validate dispatcher metadata and join it with authoring provenance."""
+
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"dispatcher catalog returned invalid JSON: {exc.msg}") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError("dispatcher catalog must be a JSON object")
+    if payload.get("schema_version") != 1 or payload.get("kind") != ("defuzz-checker-catalog"):
+        raise ValueError("dispatcher catalog has an unsupported schema or kind")
+    raw_checkers = payload.get("checkers")
+    if not isinstance(raw_checkers, list):
+        raise ValueError("dispatcher catalog checkers must be a list")
+    by_id: dict[str, Mapping[str, Any]] = {}
+    for raw in raw_checkers:
+        if not isinstance(raw, Mapping):
+            raise ValueError("dispatcher catalog checker entries must be objects")
+        checker_id = str(raw.get("id", "")).strip()
+        if not checker_id:
+            raise ValueError("dispatcher catalog checker id must be non-empty")
+        if checker_id in by_id:
+            raise ValueError(f"dispatcher catalog has duplicate checker id {checker_id!r}")
+        by_id[checker_id] = raw
+
+    checkers: list[dict[str, Any]] = []
+    included_ids = {invariant.invariant_id for invariant, _ in included}
+    for invariant, row in included:
+        runtime = by_id.get(invariant.invariant_id)
+        if runtime is None:
+            raise ValueError(
+                f"dispatcher catalog is missing authored checker {invariant.invariant_id!r}"
+            )
+        entry = dict(runtime)
+        requires = entry.get("requires", [])
+        if not isinstance(requires, list) or not all(
+            isinstance(item, str) and item for item in requires
+        ):
+            raise ValueError(
+                f"dispatcher catalog checker {invariant.invariant_id!r} has invalid requires"
+            )
+        missing = sorted(set(requires) - included_ids)
+        if missing:
+            raise ValueError(
+                f"authored checker {invariant.invariant_id!r} is missing required "
+                f"bundle checkers: {', '.join(missing)}"
+            )
+        entry.update(_diagnostic_catalog_entry(invariant, row))
+        checkers.append(entry)
+    return {
+        "schema_version": 1,
+        "kind": "defuzz-checker-catalog",
+        "source_tree_sha256": source_tree_sha256,
+        "result_tree_sha256": final_tree_sha256,
+        "checkers": checkers,
+    }
 
 
 class CheckerAuthoringRunner:
@@ -618,7 +850,7 @@ class CheckerAuthoringRunner:
         self,
         source_root: Path,
         output_dir: Path,
-        invariant: NormalizedInvariant,
+        invariant: NormalizedInvariant | None,
         allowlist: Sequence[str],
     ) -> _WorkspaceLease:
         output_inside_source = _is_within(output_dir, source_root)
@@ -626,13 +858,16 @@ class CheckerAuthoringRunner:
         if base is not None:
             base.mkdir(parents=True, exist_ok=True)
         destination = Path(
-            tempfile.mkdtemp(prefix=f"{_slug(invariant.invariant_id)}-", dir=base)
+            tempfile.mkdtemp(
+                prefix=f"{_slug(invariant.invariant_id if invariant else 'checker-bundle')}-",
+                dir=base,
+            )
         ).resolve()
         try:
             if self.workspace_factory is None:
-                produced: Any = WorkspaceBuilder(
-                    source_root, allowlist=allowlist
-                ).materialize(destination)
+                produced: Any = WorkspaceBuilder(source_root, allowlist=allowlist).materialize(
+                    destination
+                )
             else:
                 creator = next(
                     (
@@ -644,30 +879,27 @@ class CheckerAuthoringRunner:
                 )
                 if creator is None:
                     raise TypeError(
-                        "workspace_factory must be callable or expose "
-                        "create/materialize/build"
+                        "workspace_factory must be callable or expose create/materialize/build"
                     )
                 try:
                     produced = creator(
                         source_root=source_root,
                         destination=destination,
-                        invariant=invariant.value,
+                        invariant=invariant.value if invariant else {},
                     )
                 except TypeError:
-                    produced = creator(source_root, destination, invariant.value)
+                    produced = creator(
+                        source_root, destination, invariant.value if invariant else {}
+                    )
                 if inspect.isawaitable(produced):
                     produced = await produced
 
             root_value = _value(produced, "root", _value(produced, "path", produced))
             root = Path(root_value).expanduser().resolve(strict=True)
             if not root.is_dir():
-                raise ValueError(
-                    f"workspace factory did not produce a directory: {root}"
-                )
+                raise ValueError(f"workspace factory did not produce a directory: {root}")
             if _is_within(root, source_root) or _is_within(source_root, root):
-                raise ValueError(
-                    "isolated workspace must not overlap the source checkout"
-                )
+                raise ValueError("isolated workspace must not overlap the source checkout")
             provided_cleanup = getattr(produced, "cleanup", None)
         except BaseException:
             await _remove_workspace_tree(destination)
@@ -691,9 +923,13 @@ class CheckerAuthoringRunner:
             cleanup = cleanup_with_provider
         return _WorkspaceLease(root=root, cleanup=cleanup)
 
-    async def _invoke_agent(
-        self, request: AgentRequest
-    ) -> AgentResult:
+    async def _invoke_agent(self, request: AgentRequest) -> AgentResult:
+        request.deny_read_paths = validate_agent_path_isolation(
+            cwd=request.cwd,
+            output_dir=request.output_dir,
+            schema_path=request.schema_path,
+            deny_read_paths=request.deny_read_paths,
+        )
         method = getattr(self.backend, "run", None)
         if callable(method):
             result = method(request)
@@ -708,6 +944,8 @@ class CheckerAuthoringRunner:
                 timeout_seconds=request.timeout_seconds,
                 writable=request.writable,
                 token_sink=request.token_sink,
+                deny_read_paths=request.deny_read_paths,
+                require_host_read_isolation=request.require_host_read_isolation,
                 metadata=request.metadata,
             )
         if inspect.isawaitable(result):
@@ -770,6 +1008,40 @@ class CheckerAuthoringRunner:
             )
         return passed, results
 
+    async def _execute_command(
+        self,
+        workspace: Path,
+        spec: ValidationCommand,
+        timeout_seconds: float,
+    ) -> tuple[bool, dict[str, Any], CommandResult]:
+        cwd = (workspace / spec.cwd).resolve()
+        if not _is_within(cwd, workspace) or not cwd.is_dir():
+            outcome = CommandResult(
+                spec.argv,
+                os.fspath(cwd),
+                2,
+                stderr="command cwd is missing or unsafe",
+            )
+        else:
+            raw = self.command_executor.run(spec.argv, cwd=cwd, timeout_seconds=timeout_seconds)
+            if inspect.isawaitable(raw):
+                raw = await raw
+            outcome = _normalize_command_result(raw, spec, cwd)
+        success = outcome.success and not (
+            spec.require_empty_stdout and bool(outcome.stdout.strip())
+        )
+        record = {
+            "argv": list(outcome.argv),
+            "cwd": spec.cwd,
+            "exit_code": outcome.exit_code,
+            "timed_out": outcome.timed_out,
+            "require_empty_stdout": spec.require_empty_stdout,
+            "status": "passed" if success else "failed",
+            "stdout": _trim(outcome.stdout),
+            "stderr": _trim(outcome.stderr),
+        }
+        return success, record, outcome
+
     async def _one(
         self,
         *,
@@ -777,22 +1049,20 @@ class CheckerAuthoringRunner:
         repetition: int,
         output_dir: Path,
         invariant: NormalizedInvariant,
-        source_root: Path,
+        workspace: Path,
+        parent_snapshot: Mapping[str, _FileState],
+        owned_files: Mapping[str, str],
+        shared_integration_paths: Sequence[str],
         commands: Sequence[ValidationCommand],
         max_attempts: int,
         checker_root: str,
         allowed_paths: Sequence[str],
-        workspace_allowlist: Sequence[str],
         token_sink: TokenUsageSink,
         timeout_seconds: float,
-        keep_workspace: bool,
-    ) -> tuple[dict[str, Any], list[Path]]:
+    ) -> tuple[dict[str, Any], list[Path], dict[str, _FileState]]:
         slug = _slug(invariant.invariant_id)
         artifact_dir = output_dir / "checker-authoring" / slug
         artifact_dir.mkdir(parents=True, exist_ok=True)
-        lease = await self._workspace(
-            source_root, output_dir, invariant, workspace_allowlist
-        )
         patch_paths: list[Path] = []
         attempts: list[dict[str, Any]] = []
         token_refs: list[dict[str, Any]] = []
@@ -800,21 +1070,19 @@ class CheckerAuthoringRunner:
         final_status = "failed"
         first_patch_ref: dict[str, Any] | None = None
         final_patch_ref: dict[str, Any] | None = None
-        baseline: dict[str, _FileState] = {}
-        final_snapshot: dict[str, _FileState] = {}
+        baseline = dict(parent_snapshot)
+        final_snapshot = dict(parent_snapshot)
         previous_failures: list[Mapping[str, Any]] = []
         stopped_reason: str | None = None
-
+        accepted_snapshot = dict(parent_snapshot)
         try:
-            baseline = _snapshot(lease.root)
-            final_snapshot = baseline
             for attempt_number in range(1, max_attempts + 1):
                 try:
                     token_sink.check_budget()
                 except BudgetExceeded as exc:
                     stopped_reason = str(exc)
                     break
-                agent_output = lease.root / ".defuzz-agent" / f"attempt-{attempt_number:03d}"
+                agent_output = workspace / ".defuzz-agent" / slug / f"attempt-{attempt_number:03d}"
                 attempt_context = token_sink.context.with_overrides(
                     stage=f"{invariant.invariant_id}:attempt-{attempt_number}"
                 )
@@ -826,32 +1094,46 @@ class CheckerAuthoringRunner:
                 )
                 request = AgentRequest(
                     prompt=prompt,
-                    cwd=lease.root,
+                    cwd=workspace,
                     output_dir=agent_output,
                     timeout_seconds=timeout_seconds,
                     writable=True,
                     token_sink=token_sink,
+                    deny_read_paths=list(plan.parameters.get("_resolved_deny_read_paths", [])),
+                    require_host_read_isolation=bool(
+                        plan.parameters.get("require_host_read_isolation", False)
+                    ),
                     metadata={
                         "run_id": plan.run_id,
                         "experiment": plan.experiment,
                         "variant": plan.variant,
                         "part": "checker-authoring",
                         "stage": f"{invariant.invariant_id}:attempt-{attempt_number}",
+                        "invariant_id": invariant.invariant_id,
+                        "parent_tree_sha256": _tree_sha256(parent_snapshot),
                     },
                 )
-                agent_result = await self._invoke_agent(request)
+                try:
+                    agent_result = await self._invoke_agent(request)
+                except Exception as exc:  # backend failure is a measured terminal outcome
+                    agent_result = AgentResult(
+                        success=False,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
                 attempt_records = [
                     record
                     for record in token_sink.records
                     if record.call_id not in existing_call_ids
                 ]
                 if not attempt_records:
-                    attempt_records = [token_sink.record_external_usage(
-                        agent_result.usage,
-                        context=attempt_context,
-                        success=agent_result.success,
-                        error_type="AgentError" if not agent_result.success else None,
-                    )]
+                    attempt_records = [
+                        token_sink.record_external_usage(
+                            agent_result.usage,
+                            context=attempt_context,
+                            success=agent_result.success,
+                            error_type="AgentError" if not agent_result.success else None,
+                        )
+                    ]
                 refs = [
                     {
                         "path": _reference_path(token_sink.path, output_dir),
@@ -862,7 +1144,7 @@ class CheckerAuthoringRunner:
                 ]
                 token_refs.extend(refs)
 
-                current = _snapshot(lease.root)
+                current = _snapshot(workspace)
                 if attempt_number == 1:
                     first_patch_path = artifact_dir / "first.patch"
                     _atomic_write(first_patch_path, _patch(baseline, current))
@@ -870,24 +1152,35 @@ class CheckerAuthoringRunner:
                     first_patch_ref = _artifact(first_patch_path, output_dir, "first-patch")
 
                 changed = _changes(baseline, current)
-                allowed_errors = [
+                allowed_errors: list[dict[str, Any]] = [
                     {
                         "type": "disallowed-file",
                         "path": str(item["path"]),
                         "message": "checker authoring may only change configured checker paths",
                     }
                     for item in changed
-                    if not any(
-                        item["path"] == prefix.rstrip("/")
-                        or str(item["path"]).startswith(prefix.rstrip("/") + "/")
-                        for prefix in allowed_paths
-                    )
+                    if not _matches_any_path(str(item["path"]), allowed_paths)
                 ]
+                for item in changed:
+                    path = str(item["path"])
+                    owner = owned_files.get(path)
+                    if owner is not None and not _matches_any_path(path, shared_integration_paths):
+                        allowed_errors.append(
+                            {
+                                "type": "owned-file-modified",
+                                "path": path,
+                                "owner_invariant_id": owner,
+                                "message": (
+                                    "later invariants may not modify files owned by an "
+                                    "accepted checker"
+                                ),
+                            }
+                        )
                 validation_ok = False
                 validation: list[dict[str, Any]] = []
                 if agent_result.success:
                     validation_ok, validation = await self._validate(
-                        lease.root, commands, timeout_seconds
+                        workspace, commands, timeout_seconds
                     )
                 else:
                     validation.append(
@@ -920,6 +1213,7 @@ class CheckerAuthoringRunner:
                 final_snapshot = current
                 if validation_ok:
                     final_status = "passed"
+                    accepted_snapshot = current
                     break
 
             if first_patch_ref is None:
@@ -931,7 +1225,12 @@ class CheckerAuthoringRunner:
             _atomic_write(final_patch_path, _patch(baseline, final_snapshot))
             patch_paths.append(final_patch_path)
             final_patch_ref = _artifact(final_patch_path, output_dir, "final-patch")
-            changes = _changes(baseline, final_snapshot)
+            candidate_changes = _changes(baseline, final_snapshot)
+            if final_status != "passed":
+                _restore_snapshot(workspace, parent_snapshot)
+                accepted_snapshot = dict(parent_snapshot)
+            changes = candidate_changes
+            effective_final_status = "unprocessed" if not attempts else final_status
             record = {
                 "schema_version": 1,
                 "run_id": plan.run_id,
@@ -941,9 +1240,13 @@ class CheckerAuthoringRunner:
                 "invariant_id": invariant.invariant_id,
                 "invariant": invariant.value,
                 "lineage": invariant.lineage,
+                "bundle_index": 0,
+                "parent_tree_sha256": _tree_sha256(parent_snapshot),
+                "result_tree_sha256": _tree_sha256(accepted_snapshot),
+                "included_in_bundle": effective_final_status == "passed",
                 "first_pass_status": first_status,
-                "final_status": final_status,
-                "status": final_status,
+                "final_status": effective_final_status,
+                "status": effective_final_status,
                 "attempt_count": len(attempts),
                 "attempt_cap": max_attempts,
                 "attempts": attempts,
@@ -954,13 +1257,20 @@ class CheckerAuthoringRunner:
                 "token_refs": token_refs,
                 "stopped_reason": stopped_reason,
                 "budget_exhausted": stopped_reason is not None,
+                "infrastructure_error": effective_final_status == "failed"
+                and any(
+                    attempt["agent_status"] == "failed"
+                    or any(
+                        item.get("timed_out") or item.get("exit_code") == 127
+                        for item in attempt["validation"]
+                    )
+                    for attempt in attempts
+                ),
             }
-            return record, patch_paths
-        finally:
-            if not keep_workspace and lease.cleanup is not None:
-                cleanup_result = lease.cleanup()
-                if inspect.isawaitable(cleanup_result):
-                    await cleanup_result
+            return record, patch_paths, accepted_snapshot
+        except BaseException:
+            _restore_snapshot(workspace, parent_snapshot)
+            raise
 
     async def run(
         self, plan: ExperimentPlan, repetition: int, output_dir: str | os.PathLike[str]
@@ -969,10 +1279,14 @@ class CheckerAuthoringRunner:
         destination.mkdir(parents=True, exist_ok=True)
         parameters = plan.parameters
         source_root = (
-            Path(plan.source_root)
-            if plan.source_root is not None
-            else Path(__file__).resolve().parents[3]
-        ).expanduser().resolve(strict=True)
+            (
+                Path(plan.source_root)
+                if plan.source_root is not None
+                else Path(__file__).resolve().parents[3]
+            )
+            .expanduser()
+            .resolve(strict=True)
+        )
         raw_input = parameters.get(
             "accepted_invariants",
             parameters.get("accepted_invariants_path", parameters.get("invariants")),
@@ -1005,7 +1319,9 @@ class CheckerAuthoringRunner:
                 messages=["variant policy disables dedicated invariant checkers"],
             )
 
-        invariants = load_accepted_invariants(input_path)
+        invariants = sorted(
+            load_accepted_invariants(input_path), key=lambda item: item.invariant_id
+        )
         max_attempts = int(parameters.get("max_attempts", parameters.get("attempt_cap", 3)))
         if not 1 <= max_attempts <= 10:
             raise ValueError("max_attempts must be between 1 and 10")
@@ -1018,9 +1334,13 @@ class CheckerAuthoringRunner:
         checker_path = PurePosixPath(checker_root)
         if checker_path.is_absolute() or ".." in checker_path.parts:
             raise ValueError("checker_root must be relative to source_root")
-        allowed_paths = tuple(
-            str(item).strip("/")
-            for item in parameters.get("allowed_change_paths", [checker_root])
+        allowed_paths = _normalize_path_patterns(
+            parameters.get("allowed_change_paths", [checker_root]),
+            field="allowed_change_paths",
+        )
+        shared_integration_paths = _normalize_path_patterns(
+            parameters.get("shared_integration_paths", DEFAULT_SHARED_INTEGRATION_PATHS),
+            field="shared_integration_paths",
         )
         workspace_allowlist = tuple(
             str(item)
@@ -1030,6 +1350,15 @@ class CheckerAuthoringRunner:
         )
         commands = _command_specs(parameters)
         keep_workspace = bool(parameters.get("keep_workspaces", False))
+        deny_read_paths, require_host_read_isolation = _resolve_agent_deny_paths(
+            parameters, source_root
+        )
+        if require_host_read_isolation and not bool(
+            getattr(self.backend, "supports_host_read_isolation", False)
+        ):
+            raise ValueError(
+                "Part II requires a backend with host read isolation"
+            )
         provider = str(getattr(self.backend, "provider", "agent"))
         token_sink = current_token_usage_sink()
         owns_token_sink = token_sink is None
@@ -1051,40 +1380,259 @@ class CheckerAuthoringRunner:
 
         rows: list[dict[str, Any]] = []
         patch_paths: list[Path] = []
-        for invariant in invariants:
-            row, paths = await self._one(
-                plan=plan,
-                repetition=repetition,
-                output_dir=destination,
-                invariant=invariant,
-                source_root=source_root,
-                commands=commands,
-                max_attempts=max_attempts,
-                checker_root=checker_root,
-                allowed_paths=allowed_paths,
-                workspace_allowlist=workspace_allowlist,
-                token_sink=token_sink,
-                timeout_seconds=timeout_seconds,
-                keep_workspace=keep_workspace,
+        source_root_snapshot = _snapshot(
+            source_root,
+            exclude_roots=(destination,) if _is_within(destination, source_root) else (),
+        )
+        lease = await self._workspace(
+            source_root,
+            destination,
+            invariants[0] if invariants else None,
+            workspace_allowlist,
+        )
+        source_snapshot = _snapshot(lease.root)
+        owned_files: dict[str, str] = {
+            path: "source-baseline"
+            for path in source_snapshot
+            if _matches_any_path(path, allowed_paths)
+            and not _matches_any_path(path, shared_integration_paths)
+        }
+        accepted_snapshot = dict(source_snapshot)
+        source_tree_sha256 = _tree_sha256(source_snapshot)
+        try:
+            for index, invariant in enumerate(invariants):
+                row, paths, accepted_snapshot = await self._one(
+                    plan=plan.model_copy(
+                        update={
+                            "parameters": {
+                                **plan.parameters,
+                                "_resolved_deny_read_paths": deny_read_paths,
+                                "require_host_read_isolation": require_host_read_isolation,
+                            }
+                        }
+                    ),
+                    repetition=repetition,
+                    output_dir=destination,
+                    invariant=invariant,
+                    workspace=lease.root,
+                    parent_snapshot=accepted_snapshot,
+                    owned_files=owned_files,
+                    shared_integration_paths=shared_integration_paths,
+                    commands=commands,
+                    max_attempts=max_attempts,
+                    checker_root=checker_root,
+                    allowed_paths=allowed_paths,
+                    token_sink=token_sink,
+                    timeout_seconds=timeout_seconds,
+                )
+                row["bundle_index"] = index
+                rows.append(row)
+                patch_paths.extend(paths)
+                if row["included_in_bundle"]:
+                    for path in row["files"]:
+                        if not _matches_any_path(path, shared_integration_paths):
+                            owned_files[path] = invariant.invariant_id
+
+            final_snapshot = dict(accepted_snapshot)
+            final_tree_sha256 = _tree_sha256(final_snapshot)
+            final_validation_ok, final_validation = await self._validate(
+                lease.root, commands, timeout_seconds
             )
-            rows.append(row)
-            patch_paths.extend(paths)
+
+            bundle_patch_path = destination / CHECKER_BUNDLE_PATCH_FILENAME
+            _atomic_write(bundle_patch_path, _patch(source_snapshot, final_snapshot))
+            bundle_patch_ref = _artifact(bundle_patch_path, destination, "checker-bundle-patch")
+
+            included = [
+                (invariant, row)
+                for invariant, row in zip(invariants, rows, strict=True)
+                if row["included_in_bundle"]
+            ]
+            build_record: dict[str, Any] | None = None
+            catalog_ref: dict[str, Any] | None = None
+            dispatcher_ref: dict[str, Any] | None = None
+            integration_error: str | None = None
+            if included and final_validation_ok:
+                dispatcher_relative = str(
+                    parameters.get("dispatcher_path", DEFAULT_DISPATCHER_PATH)
+                )
+                dispatcher_posix = PurePosixPath(dispatcher_relative)
+                if (
+                    not dispatcher_relative
+                    or "\x00" in dispatcher_relative
+                    or "\\" in dispatcher_relative
+                    or dispatcher_posix.is_absolute()
+                    or ".." in dispatcher_posix.parts
+                    or dispatcher_posix.as_posix() != dispatcher_relative
+                ):
+                    raise ValueError("dispatcher_path must be a normalized relative POSIX path")
+                bundle_dispatcher = destination.joinpath(*dispatcher_posix.parts)
+                bundle_dispatcher.parent.mkdir(parents=True, exist_ok=True)
+                bundle_dispatcher.unlink(missing_ok=True)
+                build_spec = _configured_command(
+                    parameters.get("dispatcher_build_command"),
+                    default=(
+                        "go",
+                        "build",
+                        "-trimpath",
+                        "-buildvcs=false",
+                        "-o",
+                        os.fspath(bundle_dispatcher),
+                        "./cmd/defuzz-candidate-dispatcher",
+                    ),
+                    substitutions={
+                        "dispatcher": os.fspath(bundle_dispatcher),
+                        "workspace": os.fspath(lease.root),
+                    },
+                )
+                build_ok, build_record, _ = await self._execute_command(
+                    lease.root, build_spec, timeout_seconds
+                )
+                if build_ok and bundle_dispatcher.is_file():
+                    dispatcher_ref = _artifact(bundle_dispatcher, destination, "checker-dispatcher")
+                    catalog_spec = _configured_command(
+                        parameters.get("dispatcher_catalog_command"),
+                        default=(os.fspath(bundle_dispatcher), "--mode", "catalog"),
+                        substitutions={
+                            "dispatcher": os.fspath(bundle_dispatcher),
+                            "workspace": os.fspath(lease.root),
+                        },
+                    )
+                    catalog_ok, catalog_command, catalog_outcome = await self._execute_command(
+                        lease.root, catalog_spec, timeout_seconds
+                    )
+                    if catalog_ok:
+                        try:
+                            catalog = _runtime_catalog(
+                                catalog_outcome.stdout,
+                                included=included,
+                                source_tree_sha256=source_tree_sha256,
+                                final_tree_sha256=final_tree_sha256,
+                            )
+                        except ValueError as exc:
+                            integration_error = str(exc)
+                        else:
+                            catalog_path = destination / CHECKER_CATALOG_FILENAME
+                            _atomic_write_json(catalog_path, catalog)
+                            catalog_ref = _artifact(catalog_path, destination, "checker-catalog")
+                    else:
+                        integration_error = "dispatcher catalog command failed"
+                    build_record["catalog_command"] = catalog_command
+                elif build_ok:
+                    build_record["status"] = "failed"
+                    build_record["stderr"] = (
+                        str(build_record.get("stderr", ""))
+                        + "dispatcher build produced no executable"
+                    )
+                    integration_error = "dispatcher build produced no executable"
+
+            included_ids = [item.invariant_id for item, _ in included]
+            failed_ids = [
+                invariant.invariant_id
+                for invariant, row in zip(invariants, rows, strict=True)
+                if row["final_status"] == "failed"
+            ]
+            budget_exhausted_any = any(row["budget_exhausted"] for row in rows)
+            infrastructure_error_any = any(row["infrastructure_error"] for row in rows)
+            unprocessed_any = any(row["attempt_count"] == 0 for row in rows)
+            build_ok = bool(build_record and build_record.get("status") == "passed")
+            ready = (
+                bool(included_ids)
+                and final_validation_ok
+                and build_ok
+                and catalog_ref is not None
+                and dispatcher_ref is not None
+                and not budget_exhausted_any
+                and not infrastructure_error_any
+                and not unprocessed_any
+            )
+            validation_status = (
+                "passed" if final_validation_ok and build_ok and catalog_ref else "failed"
+            )
+            manifest_payload: dict[str, Any] = {
+                "schema_version": 1,
+                "kind": "defuzz-checker-bundle",
+                "status": "ready" if ready else "incomplete",
+                "source_root": os.fspath(source_root),
+                "source_root_sha256": _tree_sha256(source_root_snapshot),
+                "source_tree_sha256": source_tree_sha256,
+                "final_tree_sha256": final_tree_sha256,
+                "coverage_complete": not failed_ids and not unprocessed_any,
+                "budget_exhausted": budget_exhausted_any,
+                "included_invariant_ids": included_ids,
+                "failed_invariant_ids": failed_ids,
+                "invariants": [
+                    {
+                        "invariant_id": row["invariant_id"],
+                        "final_status": (
+                            "unprocessed" if row["attempt_count"] == 0 else row["final_status"]
+                        ),
+                        "infrastructure_error": row["infrastructure_error"],
+                        "parent_tree_sha256": row["parent_tree_sha256"],
+                        "result_tree_sha256": row["result_tree_sha256"],
+                        "files": row["files"],
+                        "lineage": row["lineage"],
+                    }
+                    for row in rows
+                ],
+                "artifacts": {
+                    "cumulative_patch": bundle_patch_ref,
+                    "catalog": catalog_ref,
+                    "dispatcher": dispatcher_ref,
+                },
+                "validation": {
+                    "status": validation_status,
+                    "commands": final_validation,
+                    "build": build_record,
+                    "integration_error": integration_error,
+                },
+            }
+            manifest_payload["bundle_id"] = compute_bundle_id(manifest_payload)
+            manifest = CheckerBundleManifest.model_validate(manifest_payload)
+            manifest_path = destination / CHECKER_BUNDLE_MANIFEST_FILENAME
+            _atomic_write_json(manifest_path, manifest.model_dump(mode="json"))
+        finally:
+            if not keep_workspace and lease.cleanup is not None:
+                cleanup_result = lease.cleanup()
+                if inspect.isawaitable(cleanup_result):
+                    await cleanup_result
 
         _atomic_write(
             results_path,
             "".join(
-                json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-                + "\n"
+                json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
                 for row in rows
             ),
         )
         artifacts = [
             ArtifactRef.from_path(results_path, base_dir=destination, kind="results"),
+            ArtifactRef.from_path(
+                bundle_patch_path, base_dir=destination, kind="checker-bundle-patch"
+            ),
+            ArtifactRef.from_path(
+                manifest_path, base_dir=destination, kind="checker-bundle-manifest"
+            ),
             *(
                 ArtifactRef.from_path(path, base_dir=destination, kind="patch")
                 for path in patch_paths
             ),
         ]
+        if catalog_ref is not None:
+            artifacts.append(
+                ArtifactRef.from_path(
+                    destination / CHECKER_CATALOG_FILENAME,
+                    base_dir=destination,
+                    kind="checker-catalog",
+                )
+            )
+        if dispatcher_ref is not None:
+            artifacts.append(
+                ArtifactRef.from_path(
+                    destination / str(dispatcher_ref["path"]),
+                    base_dir=destination,
+                    kind="checker-dispatcher",
+                )
+            )
         if owns_token_sink:
             token_summary_json = destination / "token_usage_summary.json"
             token_summary_csv = destination / "token_usage_summary.csv"
@@ -1112,7 +1660,7 @@ class CheckerAuthoringRunner:
         failed = sum(row["final_status"] != "passed" for row in rows)
         budget_exhausted = sum(bool(row["budget_exhausted"]) for row in rows)
         unprocessed = sum(int(row["attempt_count"]) == 0 for row in rows)
-        if failed == 0 and budget_exhausted == 0 and unprocessed == 0:
+        if ready:
             stage_status = "completed"
         elif final_passed:
             stage_status = "partial"
@@ -1132,11 +1680,15 @@ class CheckerAuthoringRunner:
                 "budget_exhausted": budget_exhausted,
                 "unprocessed": unprocessed,
                 "agent_attempts": sum(int(row["attempt_count"]) for row in rows),
+                "bundle_ready": ready,
+                "coverage_complete": manifest.coverage_complete,
             },
             metadata={
                 "input_path": os.fspath(input_path),
                 "results_path": os.fspath(results_path),
                 "attempt_cap": max_attempts,
+                "checker_bundle_manifest": os.fspath(manifest_path),
+                "bundle_id": manifest.bundle_id,
             },
         )
 
@@ -1149,12 +1701,14 @@ async def run(
 ) -> StageResult:
     """Run Part II with the shared experiment-stage signature."""
 
-    normalized_plan = (
-        plan if isinstance(plan, ExperimentPlan) else ExperimentPlan.from_dict(plan)
-    )
+    normalized_plan = plan if isinstance(plan, ExperimentPlan) else ExperimentPlan.from_dict(plan)
     selected_backend = backend or ExecAgentBackend(
         binary=str(normalized_plan.parameters.get("agent_binary", "traex")),
         model=normalized_plan.parameters.get("model"),
+        provider=cast(
+            Literal["traex", "codex"],
+            normalized_plan.parameters.get("backend", "traex"),
+        ),
     )
     runner = CheckerAuthoringRunner(
         backend=selected_backend,

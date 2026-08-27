@@ -9,13 +9,22 @@ gap (R5). The Go MCP server is exposed via Streamable HTTP at /mcp.
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 from typing import Any
 
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
 
 from ..state import ToolCall
+
+
+def _streamable_http_client() -> Any:
+    module = importlib.import_module("mcp.client.streamable_http")
+    try:
+        client = module.streamable_http_client
+    except AttributeError:
+        client = module.streamablehttp_client
+    return client
 
 
 def _digest(payload: Any) -> str:
@@ -34,7 +43,7 @@ class MCPClient:
         self._url = url
 
     async def list_tools(self) -> list[str]:
-        async with streamablehttp_client(self._url) as (read, write, _):
+        async with _streamable_http_client()(self._url) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 resp = await session.list_tools()
@@ -49,7 +58,7 @@ class MCPClient:
         round: int,
         tool_log: list[ToolCall] | None = None,
     ) -> dict[str, Any]:
-        async with streamablehttp_client(self._url) as (read, write, _):
+        async with _streamable_http_client()(self._url) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 result = await session.call_tool(name, args)

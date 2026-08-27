@@ -17,6 +17,7 @@ Staging artifacts written under ``out_dir`` (plan §CLI):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -46,12 +47,15 @@ from .seeds import load_seeds
 @dataclass
 class PipelineConfig:
     seed_sources: list[str]
-    gcc_root: Path
-    findings_root: Path | None
-    bugs_root: Path | None
-    invariants_root: Path | None
-    out_dir: Path
-    cache_root: Path
+    gcc_root: Path | None = None
+    findings_root: Path | None = None
+    bugs_root: Path | None = None
+    invariants_root: Path | None = None
+    out_dir: Path = Path(".")
+    cache_root: Path = Path(".")
+    corpus_root: Path | None = None
+    compiler: str = "gcc"
+    version: str | None = None
     top_k: int = 8
     # Over-fetch multiplier: retrieve top_k*over_fetch raw hits before the exit
     # filter so a full slate of top_k *survivors* remains after same-mechanism /
@@ -83,9 +87,124 @@ class PipelineConfig:
     # or evaluating query/filter changes must reuse the SAME corpus rather than
     # re-chunk a different local tree. Falls back to a fresh build if absent.
     reuse_corpus: bool = False
+    require_non_empty_corpus: bool = False
+
+    def __post_init__(self) -> None:
+        if self.corpus_root is not None and self.gcc_root is not None:
+            if self.compiler == "gcc" and Path(self.corpus_root) != Path(self.gcc_root):
+                raise ValueError("corpus_root and compatibility gcc_root disagree")
+        selected = self.corpus_root if self.corpus_root is not None else self.gcc_root
+        if selected is None:
+            raise ValueError("corpus_root is required")
+        self.corpus_root = Path(selected)
+        self.gcc_root = Path(self.gcc_root) if self.gcc_root is not None else None
+        self.out_dir = Path(self.out_dir)
+        self.cache_root = Path(self.cache_root)
+        self.compiler = self.compiler.strip().lower()
+        if self.compiler == "clang":
+            self.compiler = "llvm"
+        if self.compiler not in {"gcc", "llvm"}:
+            raise ValueError("compiler must be 'gcc' or 'llvm'")
+        if self.compiler == "gcc" and self.gcc_root is None:
+            self.gcc_root = self.corpus_root
+        if self.version is None:
+            self.version = corpus_mod.GCC_VERSION if self.compiler == "gcc" else ""
 
 
-def _build_retriever(cfg: PipelineConfig) -> tuple[Retriever, str]:
+def _compiler_cache_path(cache_root: Path, filename: str, compiler: str) -> Path:
+    if compiler == "gcc":
+        return cache_root / filename
+    name = Path(filename)
+    return cache_root / f"{name.stem}-{compiler}{name.suffix}"
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _corpus_source_identity(cfg: PipelineConfig) -> dict[str, object]:
+    assert cfg.corpus_root is not None
+    digest = hashlib.sha256()
+    files = 0
+    for path in corpus_mod.curated_source_paths(cfg.corpus_root, cfg.compiler):
+        relative = path.relative_to(cfg.corpus_root).as_posix()
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        if path.is_file():
+            digest.update(path.read_bytes())
+            files += 1
+        else:
+            digest.update(b"<missing>")
+        digest.update(b"\0")
+    return {
+        "schema_version": 1,
+        "adapter": f"curated-{cfg.compiler}-v1",
+        "compiler": cfg.compiler,
+        "version": cfg.version or "",
+        "source_revision": _repo_sha(cfg.corpus_root),
+        "source_content_sha256": digest.hexdigest(),
+        "source_files": files,
+        "include_bugzilla": cfg.include_bugzilla if cfg.compiler == "gcc" else False,
+    }
+
+
+def _identity_digest(identity: dict[str, object]) -> str:
+    payload = json.dumps(identity, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _write_corpus_metadata(
+    path: Path,
+    *,
+    identity: dict[str, object],
+    identity_sha256: str,
+    corpus_path: Path,
+) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "identity": identity,
+                "identity_sha256": identity_sha256,
+                "corpus_sha256": _sha256_file(corpus_path),
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _validate_corpus_chunks(cfg: PipelineConfig, chunks: list[Chunk]) -> None:
+    expected_compiler = "GCC" if cfg.compiler == "gcc" else "LLVM"
+    invalid_compilers = sorted(
+        {
+            chunk.metadata.compiler
+            for chunk in chunks
+            if chunk.metadata.compiler != expected_compiler
+        }
+    )
+    if invalid_compilers:
+        raise ValueError(
+            f"{cfg.compiler} corpus cache contains foreign compiler metadata: "
+            + ", ".join(value or "<empty>" for value in invalid_compilers)
+        )
+    chunk_ids = [chunk.chunk_id for chunk in chunks]
+    if len(chunk_ids) != len(set(chunk_ids)):
+        raise ValueError(f"{cfg.compiler} corpus contains duplicate chunk IDs")
+    if cfg.compiler == "llvm" and any(
+        chunk.metadata.version != (cfg.version or "") for chunk in chunks
+    ):
+        raise ValueError("llvm corpus cache version metadata does not match the target version")
+
+
+def _build_retriever(
+    cfg: PipelineConfig, *, cache_identity: str
+) -> tuple[Retriever, str]:
     """Construct the retrieval backend named by ``cfg.retriever``.
 
     ``bm25`` (lexical v1), ``embedding`` (dense Phase 2), or ``hybrid`` (RRF
@@ -96,8 +215,18 @@ def _build_retriever(cfg: PipelineConfig) -> tuple[Retriever, str]:
         ecfg = cfg.embedding_config or EmbeddingConfig.load()
         api_key = os.environ.get(ecfg.api_key_env, "")
         client = EmbeddingClient(ecfg, api_key=api_key)
-        cache_path = cfg.cache_root / "embeddings.json"
-        return EmbeddingRetriever(client, cache_path=cache_path), ecfg.model
+        cache_path = _compiler_cache_path(cfg.cache_root, "embeddings.json", cfg.compiler)
+        embedding_identity = (
+            cache_identity
+            if cfg.compiler != "gcc" or cfg.require_non_empty_corpus
+            else None
+        )
+        return (
+            EmbeddingRetriever(
+                client, cache_path=cache_path, cache_identity=embedding_identity
+            ),
+            ecfg.model,
+        )
 
     if cfg.retriever == "embedding":
         return _dense()
@@ -163,7 +292,13 @@ def _repo_sha(root: Path) -> str:
         return ""
 
 
-def render_candidate_md(c: Candidate, index: int) -> str:
+def render_candidate_md(
+    c: Candidate,
+    index: int,
+    *,
+    default_compiler: str = "GCC",
+    default_version: str = corpus_mod.GCC_VERSION,
+) -> str:
     """Render an accepted candidate as a survey-format invariant block (README §2)."""
     novelty = ""
     if c.novelty is not None:
@@ -183,8 +318,8 @@ def render_candidate_md(c: Candidate, index: int) -> str:
     return (
         f"### CAND-{index:03d} — {c.hit_mechanism} (from {c.seed_id})\n\n"
         f"- **statement**: {c.statement}\n"
-        f"- **compiler**: {c.compiler or 'GCC'}\n"
-        f"- **version**: {c.version or 'gcc-16.1.0'}\n"
+        f"- **compiler**: {c.compiler or default_compiler}\n"
+        f"- **version**: {c.version or default_version}\n"
         f"- **target**: {c.target or 'generic'}\n"
         f"- **source_kind**: {c.source_kind}\n"
         f"- **source_url_or_path**: `{c.source_url_or_path}`\n"
@@ -211,29 +346,89 @@ async def run_pipeline(
         findings_root=cfg.findings_root,
         bugs_root=cfg.bugs_root,
         invariants_root=cfg.invariants_root,
+        compiler=cfg.compiler,
     )
     if cfg.seed_ids:
         wanted = set(cfg.seed_ids)
         seeds = [s for s in seeds if s.seed_id in wanted]
 
     # Stage 2 — corpus (cache to disk for reproducibility / offline replay).
-    corpus_path = cfg.cache_root / "corpus.jsonl"
+    assert cfg.corpus_root is not None
+    source_identity = _corpus_source_identity(cfg)
+    source_identity_sha256 = _identity_digest(source_identity)
+    corpus_path = _compiler_cache_path(cfg.cache_root, "corpus.jsonl", cfg.compiler)
+    corpus_meta_path = corpus_path.with_suffix(".meta.json")
     if cfg.reuse_corpus and corpus_path.exists():
-        # Reuse the pinned corpus verbatim (line-exact evidence anchors); do not
-        # rescan gcc_root, which may be a different version / absent.
+        if not corpus_meta_path.is_file():
+            if cfg.compiler != "gcc":
+                raise ValueError(
+                    f"cannot reuse corpus cache without identity metadata: {corpus_meta_path}"
+                )
+            legacy = corpus_mod.load_corpus(corpus_path)
+            rebuilt = corpus_mod.build_corpus(
+                cfg.corpus_root,
+                cache_root=cfg.cache_root,
+                include_bugzilla=cfg.include_bugzilla,
+                compiler=cfg.compiler,
+                version=cfg.version,
+            )
+            if [chunk.model_dump() for chunk in legacy] != [
+                chunk.model_dump() for chunk in rebuilt
+            ]:
+                raise ValueError(
+                    "legacy GCC corpus cache cannot be validated against current source"
+                )
+            _write_corpus_metadata(
+                corpus_meta_path,
+                identity=source_identity,
+                identity_sha256=source_identity_sha256,
+                corpus_path=corpus_path,
+            )
+        cached_identity = json.loads(corpus_meta_path.read_text(encoding="utf-8"))
+        if cached_identity.get("identity") != source_identity:
+            raise ValueError(
+                f"corpus cache identity mismatch for {cfg.compiler}: {corpus_path}"
+            )
+        if cached_identity.get("corpus_sha256") != _sha256_file(corpus_path):
+            raise ValueError(f"corpus cache content hash mismatch: {corpus_path}")
         chunks = corpus_mod.load_corpus(corpus_path)
     else:
         chunks = corpus_mod.build_corpus(
-            cfg.gcc_root, cache_root=cfg.cache_root, include_bugzilla=cfg.include_bugzilla
+            cfg.corpus_root,
+            cache_root=cfg.cache_root,
+            include_bugzilla=cfg.include_bugzilla,
+            compiler=cfg.compiler,
+            version=cfg.version,
         )
         # Never clobber an existing pinned corpus with an empty build (e.g. a
         # missing/rescanned gcc_root produced 0 chunks). An empty overwrite would
         # destroy the line-exact corpus every reuse run depends on.
         if chunks:
             corpus_mod.write_corpus(chunks, corpus_path)
+            _write_corpus_metadata(
+                corpus_meta_path,
+                identity=source_identity,
+                identity_sha256=source_identity_sha256,
+                corpus_path=corpus_path,
+            )
+
+    if not chunks and cfg.require_non_empty_corpus:
+        raise ValueError(
+            f"empty {cfg.compiler} retrieval corpus at {cfg.corpus_root}; "
+            "the curated adapter found no usable chunks"
+        )
+    if chunks:
+        _validate_corpus_chunks(cfg, chunks)
+    corpus_sha256 = _sha256_file(corpus_path) if corpus_path.is_file() else ""
+    cache_identity = _identity_digest(
+        {
+            "source_identity": source_identity,
+            "corpus_sha256": corpus_sha256,
+        }
+    )
 
     # Stage 3 — index once, reuse across seeds.
-    retriever, retriever_name = _build_retriever(cfg)
+    retriever, retriever_name = _build_retriever(cfg, cache_identity=cache_identity)
     retriever.index(chunks)
 
     # Symbol → corpus chunks, for the signature query mode (function-body lookup).
@@ -280,7 +475,16 @@ async def run_pipeline(
         if candidate.novelty is not None and not candidate.novelty.is_novel:
             result.demoted.append(candidate)
 
-    _write_staging(cfg, result, corpus_path, tj, retriever_name)
+    _write_staging(
+        cfg,
+        result,
+        corpus_path,
+        tj,
+        retriever_name,
+        source_identity=source_identity,
+        cache_identity=cache_identity,
+        corpus_sha256=corpus_sha256,
+    )
     return result
 
 
@@ -290,6 +494,10 @@ def _write_staging(
     corpus_path: Path,
     tj: TranscriptJudge | None,
     retriever_name: str,
+    *,
+    source_identity: dict[str, object],
+    cache_identity: str,
+    corpus_sha256: str,
 ) -> None:
     out = cfg.out_dir
 
@@ -302,7 +510,13 @@ def _write_staging(
     promotable = [c for c in result.accepted if c.novelty is None or c.novelty.is_novel]
     for i, c in enumerate(promotable, start=1):
         (accepted_dir / f"{i:03d}.md").write_text(
-            render_candidate_md(c, i), encoding="utf-8"
+            render_candidate_md(
+                c,
+                i,
+                default_compiler="GCC" if cfg.compiler == "gcc" else "LLVM",
+                default_version=cfg.version or "",
+            ),
+            encoding="utf-8",
         )
 
     with (out / "rejected.jsonl").open("w", encoding="utf-8") as fh:
@@ -328,15 +542,27 @@ def _write_staging(
         "git_sha": _repo_sha(Path.cwd()),
         "seed_sources": cfg.seed_sources,
         "seed_ids": [s.seed_id for s in result.seeds],
-        "gcc_root": str(cfg.gcc_root),
+        "seed_policy": {
+            "compiler": cfg.compiler,
+            "bugs_root": str(cfg.bugs_root) if cfg.bugs_root is not None else None,
+            "findings_enabled": "findings" in cfg.seed_sources,
+            "seed_identities": [s.identity or s.seed_id for s in result.seeds],
+        },
+        "compiler": cfg.compiler,
+        "version": cfg.version,
+        "corpus_root": str(cfg.corpus_root),
+        "gcc_root": str(cfg.gcc_root) if cfg.gcc_root is not None else None,
         "corpus_path": str(corpus_path),
+        "corpus_identity": source_identity,
+        "corpus_identity_sha256": cache_identity,
+        "corpus_sha256": corpus_sha256,
         "corpus_size": result.corpus_size,
         "retriever": retriever_name,
         "query_mode": cfg.query_mode,
         "top_k": cfg.top_k,
         "over_fetch": cfg.over_fetch,
         "dedup_threshold": cfg.dedup_threshold,
-        "include_bugzilla": cfg.include_bugzilla,
+        "include_bugzilla": cfg.include_bugzilla if cfg.compiler == "gcc" else False,
         "transcript": str(cfg.transcript) if cfg.transcript else None,
         "llm": (
             {"provider": cfg.llm_config.provider, "model": cfg.llm_config.model}

@@ -70,10 +70,11 @@ uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # back to determi
 ```
 
 The paper experiments have a separate, stable command surface. The launcher is
-wired to the Part I, Part II, and Part III runners, creates an isolated artifact
-tree and token summary for every repetition, and writes a final run manifest.
-`--show-plan` remains side-effect free and reports whether the selected agent
-binary is available:
+wired to the exact three-stage paper pipeline
+`Invariant Generation -> Checker Writing -> Agent Audit`, creates an isolated
+artifact tree and token summary for every repetition, and writes a final run
+manifest. `--show-plan` remains side-effect free and reports whether the
+selected agent binary is available:
 
 ```sh
 cd orchestrator
@@ -84,28 +85,42 @@ uv run defuzz-experiment agent-audit --target-tree <compiler-tree> --show-plan
 uv run defuzz-experiment ablation --help
 ```
 
-The ablation suite is fixed to `without-rag`, `without-oracle`, and
-`bare-agent`. A real run still depends on the selected `traex` or `codex`
-binary, model credentials, source/reference trees, and compiler toolchain being
-available in the launch environment. The reviewer corpus defaults to
+The only supported ablations are `without-rag`, `without-oracle`, and
+`bare-agent`. `without-rag` changes Part I only; `without-oracle` and
+`bare-agent` still use the same frozen Part II verifier for offline admission.
+A real run still depends on the selected `traex` or `codex` binary, model
+credentials, source/reference trees, and compiler toolchain being available in
+the launch environment. The reviewer corpus defaults to
 `/Users/bytedance/projects/research/defend-reviewer/main` and can be overridden
-with `DEFUZZ_REFERENCE_ROOT` or `--reference-root`. Execution validates required
-inputs before creating a run: Part II needs `--inputs` or `--from-run`, Part III
-needs `--target-tree` and complete reference documents, and Part I needs an
-explicit, existing `--corpus-root`. Existing run IDs are refused unless
-`--resume` is given; upstream artifacts and input snapshots are hash-checked.
-Part III uses a sanitized source copy and, on supported macOS hosts, an OS-level
-read-deny sandbox for the reference checkout. Full audit runs require a
-candidate-bound `--online-oracle-command`; `without-oracle` removes that feedback
-loop. Missing commands and checker `ERROR` verdicts fail a Full repetition.
-Structured-output failures retain provider-reported token usage, while calls
-that never receive usage remain explicitly non-comparable. Every ablation
-requires `--baseline-run`. `--demo-parity` writes an
-orchestrator-only comparison after workers exit. For exploratory planning over
-very large untracked trees, `DEFUZZ_FAST_PLAN=1` skips the recursive snapshot;
-formal runs should not use that shortcut. See
+with `DEFUZZ_REFERENCE_ROOT` or `--reference-root`. Execution validates
+required inputs before creating a run: Part II needs `--inputs` or `--from-run`,
+Part III needs `--target-tree` and complete reference documents, and Part I
+needs an explicit, existing `--corpus-root`. The typed pipeline has two
+boundaries:
+
+- `configs/experiments/example.yaml` is fixture-only smoke coverage for the
+  typed pipeline, hash chain, and resume behavior. It is engineering validation,
+  not a paper result.
+- `configs/experiments/formal.example.yaml` is the formal campaign template.
+  It stays in `mode: formal`, requires a pinned `backend.model`, refuses dirty
+  Git inputs, forbids `DEFUZZ_FAST_PLAN`, preflights compiler-specific drivers
+  from `toolchains.yaml`, rejects capped/sharded Part I selections, and will fail
+  closed instead of silently using fixture runners.
+
+Existing run IDs are refused unless `--resume` is given; upstream artifacts and
+input snapshots are hash-checked. Formal runs keep a clean-room boundary around
+evaluator-only findings: Part I, Part II, and Part III all deny reads of
+`<reference-root>/findings`, and Part III also audits a sanitized source copy.
+Full audit runs use the validated Part II bundle for candidate-bound online
+feedback and frozen offline verification; `--online-oracle-command` remains a
+legacy standalone fallback. `without-oracle` removes only the online feedback loop. Structured-output
+failures retain provider-reported token usage, while calls that never receive
+usage remain explicitly non-comparable and therefore invalidate a formal
+repetition. `--demo-parity` writes an orchestrator-only engineering comparison
+after workers exit and is not itself a formal paper result. See
 [`docs/paper/experiment_status.md`](docs/paper/experiment_status.md) for the
-experiment contract and implementation status.
+current contract and [`docs/paper/experiment_runbook.md`](docs/paper/experiment_runbook.md)
+for the execution procedure and exact commands.
 
 The instrumented GCC under test is built out-of-tree; see
 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md).

@@ -46,11 +46,42 @@ func TestMetadataHasNoOrphans(t *testing.T) {
 // TestMetadataFieldsValid asserts each row is internally well-formed.
 func TestMetadataFieldsValid(t *testing.T) {
 	for _, m := range AllCheckerMetadata() {
+		require.NotEmptyf(t, m.Oracle, "%s: oracle must be non-empty", m.ID)
+		require.NotEmptyf(t, m.Mechanism, "%s: mechanism must be non-empty", m.ID)
 		require.NotEmptyf(t, m.ApplicableISAs, "%s: applicable_isas must be non-empty", m.ID)
 		assert.Containsf(t, []CheckerMode{ModeSingle, ModeDifferential}, m.Mode, "%s: bad mode %q", m.ID, m.Mode)
 		assert.Containsf(t, []CheckerCost{CostCheap, CostExpensive}, m.Cost, "%s: bad cost %q", m.ID, m.Cost)
 		assert.Containsf(t, []InvariantCategory{CategoryStatic, CategoryDynamic}, m.Category, "%s: bad category %q", m.ID, m.Category)
 	}
+}
+
+func TestMetadataDependenciesExistAndAreAcyclic(t *testing.T) {
+	all := AllCheckerMetadata()
+	require.NoError(t, ValidateCheckerCatalog(all))
+	byID := make(map[string]CheckerMetadata, len(all))
+	for _, metadata := range all {
+		byID[metadata.ID] = metadata
+	}
+	for _, id := range []string{"INV-SP-V02", "INV-SP-L02", "INV-SP-L03", "INV-SP-L04"} {
+		assert.Equal(t, []string{"INV-SP-L01"}, byID[id].Requires)
+	}
+}
+
+func TestValidateCheckerCatalogRejectsMissingDependencyAndCycle(t *testing.T) {
+	base := CheckerMetadata{
+		ID: "A", Oracle: "test", Mechanism: "test",
+		ApplicableISAs: []string{ISAx8664}, Mode: ModeSingle, Cost: CostCheap, Category: CategoryStatic,
+	}
+	missing := base
+	missing.Requires = []string{"missing"}
+	assert.ErrorContains(t, ValidateCheckerCatalog([]CheckerMetadata{missing}), "unknown checker")
+
+	a := base
+	a.Requires = []string{"B"}
+	b := base
+	b.ID = "B"
+	b.Requires = []string{"A"}
+	assert.ErrorContains(t, ValidateCheckerCatalog([]CheckerMetadata{a, b}), "cycle")
 }
 
 // TestAllCheckerMetadataSorted asserts deterministic ID-sorted output.

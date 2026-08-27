@@ -1,0 +1,63 @@
+# Executable, no-model smoke configuration. Run from the checkout with:
+#
+#   cd orchestrator
+#   uv run defuzz-experiment pipeline --config ../configs/experiments/example.yaml --show-plan
+#   uv run defuzz-experiment pipeline --config ../configs/experiments/example.yaml
+#
+# Fixture mode exercises typed config resolution, all three stage handoffs, bundle
+# validation, and the artifact hash chain. It does not run an agent or claim a
+# scientific experiment result. Change mode to formal and replace the scope below
+# with pinned compiler/reference checkouts for a production campaign.
+schema_version: 1
+run_id: fixture-smoke-four-arm
+mode: fixture
+output_root: ../../orchestrator/runs/pipelines
+repetitions: 1
+variants: [full, without-rag, without-oracle, bare-agent]
+
+backend:
+  kind: traex
+  # Ignored by the built-in fixture runner; required and preflighted in formal mode.
+  extra_args: []
+
+budgets:
+  part_i: {token_budget: 100, time_budget_minutes: 1}
+  part_ii: {token_budget: 100, time_budget_minutes: 1}
+  part_iii: {token_budget: 100, time_budget_minutes: 1}
+
+generation:
+  path: segmented-cot
+  reference_root: ..
+  document_roots: []
+  max_segments: 1
+  shard_index: 0
+  shard_count: 1
+
+toolchains_config: ../toolchains.yaml
+
+targets:
+  - id: config-smoke
+    compiler: gcc
+    version: fixture
+    corpus_root: ..
+    audit_source_roots:
+      - ..
+    mechanisms: [fixture]
+    isas: [fixture]
+
+checker:
+  source_root: ..
+  checker_root: experiments
+  max_attempts: 1
+
+audit:
+  max_concurrency: 1
+  oracle_rounds: 1
+  demo_parity: false
+  # Engineering parity/superset workset; use poc-verified for the stronger-evidence
+  # demo subset. Neither profile is labelled as a formal paper result.
+  parity_profile: demo-workset
+  parity_threshold: null
+  # Recall directly measures coverage of the selected profile; f1 remains available.
+  parity_threshold_metric: recall
+  require_verified_candidates: true

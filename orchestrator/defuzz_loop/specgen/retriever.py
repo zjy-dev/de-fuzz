@@ -27,7 +27,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from rank_bm25 import BM25Okapi
 
@@ -97,17 +97,31 @@ class EmbeddingRetriever:
     ranking-model difference, not an input difference.
     """
 
-    def __init__(self, client: EmbeddingClient, *, cache_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        client: EmbeddingClient,
+        *,
+        cache_path: Path | None = None,
+        cache_identity: str | None = None,
+    ) -> None:
         self._client = client
         self._cache_path = cache_path
+        self._cache_identity = cache_identity
         # The embedding service is non-deterministic per call, so cache query
         # vectors keyed by exact query text to make retrieval reproducible.
+        cache_suffix = cache_path.stem.removeprefix("embeddings") if cache_path else ""
         self._query_cache_path = (
-            cache_path.with_name("query_vectors.json") if cache_path else None
+            cache_path.with_name(f"query_vectors{cache_suffix}.json")
+            if cache_path
+            else None
         )
         self._query_cache: dict[str, list[float]] | None = None
         self._chunks: list[Chunk] = []
-        self._matrix = None  # np.ndarray (n, dim), L2-normalized rows
+        # NumPy is imported lazily so BM25-only runs do not require importing
+        # the dense-retrieval stack at module load time.  ``Any`` keeps that
+        # optional boundary while still allowing mypy to track the nullable
+        # state established before ``index`` is called.
+        self._matrix: Any | None = None  # np.ndarray (n, dim), normalized rows
 
     @staticmethod
     def _fingerprint(client: EmbeddingClient, chunks: list[Chunk]) -> str:
@@ -154,14 +168,25 @@ class EmbeddingRetriever:
         cached = json.loads(self._cache_path.read_text(encoding="utf-8"))
         if cached.get("fingerprint") != fingerprint:
             return None
+        if (
+            self._cache_identity is not None
+            and cached.get("cache_identity") != self._cache_identity
+        ):
+            return None
         return cached.get("vectors")
 
     def _save_cache(self, fingerprint: str, vectors: list[list[float]]) -> None:
         if not self._cache_path:
             return
         self._cache_path.parent.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, object] = {
+            "fingerprint": fingerprint,
+            "vectors": vectors,
+        }
+        if self._cache_identity is not None:
+            payload["cache_identity"] = self._cache_identity
         self._cache_path.write_text(
-            json.dumps({"fingerprint": fingerprint, "vectors": vectors}),
+            json.dumps(payload),
             encoding="utf-8",
         )
 
@@ -170,9 +195,12 @@ class EmbeddingRetriever:
         if self._query_cache is None:
             self._query_cache = {}
             if self._query_cache_path and self._query_cache_path.exists():
-                self._query_cache = json.loads(
-                    self._query_cache_path.read_text(encoding="utf-8")
-                )
+                payload = json.loads(self._query_cache_path.read_text(encoding="utf-8"))
+                if self._cache_identity is None:
+                    # Preserve the legacy GCC query-cache format.
+                    self._query_cache = payload
+                elif payload.get("cache_identity") == self._cache_identity:
+                    self._query_cache = payload.get("vectors", {})
         cached = self._query_cache.get(text)
         if cached is not None:
             return cached
@@ -180,8 +208,14 @@ class EmbeddingRetriever:
         self._query_cache[text] = vec
         if self._query_cache_path:
             self._query_cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_payload: object = self._query_cache
+            if self._cache_identity is not None:
+                cache_payload = {
+                    "cache_identity": self._cache_identity,
+                    "vectors": self._query_cache,
+                }
             self._query_cache_path.write_text(
-                json.dumps(self._query_cache), encoding="utf-8"
+                json.dumps(cache_payload), encoding="utf-8"
             )
         return vec
 

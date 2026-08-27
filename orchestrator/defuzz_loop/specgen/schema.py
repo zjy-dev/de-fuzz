@@ -25,6 +25,11 @@ class Seed(BaseModel):
     """A known defect/finding used as the starting entity (stage 0)."""
 
     seed_id: str
+    # Stable internal identity used for transcript/cache keys.  It normally
+    # equals ``seed_id``; loaders disambiguate it only when a source corpus
+    # legitimately contains multiple mechanism views of the same public ID.
+    identity: str = ""
+    compiler: str = ""  # normalized toolchain family: gcc | llvm | ""
     origin_mechanism: str
     # The ISA(s) the seed's defect applies to (e.g. [mips, loongarch64]). Used by
     # the exit filter to distinguish "same mechanism, SAME target = self" (drop)
@@ -52,6 +57,7 @@ class SeedQuery(BaseModel):
     """
 
     seed_id: str
+    identity: str = ""
     origin_mechanism: str
     # ISA(s) the seed's defect lives on; carried through from the Seed so the
     # exit filter can keep same-mechanism hits on a DIFFERENT target (the
@@ -157,6 +163,7 @@ class Candidate(BaseModel):
     """
 
     seed_id: str
+    seed_identity: str = Field(default="", exclude=True)
     origin_mechanism: str
     hit_mechanism: str  # the sister mechanism jumped to — cross-mechanism evidence
     statement: str

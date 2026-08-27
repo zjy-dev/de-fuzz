@@ -5,7 +5,14 @@ from copy import deepcopy
 import pytest
 
 from defuzz_loop.admission import admit_report, evaluate_candidate
-from defuzz_loop.audit_schema import AuditCandidate, AuditReport, audit_report_json_schema
+from defuzz_loop.audit_schema import (
+    AuditCandidate,
+    AuditReport,
+    audit_report_json_schema,
+    families_for_mechanisms,
+    normalize_isa,
+    normalize_mechanism,
+)
 
 
 def _valid_candidate() -> dict[str, object]:
@@ -53,6 +60,54 @@ def test_worker_schema_marks_identity_and_provenance_fields_required() -> None:
     assert {"schema_version", "family", "variant", "candidates"} <= set(
         schema["required"]
     )
+
+
+def test_checker_ids_and_new_mechanism_aliases_are_normalized() -> None:
+    candidate = AuditCandidate.model_validate(
+        {**_valid_candidate(), "checker_ids": "INV-CFI-001"}
+    )
+
+    assert candidate.checker_ids == ["INV-CFI-001"]
+    assert [family.key for family in families_for_mechanisms(["riscv_cfi"])] == [
+        "C"
+    ]
+    assert [family.key for family in families_for_mechanisms(["zicfilp"])] == [
+        "C"
+    ]
+    assert [family.key for family in families_for_mechanisms(["backend_codegen"])] == [
+        "B"
+    ]
+    assert [
+        family.key for family in families_for_mechanisms(["zero_call_used_regs"])
+    ] == ["E"]
+    raw_ret_hardening = "ret-hardening (return thunks / LVI)"
+    assert normalize_mechanism(raw_ret_hardening) == "ret-hardening"
+    assert [family.key for family in families_for_mechanisms([raw_ret_hardening])] == [
+        "C"
+    ]
+    assert [family.key for family in families_for_mechanisms(["CET / IBT"])] == [
+        "C"
+    ]
+    assert normalize_isa("x86-64") == "x86_64"
+    assert normalize_isa("amd64") == "x86_64"
+    assert normalize_isa("arm64") == "aarch64"
+    aliased = AuditCandidate.model_validate(
+        {
+            **_valid_candidate(),
+            "mechanism": "stack-canary",
+            "isa": ["amd64"],
+            "minimal_trigger": {
+                **dict(_valid_candidate()["minimal_trigger"]),
+                "isa": "x86-64",
+            },
+        }
+    )
+    assert aliased.mechanism == "stack-protector"
+    assert aliased.isa == ["x86_64"]
+    assert aliased.minimal_trigger.isa == "x86_64"
+    assert [
+        family.key for family in families_for_mechanisms(["pointer authentication"])
+    ] == ["C"]
 
 
 def test_static_candidate_requires_five_lines_and_one_verification_plan() -> None:

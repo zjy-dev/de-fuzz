@@ -76,14 +76,20 @@ def build_chat_model(config: LLMConfig | None = None) -> Any:
     if cfg.provider is Provider.ANTHROPIC:
         from langchain_anthropic import ChatAnthropic
 
-        return ChatAnthropic(
-            model=cfg.model,
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens or 4096,
-            base_url=cfg.base_url,
-            api_key=api_key,
-            timeout=cfg.timeout,
-        )
+        # Build through an untyped mapping because supported langchain-anthropic
+        # releases expose these canonical fields under different constructor
+        # aliases in their generated type signatures.
+        anthropic_kwargs: dict[str, Any] = {
+            "model_name": cfg.model,
+            "temperature": cfg.temperature,
+            "max_tokens_to_sample": cfg.max_tokens or 4096,
+            "timeout": cfg.timeout,
+        }
+        if cfg.base_url is not None:
+            anthropic_kwargs["base_url"] = cfg.base_url
+        if api_key is not None:
+            anthropic_kwargs["api_key"] = api_key
+        return ChatAnthropic(**anthropic_kwargs)
     raise ValueError(f"unsupported provider: {cfg.provider}")
 
 

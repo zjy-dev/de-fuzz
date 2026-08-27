@@ -75,6 +75,10 @@ jobs:
         working-directory: orchestrator
         run: uv run ruff check defuzz_loop tests
 
+      - name: Run Python type checks
+        working-directory: orchestrator
+        run: uv run mypy defuzz_loop
+
       - name: Run Python tests
         working-directory: orchestrator
         run: uv run pytest -q

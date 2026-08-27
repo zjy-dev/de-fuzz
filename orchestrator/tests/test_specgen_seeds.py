@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from defuzz_loop.specgen.seeds import (
     load_invariants,
     load_seeds,
@@ -214,3 +216,38 @@ def test_load_seeds_invariants_pool(tmp_path: Path) -> None:
         ["findings", "invariants"], invariants_root=inv, findings_root=findings
     )
     assert {s.seed_id for s in both} == {"DREV-2026-999", "INV-SCP-B02"}
+
+
+def test_compiler_filter_and_duplicate_seed_identity_are_deterministic(tmp_path: Path) -> None:
+    bugs = tmp_path / "bugs"
+    gcc_doc = _DREV.replace("DREV-2026-999", "GCC-PR-1")
+    llvm_bti = _DREV.replace("DREV-2026-999", "LLVM-TR-58").replace(
+        "toolchain: gcc", "toolchain: llvm"
+    ).replace("mechanism: fortify-source", "mechanism: bti")
+    llvm_pac = llvm_bti.replace("mechanism: bti", "mechanism: return-address-signing")
+    _write(bugs, "gcc/fortify/GCC-PR-1.md", gcc_doc)
+    _write(bugs, "llvm/bti/LLVM-TR-58.md", llvm_bti)
+    _write(bugs, "llvm/pac/LLVM-TR-58.md", llvm_pac)
+
+    gcc = load_seeds(["bugs"], bugs_root=bugs, compiler="gcc")
+    llvm_first = load_seeds(["bugs"], bugs_root=bugs, compiler="llvm")
+    llvm_second = load_seeds(["bugs"], bugs_root=bugs, compiler="llvm")
+
+    assert [(seed.seed_id, seed.identity) for seed in gcc] == [
+        ("GCC-PR-1", "GCC-PR-1")
+    ]
+    assert [seed.seed_id for seed in llvm_first] == ["LLVM-TR-58", "LLVM-TR-58"]
+    identities = [seed.identity for seed in llvm_first]
+    assert len(set(identities)) == 2
+    assert identities == [seed.identity for seed in llvm_second]
+    assert {seed.compiler for seed in llvm_first} == {"llvm"}
+
+
+def test_identical_duplicate_seed_definitions_are_rejected(tmp_path: Path) -> None:
+    bugs = tmp_path / "bugs"
+    llvm = _DREV.replace("toolchain: gcc", "toolchain: llvm")
+    _write(bugs, "llvm/a/duplicate.md", llvm)
+    _write(bugs, "llvm/b/duplicate.md", llvm)
+
+    with pytest.raises(ValueError, match="indistinguishable definitions"):
+        load_seeds(["bugs"], bugs_root=bugs, compiler="llvm")

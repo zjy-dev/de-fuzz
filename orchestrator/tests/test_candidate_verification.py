@@ -138,6 +138,160 @@ async def test_rejects_fabricated_excerpt(source_root: Path) -> None:
     assert "does not match" in result.evidence_checks[0].reason
 
 
+async def test_invalid_evidence_precedes_bundle_checker_routing(
+    source_root: Path,
+) -> None:
+    candidate = _candidate(
+        citation="gcc/config/example.c:1",
+        excerpt="one\ntwo\nthree\nfour\nfive",
+    ).model_copy(update={"checker_ids": ["UNKNOWN"]})
+
+    result = await verify_candidate(
+        candidate,
+        [source_root],
+        commands=[COMMAND],
+        allowed_checker_ids={"KNOWN"},
+    )
+
+    assert result.status == "invalid"
+    assert any("evidence excerpt does not match" in issue for issue in result.issues)
+    assert not any("absent from trusted catalog" in issue for issue in result.issues)
+
+
+async def test_checker_allowlist_permits_empty_selection_for_dispatcher_routing(
+    source_root: Path,
+) -> None:
+    candidate = _candidate(
+        citation="gcc/config/example.c:1", excerpt=SOURCE
+    ).model_copy(update={"checker_ids": []})
+    executor = FakeExecutor(exit_code=0)
+
+    result = await verify_candidate(
+        candidate,
+        [source_root],
+        executor=executor,
+        commands=[COMMAND],
+        allowed_checker_ids={"KNOWN"},
+    )
+
+    assert result.status == "verified"
+    assert len(executor.calls) == 1
+
+
+async def test_required_checker_selection_rejects_empty_checker_ids(
+    source_root: Path,
+) -> None:
+    candidate = _candidate(
+        citation="gcc/config/example.c:1", excerpt=SOURCE
+    ).model_copy(update={"checker_ids": []})
+    executor = FakeExecutor(exit_code=0)
+
+    result = await verify_candidate(
+        candidate,
+        [source_root],
+        executor=executor,
+        commands=[COMMAND],
+        allowed_checker_ids={"KNOWN"},
+        require_checker_ids=True,
+    )
+
+    assert result.status == "invalid"
+    assert any("requires at least one checker_id" in issue for issue in result.issues)
+    assert executor.calls == []
+
+
+async def test_bundle_verification_rejects_unknown_checker_ids(
+    source_root: Path,
+) -> None:
+    candidate = _candidate(
+        citation="gcc/config/example.c:1", excerpt=SOURCE
+    ).model_copy(update={"checker_ids": ["UNKNOWN"]})
+    executor = FakeExecutor(exit_code=0)
+
+    result = await verify_candidate(
+        candidate,
+        [source_root],
+        executor=executor,
+        commands=[COMMAND],
+        allowed_checker_ids={"KNOWN"},
+    )
+
+    assert result.status == "invalid"
+    assert any("trusted catalog" in issue for issue in result.issues)
+    assert executor.calls == []
+
+
+@pytest.mark.parametrize(
+    ("verdict", "exit_code", "expected_status", "result_valid"),
+    [
+        ("FAIL", 0, "verified", True),
+        ("PASS", 1, "rejected", True),
+        ("NOT_APPLICABLE", 1, "rejected", True),
+        ("ERROR", 2, "unverified", False),
+    ],
+)
+async def test_dispatcher_verify_protocol_has_terminal_semantics(
+    source_root: Path,
+    verdict: str,
+    exit_code: int,
+    expected_status: str,
+    result_valid: bool,
+) -> None:
+    candidate = _candidate(
+        citation="gcc/config/example.c:1",
+        excerpt=SOURCE,
+        poc_verified=False,
+    ).model_copy(update={"checker_ids": ["INV-ONE"]})
+
+    class DispatcherExecutor:
+        async def run(
+            self,
+            command: Sequence[str],
+            *,
+            cwd: Path,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            del cwd, timeout_seconds
+            argv = tuple(command)
+            fingerprint = argv[argv.index("--candidate-fingerprint") + 1]
+            return {
+                "exit_code": exit_code,
+                "stdout": json.dumps(
+                    {
+                        "candidate_fingerprint": fingerprint,
+                        "echoed_candidate_fingerprint": fingerprint,
+                        "verdict": verdict,
+                        "feedback": "fixture",
+                        "evidence": [],
+                    }
+                ),
+            }
+
+    result = await verify_candidate(
+        candidate,
+        [source_root],
+        executor=DispatcherExecutor(),
+        commands=[
+            VerificationCommand(
+                (
+                    "dispatcher",
+                    "--candidate-json",
+                    "{candidate_json}",
+                    "--candidate-fingerprint",
+                    "{candidate_fingerprint}",
+                ),
+                protocol="dispatcher-verify",
+            )
+        ],
+        allowed_checker_ids={"INV-ONE"},
+    )
+
+    assert result.status == expected_status
+    assert result.original_poc_verified_claim is False
+    assert result.execution_records[0].execution_completed is True
+    assert result.execution_records[0].result_valid is result_valid
+
+
 async def test_real_fenced_crlf_excerpt_is_grounded_but_not_confirmed_without_command(
     source_root: Path,
 ) -> None:
@@ -162,7 +316,7 @@ async def test_real_fenced_crlf_excerpt_is_grounded_but_not_confirmed_without_co
 
 @pytest.mark.parametrize(
     ("exit_code", "expected_status"),
-    [(0, "verified"), (1, "unverified")],
+    [(0, "verified"), (1, "invalid")],
 )
 async def test_injected_executor_controls_confirmation(
     source_root: Path, exit_code: int, expected_status: str
@@ -197,7 +351,9 @@ async def test_injected_executor_controls_confirmation(
     assert "execution-record-0001.json" in result.artifact_hashes
 
 
-async def test_executor_pass_does_not_override_false_poc_claim(source_root: Path) -> None:
+async def test_deterministic_success_overrides_false_poc_claim_but_preserves_it(
+    source_root: Path,
+) -> None:
     result = await verify_candidate(
         _candidate(
             citation="gcc/config/example.c:1",
@@ -209,9 +365,12 @@ async def test_executor_pass_does_not_override_false_poc_claim(source_root: Path
         commands=[COMMAND],
     )
 
-    assert result.status == "unverified"
+    assert result.status == "verified"
     assert result.execution_records[0].passed
-    assert any("poc_verified" in issue for issue in result.issues)
+    assert result.execution_records[0].execution_completed is True
+    assert result.execution_records[0].result_valid is True
+    assert result.original_poc_verified_claim is False
+    assert not any("poc_verified" in issue for issue in result.issues)
 
 
 def test_candidate_fingerprint_is_stable_for_equivalent_candidates() -> None:
@@ -296,7 +455,7 @@ async def test_true_with_fingerprint_placeholder_cannot_verify(
         commands=[["true", "{candidate_fingerprint}"]],
     )
 
-    assert result.status == "unverified"
+    assert result.status == "invalid"
     assert result.execution_records[0].exit_code == 0
     assert result.execution_records[0].echoed_candidate_fingerprint is None
     assert result.execution_records[0].passed is False
@@ -323,7 +482,7 @@ async def test_exit_zero_without_correct_fingerprint_echo_is_unverified(
         commands=[COMMAND],
     )
 
-    assert result.status == "unverified"
+    assert result.status == "invalid"
     assert result.execution_records[0].passed is False
     assert any(issue_text in issue for issue in result.issues)
 
@@ -351,5 +510,5 @@ async def test_plain_stdout_fingerprint_is_not_a_structured_echo(
         commands=[COMMAND],
     )
 
-    assert result.status == "unverified"
+    assert result.status == "invalid"
     assert result.execution_records[0].passed is False

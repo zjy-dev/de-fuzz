@@ -8,6 +8,8 @@ statement clears the mechanical five-item finding gate.
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Any
@@ -48,6 +50,7 @@ CANONICAL_AUDIT_FAMILIES: tuple[AuditFamily, ...] = (
             "strict-flex-arrays",
             "zero-init-padding",
             "source-annotations",
+            "codegen",
         ),
     ),
     AuditFamily(
@@ -61,6 +64,9 @@ CANONICAL_AUDIT_FAMILIES: tuple[AuditFamily, ...] = (
             "pac",
             "return-address-signing",
             "cmse",
+            "riscv-cfi",
+            "cet-ibt",
+            "ret-hardening",
         ),
     ),
     AuditFamily(
@@ -79,6 +85,7 @@ CANONICAL_AUDIT_FAMILIES: tuple[AuditFamily, ...] = (
             "auto-var-init",
             "glibcxx-assertions",
             "fhardened",
+            "zero-call-used-regs",
         ),
     ),
 )
@@ -101,6 +108,69 @@ def canonical_family(value: str | AuditFamily) -> AuditFamily:
     raise ValueError(f"unknown audit family: {value!r}")
 
 
+_MECHANISM_ALIASES = {
+    "canary": "stack-protector",
+    "stack-canary": "stack-protector",
+    "ssp": "stack-protector",
+    "stack-clash": "stack-clash-protection",
+    "fortify": "fortify-source",
+    "fortify-source-3": "fortify-source",
+    "backend-codegen": "codegen",
+    "code-generation": "codegen",
+    "fzero-call-used-regs": "zero-call-used-regs",
+    "zero-call-used-registers": "zero-call-used-regs",
+    "zcur": "zero-call-used-regs",
+    "risc-v-cfi": "riscv-cfi",
+    "zicfilp": "riscv-cfi",
+    "zicfiss": "riscv-cfi",
+    "cet-ibt": "ibt",
+    "intel-cet-ibt": "ibt",
+    "endbr-ibt": "ibt",
+    "pointer-authentication": "pac",
+    "return-address-signing": "pac",
+    "ftrivial-auto-var-init": "auto-var-init",
+    "return-hardening": "ret-hardening",
+    "return-thunk": "ret-hardening",
+    "return-thunks": "ret-hardening",
+    "lvi-ret-hardening": "ret-hardening",
+    "ret-hardening-return-thunks-lvi": "ret-hardening",
+}
+
+_ISA_ALIASES = {
+    "amd64": "x86_64",
+    "x64": "x86_64",
+    "x86-64": "x86_64",
+    "x8664": "x86_64",
+    "arm64": "aarch64",
+    "aarch-64": "aarch64",
+    "risc-v64": "riscv64",
+    "risc-v-64": "riscv64",
+}
+
+
+def normalize_mechanism(value: str) -> str:
+    """Normalize corpus, CLI, and prompt spellings to one canonical label.
+
+    Tokenization deliberately removes punctuation before alias lookup so raw
+    corpus labels such as ``ret-hardening (return thunks / LVI)`` resolve the
+    same way as their CLI-safe spelling.
+    """
+
+    normalized = "-".join(
+        re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", value).casefold())
+    )
+    return _MECHANISM_ALIASES.get(normalized, normalized)
+
+
+def normalize_isa(value: str) -> str:
+    """Normalize common ISA aliases used by plans and candidate reports."""
+
+    normalized = "-".join(
+        re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", value).casefold())
+    ).strip("-")
+    return _ISA_ALIASES.get(normalized, normalized)
+
+
 def families_for_mechanisms(mechanisms: Sequence[str] | None) -> tuple[AuditFamily, ...]:
     """Return intersecting canonical families in A--E order.
 
@@ -110,13 +180,21 @@ def families_for_mechanisms(mechanisms: Sequence[str] | None) -> tuple[AuditFami
 
     if not mechanisms:
         return CANONICAL_AUDIT_FAMILIES
-    wanted = {item.strip().lower().replace("_", "-") for item in mechanisms}
-    known = {mechanism for family in CANONICAL_AUDIT_FAMILIES for mechanism in family.mechanisms}
+    wanted = {normalize_mechanism(item) for item in mechanisms}
+    known = {
+        normalize_mechanism(mechanism)
+        for family in CANONICAL_AUDIT_FAMILIES
+        for mechanism in family.mechanisms
+    }
     unknown = wanted - known
     if unknown:
         raise ValueError(f"mechanisms have no canonical audit family: {sorted(unknown)!r}")
     return tuple(
-        family for family in CANONICAL_AUDIT_FAMILIES if wanted.intersection(family.mechanisms)
+        family
+        for family in CANONICAL_AUDIT_FAMILIES
+        if wanted.intersection(
+            normalize_mechanism(mechanism) for mechanism in family.mechanisms
+        )
     )
 
 
@@ -139,6 +217,13 @@ class MinimalTrigger(BaseModel):
     isa: str | list[str] = ""
     notes: str = ""
 
+    @field_validator("isa", mode="after")
+    @classmethod
+    def _normalize_isas(cls, value: str | list[str]) -> str | list[str]:
+        if isinstance(value, str):
+            return normalize_isa(value)
+        return list(dict.fromkeys(normalize_isa(item) for item in value))
+
 
 class AuditCandidate(BaseModel):
     """A worker candidate before deterministic admission."""
@@ -152,6 +237,7 @@ class AuditCandidate(BaseModel):
     toolchain_version: str = ""
     mechanism: str = ""
     isa: list[str] = Field(default_factory=list)
+    checker_ids: list[str] = Field(default_factory=list)
     invariant_violated: str = ""
     root_cause: str = ""
     layer: str = ""
@@ -172,6 +258,7 @@ class AuditCandidate(BaseModel):
 
     @field_validator(
         "isa",
+        "checker_ids",
         "evidence_file_line",
         "related_historical",
         "related_invariants",
@@ -184,6 +271,22 @@ class AuditCandidate(BaseModel):
         if isinstance(value, str):
             return [value]
         return list(value)
+
+    @field_validator("checker_ids")
+    @classmethod
+    def _normalize_checker_ids(cls, value: list[str]) -> list[str]:
+        normalized = [item.strip() for item in value if item.strip()]
+        return list(dict.fromkeys(normalized))
+
+    @field_validator("mechanism")
+    @classmethod
+    def _normalize_mechanism(cls, value: str) -> str:
+        return normalize_mechanism(value)
+
+    @field_validator("isa")
+    @classmethod
+    def _normalize_candidate_isas(cls, value: list[str]) -> list[str]:
+        return list(dict.fromkeys(normalize_isa(item) for item in value if item.strip()))
 
     @field_validator("minimal_trigger", mode="before")
     @classmethod

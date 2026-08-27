@@ -64,6 +64,9 @@ type QueryInvariantsInput struct {
 // CheckerMetadataView mirrors the SSOT (internal/oracle/metadata.go) for agents.
 type CheckerMetadataView struct {
 	ID             string   `json:"id"`
+	Oracle         string   `json:"oracle"`
+	Mechanism      string   `json:"mechanism"`
+	Requires       []string `json:"requires"`
 	ApplicableISAs []string `json:"applicable_isas"`
 	Mode           string   `json:"mode"`
 	Cost           string   `json:"cost"`
@@ -74,20 +77,6 @@ type CheckerMetadataView struct {
 // QueryInvariantsOutput is the checker list.
 type QueryInvariantsOutput struct {
 	Checkers []CheckerMetadataView `json:"checkers"`
-}
-
-// mechanismOf derives the mechanism from a checker ID prefix.
-func mechanismOf(id string) string {
-	switch {
-	case strings.HasPrefix(id, "INV-SP-"):
-		return "canary"
-	case strings.HasPrefix(id, "INV-IBT-"):
-		return "ibt"
-	case strings.HasPrefix(id, "INV-FORT-"):
-		return "fortify"
-	default:
-		return ""
-	}
 }
 
 // NewMCPServer builds the agent-facing MCP server with the read-only tools.
@@ -212,11 +201,14 @@ func queryInvariantsHandler(_ context.Context, _ *mcp.CallToolRequest, in QueryI
 		if in.CheckerID != "" && m.ID != in.CheckerID {
 			continue
 		}
-		if in.Mechanism != "" && mechanismOf(m.ID) != in.Mechanism {
+		if in.Mechanism != "" && m.Mechanism != in.Mechanism && m.Oracle != in.Mechanism {
 			continue
 		}
 		out.Checkers = append(out.Checkers, CheckerMetadataView{
 			ID:             m.ID,
+			Oracle:         m.Oracle,
+			Mechanism:      m.Mechanism,
+			Requires:       append([]string(nil), m.Requires...),
 			ApplicableISAs: append([]string(nil), m.ApplicableISAs...),
 			Mode:           string(m.Mode),
 			Cost:           string(m.Cost),

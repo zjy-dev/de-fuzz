@@ -5,13 +5,16 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import signal
 import sys
+import tempfile
 import time
 import uuid
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, model_validator
 
@@ -107,12 +110,48 @@ _CAPABILITY_FLAGS = {
     "--search",
     "--allowed-tool",
     "--disallowed-tool",
+    "--enable",
+    "--disable",
+    "-m",
+    "--model",
     "--ignore-user-config",
     "--ignore-rules",
     "--skip-git-repo-check",
     "--profile",
     "-p",
 }
+
+_AGENT_ISOLATION_CONFIG = (
+    "memories.use_memories=false",
+    "memories.generate_memories=false",
+    "features.memories=false",
+    "project_doc_max_bytes=0",
+    "resource_dirs=[]",
+    "skills.bundled.enabled=false",
+    "skills.include_instructions=false",
+    "features.plugins=false",
+    "features.hooks=false",
+    "features.apps=false",
+)
+_TRAEX_ISOLATION_CONFIG = ("features.plugin_hooks=false",)
+_CREDENTIAL_FILES = ("auth.json", "models_cache.json")
+_SUBPROCESS_ENVIRONMENT = {
+    "PATH",
+    "HOME",
+    "SHELL",
+    "TMPDIR",
+    "TMP",
+    "TEMP",
+    "LANG",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "SYSTEMROOT",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+}
+
+AgentProvider = Literal["traex", "codex"]
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
@@ -133,31 +172,191 @@ class ExecAgentBackend:
         binary: str | os.PathLike[str] = "traex",
         model: str | None = None,
         *,
+        provider: AgentProvider | None = None,
         extra_args: Sequence[str] = (),
         terminate_grace_seconds: float = 2.0,
     ) -> None:
         self.binary = os.fspath(binary)
         self.model = model
+        if provider not in {None, "traex", "codex"}:
+            raise ValueError(f"unsupported agent provider: {provider}")
+        self._provider = provider or self._infer_provider()
         self.extra_args = tuple(str(value) for value in extra_args)
         self.terminate_grace_seconds = terminate_grace_seconds
         self._validate_extra_args()
 
     def _validate_extra_args(self) -> None:
-        for argument in self.extra_args:
+        for index, argument in enumerate(self.extra_args):
             name = argument.split("=", 1)[0]
+            if name in {"-c", "--config"}:
+                raise ValueError(f"config-affecting argument is managed by the backend: {name}")
+            if index > 0 and self.extra_args[index - 1] in {"-c", "--config"}:
+                raise ValueError(
+                    "config-affecting argument is managed by the backend: "
+                    f"{self.extra_args[index - 1]}"
+                )
             if name in _CAPABILITY_FLAGS:
                 raise ValueError(f"capability-affecting argument is managed by the backend: {name}")
             if "\x00" in argument:
                 raise ValueError("agent argument contains a NUL byte")
 
     @property
-    def provider(self) -> str:
+    def provider(self) -> AgentProvider:
+        return self._provider
+
+    def _infer_provider(self) -> AgentProvider:
         name = Path(self.binary).name.casefold()
-        return "codex" if "codex" in name else "traex"
+        if "codex" in name:
+            return "codex"
+        if "traex" in name or "traecli" in name:
+            return "traex"
+        raise ValueError(
+            "agent provider cannot be inferred from binary name; "
+            "pass provider='traex' or provider='codex'"
+        )
 
     @property
     def supports_host_read_isolation(self) -> bool:
         return sys.platform == "darwin" and Path("/usr/bin/sandbox-exec").is_file()
+
+    @staticmethod
+    def _traex_cli_home() -> Path:
+        if value := os.environ.get("TRAECLI_HOME"):
+            return Path(value).expanduser()
+        if value := os.environ.get("TRAE_HOME"):
+            return Path(value).expanduser() / "cli"
+        return Path.home() / ".trae" / "cli"
+
+    @staticmethod
+    def _traex_home() -> Path:
+        if value := os.environ.get("TRAE_HOME"):
+            return Path(value).expanduser()
+        return Path.home() / ".trae"
+
+    @staticmethod
+    def _codex_home() -> Path:
+        if value := os.environ.get("CODEX_HOME"):
+            return Path(value).expanduser()
+        return Path.home() / ".codex"
+
+    @staticmethod
+    def _minimal_environment() -> dict[str, str]:
+        return {
+            key: value
+            for key, value in os.environ.items()
+            if (key.upper() in _SUBPROCESS_ENVIRONMENT or key.upper().startswith("LC_"))
+            and not any(
+                marker in key.upper()
+                for marker in ("TOKEN", "SECRET", "PASSWORD", "API_KEY", "CREDENTIAL")
+            )
+        }
+
+    def _resource_paths(self) -> list[Path]:
+        home = Path(os.environ.get("HOME", os.fspath(Path.home()))).expanduser()
+        if self.provider == "traex":
+            credential_home = self._traex_cli_home()
+            candidates = [
+                credential_home,
+                self._traex_home(),
+                home / ".trae",
+                home / ".trae-cn",
+            ]
+        else:
+            candidates = [self._codex_home(), home / ".codex"]
+        candidates.extend(
+            (
+                home / ".agents" / "skills",
+                home / ".codex" / "skills",
+                home / ".trae" / "skills",
+                home / ".trae-cn" / "skills",
+            )
+        )
+        paths: list[Path] = []
+        for candidate in candidates:
+            if not candidate.exists():
+                continue
+            resolved = candidate.resolve(strict=False)
+            if resolved == Path("/"):
+                raise RuntimeError(
+                    f"refusing to deny filesystem root as a {self.provider} resource path"
+                )
+            if resolved not in paths:
+                paths.append(resolved)
+        return paths
+
+    @staticmethod
+    def _contains(parent: Path, child: Path) -> bool:
+        try:
+            child.relative_to(parent)
+        except ValueError:
+            return False
+        return True
+
+    def _protected_paths(self, request: AgentRequest, final_path: Path | None) -> dict[str, Path]:
+        paths = {
+            "workspace": request.cwd.expanduser().resolve(strict=True),
+            "output": request.output_dir.expanduser().resolve(strict=False),
+        }
+        resolved_binary = shutil.which(self.binary)
+        if resolved_binary is not None:
+            paths["agent binary"] = Path(resolved_binary).resolve(strict=False)
+        if final_path is not None:
+            paths["final output"] = final_path.expanduser().resolve(strict=False)
+        return paths
+
+    @contextmanager
+    def _subprocess_environment(self) -> Iterator[dict[str, str]]:
+        temporaries: list[tempfile.TemporaryDirectory[str]] = []
+        try:
+            if self.provider == "traex":
+                temporaries = [
+                    tempfile.TemporaryDirectory(
+                        prefix="defuzz-traex-home-", ignore_cleanup_errors=True
+                    ),
+                    tempfile.TemporaryDirectory(
+                        prefix="defuzz-traex-cli-home-", ignore_cleanup_errors=True
+                    ),
+                ]
+                isolated_homes = {
+                    "TRAE_HOME": Path(temporaries[0].name),
+                    "TRAECLI_HOME": Path(temporaries[1].name),
+                }
+                credential_home = self._traex_cli_home()
+                credential_label = "TraeX"
+            else:
+                temporaries = [
+                    tempfile.TemporaryDirectory(
+                        prefix="defuzz-codex-home-", ignore_cleanup_errors=True
+                    )
+                ]
+                isolated_homes = {"CODEX_HOME": Path(temporaries[0].name)}
+                credential_home = self._codex_home()
+                credential_label = "Codex"
+            auth_source = credential_home / "auth.json"
+            if not auth_source.is_file():
+                raise RuntimeError(
+                    f"{credential_label} credentials are unavailable: {auth_source} is not a file"
+                )
+            destination_home = next(reversed(isolated_homes.values()))
+            for name in _CREDENTIAL_FILES:
+                source = credential_home / name
+                if not source.is_file():
+                    continue
+                destination = destination_home / name
+                shutil.copyfile(source, destination)
+                destination.chmod(0o600)
+        except (OSError, RuntimeError) as exc:
+            for temporary in reversed(temporaries):
+                temporary.cleanup()
+            raise RuntimeError(f"failed to prepare isolated {self.provider} home: {exc}") from exc
+
+        environment = self._minimal_environment()
+        environment.update({name: os.fspath(path) for name, path in isolated_homes.items()})
+        try:
+            yield environment
+        finally:
+            for temporary in reversed(temporaries):
+                temporary.cleanup()
 
     @staticmethod
     def _deny_profile(paths: Sequence[Path]) -> str:
@@ -172,7 +371,23 @@ class ExecAgentBackend:
 
     def launch_argv_for(self, request: AgentRequest, final_path: Path | None = None) -> list[str]:
         argv = self.argv_for(request, final_path)
-        denied = list(dict.fromkeys(path.resolve(strict=False) for path in request.deny_read_paths))
+        automatic = self._resource_paths()
+        protected = self._protected_paths(request, final_path)
+        explicit = [path.expanduser().resolve(strict=False) for path in request.deny_read_paths]
+        for denied_path in (*explicit, *automatic):
+            for label, protected_path in protected.items():
+                if self._contains(denied_path, protected_path):
+                    raise RuntimeError(
+                        f"deny path {denied_path} contains the {label} {protected_path}"
+                    )
+        denied = list(
+            dict.fromkeys(
+                [
+                    *explicit,
+                    *automatic,
+                ]
+            )
+        )
         if not denied:
             if request.require_host_read_isolation:
                 raise RuntimeError(
@@ -194,6 +409,10 @@ class ExecAgentBackend:
             raise ValueError(f"agent cwd is not a directory: {cwd}")
         output = request.output_dir.expanduser().resolve(strict=False)
         final = final_path or output / "final.json"
+        if self.provider == "codex":
+            isolation_config: Sequence[str] = _AGENT_ISOLATION_CONFIG
+        else:
+            isolation_config = (*_AGENT_ISOLATION_CONFIG, *_TRAEX_ISOLATION_CONFIG)
         argv = [
             self.binary,
             "--sandbox",
@@ -205,6 +424,8 @@ class ExecAgentBackend:
         ]
         if self.model:
             argv.extend(("--model", self.model))
+        for config in isolation_config:
+            argv.extend(("-c", config))
         argv.extend(
             [
                 "exec",
@@ -235,55 +456,64 @@ class ExecAgentBackend:
         request.output_dir.mkdir(parents=True, exist_ok=True)
         events_path = request.output_dir / "events.jsonl"
         final_path = request.output_dir / "final.json"
+        started = time.monotonic()
         try:
-            argv = self.launch_argv_for(request, final_path)
-        except (OSError, RuntimeError, ValueError) as exc:
+            with self._subprocess_environment() as environment:
+                try:
+                    argv = self.launch_argv_for(request, final_path)
+                except (OSError, RuntimeError, ValueError) as exc:
+                    return AgentResult(
+                        success=False,
+                        error=f"cannot establish agent isolation: {exc}",
+                        events_path=events_path,
+                    )
+                final_path.unlink(missing_ok=True)
+                try:
+                    process = await asyncio.create_subprocess_exec(
+                        *argv,
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=request.cwd,
+                        env=environment,
+                        start_new_session=True,
+                    )
+                except OSError as exc:
+                    return AgentResult(
+                        success=False,
+                        error=f"failed to start {self.binary}: {exc}",
+                        events_path=events_path,
+                    )
+
+                assert process.stdin is not None
+                assert process.stdout is not None
+                assert process.stderr is not None
+                stdout_task = asyncio.create_task(process.stdout.read())
+                stderr_task = asyncio.create_task(process.stderr.read())
+                process.stdin.write(request.prompt.encode("utf-8"))
+                try:
+                    await process.stdin.drain()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                finally:
+                    process.stdin.close()
+
+                timed_out = False
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=request.timeout_seconds)
+                except TimeoutError:
+                    timed_out = True
+                    await self._terminate_process_group(process)
+                except asyncio.CancelledError:
+                    await self._terminate_process_group(process)
+                    raise
+                stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
+        except RuntimeError as exc:
             return AgentResult(
                 success=False,
                 error=f"cannot establish agent isolation: {exc}",
                 events_path=events_path,
             )
-        final_path.unlink(missing_ok=True)
-        started = time.monotonic()
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *argv,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=request.cwd,
-                start_new_session=True,
-            )
-        except OSError as exc:
-            return AgentResult(
-                success=False,
-                error=f"failed to start {self.binary}: {exc}",
-                events_path=events_path,
-            )
-
-        assert process.stdin is not None
-        assert process.stdout is not None
-        assert process.stderr is not None
-        stdout_task = asyncio.create_task(process.stdout.read())
-        stderr_task = asyncio.create_task(process.stderr.read())
-        process.stdin.write(request.prompt.encode("utf-8"))
-        try:
-            await process.stdin.drain()
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-        finally:
-            process.stdin.close()
-
-        timed_out = False
-        try:
-            await asyncio.wait_for(process.wait(), timeout=request.timeout_seconds)
-        except TimeoutError:
-            timed_out = True
-            await self._terminate_process_group(process)
-        except asyncio.CancelledError:
-            await self._terminate_process_group(process)
-            raise
-        stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
         _atomic_write(events_path, stdout)
 
         raw_stdout = stdout.decode("utf-8", errors="replace")
@@ -294,8 +524,7 @@ class ExecAgentBackend:
         )
         final, final_error = self._read_final(final_path, events, request.schema_path)
         completed = any(
-            isinstance(event, Mapping) and event.get("type") == "turn.completed"
-            for event in events
+            isinstance(event, Mapping) and event.get("type") == "turn.completed" for event in events
         )
         success = (
             process.returncode == 0
@@ -384,9 +613,7 @@ class ExecAgentBackend:
         )
         return await self.run(request)
 
-    async def _terminate_process_group(
-        self, process: asyncio.subprocess.Process
-    ) -> None:
+    async def _terminate_process_group(self, process: asyncio.subprocess.Process) -> None:
         try:
             os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
@@ -514,4 +741,10 @@ class ExecAgentBackend:
         return last_usage
 
 
-__all__ = ["AgentBackend", "AgentRequest", "AgentResult", "ExecAgentBackend"]
+__all__ = [
+    "AgentBackend",
+    "AgentProvider",
+    "AgentRequest",
+    "AgentResult",
+    "ExecAgentBackend",
+]
