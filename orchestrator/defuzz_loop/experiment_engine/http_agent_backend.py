@@ -813,7 +813,19 @@ class HTTPResponsesAgentBackend:
         if schema_error is not None:
             return self._failure(schema_error, events_path=events_path)
         conversation: list[Any] = [{"role": "user", "content": request.prompt}]
-        tools = self._tools_for_request(executor.tools, schema_path=request.schema_path)
+        # Part I embeds the complete source segment or RAG evidence in the
+        # prompt and intentionally runs from an empty workspace. Exposing file
+        # tools there only encourages redundant empty-directory browsing and
+        # multiplies token cost without adding evidence.
+        embedded_evidence_only = (
+            request.metadata.get("part") == "part-i"
+            and request.schema_path is not None
+            and not request.writable
+        )
+        tools = self._tools_for_request(
+            () if embedded_evidence_only else executor.tools,
+            schema_path=request.schema_path,
+        )
         payload = self._initial_payload(
             conversation, tools, schema, request.schema_path
         )
@@ -1251,10 +1263,15 @@ class HTTPResponsesAgentBackend:
                 "after completing the requested edits. If a finish tool is available, call it "
                 "exactly once and by itself with a concise summary."
             ),
-            "tools": [dict(tool) for tool in tools],
-            "tool_choice": "auto",
-            "parallel_tool_calls": False,
         }
+        if tools:
+            payload.update(
+                {
+                    "tools": [dict(tool) for tool in tools],
+                    "tool_choice": "auto",
+                    "parallel_tool_calls": False,
+                }
+            )
         if self.config.max_output_tokens is not None:
             payload["max_output_tokens"] = self.config.max_output_tokens
         if schema is not None:

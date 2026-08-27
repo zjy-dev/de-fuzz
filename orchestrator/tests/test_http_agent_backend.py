@@ -399,6 +399,44 @@ async def test_invalid_json_schema_fails_as_agent_result_before_http(
 
 
 @pytest.mark.asyncio
+async def test_part_i_embedded_evidence_request_omits_workspace_tools(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEFUZZ_TEST_API_KEY", "test-key")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    schema = tmp_path / "segment.schema.json"
+    schema.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {"answer": {"type": "string"}},
+                "required": ["answer"],
+                "additionalProperties": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    with _response_server(
+        [(200, _final_response(json.dumps({"answer": "grounded"})))]
+    ) as server:
+        result = await HTTPResponsesAgentBackend(_config(server)).run(
+            AgentRequest(
+                prompt="The complete evidence is embedded here.",
+                cwd=workspace,
+                output_dir=tmp_path / "out",
+                schema_path=schema,
+                metadata={"part": "part-i"},
+            )
+        )
+
+    assert result.success
+    assert "tools" not in server.requests[0]
+    assert "tool_choice" not in server.requests[0]
+    assert "parallel_tool_calls" not in server.requests[0]
+
+
+@pytest.mark.asyncio
 async def test_responses_function_loop_reads_then_returns_structured_output_and_usage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
