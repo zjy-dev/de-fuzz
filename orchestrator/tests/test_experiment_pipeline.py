@@ -572,9 +572,6 @@ def test_formal_plan_records_compiler_driver_identity(
         "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
         lambda paths, *, output_root: None,
     )
-    monkeypatch.setattr(
-        "defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__
-    )
     monkeypatch.setattr("defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__)
 
     plan = build_pipeline_plan(config, config_path=path)
@@ -1180,6 +1177,9 @@ async def test_formal_pipeline_fails_closed_without_host_read_isolation(
     monkeypatch.setattr(
         "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
         lambda paths, *, output_root: None,
+    )
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__
     )
     calls: list[tuple[str, str, str, int]] = []
     runners = _fixture_runners(calls)
