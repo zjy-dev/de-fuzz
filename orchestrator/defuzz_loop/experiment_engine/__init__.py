@@ -1,6 +1,11 @@
 """Shared runtime contracts for reproducible DeFuzz experiments."""
 
 from .agent_backend import AgentBackend, AgentRequest, AgentResult, ExecAgentBackend
+from .http_agent_backend import (
+    HTTPAgentConfig,
+    HTTPResponsesAgentBackend,
+    load_http_agent_config_snapshot,
+)
 from .models import ArtifactRef, BudgetEnvelope, ExperimentPlan, StageResult, VariantPolicy
 from .pipeline import (
     PipelineAuditConfig,
@@ -28,6 +33,9 @@ __all__ = [
     "AgentResult",
     "BudgetEnvelope",
     "ExecAgentBackend",
+    "HTTPAgentConfig",
+    "HTTPResponsesAgentBackend",
+    "load_http_agent_config_snapshot",
     "ExperimentPlan",
     "PlanMismatchError",
     "PipelineAuditConfig",

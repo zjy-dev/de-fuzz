@@ -227,6 +227,66 @@ async def test_combined_merges_overlap_and_writes_stable_artifact(tmp_path: Path
     assert (config.output_dir / "invariant-generation-manifest.json").is_file()
 
 
+async def test_combined_uses_bounded_segments_and_full_rag_corpus(tmp_path: Path) -> None:
+    bounded, reference = _fixture_roots(tmp_path)
+    full = tmp_path / "full-gcc"
+    full.mkdir()
+    (full / "full-only.cc").write_text("void full_only() {}\n", encoding="utf-8")
+    seen: dict[str, Any] = {}
+
+    async def fake_rag(config: Any, *, judge_override: Any = None) -> PipelineResult:
+        del judge_override
+        seen["corpus_root"] = config.corpus_root
+        return PipelineResult(seeds=[], corpus_size=1, accepted=[])
+
+    config = InvariantGenerationConfig(
+        generation_path="combined",
+        corpus_root=bounded,
+        rag_corpus_root=full,
+        output_dir=tmp_path / "out",
+        run_id="separate-corpora",
+        repetition=1,
+        reference_root=reference,
+        segment_chars=1000,
+    )
+    result = await run_invariant_generation(
+        config,
+        backend=cast(Any, FakeBackend()),
+        grounding_judge=cast(Any, FakeJudge()),
+        rag_runner=fake_rag,
+    )
+
+    segment_manifest = json.loads((config.output_dir / "segment-manifest.json").read_text())
+    generation_manifest = json.loads(
+        (config.output_dir / "invariant-generation-manifest.json").read_text()
+    )
+    assert seen["corpus_root"] == full
+    assert {entry["path"] for entry in segment_manifest["segments"]} == {"source/guard.cc"}
+    assert result.config["corpus_root"] == str(bounded)
+    assert result.config["rag_corpus_root"] == str(full)
+    assert generation_manifest["inputs"]["rag_corpus_root"] == str(full)
+
+
+def test_rag_corpus_root_defaults_to_segmented_corpus_for_compatibility(tmp_path: Path) -> None:
+    source, reference = _fixture_roots(tmp_path)
+
+    direct = InvariantGenerationConfig(
+        corpus_root=source,
+        output_dir=tmp_path / "direct",
+        run_id="legacy-direct",
+        repetition=1,
+        reference_root=reference,
+    )
+    plan = ExperimentPlan(
+        run_id="legacy-plan",
+        experiment="invariant-generation",
+        parameters={"corpus_root": str(source), "reference_root": str(reference)},
+    )
+
+    assert direct.rag_corpus_root == source
+    assert config_from_plan(plan, 1, tmp_path / "from-plan").rag_corpus_root == source
+
+
 def test_without_rag_only_disables_rag_producer(tmp_path: Path) -> None:
     source, reference = _fixture_roots(tmp_path)
     plan = ExperimentPlan(

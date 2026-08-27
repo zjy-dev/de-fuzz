@@ -510,6 +510,173 @@ async def test_mixed_outcomes_return_partial(source_checkout: Path, tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_reused_checker_is_source_catalog_validated_without_agent_edits(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    row = {
+        "invariant_id": "INVGEN-P01",
+        "statement": "Indirect-callable function entries must begin with ENDBR.",
+        "observation": "missing entry marker",
+        "generation_path": "combined",
+        "provenance": [],
+        "reused_checker_ids": ["INV-IBT-P01"],
+    }
+    invariants.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    backend = FakeAgentBackend()
+    executor = FakeCommandExecutor([True])
+    # The source-derived dispatcher catalog is the validation authority; this
+    # avoids treating a text grep as proof that the checker is runnable.
+    original_run = executor.run
+
+    async def catalog_with_p01(
+        command: tuple[str, ...],
+        *,
+        cwd: Path,
+        timeout_seconds: float | None = None,
+    ) -> CommandResult:
+        if len(command) >= 3 and command[-2:] == ("--mode", "catalog"):
+            return CommandResult(
+                argv=command,
+                cwd=str(cwd),
+                exit_code=0,
+                stdout=json.dumps({
+                    "schema_version": 1,
+                    "kind": "defuzz-checker-catalog",
+                    "checkers": [{"id": "INV-IBT-P01", "requires": []}],
+                }),
+            )
+        return await original_run(command, cwd=cwd, timeout_seconds=timeout_seconds)
+
+    executor.run = catalog_with_p01  # type: ignore[method-assign]
+    result = await CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=FakeWorkspaceFactory(),
+        command_executor=executor,
+    ).run(_plan(source_checkout, invariants), 1, tmp_path / "output")
+
+    assert result.status == "completed"
+    assert backend.requests == []
+    assert result.metadata["deterministic_only"] is True
+    row = json.loads((tmp_path / "output" / RESULTS_FILENAME).read_text())
+    assert row["reused"] is True
+    assert row["reused_checker_id"] == "INV-IBT-P01"
+    catalog = json.loads((tmp_path / "output" / "checker-catalog.json").read_text())
+    assert catalog["checkers"][0]["id"] == "INV-IBT-P01"
+    assert catalog["checkers"][0]["reused_checker_id"] == "INV-IBT-P01"
+    assert catalog["checkers"][0]["checker_id"] == "INV-IBT-P01"
+
+
+@pytest.mark.asyncio
+async def test_multiple_generated_invariants_share_one_reused_runtime_checker(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    invariants.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "invariant_id": generated_id,
+                    "statement": statement,
+                    "observation": "missing entry marker",
+                    "generation_path": "combined",
+                    "provenance": [],
+                    "reused_checker_ids": ["INV-IBT-P01"],
+                }
+            )
+            + "\n"
+            for generated_id, statement in (
+                (
+                    "INVGEN-P01-A",
+                    "Every indirect-callable function entry must begin with ENDBR.",
+                ),
+                (
+                    "INVGEN-P01-B",
+                    "Indirect-callable function entries must begin with ENDBR.",
+                ),
+            )
+        ),
+        encoding="utf-8",
+    )
+    executor = FakeCommandExecutor([True])
+    original_run = executor.run
+
+    async def catalog_with_p01(
+        command: tuple[str, ...],
+        *,
+        cwd: Path,
+        timeout_seconds: float | None = None,
+    ) -> CommandResult:
+        if len(command) >= 3 and command[-2:] == ("--mode", "catalog"):
+            return CommandResult(
+                argv=command,
+                cwd=str(cwd),
+                exit_code=0,
+                stdout=json.dumps(
+                    {
+                        "schema_version": 1,
+                        "kind": "defuzz-checker-catalog",
+                        "checkers": [{"id": "INV-IBT-P01", "requires": []}],
+                    }
+                ),
+            )
+        return await original_run(command, cwd=cwd, timeout_seconds=timeout_seconds)
+
+    executor.run = catalog_with_p01  # type: ignore[method-assign]
+    backend = FakeAgentBackend()
+    output = tmp_path / "output"
+    result = await CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=FakeWorkspaceFactory(),
+        command_executor=executor,
+    ).run(_plan(source_checkout, invariants), 1, output)
+
+    assert result.success
+    assert backend.requests == []
+    manifest = json.loads((output / "checker-bundle-manifest.json").read_text())
+    assert manifest["included_invariant_ids"] == ["INV-IBT-P01"]
+    assert len(manifest["invariants"]) == 1
+    assert manifest["invariants"][0]["generated_invariant_ids"] == [
+        "INVGEN-P01-A",
+        "INVGEN-P01-B",
+    ]
+    catalog = json.loads((output / "checker-catalog.json").read_text())
+    assert len(catalog["checkers"]) == 1
+    assert catalog["checkers"][0]["generated_invariant_ids"] == [
+        "INVGEN-P01-A",
+        "INVGEN-P01-B",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_part_ii_rejects_untrusted_reuse_metadata(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    invariants.write_text(
+        json.dumps(
+            {
+                "invariant_id": "INVGEN-NEGATED",
+                "statement": "Address-taken function entries must not begin with ENDBR.",
+                "observation": "unexpected entry marker",
+                "generation_path": "combined",
+                "provenance": [],
+                "reused_checker_ids": ["INV-IBT-P01"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="reuse metadata does not match"):
+        await CheckerAuthoringRunner(
+            backend=FakeAgentBackend(),
+            workspace_factory=FakeWorkspaceFactory(),
+            command_executor=FakeCommandExecutor([True]),
+        ).run(_plan(source_checkout, invariants), 1, tmp_path / "output")
+
+
+@pytest.mark.asyncio
 async def test_emits_cumulative_ready_bundle_in_deterministic_input_order(
     source_checkout: Path, tmp_path: Path
 ) -> None:
@@ -972,3 +1139,28 @@ async def test_workspace_factory_error_does_not_leak_destination(
 
     assert len(destinations) == 1
     assert not destinations[0].exists()
+
+
+@pytest.mark.asyncio
+async def test_source_identity_hashes_the_materialized_allowlist(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    """Files outside the copied checker tree are not Part II inputs."""
+
+    outside = source_checkout / "volatile-build"
+    outside.mkdir()
+    (outside / "dangling").symlink_to(outside / "already-removed")
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants)
+    executor = FakeCommandExecutor([True])
+    backend = FakeAgentBackend(command_executor=executor)
+
+    result = await CheckerAuthoringRunner(
+        backend=backend, command_executor=executor
+    ).run(_plan(source_checkout, invariants, max_attempts=1), 1, tmp_path / "out")
+
+    assert result.success
+    manifest = json.loads(
+        (tmp_path / "out" / "checker-bundle-manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["source_root_sha256"] == manifest["source_tree_sha256"]

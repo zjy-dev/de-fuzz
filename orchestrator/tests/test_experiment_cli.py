@@ -47,7 +47,8 @@ def test_every_command_has_clear_help(
         assert "configs/experiments/run.yaml" not in help_text
     elif path[-1] != "ablation":
         assert "--show-plan" in help_text
-        assert "--backend {traex,codex}" in help_text
+        assert "--backend {traex,codex,http}" in help_text
+        assert "--http-config PATH" in help_text
         assert "--agent-binary" in help_text
         assert "--model" in help_text
         assert "example:" in help_text
@@ -322,6 +323,173 @@ def test_show_plan_is_side_effect_free_and_reports_backend_availability(
         "inv-r1/rep-001/artifacts"
     )
     assert not output_root.exists()
+
+
+def _write_http_config(path: Path, *, api_key_env: str = "DEFUZZ_HTTP_API_KEY") -> None:
+    path.write_text(
+        "\n".join(
+            (
+                "base_url: https://gateway.example.test/v1",
+                "model: test-http-model",
+                f"api_key_env: {api_key_env}",
+                "reasoning_effort: high",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_http_show_plan_records_sanitized_config_and_effective_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "http-agent.yaml"
+    _write_http_config(config)
+    monkeypatch.setenv("DEFUZZ_HTTP_API_KEY", "not-persisted")
+
+    assert (
+        cli.main(
+            [
+                "invariant-generation",
+                "--backend",
+                "http",
+                "--http-config",
+                str(config),
+                "--show-plan",
+            ]
+        )
+        == 0
+    )
+
+    plan = json.loads(capsys.readouterr().out)
+    backend = plan["backend"]
+    assert plan["backend_available"] is True
+    assert plan["parameters"]["model"] == "test-http-model"
+    assert plan["parameters"]["http_config_sha256"] == cli._sha256_file(config)
+    assert "agent_binary" not in plan["parameters"]
+    assert backend["kind"] == "http-responses"
+    assert backend["config_path"] == str(config.resolve())
+    assert backend["config_snapshot"]["sha256"]
+    assert backend["endpoint"] == "https://gateway.example.test/v1/responses"
+    assert backend["model"] == "test-http-model"
+    assert backend["reasoning_effort"] == "high"
+    assert backend["settings"]["model"] == "test-http-model"
+    assert backend["api_key_available"] is True
+    assert "not-persisted" not in json.dumps(plan)
+
+
+def test_http_backend_rejects_config_drift_after_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = tmp_path / "http-agent.yaml"
+    _write_http_config(config)
+    args = cli.build_parser().parse_args(
+        [
+            "invariant-generation",
+            "--backend",
+            "http",
+            "--http-config",
+            str(config),
+        ]
+    )
+    plan = cli.ExperimentPlan.from_mapping(cli._resolved_plan(args))
+    config.write_text(
+        config.read_text(encoding="utf-8").replace(
+            "reasoning_effort: high", "reasoning_effort: low"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="no longer matches the frozen plan"):
+        cli._standalone_backend(plan)
+
+
+def test_http_backend_requires_config_and_rejects_exec_options(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "http-agent.yaml"
+    _write_http_config(config)
+
+    assert cli.main(["invariant-generation", "--backend", "http", "--show-plan"]) == (
+        cli.EXIT_CONFIGURATION_ERROR
+    )
+    assert "--http-config is required" in capsys.readouterr().err
+
+    assert (
+        cli.main(
+            [
+                "invariant-generation",
+                "--backend",
+                "http",
+                "--http-config",
+                str(config),
+                "--agent-binary",
+                "codex",
+                "--show-plan",
+            ]
+        )
+        == cli.EXIT_CONFIGURATION_ERROR
+    )
+    assert "--agent-binary is unsupported" in capsys.readouterr().err
+
+
+def test_http_execution_requires_api_key_before_backend_construction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "http-agent.yaml"
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    _write_http_config(config, api_key_env="DEFUZZ_HTTP_MISSING_KEY")
+    monkeypatch.delenv("DEFUZZ_HTTP_MISSING_KEY", raising=False)
+
+    assert (
+        cli.main(
+            [
+                "invariant-generation",
+                "--backend",
+                "http",
+                "--http-config",
+                str(config),
+                "--corpus-root",
+                str(corpus),
+            ]
+        )
+        == cli.EXIT_CONFIGURATION_ERROR
+    )
+    assert "DEFUZZ_HTTP_MISSING_KEY" in capsys.readouterr().err
+
+
+def test_http_backend_constructs_responses_backend_not_exec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "http-agent.yaml"
+    _write_http_config(config_path)
+    args = cli.build_parser().parse_args(
+        [
+            "invariant-generation",
+            "--backend",
+            "http",
+            "--http-config",
+            str(config_path),
+        ]
+    )
+    plan = cli.ExperimentPlan.from_mapping(cli._resolved_plan(args))
+    constructed: list[Any] = []
+
+    class FakeHTTPBackend:
+        supports_host_read_isolation = True
+
+        def __init__(self, config: Any) -> None:
+            constructed.append(config)
+
+    def unexpected_exec_backend(**_: Any) -> Any:
+        pytest.fail("HTTP backend must not construct ExecAgentBackend")
+
+    monkeypatch.setattr(cli, "HTTPResponsesAgentBackend", FakeHTTPBackend)
+    monkeypatch.setattr(cli, "ExecAgentBackend", unexpected_exec_backend)
+
+    assert isinstance(cli._standalone_backend(plan), FakeHTTPBackend)
+    assert constructed[0].model == "test-http-model"
 
 
 @pytest.mark.parametrize("via_symlink", [False, True])

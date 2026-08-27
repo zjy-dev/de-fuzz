@@ -200,6 +200,28 @@ def _write_config(
     return path
 
 
+def _configure_http_backend(path: Path, *, model: str = "http-fixture-model") -> Path:
+    http_path = path.parent / "http-agent.yaml"
+    http_path.write_text(
+        yaml.safe_dump(
+            {
+                "http_agent": {
+                    "base_url": "https://agent.example.test/v1",
+                    "model": model,
+                    "api_key_env": "DEFUZZ_TEST_HTTP_KEY",
+                    "reasoning_effort": "high",
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    payload["backend"] = {"kind": "http", "config_path": http_path.name}
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return http_path
+
+
 def _fixture_runners(
     calls: list[tuple[str, str, str, int]],
     *,
@@ -901,6 +923,150 @@ def test_formal_plan_accepts_explicit_absolute_agent_binary(
     assert plan["backend"]["resolved_path"] == str(agent)
 
 
+def test_http_backend_config_is_resolved_and_plan_identity_is_sanitized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_config(tmp_path, mode="formal")
+    http_path = _configure_http_backend(path)
+    monkeypatch.setenv("DEFUZZ_TEST_HTTP_KEY", "do-not-persist-this-secret")
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
+        lambda *args, **kwargs: None,
+    )
+
+    config = load_pipeline_config(path)
+    assert config.backend.config_path == http_path.resolve()
+    assert config.backend.model == "http-fixture-model"
+    plan = build_pipeline_plan(config, config_path=path)
+
+    identity = plan["backend_identity"]
+    assert plan["backend"]["available"] is True
+    assert plan["backend"]["model"] == "http-fixture-model"
+    assert identity["kind"] == "http-responses"
+    assert identity["endpoint"] == "https://agent.example.test/v1/responses"
+    assert identity["model"] == "http-fixture-model"
+    assert identity["reasoning_effort"] == "high"
+    assert identity["settings"]["model"] == "http-fixture-model"
+    assert identity["config_file"]["sha256"] == _sha256(http_path)
+    assert "do-not-persist-this-secret" not in json.dumps(plan)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_freezes_http_config_for_all_stages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_config(tmp_path, mode="formal")
+    http_path = _configure_http_backend(path)
+    monkeypatch.setenv("DEFUZZ_TEST_HTTP_KEY", "only-for-preflight")
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
+        lambda *args, **kwargs: None,
+    )
+    config = load_pipeline_config(path)
+    seen: list[str] = []
+
+    class FakeHTTPBackend:
+        supports_host_read_isolation = True
+
+        def __init__(self, frozen: Any) -> None:
+            seen.append(frozen.reasoning_effort)
+
+    monkeypatch.setattr(pipeline_mod, "HTTPResponsesAgentBackend", FakeHTTPBackend)
+    original_build = pipeline_mod.build_pipeline_plan
+
+    def mutate_after_plan(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        plan = original_build(*args, **kwargs)
+        http_path.write_text(
+            http_path.read_text(encoding="utf-8").replace(
+                "reasoning_effort: high", "reasoning_effort: low"
+            ),
+            encoding="utf-8",
+        )
+        return plan
+
+    monkeypatch.setattr(pipeline_mod, "build_pipeline_plan", mutate_after_plan)
+    with pytest.raises(ValueError, match="changed after pipeline planning"):
+        await pipeline_mod.run_pipeline(config, config_path=path)
+    assert seen == []
+
+
+def test_checked_in_http_example_pins_terra_max_medium() -> None:
+    config = pipeline_mod.load_http_agent_config(
+        Path(__file__).resolve().parents[2] / "configs/experiments/http-agent.example.yaml"
+    )
+
+    assert config.responses_url == "http://127.0.0.1:8787/v1/responses"
+    assert config.model == "coconut-gpt-5-6-terra-max"
+    assert config.reasoning_effort == "medium"
+
+
+def test_formal_http_backend_requires_config_and_api_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_config(tmp_path, mode="formal")
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    payload["backend"] = {"kind": "http"}
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError, match="config_path is required"):
+        load_pipeline_config(path)
+
+    _configure_http_backend(path)
+    monkeypatch.delenv("DEFUZZ_TEST_HTTP_KEY", raising=False)
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
+        lambda *args, **kwargs: None,
+    )
+    with pytest.raises(ValueError, match="API key environment variable: DEFUZZ_TEST_HTTP_KEY"):
+        build_pipeline_plan(load_pipeline_config(path), config_path=path)
+
+
+@pytest.mark.asyncio
+async def test_default_http_pipeline_constructs_backend_without_binary_or_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = _write_config(tmp_path, mode="formal")
+    _configure_http_backend(path)
+    monkeypatch.setenv("DEFUZZ_TEST_HTTP_KEY", "only-for-preflight")
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
+        lambda *args, **kwargs: None,
+    )
+    constructed: list[Any] = []
+
+    class FakeHTTPBackend:
+        supports_host_read_isolation = True
+
+        def __init__(self, config: Any) -> None:
+            constructed.append(config)
+
+    monkeypatch.setattr(pipeline_mod, "HTTPResponsesAgentBackend", FakeHTTPBackend)
+    config = load_pipeline_config(path)
+    target = config.targets[0]
+    plan = pipeline_mod._stage_plan(
+        config, target, "full", 1, "part_i", tmp_path / "lane"
+    )
+    received: list[Any] = []
+
+    async def runner(_plan: Any, _repetition: int, _output_dir: Path, backend: Any) -> StageResult:
+        received.append(backend)
+        return StageResult(stage="invariant-generation", status="completed")
+
+    await pipeline_mod._invoke_stage(
+        config=config,
+        plan=plan,
+        repetition=1,
+        stage="part_i",
+        output_dir=tmp_path / "lane" / "part_i",
+        runner=runner,
+        runners=pipeline_mod._DEFAULT_RUNNERS,
+    )
+
+    # This exercises the default factory selection without launching a binary
+    # or allowing a real HTTP request.
+    assert constructed
+    assert received and received[0] is not None
+
+
 @pytest.mark.asyncio
 async def test_formal_token_usage_must_be_complete_and_within_budget(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1166,6 +1332,39 @@ def test_llvm_full_and_without_rag_have_distinct_effective_plans(tmp_path: Path)
         ("full", "combined"),
         ("without-rag", "segmented-cot"),
     ]
+
+
+def test_target_rag_corpus_root_is_resolved_snapshotted_and_passed_to_part_i(
+    tmp_path: Path,
+) -> None:
+    path = _write_config(tmp_path)
+    full_rag = tmp_path / "full-gcc"
+    full_rag.mkdir()
+    (full_rag / "full-only.c").write_text("void f(void) {}\n", encoding="utf-8")
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    payload["targets"][0]["rag_corpus_root"] = full_rag.name
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    config = load_pipeline_config(path)
+    target = config.targets[0]
+    plan = build_pipeline_plan(config, config_path=path)
+    stage_plan = pipeline_mod._stage_plan(config, target, "full", 1, "part_i", tmp_path / "lane")
+
+    assert target.rag_corpus_root == full_rag.resolve()
+    assert stage_plan.parameters["corpus_root"] == str(target.corpus_root)
+    assert stage_plan.parameters["rag_corpus_root"] == str(full_rag.resolve())
+    assert str(full_rag.resolve()) in plan["input_snapshots"]
+
+
+def test_target_rag_corpus_root_defaults_to_target_corpus_in_part_i_plan(tmp_path: Path) -> None:
+    path = _write_config(tmp_path)
+    config = load_pipeline_config(path)
+    target = config.targets[0]
+
+    stage_plan = pipeline_mod._stage_plan(config, target, "full", 1, "part_i", tmp_path / "lane")
+
+    assert target.rag_corpus_root is None
+    assert stage_plan.parameters["rag_corpus_root"] == str(target.corpus_root)
 
 
 @pytest.mark.asyncio

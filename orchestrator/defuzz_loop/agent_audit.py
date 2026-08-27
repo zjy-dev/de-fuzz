@@ -1032,8 +1032,8 @@ async def run(
                 stage="agent-audit",
                 status="failed",
                 error=(
-                    "host read isolation is unavailable; run on macOS with sandbox-exec "
-                    "or inside an equivalent container"
+                    "host read isolation is unavailable; use a backend with an enforced "
+                    "workspace boundary or run inside an equivalent OS sandbox"
                 ),
             )
         # The CLI installs the repetition sink in ambient context and its backend

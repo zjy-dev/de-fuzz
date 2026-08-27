@@ -23,9 +23,12 @@ from defuzz_loop.experiment_engine import (
     AgentResult,
     ExecAgentBackend,
     ExperimentPlan,
+    HTTPAgentConfig,
+    HTTPResponsesAgentBackend,
     RunStore,
     StageResult,
     TokenUsageSink,
+    load_http_agent_config_snapshot,
 )
 from defuzz_loop.token_usage import TokenUsageContext, use_token_usage
 
@@ -163,9 +166,18 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     backend = parser.add_argument_group("agent backend")
     backend.add_argument(
         "--backend",
-        choices=("traex", "codex"),
+        choices=("traex", "codex", "http"),
         default="traex",
         help="non-interactive agent adapter (default: traex)",
+    )
+    backend.add_argument(
+        "--http-config",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "HTTP Responses backend YAML/JSON config (required with --backend http; "
+            "credentials stay in its api_key_env environment variable)"
+        ),
     )
     backend.add_argument(
         "--agent-binary",
@@ -1018,8 +1030,34 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
     run_id = str(values.get("run_id") or default_run_id)
     output_root = Path(values["output_root"]).expanduser().resolve(strict=False)
     repetitions = int(values["repetitions"])
-    binary = str(values.get("agent_binary") or values["backend"])
-    binary_resolved, binary_available = _resolve_agent_binary(binary)
+    backend_kind = str(values["backend"])
+    http_config: HTTPAgentConfig | None = None
+    if backend_kind == "http":
+        raw_config = values.get("http_config")
+        if raw_config is None:
+            raise ValueError("--http-config is required when --backend http")
+        if values.get("agent_binary") is not None:
+            raise ValueError("--agent-binary is unsupported when --backend http")
+        config_path = Path(raw_config).expanduser().resolve(strict=False)
+        try:
+            http_config, http_config_sha256, http_config_size_bytes = (
+                load_http_agent_config_snapshot(config_path)
+            )
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"HTTP agent config is invalid: {config_path}: {exc}") from exc
+        requested_model = values.get("model")
+        if requested_model is not None and requested_model != http_config.model:
+            raise ValueError(
+                "--model must match the HTTP agent config model: "
+                f"cli={requested_model!r}, http_config={http_config.model!r}"
+            )
+        binary = None
+        binary_resolved, binary_available = None, True
+    else:
+        if values.get("http_config") is not None:
+            raise ValueError("--http-config is supported only when --backend http")
+        binary = str(values.get("agent_binary") or backend_kind)
+        binary_resolved, binary_available = _resolve_agent_binary(binary)
 
     common_keys = {
         "experiment",
@@ -1047,8 +1085,14 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
         for key, value in values.items()
         if key not in common_keys and value is not None
     }
-    parameters["agent_binary"] = binary
-    parameters["backend"] = str(values["backend"])
+    if http_config is not None:
+        parameters["model"] = http_config.model
+        parameters["http_config"] = _resolved_path(Path(values["http_config"]))
+        parameters["http_config_sha256"] = http_config_sha256
+    else:
+        assert binary is not None
+        parameters["agent_binary"] = binary
+    parameters["backend"] = backend_kind
     # Standalone stage commands are production experiment entry points. Keep
     # their host-read boundary fail closed; fixture semantics belong to the
     # explicitly configured pipeline command.
@@ -1065,11 +1109,30 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
         "status": "ready",
         # Retain the original scalar for consumers of the pre-resolution plan.
         "backend_available": binary_available,
-        "backend": {
-            "binary": binary,
-            "resolved_path": binary_resolved,
-            "available": binary_available,
-        },
+        "backend": (
+            {
+                "kind": "http-responses",
+                "available": True,
+                "config_path": parameters["http_config"],
+                "config_snapshot": {
+                    "path": parameters["http_config"],
+                    "sha256": http_config_sha256,
+                    "size_bytes": http_config_size_bytes,
+                },
+                "endpoint": http_config.responses_url,
+                "model": http_config.model,
+                "reasoning_effort": http_config.reasoning_effort,
+                "api_key_env": http_config.api_key_env,
+                "api_key_available": bool(os.environ.get(http_config.api_key_env)),
+                "settings": http_config.model_dump(mode="json"),
+            }
+            if http_config is not None
+            else {
+                "binary": binary,
+                "resolved_path": binary_resolved,
+                "available": binary_available,
+            }
+        ),
         "experiment": experiment,
         "variant": variant,
         "run": {
@@ -1586,9 +1649,17 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
     _validate_from_run(plan, stage)
     _validate_baseline_run(plan, stage)
 
-    binary = str(plan.parameters.get("agent_binary", "traex"))
-    if not _binary_available(binary):
-        raise ValueError(f"agent binary is unavailable: {binary}")
+    if plan.parameters.get("backend") == "http":
+        config = _http_config_for_plan(plan)
+        if not os.environ.get(config.api_key_env):
+            raise ValueError(
+                "HTTP agent API key environment variable is unavailable: "
+                f"{config.api_key_env}"
+            )
+    else:
+        binary = str(plan.parameters.get("agent_binary", "traex"))
+        if not _binary_available(binary):
+            raise ValueError(f"agent binary is unavailable: {binary}")
 
 
 def _completed_repetition(store: RunStore, repetition: int, stage: str) -> bool:
@@ -1612,23 +1683,50 @@ def _completed_repetition(store: RunStore, repetition: int, stage: str) -> bool:
     return True
 
 
-def _standalone_backend(plan: ExperimentPlan) -> ExecAgentBackend:
+def _http_config_for_plan(plan: ExperimentPlan) -> HTTPAgentConfig:
+    value = plan.parameters.get("http_config")
+    if not value:
+        raise ValueError("--http-config is required when --backend http")
+    path = Path(str(value)).expanduser().resolve(strict=False)
+    expected_hash = plan.parameters.get("http_config_sha256")
+    if not isinstance(expected_hash, str) or not expected_hash:
+        raise ValueError("HTTP agent plan is missing the frozen config SHA-256")
+    if not path.is_file() or _sha256_file(path) != expected_hash:
+        raise ValueError(
+            "HTTP agent config no longer matches the frozen plan; create a new run"
+        )
+    try:
+        config, actual_hash, _ = load_http_agent_config_snapshot(path)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"HTTP agent config is invalid: {path}: {exc}") from exc
+    if actual_hash != expected_hash:
+        raise ValueError(
+            "HTTP agent config changed while it was being frozen; create a new run"
+        )
+    return config
+
+
+def _standalone_backend(plan: ExperimentPlan) -> AgentBackend:
     """Build and capability-check the backend before entering asyncio."""
 
-    backend = ExecAgentBackend(
-        binary=str(plan.parameters.get("agent_binary", "traex")),
-        model=cast(str | None, plan.parameters.get("model")),
-        provider=cast(
-            Literal["traex", "codex"],
-            plan.parameters.get("backend", "traex"),
-        ),
-    )
+    if plan.parameters.get("backend") == "http":
+        backend: AgentBackend = HTTPResponsesAgentBackend(_http_config_for_plan(plan))
+    else:
+        backend = ExecAgentBackend(
+            binary=str(plan.parameters.get("agent_binary", "traex")),
+            model=cast(str | None, plan.parameters.get("model")),
+            provider=cast(
+                Literal["traex", "codex"],
+                plan.parameters.get("backend", "traex"),
+            ),
+        )
     if plan.parameters.get("require_host_read_isolation") and not bool(
         getattr(backend, "supports_host_read_isolation", False)
     ):
         raise ValueError(
-            "standalone experiments require host read isolation; run on macOS "
-            "with sandbox-exec or inside an equivalent container"
+            "standalone experiments require host read isolation through an enforced "
+            "boundary; "
+            "use workspace-scoped tools or an equivalent OS sandbox"
         )
     return backend
 
@@ -1636,7 +1734,7 @@ def _standalone_backend(plan: ExperimentPlan) -> ExecAgentBackend:
 async def _execute(
     plan: ExperimentPlan,
     *,
-    backend_impl: ExecAgentBackend,
+    backend_impl: AgentBackend,
     resume: bool = False,
 ) -> int:
     if plan.output_root is None:
@@ -1753,8 +1851,10 @@ async def _execute(
             "status": "completed" if complete else "failed",
             "successful_repetitions": successes,
             "failed_repetitions": failures,
-            "backend_available": _binary_available(
-                str(plan.parameters.get("agent_binary", "traex"))
+            "backend_available": (
+                bool(os.environ.get(_http_config_for_plan(plan).api_key_env))
+                if plan.parameters.get("backend") == "http"
+                else _binary_available(str(plan.parameters.get("agent_binary", "traex")))
             ),
         }
     )

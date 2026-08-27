@@ -34,6 +34,12 @@ from defuzz_loop.token_usage import TokenUsageContext, TokenUsageSink, use_token
 
 from .agent_backend import AgentBackend, AgentRequest, AgentResult, ExecAgentBackend
 from .campaign_results import write_campaign_results
+from .http_agent_backend import (
+    HTTPAgentConfig,
+    HTTPResponsesAgentBackend,
+    load_http_agent_config,
+    load_http_agent_config_snapshot,
+)
 from .models import (
     ArtifactRef,
     BudgetEnvelope,
@@ -73,9 +79,10 @@ class _StrictModel(BaseModel):
 
 
 class PipelineBackendConfig(_StrictModel):
-    kind: Literal["traex", "codex"] = "traex"
+    kind: Literal["traex", "codex", "http"] = "traex"
     binary: str | None = None
     model: str | None = None
+    config_path: Path | None = None
     extra_args: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -84,8 +91,14 @@ class PipelineBackendConfig(_StrictModel):
             raise ValueError("backend.binary must be non-empty when provided")
         if self.model is not None and not self.model.strip():
             raise ValueError("backend.model must be non-empty when provided")
+        if self.kind == "http" and self.config_path is None:
+            raise ValueError("backend.config_path is required when backend.kind=http")
+        if self.kind != "http" and self.config_path is not None:
+            raise ValueError("backend.config_path is supported only when backend.kind=http")
         if any(not value or "\x00" in value for value in self.extra_args):
             raise ValueError("backend.extra_args must contain non-empty, NUL-free arguments")
+        if self.kind == "http" and self.extra_args:
+            raise ValueError("backend.extra_args is unsupported when backend.kind=http")
         return self
 
     @property
@@ -122,6 +135,7 @@ class PipelineTarget(_StrictModel):
     compiler: CompilerName
     version: str
     corpus_root: Path
+    rag_corpus_root: Path | None = None
     audit_source_roots: list[Path]
     mechanisms: list[str] = Field(default_factory=list)
     isas: list[str] = Field(default_factory=list)
@@ -249,7 +263,11 @@ class PipelineConfig(_StrictModel):
             )
         if self.mode == "formal" and not self.audit.require_verified_candidates:
             raise ValueError("formal mode requires audit.require_verified_candidates=true")
-        if self.mode == "formal" and self.backend.model is None:
+        if (
+            self.mode == "formal"
+            and self.backend.kind != "http"
+            and self.backend.model is None
+        ):
             raise ValueError("formal mode requires backend.model to pin the exact model")
         if self.mode == "formal" and self.generation.max_segments is not None:
             raise ValueError(
@@ -672,6 +690,11 @@ def load_pipeline_config(path: str | os.PathLike[str]) -> PipelineConfig:
         target.model_copy(
             update={
                 "corpus_root": _resolve_path(target.corpus_root, base),
+                "rag_corpus_root": (
+                    _resolve_path(target.rag_corpus_root, base)
+                    if target.rag_corpus_root is not None
+                    else None
+                ),
                 "audit_source_roots": [
                     _resolve_path(item, base) for item in target.audit_source_roots
                 ],
@@ -687,6 +710,18 @@ def load_pipeline_config(path: str | os.PathLike[str]) -> PipelineConfig:
     checker = config.checker.model_copy(
         update={"source_root": _resolve_path(config.checker.source_root, base)}
     )
+    backend = config.backend.model_copy(
+        update={
+            "config_path": (
+                _resolve_path(config.backend.config_path, base)
+                if config.backend.config_path is not None
+                else None
+            )
+        }
+    )
+    if backend.kind == "http":
+        http_config = _http_backend_config(backend)
+        backend = backend.model_copy(update={"model": http_config.model})
     return config.model_copy(
         update={
             "output_root": _resolve_path(config.output_root, base),
@@ -698,6 +733,7 @@ def load_pipeline_config(path: str | os.PathLike[str]) -> PipelineConfig:
                 else None
             ),
             "checker": checker,
+            "backend": backend,
         }
     )
 
@@ -917,6 +953,8 @@ def _formal_inputs(config: PipelineConfig) -> list[Path]:
     values.extend(config.generation.document_roots)
     for target in config.targets:
         values.append(target.corpus_root)
+        if target.rag_corpus_root is not None:
+            values.append(target.rag_corpus_root)
         values.extend(target.audit_source_roots)
     return list(dict.fromkeys(path.resolve(strict=False) for path in values))
 
@@ -1057,6 +1095,58 @@ def _formal_toolchain_drivers(config: PipelineConfig) -> list[dict[str, Any]]:
     return drivers
 
 
+def _http_backend_config(config: PipelineBackendConfig) -> HTTPAgentConfig:
+    """Load the HTTP config while keeping its credential value environment-only."""
+
+    assert config.config_path is not None  # Enforced by PipelineBackendConfig.
+    path = _require_file(config.config_path.resolve(strict=False), "HTTP agent config")
+    try:
+        http_config = load_http_agent_config(path)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"HTTP agent config is invalid: {path}: {exc}") from exc
+    if config.model is not None and config.model != http_config.model:
+        raise ValueError(
+            "backend.model must match the HTTP agent config model: "
+            f"pipeline={config.model!r}, http_config={http_config.model!r}"
+        )
+    return http_config
+
+
+def _http_backend_identity(
+    config_path: Path,
+    http_config: HTTPAgentConfig,
+    *,
+    config_sha256: str,
+    config_size_bytes: int,
+) -> dict[str, Any]:
+    """Persist reproducibility identity without persisting any credential."""
+
+    return {
+        "kind": "http-responses",
+        "config_file": {
+            "kind": "file",
+            "path": str(config_path),
+            "sha256": config_sha256,
+            "size_bytes": config_size_bytes,
+        },
+        "endpoint": http_config.responses_url,
+        "model": http_config.model,
+        "reasoning_effort": http_config.reasoning_effort,
+        "api_key_env": http_config.api_key_env,
+        # Credentials are environment-only, so the complete validated model is
+        # safe to persist and freezes retry/tool/continuation behavior too.
+        "settings": http_config.model_dump(mode="json"),
+    }
+
+
+def _backend_model(config: PipelineBackendConfig) -> str | None:
+    """Return the model frozen while the pipeline config was resolved."""
+
+    if config.model is not None:
+        return config.model
+    return _http_backend_config(config).model if config.kind == "http" else None
+
+
 def build_pipeline_plan(
     config: PipelineConfig, *, config_path: str | os.PathLike[str] | None = None
 ) -> dict[str, Any]:
@@ -1074,21 +1164,42 @@ def build_pipeline_plan(
     for path in toolchain_paths:
         _require_file(path, "toolchains config")
     toolchain_drivers = _formal_toolchain_drivers(config) if config.mode == "formal" else []
-    backend_candidate = Path(config.backend.selected_binary).expanduser()
-    if backend_candidate.is_absolute() or os.sep in config.backend.selected_binary:
-        try:
-            resolved_candidate = backend_candidate.resolve(strict=True)
-        except OSError:
-            resolved_backend = None
-        else:
-            resolved_backend = (
-                str(resolved_candidate)
-                if resolved_candidate.is_file() and os.access(resolved_candidate, os.X_OK)
-                else None
+    http_config: HTTPAgentConfig | None = None
+    http_config_sha256: str | None = None
+    http_config_size_bytes: int | None = None
+    if config.backend.kind == "http":
+        assert config.backend.config_path is not None
+        http_config, http_config_sha256, http_config_size_bytes = (
+            load_http_agent_config_snapshot(config.backend.config_path)
+        )
+        if config.backend.model is not None and config.backend.model != http_config.model:
+            raise ValueError(
+                "backend.model must match the HTTP agent config model: "
+                f"pipeline={config.backend.model!r}, http_config={http_config.model!r}"
+            )
+        resolved_backend = None
+        backend_available = True
+        if config.mode == "formal" and not os.environ.get(http_config.api_key_env):
+            raise ValueError(
+                "formal mode requires HTTP agent API key environment variable: "
+                f"{http_config.api_key_env}"
             )
     else:
-        resolved_backend = shutil.which(config.backend.selected_binary)
-    backend_available = resolved_backend is not None
+        backend_candidate = Path(config.backend.selected_binary).expanduser()
+        if backend_candidate.is_absolute() or os.sep in config.backend.selected_binary:
+            try:
+                resolved_candidate = backend_candidate.resolve(strict=True)
+            except OSError:
+                resolved_backend = None
+            else:
+                resolved_backend = (
+                    str(resolved_candidate)
+                    if resolved_candidate.is_file() and os.access(resolved_candidate, os.X_OK)
+                    else None
+                )
+        else:
+            resolved_backend = shutil.which(config.backend.selected_binary)
+        backend_available = resolved_backend is not None
     if config.mode == "formal" and not backend_available:
         raise ValueError(
             f"formal mode requires an available agent binary: {config.backend.selected_binary}"
@@ -1097,6 +1208,8 @@ def build_pipeline_plan(
         clean_inputs = [*required_directories, *toolchain_paths]
         if config_path is not None:
             clean_inputs.append(Path(config_path).expanduser().resolve(strict=True))
+        if config.backend.config_path is not None:
+            clean_inputs.append(config.backend.config_path.resolve(strict=True))
         _assert_clean_repositories(clean_inputs, output_root=config.output_root)
 
     snapshots: dict[str, dict[str, Any]] = {}
@@ -1131,10 +1244,22 @@ def build_pipeline_plan(
         "runner": "fixture-smoke" if config.mode == "fixture" else "production",
         "required": config.mode == "formal",
     }
-    if config.mode == "formal":
+    if config.mode == "formal" and http_config is None:
         assert resolved_backend is not None
         backend_path = Path(resolved_backend).resolve(strict=True)
         backend_identity.update(_content_snapshot(backend_path))
+    elif http_config is not None:
+        assert config.backend.config_path is not None
+        assert http_config_sha256 is not None
+        assert http_config_size_bytes is not None
+        backend_identity.update(
+            _http_backend_identity(
+                config.backend.config_path,
+                http_config,
+                config_sha256=http_config_sha256,
+                config_size_bytes=http_config_size_bytes,
+            )
+        )
 
     semantic_hash = config.content_hash()
     lanes = [
@@ -1182,6 +1307,7 @@ def build_pipeline_plan(
             "resolved_path": resolved_backend,
             "available": backend_available,
             "required": config.mode == "formal",
+            "model": http_config.model if http_config is not None else config.backend.model,
         },
         "runner": "fixture-smoke" if config.mode == "fixture" else "production",
         "config": config.model_dump(mode="json"),
@@ -1484,7 +1610,7 @@ def _stage_plan(
     common: dict[str, Any] = {
         "backend": config.backend.kind,
         "agent_binary": config.backend.selected_binary,
-        "model": config.backend.model,
+        "model": _backend_model(config.backend),
         "compiler": target.compiler,
         "version": target.version,
         "toolchains_config": str(toolchains),
@@ -1501,6 +1627,7 @@ def _stage_plan(
             {
                 "generation_path": _generation_path_for_campaign(config, variant),
                 "corpus_root": str(target.corpus_root),
+                "rag_corpus_root": str(target.rag_corpus_root or target.corpus_root),
                 "reference_root": str(config.generation.reference_root),
                 "document_roots": [str(path) for path in config.generation.document_roots],
                 "max_segments": config.generation.max_segments,
@@ -1568,7 +1695,7 @@ def _formal_host_isolation_error(stage: str, backend: AgentBackend | None) -> st
         return None
     return (
         f"{stage} requires host read isolation in formal mode, but the selected backend "
-        "does not provide an OS sandbox to deny findings/ reads"
+        "does not provide an enforced boundary for findings/ reads"
     )
 
 
@@ -1581,6 +1708,7 @@ async def _invoke_stage(
     output_dir: Path,
     runner: StageRunner,
     runners: PipelineRunners,
+    frozen_http_config: HTTPAgentConfig | None = None,
 ) -> tuple[StageResult, dict[str, Any]]:
     output_dir.mkdir(parents=True, exist_ok=True)
     stage_root = output_dir.parent
@@ -1594,19 +1722,28 @@ async def _invoke_stage(
             part=stage.upper(),
             stage=_STAGE_NAMES[stage],
             provider=config.backend.kind,
-            model=config.backend.model,
+            model=(
+                frozen_http_config.model
+                if frozen_http_config is not None
+                else _backend_model(config.backend)
+            ),
         ),
         token_budget=budget.token_budget,
     )
     if runners.backend_factory is not None:
         raw_backend = runners.backend_factory(config.backend)
     elif runners is _DEFAULT_RUNNERS:
-        raw_backend = ExecAgentBackend(
-            binary=config.backend.selected_binary,
-            model=config.backend.model,
-            provider=config.backend.kind,
-            extra_args=config.backend.extra_args,
-        )
+        if config.backend.kind == "http":
+            raw_backend = HTTPResponsesAgentBackend(
+                frozen_http_config or _http_backend_config(config.backend)
+            )
+        else:
+            raw_backend = ExecAgentBackend(
+                binary=config.backend.selected_binary,
+                model=_backend_model(config.backend),
+                provider=config.backend.kind,
+                extra_args=config.backend.extra_args,
+            )
     else:
         raw_backend = None
     if config.mode == "formal":
@@ -1675,7 +1812,11 @@ async def _invoke_stage(
         "elapsed_ms": max(0.0, (time.monotonic() - started) * 1000.0),
         "token_budget": budget.token_budget,
         "token_budget_overshot": budget_overshot,
-        "token_comparable": bool(rows) and usage_missing == 0 and not budget_overshot,
+        "deterministic_only": bool(result.metadata.get("deterministic_only", False)),
+        "token_comparable": (
+            (bool(rows) and usage_missing == 0 and not budget_overshot)
+            or bool(result.metadata.get("deterministic_only", False))
+        ),
     }
 
 
@@ -1685,6 +1826,8 @@ def _formal_usage_error(config: PipelineConfig, usage: Mapping[str, Any]) -> str
     records = int(usage.get("records", 0))
     usage_missing = int(usage.get("usage_missing_count", 0))
     if records == 0:
+        if usage.get("deterministic_only"):
+            return None
         return "formal mode requires provider-reported token usage for every stage"
     if usage_missing:
         return (
@@ -1803,6 +1946,7 @@ async def _run_lane(
     resume: bool,
     frozen_upstream: _FrozenUpstream | None = None,
     require_full_upstream: bool = False,
+    frozen_http_config: HTTPAgentConfig | None = None,
 ) -> PipelineLaneResult:
     lane_dir = _lane_dir(run_root, target, variant, repetition)
     manifest_path = lane_dir / "manifest.json"
@@ -1846,6 +1990,7 @@ async def _run_lane(
             output_dir=part_i_dir / "artifacts",
             runner=runners.part_i,
             runners=runners,
+            frozen_http_config=frozen_http_config,
         )
         usage_error_i = _formal_usage_error(config, usage_i)
         try:
@@ -1926,6 +2071,7 @@ async def _run_lane(
             output_dir=part_ii_dir / "artifacts",
             runner=runners.part_ii,
             runners=runners,
+            frozen_http_config=frozen_http_config,
         )
         usage_error_ii = _formal_usage_error(config, usage_ii)
         try:
@@ -2129,6 +2275,7 @@ async def _run_lane(
         output_dir=part_iii_dir / "artifacts",
         runner=runners.part_iii,
         runners=runners,
+        frozen_http_config=frozen_http_config,
     )
     usage_error_iii = _formal_usage_error(config, usage_iii)
     try:
@@ -2288,11 +2435,40 @@ async def run_pipeline(
     """Execute every ``(target, variant, repetition)`` lane through Parts I--III."""
 
     plan = build_pipeline_plan(config, config_path=config_path)
+    frozen_http_config: HTTPAgentConfig | None = None
+    if config.backend.kind == "http":
+        assert config.backend.config_path is not None
+        expected_config_hash = str(
+            plan["backend_identity"]["config_file"]["sha256"]
+        )
+        if _sha256_file(config.backend.config_path) != expected_config_hash:
+            raise ValueError(
+                "HTTP agent config changed after pipeline planning; restart with a new run_id"
+            )
+        frozen_http_config, loaded_hash, _ = load_http_agent_config_snapshot(
+            config.backend.config_path
+        )
+        if loaded_hash != expected_config_hash:
+            raise ValueError(
+                "HTTP agent config changed while it was being frozen; restart the campaign"
+            )
+        # Programmatic callers may construct PipelineConfig directly instead
+        # of going through load_pipeline_config(). Freeze the resolved model in
+        # the in-memory campaign config so stage plans never need to reread the
+        # HTTP file after this point.
+        config = config.model_copy(
+            update={
+                "backend": config.backend.model_copy(
+                    update={"model": frozen_http_config.model}
+                )
+            }
+        )
     selected_runners = runners or (
         _FIXTURE_RUNNERS if config.mode == "fixture" else _DEFAULT_RUNNERS
     )
     if (
         selected_runners is _DEFAULT_RUNNERS
+        and config.backend.kind != "http"
         and shutil.which(config.backend.selected_binary) is None
     ):
         raise ValueError(f"agent binary is unavailable: {config.backend.selected_binary}")
@@ -2352,6 +2528,7 @@ async def run_pipeline(
                         full_upstream if variant in {"without-oracle", "bare-agent"} else None
                     ),
                     require_full_upstream=variant in {"without-oracle", "bare-agent"},
+                    frozen_http_config=frozen_http_config,
                 )
                 lane_results.append(lane)
                 write_run_manifest()

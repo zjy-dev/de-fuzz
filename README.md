@@ -73,8 +73,8 @@ The paper experiments have a separate, stable command surface. The launcher is
 wired to the exact three-stage paper pipeline
 `Invariant Generation -> Checker Writing -> Agent Audit`, creates an isolated
 artifact tree and token summary for every repetition, and writes a final run
-manifest. `--show-plan` remains side-effect free and reports whether the
-selected agent binary is available:
+manifest. `--show-plan` remains side-effect free and validates the selected
+backend and its inputs:
 
 ```sh
 cd orchestrator
@@ -85,12 +85,27 @@ uv run defuzz-experiment agent-audit --target-tree <compiler-tree> --show-plan
 uv run defuzz-experiment ablation --help
 ```
 
-The only supported ablations are `without-rag`, `without-oracle`, and
+The four campaign variants are `full`, `without-rag`, `without-oracle`, and
 `bare-agent`. `without-rag` changes Part I only; `without-oracle` and
 `bare-agent` still use the same frozen Part II verifier for offline admission.
-A real run still depends on the selected `traex` or `codex` binary, model
-credentials, source/reference trees, and compiler toolchain being available in
-the launch environment. The reviewer corpus defaults to
+Formal runs use DeFuzz's direct HTTP backend: DeFuzz reads a local, secret-free
+YAML or JSON file and calls the configured OpenAI Responses API endpoint itself.
+It does not launch TraeX or OpenCode. OpenCode configuration may be consulted for
+the local gateway URL and model slug only. The checked-in example pins
+`coconut-gpt-5-6-terra-max` at `medium` reasoning:
+
+```yaml
+backend:
+  kind: http
+  config_path: ./http-agent.example.yaml
+```
+
+See [`configs/experiments/http-agent.example.yaml`](configs/experiments/http-agent.example.yaml).
+The file names the credential environment variable with `api_key_env`; the
+credential value must remain in the process environment. A real run also needs
+the local Responses endpoint, source/reference trees, and compiler toolchain to
+be available. The formal GCC baseline is `17.0.0 experimental 20260531` at
+commit `f20bc4c2fe00928013c533e241b89ae3a6724ca1`. The reviewer corpus defaults to
 `/Users/bytedance/projects/research/defend-reviewer/main` and can be overridden
 with `DEFUZZ_REFERENCE_ROOT` or `--reference-root`. Execution validates
 required inputs before creating a run: Part II needs `--inputs` or `--from-run`,
@@ -102,10 +117,10 @@ boundaries:
   typed pipeline, hash chain, and resume behavior. It is engineering validation,
   not a paper result.
 - `configs/experiments/formal.example.yaml` is the formal campaign template.
-  It stays in `mode: formal`, requires a pinned `backend.model`, refuses dirty
-  Git inputs, forbids `DEFUZZ_FAST_PLAN`, preflights compiler-specific drivers
-  from `toolchains.yaml`, rejects capped/sharded Part I selections, and will fail
-  closed instead of silently using fixture runners.
+  It stays in `mode: formal`, requires `backend.kind: http` plus a valid
+  `config_path`, refuses dirty Git inputs, forbids `DEFUZZ_FAST_PLAN`, preflights
+  compiler-specific drivers from `toolchains.yaml`, rejects capped/sharded Part I
+  selections, and fails closed instead of silently using fixture runners.
 
 Existing run IDs are refused unless `--resume` is given; upstream artifacts and
 input snapshots are hash-checked. Formal runs keep a clean-room boundary around
@@ -114,9 +129,10 @@ evaluator-only findings: Part I, Part II, and Part III all deny reads of
 Full audit runs use the validated Part II bundle for candidate-bound online
 feedback and frozen offline verification; `--online-oracle-command` remains a
 legacy standalone fallback. `without-oracle` removes only the online feedback loop. Structured-output
-failures retain provider-reported token usage, while calls that never receive
-usage remain explicitly non-comparable and therefore invalidate a formal
-repetition. `--demo-parity` writes an orchestrator-only engineering comparison
+failures retain provider-reported token usage. For the HTTP backend, usage is
+recorded for every Responses round and accumulated across tool rounds; missing
+usage remains explicitly non-comparable and invalidates a formal repetition.
+`--demo-parity` writes an orchestrator-only engineering comparison
 after workers exit and is not itself a formal paper result. See
 [`docs/paper/experiment_status.md`](docs/paper/experiment_status.md) for the
 current contract and [`docs/paper/experiment_runbook.md`](docs/paper/experiment_runbook.md)

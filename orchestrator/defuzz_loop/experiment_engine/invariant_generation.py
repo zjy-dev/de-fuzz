@@ -26,6 +26,7 @@ from ..specgen.judge import Judge
 from ..specgen.pipeline import PipelineConfig, PipelineResult, run_pipeline
 from ..specgen.schema import Candidate
 from ..token_usage import current_token_usage_sink
+from .checker_reuse import reusable_checker_ids, reuse_report
 from .models import ArtifactRef, ExperimentPlan, StageResult, VariantName
 from .segmented import (
     AgentBackend,
@@ -87,6 +88,10 @@ class AcceptedInvariant(BaseModel):
     falsifiability: dict[str, Any] = Field(default_factory=dict)
     grounding: dict[str, Any] | None = None
     novelty: dict[str, Any] | None = None
+    # The generated content ID remains the Part I identifier. This optional
+    # metadata records a distinct trusted core checker with identical pilot
+    # semantics; it does not replace generated provenance.
+    reused_checker_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_semantic_fields(self) -> AcceptedInvariant:
@@ -104,6 +109,10 @@ class InvariantGenerationConfig(BaseModel):
 
     generation_path: GenerationPath = "combined"
     corpus_root: Path
+    # Segmented CoT reviews the bounded target corpus; RAG may index the
+    # target's complete compiler tree.  Normalize the compatibility default so
+    # the resolved Part I contract is always persisted.
+    rag_corpus_root: Path | None = None
     compiler: Literal["gcc", "llvm"] = "gcc"
     version: str = ""
     output_dir: Path
@@ -144,6 +153,8 @@ class InvariantGenerationConfig(BaseModel):
             raise ValueError("shard_index must be in the range [0, shard_count)")
         if self.findings_root is not None:
             raise ValueError("Part I RAG forbids findings_root; use historical docs/bugs only")
+        if self.rag_corpus_root is None:
+            self.rag_corpus_root = self.corpus_root
         sources = {source.strip().lower() for source in self.seed_sources}
         if sources != {"bugs"}:
             raise ValueError(
@@ -348,8 +359,17 @@ def merge_accepted_invariants(records: Sequence[AcceptedInvariant]) -> list[Acce
 
 
 def _resolved_corpus_root(config: InvariantGenerationConfig) -> Path:
-    root = config.corpus_root.expanduser().resolve()
-    if config.compiler == "gcc" and not (root / "tree-object-size.cc").exists():
+    return _resolve_compiler_corpus_root(config.corpus_root, config.compiler)
+
+
+def _resolved_rag_corpus_root(config: InvariantGenerationConfig) -> Path:
+    assert config.rag_corpus_root is not None  # Normalized by the config validator.
+    return _resolve_compiler_corpus_root(config.rag_corpus_root, config.compiler)
+
+
+def _resolve_compiler_corpus_root(root: Path, compiler: str) -> Path:
+    root = root.expanduser().resolve()
+    if compiler == "gcc" and not (root / "tree-object-size.cc").exists():
         nested = root / "gcc"
         if nested.is_dir():
             return nested
@@ -361,14 +381,16 @@ def _agent_deny_paths(config: InvariantGenerationConfig) -> list[Path]:
 
     roots = [
         config.corpus_root,
+        config.rag_corpus_root,
         config.reference_root,
         _resolved_corpus_root(config),
+        _resolved_rag_corpus_root(config),
         *config.document_roots,
     ]
     findings = config.findings_deny_path or (config.reference_root / "findings")
     roots.append(findings)
     return list(
-        dict.fromkeys(path.expanduser().resolve(strict=False) for path in roots)
+        dict.fromkeys(path.expanduser().resolve(strict=False) for path in roots if path is not None)
     )
 
 
@@ -402,7 +424,7 @@ async def _run_rag(
     rag_out = config.output_dir / "rag"
     pipeline_config = PipelineConfig(
         seed_sources=["bugs"],
-        corpus_root=_resolved_corpus_root(config),
+        corpus_root=_resolved_rag_corpus_root(config),
         compiler=config.compiler,
         version=config.version or None,
         findings_root=None,
@@ -421,7 +443,7 @@ async def _run_rag(
     result = await _call_rag_runner(rag_runner, pipeline_config, judge)
     if result.corpus_size <= 0:
         raise ValueError(
-            f"empty {config.compiler} retrieval corpus at {_resolved_corpus_root(config)}"
+            f"empty {config.compiler} retrieval corpus at {_resolved_rag_corpus_root(config)}"
         )
     return [
         candidate
@@ -453,6 +475,18 @@ async def _run_invariant_generation(
 
     if token_sink is None:
         token_sink = current_token_usage_sink()
+    if config.generation_path in {"segmented-cot", "combined"} and not _resolved_corpus_root(
+        config
+    ).is_dir():
+        raise ValueError(
+            f"segmented corpus root is not an existing directory: {_resolved_corpus_root(config)}"
+        )
+    if config.generation_path in {"rag", "combined"} and not _resolved_rag_corpus_root(
+        config
+    ).is_dir():
+        raise ValueError(
+            f"RAG corpus root is not an existing directory: {_resolved_rag_corpus_root(config)}"
+        )
     config.output_dir.mkdir(parents=True, exist_ok=True)
     context = {
         "run_id": config.run_id,
@@ -557,12 +591,21 @@ async def _run_invariant_generation(
         )
 
     accepted = merge_accepted_invariants(records)
+    for invariant in accepted:
+        invariant.reused_checker_ids = reusable_checker_ids(invariant.statement)
     result_valid = bool(accepted)
     continuation_ready = result_valid
     overlap = sum(record.generation_path == "combined" for record in accepted)
     accepted_path = config.output_dir / "accepted-invariants.jsonl"
     _write_jsonl(accepted_path, accepted)
     artifacts.append(accepted_path)
+    reuse_report_path = config.output_dir / "checker-reuse-report.json"
+    reuse_report_path.write_text(
+        json.dumps(reuse_report([item.model_dump(mode="json") for item in accepted]), indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    artifacts.append(reuse_report_path)
 
     manifest_path = config.output_dir / "invariant-generation-manifest.json"
     preflight = segment_manifest.preflight if segment_manifest is not None else None
@@ -714,9 +757,11 @@ def config_from_plan(
         if corpus_value is not None
         else _default_corpus_root(reference_root, compiler_name)
     )
+    rag_corpus_value = params.get("rag_corpus_root")
     return InvariantGenerationConfig(
         generation_path=requested,
         corpus_root=corpus_root,
+        rag_corpus_root=Path(rag_corpus_value) if rag_corpus_value is not None else corpus_root,
         compiler=compiler_name,
         version=str(params.get("version", "")),
         output_dir=Path(output_dir),
@@ -801,6 +846,7 @@ async def run(
                 "generation_path": config.generation_path,
                 "repetition": repetition,
                 "accepted_invariants": "accepted-invariants.jsonl",
+                "checker_reuse_report": "checker-reuse-report.json",
                 "execution_status": result.execution_status,
                 "result_valid": result.result_valid,
                 "continuation_ready": result.continuation_ready,

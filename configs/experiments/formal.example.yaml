@@ -1,9 +1,12 @@
 # Formal experiment template for the paper-facing DeFuzz pipeline.
 #
 # This file is intentionally non-runnable until you replace every placeholder
-# path, command, and model value with real environment-specific values.
+# path with a frozen environment-specific value and populate the credential
+# environment variable named by the local HTTP config.
 # It stays in mode=formal, so the launcher will fail closed instead of falling
 # back to the fixture runners used by configs/experiments/example.yaml.
+# The companion http-agent.example.yaml pins Terra Max at medium reasoning; copy
+# or replace its path as needed, but never put an API key value in either YAML.
 #
 # Validate without writes:
 #   cd orchestrator
@@ -13,28 +16,27 @@
 #   cd orchestrator
 #   uv run defuzz-experiment pipeline --config ../configs/experiments/formal.example.yaml
 schema_version: 1
-run_id: formal-gcc-canary-campaign
+run_id: formal-gcc17-20260531-canary-campaign
 mode: formal
 output_root: ../../orchestrator/runs/pipelines
 repetitions: 3
 variants: [full, without-rag, without-oracle, bare-agent]
 
 backend:
-  kind: traex
-  binary: traex
-  model: REPLACE_WITH_PINNED_PROVIDER_MODEL
-  extra_args: []
+  kind: http
+  # Replace this path if the copied local config lives elsewhere.
+  config_path: ./http-agent.example.yaml
 
 budgets:
   part_i:
-    token_budget: 120000
-    time_budget_minutes: 90
+    token_budget: 2000000
+    time_budget_minutes: 480
   part_ii:
-    token_budget: 120000
-    time_budget_minutes: 90
+    token_budget: 2000000
+    time_budget_minutes: 720
   part_iii:
-    token_budget: 120000
-    time_budget_minutes: 90
+    token_budget: 1000000
+    time_budget_minutes: 480
 
 generation:
   path: combined
@@ -47,12 +49,13 @@ generation:
 toolchains_config: /ABS/PATH/TO/de-fuzz/main/configs/toolchains.formal.yaml
 
 targets:
-  - id: gcc-canary-main
+  # Freeze the source checkout at f20bc4c2fe00928013c533e241b89ae3a6724ca1.
+  - id: gcc17-20260531-canary
     compiler: gcc
-    version: gcc-16.1.0
-    corpus_root: /ABS/PATH/TO/gcc/source/for/part1
+    version: "17.0.0 experimental 20260531 (commit f20bc4c2fe00928013c533e241b89ae3a6724ca1)"
+    corpus_root: /ABS/PATH/TO/gcc-f20bc4c2fe00928013c533e241b89ae3a6724ca1/source/for/part1
     audit_source_roots:
-      - /ABS/PATH/TO/gcc/source/for/part3
+      - /ABS/PATH/TO/gcc-f20bc4c2fe00928013c533e241b89ae3a6724ca1/source/for/part3
     mechanisms:
       - canary
     isas:

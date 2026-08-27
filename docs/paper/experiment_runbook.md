@@ -3,8 +3,8 @@
 This runbook documents how to execute the paper-facing experiment pipeline without
 blurring the boundary between engineering validation and formal campaign data.
 It is intentionally limited to the exact DeFuzz pipeline
-`Invariant Generation -> Checker Writing -> Agent Audit` and the three supported
-ablations `without-rag`, `without-oracle`, and `bare-agent`.
+`Invariant Generation -> Checker Writing -> Agent Audit` and the four campaign
+variants `full`, `without-rag`, `without-oracle`, and `bare-agent`.
 
 ## Scope and boundaries
 
@@ -12,8 +12,10 @@ ablations `without-rag`, `without-oracle`, and `bare-agent`.
   an engineering check for typed config resolution, lane orchestration, hash
   chains, and resume semantics.
 - Use `configs/experiments/formal.example.yaml` as the starting point for a real
-  campaign. It stays in `mode: formal` and must be edited with real paths,
-  pinned model identity, and executable toolchain driver paths before use.
+  campaign. It stays in `mode: formal` and must be edited with a real local HTTP
+  config path, frozen input paths, and executable toolchain driver paths before
+  use. Its four variants must remain `full`, `without-rag`, `without-oracle`,
+  and `bare-agent` for the paper comparison.
 - Do not claim fixture smoke, demo parity, or the bounded Part I pilot as paper
   results. They are engineering evidence that the pipeline runs end to end.
 - Do not convert a pilot shard, partial range, or `max_segments` cap into a
@@ -30,9 +32,11 @@ Formal runs fail closed unless all of the following are true:
   checks `reference_root`, `checker.source_root`, every `target.corpus_root`,
   every `target.audit_source_roots`, `toolchains_config`, and the config file
   itself.
-- `backend.model` is pinned in the YAML. Formal mode rejects an unset model.
-- The selected agent binary is available on `PATH` or configured explicitly via
-  `backend.binary`.
+- The campaign uses `backend.kind: http` and `backend.config_path` resolves to a
+  valid local YAML or JSON file. The model is pinned in that file; the formal
+  example pins `coconut-gpt-5-6-terra-max` with `reasoning_effort: medium`.
+- The environment variable named by the HTTP config's `api_key_env` is present.
+  The config stores the environment variable name, never the credential value.
 - The reference checkout contains the required review documents:
   `.claude/agents/defend-reviewer.md`, `docs/prompts/full-review.md`,
   `docs/bugs`, and `docs/invariants`.
@@ -42,6 +46,34 @@ Formal runs fail closed unless all of the following are true:
 - `DEFUZZ_FAST_PLAN` is unset. Formal mode explicitly forbids it.
 - The host/backend combination supports the required read-isolation boundary for
   formal agent stages.
+
+## Local HTTP Responses configuration
+
+Start from `configs/experiments/http-agent.example.yaml` and copy it to the path
+selected by `backend.config_path`. The path is environment-specific and may be
+replaced; keep the model and reasoning setting frozen across all four variants.
+YAML, YML, and JSON are accepted. The checked-in YAML is equivalent to:
+
+```yaml
+http_agent:
+  base_url: http://127.0.0.1:8787/v1
+  model: coconut-gpt-5-6-terra-max
+  api_key_env: DEFUZZ_COCONUT_API_KEY
+  reasoning_effort: medium
+  continuation_mode: full_input
+  user_agent: codex-cli/1.0
+```
+
+`base_url` is the replaceable local gateway path; DeFuzz appends `/responses`
+unless it is already present. Populate `DEFUZZ_COCONUT_API_KEY` through the shell or
+secret manager before preflight. Do not add the value to YAML, JSON, command
+history, or run artifacts. Formal preflight content-hashes this config and
+requires it to belong to a clean Git worktree.
+
+DeFuzz itself sends the Responses requests and executes its workspace-scoped
+tools. It does not launch OpenCode, TraeX, or another agent CLI. A working
+OpenCode provider block may be used only as a reference for the gateway URL and
+model slug; it is not part of the experiment runtime or evidence chain.
 
 ## Clean-room and findings isolation
 
@@ -64,7 +96,9 @@ Formal runs fail closed unless all of the following are true:
 ## Token comparability
 
 - Token usage is collected per repetition with a dedicated sink and written into
-  both detailed and summary artifacts.
+  both detailed and summary artifacts. The direct HTTP backend records the
+  provider-reported usage of every received Responses round, including tool and
+  schema-repair rounds, then accumulates it for the agent turn and stage.
 - A repetition is token-comparable only when every provider call reports usage
   and the repetition stays within budget.
 - If a provider returns a response but structured parsing fails, the returned
@@ -74,7 +108,24 @@ Formal runs fail closed unless all of the following are true:
 - Formal comparisons across Full and ablations must use only repetitions with
   `usage_missing_count == 0` and no budget overshoot.
 
+The preserved fields include input, output, total, cached-input, and reasoning
+tokens when returned by the provider. A received response with no usage is
+marked missing rather than zero; failures before any response are governed by
+the formal stage requirement that provider usage records exist. Token accounting
+is applied to all four variants with the same per-Part budgets.
+The checked-in formal template uses larger stage envelopes than the bounded
+pilots: a 172-segment Part I and even one Part II checker can exceed 120,000
+tokens. These are safety ceilings, not expected consumption; review the actual
+per-call JSONL before scaling from the first complete Full repetition to the
+three-repetition four-variant comparison.
+
 ## Compiler-specific drivers
+
+The formal GCC baseline is `17.0.0 experimental 20260531`, source commit
+`f20bc4c2fe00928013c533e241b89ae3a6724ca1`. Both the Part I corpus and Part III
+audit roots must come from that frozen checkout. The YAML version label records
+the baseline, while the plan independently records the Git revision and hashes
+the selected toolchain driver.
 
 Formal pipeline preflight loads `toolchains.yaml` and validates drivers per
 `target.compiler` and per ISA:
@@ -136,8 +187,8 @@ uv run defuzz-experiment pipeline --config ../configs/experiments/formal.example
 
 This command should be the first gate for any campaign edit. It resolves all
 paths relative to the YAML file, validates clean Git inputs, checks the required
-reference documents, and preflights compiler drivers before any run directory is
-created.
+reference documents, validates the local HTTP config and credential environment
+variable, and preflights compiler drivers before any run directory is created.
 
 ### Launch a full formal pipeline
 
@@ -158,8 +209,8 @@ uv run defuzz-experiment pipeline --config ../configs/experiments/formal.example
 ```sh
 cd /Users/bytedance/projects/research/de-fuzz/main/orchestrator
 uv run defuzz-experiment invariant-generation \
-  --backend traex \
-  --model <provider/model> \
+  --backend http \
+  --http-config <local-http-config.yaml> \
   --run-id part1-formal \
   --reference-root <reference-root> \
   --corpus-root <compiler-corpus-root> \
@@ -183,8 +234,8 @@ Notes:
 ```sh
 cd /Users/bytedance/projects/research/de-fuzz/main/orchestrator
 uv run defuzz-experiment checker-authoring \
-  --backend traex \
-  --model <provider/model> \
+  --backend http \
+  --http-config <local-http-config.yaml> \
   --run-id part2-formal \
   --from-run <part-i-run-dir> \
   --reference-root <reference-root> \
@@ -201,8 +252,8 @@ uv run defuzz-experiment checker-authoring \
 ```sh
 cd /Users/bytedance/projects/research/de-fuzz/main/orchestrator
 uv run defuzz-experiment agent-audit \
-  --backend traex \
-  --model <provider/model> \
+  --backend http \
+  --http-config <local-http-config.yaml> \
   --run-id part3-formal \
   --reference-root <reference-root> \
   --target-tree <compiler-audit-tree> \
@@ -227,7 +278,7 @@ Notes:
 - `--verification-command` is reserved for trusted offline verification steps
   and is never sourced from Agent output.
 
-### Run the three supported ablations
+### Run the three ablations
 
 `without-rag`:
 
@@ -235,8 +286,8 @@ Notes:
 cd /Users/bytedance/projects/research/de-fuzz/main/orchestrator
 uv run defuzz-experiment ablation without-rag \
   --baseline-run <full-part1-run-dir> \
-  --backend traex \
-  --model <provider/model> \
+  --backend http \
+  --http-config <local-http-config.yaml> \
   --reference-root <reference-root> \
   --corpus-root <compiler-corpus-root> \
   --compiler gcc \
@@ -252,8 +303,8 @@ uv run defuzz-experiment ablation without-rag \
 cd /Users/bytedance/projects/research/de-fuzz/main/orchestrator
 uv run defuzz-experiment ablation without-oracle \
   --baseline-run <full-part3-run-dir> \
-  --backend traex \
-  --model <provider/model> \
+  --backend http \
+  --http-config <local-http-config.yaml> \
   --reference-root <reference-root> \
   --target-tree <compiler-audit-tree> \
   --compiler gcc \
@@ -273,8 +324,8 @@ uv run defuzz-experiment ablation without-oracle \
 cd /Users/bytedance/projects/research/de-fuzz/main/orchestrator
 uv run defuzz-experiment ablation bare-agent \
   --baseline-run <full-part3-run-dir> \
-  --backend traex \
-  --model <provider/model> \
+  --backend http \
+  --http-config <local-http-config.yaml> \
   --reference-root <reference-root> \
   --target-tree <compiler-audit-tree> \
   --compiler gcc \
@@ -294,11 +345,14 @@ baseline only for evaluator-side offline verification.
 
 ## Recommended execution order
 
-1. Run `pipeline --show-plan` on the formal YAML until it validates cleanly.
-2. Freeze the target compiler tree, reference tree, toolchain config, and model.
-3. Run the Full pipeline for the chosen repetition count.
-4. Run `without-rag` against the corresponding Full Part I baseline.
-5. Run `without-oracle` and `bare-agent` against the corresponding Full Part III baseline.
+1. Copy the HTTP example to a local, versioned config path; keep Terra Max at
+   medium reasoning or record a deliberate replacement before any run.
+2. Export the credential under the config's `api_key_env` name.
+3. Freeze GCC at commit `f20bc4c2fe00928013c533e241b89ae3a6724ca1`,
+   together with the reference tree and toolchain config.
+4. Run `pipeline --show-plan` on the formal YAML until it validates cleanly.
+5. Launch the typed pipeline with all four variants so each repetition shares
+   the same frozen backend, budgets, source, reference, and verifier inputs.
 6. Read `campaign-results.*` and `campaign-comparison.*` before extracting any
    paper table or figure so invalid or non-comparable repetitions are not mixed
    into aggregate claims.
@@ -310,13 +364,16 @@ baseline only for evaluator-side offline verification.
   `result_valid=false`: run completed as a process but is not valid evidence
 - repetition-level `usage_missing_count > 0`: do not use that repetition in
   token comparisons
+- missing `api_key_env`: export the credential under the configured name; do not
+  write the secret into the config
 - missing or dirty input worktrees: fix the checkout state instead of editing
   around the guardrails
 
 ## Reporting discipline
 
-- Phrase the latest pilot only as engineering evidence that the formal path is
-  executable.
+- Phrase fixture smoke, the previous bounded TraeX pilot, and any bounded HTTP
+  pilot only as engineering evidence that their respective paths are executable.
+  They are not a completed formal campaign.
 - Keep the paper narrative aligned to the pipeline rather than to outcome
   buckets: Invariant Generation, Checker Writing, Agent Audit.
 - Report only the supported ablations and do not add ad-hoc switches under the

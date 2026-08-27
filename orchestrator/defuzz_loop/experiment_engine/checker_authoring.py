@@ -39,6 +39,7 @@ from defuzz_loop.token_usage import (
 )
 
 from .agent_backend import AgentBackend, AgentRequest, AgentResult, ExecAgentBackend
+from .checker_reuse import reusable_checker_ids
 from .models import ArtifactRef, ExperimentPlan, StageResult
 from .workspace import (
     WorkspaceBuilder,
@@ -75,6 +76,22 @@ class NormalizedInvariant:
         return str(self.value["invariant_id"])
 
     @property
+    def reused_checker_ids(self) -> list[str]:
+        # Part II independently derives reuse from the normalized statement.
+        # Part I's metadata is provenance only and is never trusted to skip
+        # authoring or validation.
+        return reusable_checker_ids(str(self.value.get("statement", "")))
+
+    @property
+    def declared_reused_checker_ids(self) -> list[str]:
+        value = self.value.get("reused_checker_ids", [])
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) and item for item in value
+        ):
+            return []
+        return value
+
+    @property
     def lineage(self) -> dict[str, Any]:
         return {
             "source_artifact": os.fspath(self.source_path),
@@ -103,9 +120,8 @@ class ValidationCommand:
 
 DEFAULT_VALIDATION_COMMANDS = (
     ValidationCommand(
-        ("gofmt", "-l", "*.go"),
+        ("gofmt", "-w", "*.go"),
         cwd="core/internal/oracle",
-        require_empty_stdout=True,
     ),
     ValidationCommand(("go", "test", "./internal/oracle/...")),
     ValidationCommand(("go", "vet", "./internal/oracle/...")),
@@ -342,6 +358,7 @@ def normalize_invariant(
         "falsifiability",
         "grounding",
         "novelty",
+        "reused_checker_ids",
     }
     normalized: dict[str, Any] = {
         "schema_version": int(record.get("schema_version", 1)),
@@ -362,6 +379,7 @@ def normalize_invariant(
         "falsifiability": record.get("falsifiability"),
         "grounding": record.get("grounding"),
         "novelty": record.get("novelty"),
+        "reused_checker_ids": record.get("reused_checker_ids", []),
     }
     extra = {
         key: value
@@ -744,12 +762,15 @@ def _normalize_path_patterns(values: Sequence[Any], *, field: str) -> tuple[str,
 
 
 def _diagnostic_catalog_entry(
-    invariant: NormalizedInvariant, row: Mapping[str, Any]
+    invariant: NormalizedInvariant, row: Mapping[str, Any], *, checker_id: str
 ) -> dict[str, Any]:
     return {
-        "id": invariant.invariant_id,
-        "checker_id": invariant.invariant_id,
-        "invariant_id": invariant.invariant_id,
+        # Part III routes executable checkers by canonical checker identity.
+        # A generated invariant that reuses an existing checker keeps its own
+        # identity in lineage without changing the trusted runtime contract.
+        "checker_id": checker_id,
+        "invariant_id": checker_id,
+        "generated_invariant_id": invariant.invariant_id,
         "statement": invariant.value.get("statement"),
         "mechanism": invariant.value.get("mechanism"),
         "target": invariant.value.get("target"),
@@ -765,6 +786,8 @@ def _diagnostic_catalog_entry(
             for change in row.get("file_changes", [])
             if change.get("sha256_after") is not None
         ],
+        "reused": bool(row.get("reused")),
+        "reused_checker_id": row.get("reused_checker_id"),
     }
 
 
@@ -799,13 +822,20 @@ def _runtime_catalog(
             raise ValueError(f"dispatcher catalog has duplicate checker id {checker_id!r}")
         by_id[checker_id] = raw
 
-    checkers: list[dict[str, Any]] = []
-    included_ids = {invariant.invariant_id for invariant, _ in included}
+    grouped: dict[str, list[tuple[NormalizedInvariant, Mapping[str, Any]]]] = {}
     for invariant, row in included:
-        runtime = by_id.get(invariant.invariant_id)
+        canonical_id = str(row.get("reused_checker_id") or invariant.invariant_id)
+        grouped.setdefault(canonical_id, []).append((invariant, row))
+
+    checkers: list[dict[str, Any]] = []
+    included_ids = set(grouped)
+    for canonical_id, members in grouped.items():
+        invariant, row = members[0]
+        runtime = by_id.get(canonical_id)
         if runtime is None:
             raise ValueError(
-                f"dispatcher catalog is missing authored checker {invariant.invariant_id!r}"
+                "dispatcher catalog is missing checker "
+                f"{canonical_id!r} for {invariant.invariant_id!r}"
             )
         entry = dict(runtime)
         requires = entry.get("requires", [])
@@ -813,15 +843,17 @@ def _runtime_catalog(
             isinstance(item, str) and item for item in requires
         ):
             raise ValueError(
-                f"dispatcher catalog checker {invariant.invariant_id!r} has invalid requires"
+                f"dispatcher catalog checker {canonical_id!r} has invalid requires"
             )
         missing = sorted(set(requires) - included_ids)
         if missing:
             raise ValueError(
-                f"authored checker {invariant.invariant_id!r} is missing required "
+                f"checker {canonical_id!r} is missing required "
                 f"bundle checkers: {', '.join(missing)}"
             )
-        entry.update(_diagnostic_catalog_entry(invariant, row))
+        entry.update(_diagnostic_catalog_entry(invariant, row, checker_id=canonical_id))
+        entry["generated_invariant_ids"] = [item.invariant_id for item, _ in members]
+        entry["lineages"] = [item.lineage for item, _ in members]
         checkers.append(entry)
     return {
         "schema_version": 1,
@@ -829,6 +861,49 @@ def _runtime_catalog(
         "source_tree_sha256": source_tree_sha256,
         "result_tree_sha256": final_tree_sha256,
         "checkers": checkers,
+    }
+
+
+def _reused_row(
+    plan: ExperimentPlan,
+    repetition: int,
+    invariant: NormalizedInvariant,
+    snapshot: Mapping[str, _FileState],
+) -> dict[str, Any]:
+    """Preserve generated lineage while recording a no-edit trusted reuse."""
+
+    checker_id = invariant.reused_checker_ids[0]
+    tree_sha256 = _tree_sha256(snapshot)
+    return {
+        "schema_version": 1,
+        "run_id": plan.run_id,
+        "experiment": plan.experiment,
+        "variant": plan.variant,
+        "repetition": repetition,
+        "invariant_id": invariant.invariant_id,
+        "invariant": invariant.value,
+        "lineage": invariant.lineage,
+        "bundle_index": 0,
+        "parent_tree_sha256": tree_sha256,
+        "result_tree_sha256": tree_sha256,
+        "included_in_bundle": True,
+        "first_pass_status": "passed",
+        "final_status": "passed",
+        "status": "passed",
+        "attempt_count": 0,
+        "attempt_cap": 0,
+        "attempts": [],
+        "files": [],
+        "file_changes": [],
+        "first_patch": None,
+        "final_patch": None,
+        "token_refs": [],
+        "stopped_reason": None,
+        "budget_exhausted": False,
+        "infrastructure_error": False,
+        "reused": True,
+        "reused_checker_id": checker_id,
+        "reuse_validation": "fresh-runtime-catalog-required",
     }
 
 
@@ -1144,6 +1219,24 @@ class CheckerAuthoringRunner:
                 ]
                 token_refs.extend(refs)
 
+                validation_ok = False
+                validation: list[dict[str, Any]] = []
+                if agent_result.success:
+                    validation_ok, validation = await self._validate(
+                        workspace, commands, timeout_seconds
+                    )
+                else:
+                    validation.append(
+                        {
+                            "status": "failed",
+                            "type": "agent-error",
+                            "error": agent_result.error or "agent backend failed",
+                        }
+                    )
+                # Validation may perform deterministic normalization (the
+                # default first command is ``gofmt -w``).  Snapshot only after
+                # it completes so the published patch and tree hashes describe
+                # exactly what the runner tested.
                 current = _snapshot(workspace)
                 if attempt_number == 1:
                     first_patch_path = artifact_dir / "first.patch"
@@ -1176,20 +1269,6 @@ class CheckerAuthoringRunner:
                                 ),
                             }
                         )
-                validation_ok = False
-                validation: list[dict[str, Any]] = []
-                if agent_result.success:
-                    validation_ok, validation = await self._validate(
-                        workspace, commands, timeout_seconds
-                    )
-                else:
-                    validation.append(
-                        {
-                            "status": "failed",
-                            "type": "agent-error",
-                            "error": agent_result.error or "agent backend failed",
-                        }
-                    )
                 validation_ok = validation_ok and not allowed_errors
                 previous_failures = [
                     *allowed_errors,
@@ -1380,10 +1459,6 @@ class CheckerAuthoringRunner:
 
         rows: list[dict[str, Any]] = []
         patch_paths: list[Path] = []
-        source_root_snapshot = _snapshot(
-            source_root,
-            exclude_roots=(destination,) if _is_within(destination, source_root) else (),
-        )
         lease = await self._workspace(
             source_root,
             destination,
@@ -1391,6 +1466,12 @@ class CheckerAuthoringRunner:
             workspace_allowlist,
         )
         source_snapshot = _snapshot(lease.root)
+        # ``source_root_sha256`` identifies the exact baseline presented to the
+        # authoring worker.  Hashing the entire checkout here is both misleading
+        # (the workspace is allowlisted) and racy with unrelated ignored build
+        # trees such as ``.work``.  The materialized workspace is immutable until
+        # the first agent attempt and is therefore the canonical input snapshot.
+        source_root_snapshot = dict(source_snapshot)
         owned_files: dict[str, str] = {
             path: "source-baseline"
             for path in source_snapshot
@@ -1401,30 +1482,39 @@ class CheckerAuthoringRunner:
         source_tree_sha256 = _tree_sha256(source_snapshot)
         try:
             for index, invariant in enumerate(invariants):
-                row, paths, accepted_snapshot = await self._one(
-                    plan=plan.model_copy(
-                        update={
-                            "parameters": {
-                                **plan.parameters,
-                                "_resolved_deny_read_paths": deny_read_paths,
-                                "require_host_read_isolation": require_host_read_isolation,
+                if invariant.declared_reused_checker_ids != invariant.reused_checker_ids:
+                    raise ValueError(
+                        "Part I checker reuse metadata does not match Part II semantic "
+                        f"validation for {invariant.invariant_id}"
+                    )
+                if len(invariant.reused_checker_ids) == 1:
+                    row = _reused_row(plan, repetition, invariant, accepted_snapshot)
+                    paths: list[Path] = []
+                else:
+                    row, paths, accepted_snapshot = await self._one(
+                        plan=plan.model_copy(
+                            update={
+                                "parameters": {
+                                    **plan.parameters,
+                                    "_resolved_deny_read_paths": deny_read_paths,
+                                    "require_host_read_isolation": require_host_read_isolation,
+                                }
                             }
-                        }
-                    ),
-                    repetition=repetition,
-                    output_dir=destination,
-                    invariant=invariant,
-                    workspace=lease.root,
-                    parent_snapshot=accepted_snapshot,
-                    owned_files=owned_files,
-                    shared_integration_paths=shared_integration_paths,
-                    commands=commands,
-                    max_attempts=max_attempts,
-                    checker_root=checker_root,
-                    allowed_paths=allowed_paths,
-                    token_sink=token_sink,
-                    timeout_seconds=timeout_seconds,
-                )
+                        ),
+                        repetition=repetition,
+                        output_dir=destination,
+                        invariant=invariant,
+                        workspace=lease.root,
+                        parent_snapshot=accepted_snapshot,
+                        owned_files=owned_files,
+                        shared_integration_paths=shared_integration_paths,
+                        commands=commands,
+                        max_attempts=max_attempts,
+                        checker_root=checker_root,
+                        allowed_paths=allowed_paths,
+                        token_sink=token_sink,
+                        timeout_seconds=timeout_seconds,
+                    )
                 row["bundle_index"] = index
                 rows.append(row)
                 patch_paths.extend(paths)
@@ -1526,7 +1616,16 @@ class CheckerAuthoringRunner:
                     )
                     integration_error = "dispatcher build produced no executable"
 
-            included_ids = [item.invariant_id for item, _ in included]
+            # Bundle routing is keyed by the executable checker ID.  A generated
+            # invariant may deterministically reuse an existing checker while
+            # retaining its own content ID in lineage/results.
+            included_groups: dict[
+                str, list[tuple[NormalizedInvariant, Mapping[str, Any]]]
+            ] = {}
+            for item, row in included:
+                canonical_id = str(row.get("reused_checker_id") or item.invariant_id)
+                included_groups.setdefault(canonical_id, []).append((item, row))
+            included_ids = list(included_groups)
             failed_ids = [
                 invariant.invariant_id
                 for invariant, row in zip(invariants, rows, strict=True)
@@ -1534,7 +1633,9 @@ class CheckerAuthoringRunner:
             ]
             budget_exhausted_any = any(row["budget_exhausted"] for row in rows)
             infrastructure_error_any = any(row["infrastructure_error"] for row in rows)
-            unprocessed_any = any(row["attempt_count"] == 0 for row in rows)
+            unprocessed_any = any(
+                row["attempt_count"] == 0 and not row.get("reused") for row in rows
+            )
             build_ok = bool(build_record and build_record.get("status") == "passed")
             ready = (
                 bool(included_ids)
@@ -1563,17 +1664,46 @@ class CheckerAuthoringRunner:
                 "failed_invariant_ids": failed_ids,
                 "invariants": [
                     {
+                        "invariant_id": canonical_id,
+                        "generated_invariant_id": members[0][1]["invariant_id"],
+                        "generated_invariant_ids": [
+                            item.invariant_id for item, _ in members
+                        ],
+                        "reused_checker_id": members[0][1].get("reused_checker_id"),
+                        "final_status": "passed",
+                        "infrastructure_error": any(
+                            bool(row["infrastructure_error"]) for _, row in members
+                        ),
+                        "parent_tree_sha256": members[0][1]["parent_tree_sha256"],
+                        "result_tree_sha256": members[-1][1]["result_tree_sha256"],
+                        "files": list(
+                            dict.fromkeys(
+                                path for _, row in members for path in row["files"]
+                            )
+                        ),
+                        "lineage": members[0][1]["lineage"],
+                        "lineages": [row["lineage"] for _, row in members],
+                    }
+                    for canonical_id, members in included_groups.items()
+                ]
+                + [
+                    {
                         "invariant_id": row["invariant_id"],
+                        "generated_invariant_id": row["invariant_id"],
+                        "generated_invariant_ids": [row["invariant_id"]],
+                        "reused_checker_id": row.get("reused_checker_id"),
                         "final_status": (
-                            "unprocessed" if row["attempt_count"] == 0 else row["final_status"]
+                            "unprocessed" if row["attempt_count"] == 0 else "failed"
                         ),
                         "infrastructure_error": row["infrastructure_error"],
                         "parent_tree_sha256": row["parent_tree_sha256"],
                         "result_tree_sha256": row["result_tree_sha256"],
                         "files": row["files"],
                         "lineage": row["lineage"],
+                        "lineages": [row["lineage"]],
                     }
                     for row in rows
+                    if not row["included_in_bundle"]
                 ],
                 "artifacts": {
                     "cumulative_patch": bundle_patch_ref,
@@ -1680,6 +1810,7 @@ class CheckerAuthoringRunner:
                 "budget_exhausted": budget_exhausted,
                 "unprocessed": unprocessed,
                 "agent_attempts": sum(int(row["attempt_count"]) for row in rows),
+                "reused": sum(bool(row.get("reused")) for row in rows),
                 "bundle_ready": ready,
                 "coverage_complete": manifest.coverage_complete,
             },
@@ -1689,6 +1820,10 @@ class CheckerAuthoringRunner:
                 "attempt_cap": max_attempts,
                 "checker_bundle_manifest": os.fspath(manifest_path),
                 "bundle_id": manifest.bundle_id,
+                "deterministic_only": bool(rows) and all(bool(row.get("reused")) for row in rows),
+                "reused_checker_ids": [
+                    row["reused_checker_id"] for row in rows if row.get("reused_checker_id")
+                ],
             },
         )
 
