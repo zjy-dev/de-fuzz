@@ -224,35 +224,15 @@ The separation of the phenomenon from its detection recipe is deliberate: ``the
 phenomenon, whereas ``look it up in the ELF \texttt{.dynsym}'' is a detection
 mechanism that belongs to the oracle implementation.
 
-\subsection{Survey methodology and sources}
-The invariant archive draws on three source classes: (i) compiler source
-comments and assertions, (ii) compiler and ABI documentation, and (iii)
-confirmed historical bugs and their patches. Every record carries a uniform
-schema---\texttt{ID}, \texttt{statement}, \texttt{compiler}, \texttt{version},
-\texttt{target}, \texttt{source\_kind}, evidence, \texttt{version\_sensitivity},
-and \texttt{observation}---so that a downstream consumer (oracle, static
-analysis, CI) can decide how to use each invariant independently.
+\subsection{Corpus Construction and Candidate Extraction}
+The invariant archive is synthesized from three primary knowledge domains: compiler source code (specifically comments and runtime assertions), official ABI specifications, and historical vulnerability reports alongside their corresponding patches. To ensure interoperability with downstream analysis and continuous integration pipelines, every extracted invariant is formalized into a uniform schema. This schema explicitly captures the target mechanism, the originating source evidence, and the observable phenomena of a violation.
 
-The corpus is too large for a single model context. Related evidence also lies
-in distant source files, specifications, and patches. We therefore partition
-the material by defense mechanism, compiler phase, and function boundary. A segmented CoT
-prompt~\cite{wei2022chain} asks the model to identify the protected asset, activation conditions,
-required security property, and externally observable violation in each segment.
-This pass produces candidates rather than accepted invariants. Every candidate
-must retain its source evidence and pass the grounding checks in
-\S\ref{sec:specgen}.
+Given the vast scale of the compiler codebase, relevant semantic evidence is frequently fragmented across disparate compilation phases and backend templates. To address this, we partition the source material by mechanism and function boundaries. We then apply a segmented Chain-of-Thought (CoT) prompting strategy~\cite{wei2022chain}, instructing the model to isolate the protected asset, the activation conditions, and the required security property within each segment. It is critical to note that this pass strictly produces \emph{candidates}. To prevent hallucination and ensure empirical validity, every candidate must retain its provenance and subsequently pass the stringent grounding and novelty gates detailed in \S\ref{sec:specgen}.
 
-\subsection{A bottom-up taxonomy}
-Rather than imposing a top-down category scheme, we cluster the 468 catalogued
-invariants data-first to avoid preset bias, and read the root-cause families off
-the clusters (Figure~\ref{fig:invariant-taxonomy}). Three families recur across
-mechanisms and ISAs: (a) \emph{exit-time sensitive-register/state residue}, in
-which a fast or exceptional exit bypasses the register/state clearing that a
-defense relies on; (b) \emph{stack-clash frame-size truncation}, in which a
-forced integer narrowing flips a very large frame size negative and the probing
-loop is skipped; and (c) \emph{RISC-V large-address materialization}, in which
-an unintended sign extension while splitting or synthesizing a large
-address/offset shifts the computed address.
+\subsection{A Bottom-Up Taxonomy}
+Rather than imposing a preconceived, top-down categorization, we cluster the catalogued invariants using a data-first approach. This bottom-up methodology prevents preset bias and allows the genuine structural root causes to emerge directly from the data (Figure~\ref{fig:invariant-taxonomy}).
+
+Our analysis reveals three predominant failure families that recur across different mechanisms and architectures. The first is \emph{exit-time sensitive-register residue}, wherein a fast or exceptional function exit bypasses the register-clearing routines that a defense (e.g., zero-call-used-regs) relies upon. The second involves \emph{stack-clash frame-size truncation}, where a forced integer narrowing flips a heavily padded frame size to a negative value, thereby skipping the required probing loop. The third is \emph{large-address materialization errors}, particularly prevalent on RISC-V, where unintended sign extensions during the synthesis of large offsets silently shift the computed boundary addresses of shadow stacks or safe regions.
 \incfig{invariant-taxonomy}{Bottom-up root-cause families over 468
 invariants; three families recur across mechanism and ISA.}
 
