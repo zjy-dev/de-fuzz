@@ -573,8 +573,10 @@ def build_worker_prompt_bundle(
             f"Toolchains under review: {', '.join(toolchains) or 'infer from source'}.",
             f"Target ISAs: {', '.join(isas) or 'all applicable ISAs'}.",
             "Use general source-inspection tools and your own audit judgment.",
-            "Do not enumerate, read, search, or quote findings/, FINDINGS.md, reports/, or "
-            "prior audit records. Treat accidental exposure as a tainted run.",
+            "Audit only the current source tree and the supplied public documents. "
+            "Evaluator-only benchmark records are unavailable and out of scope. Mark the "
+            "run tainted only if a tool actually reveals a concrete private record or DREV "
+            "identifier; merely restating this isolation rule is not exposure.",
             "Return one JSON object with an issues array and an optional coverage_gaps array. "
             "For each issue, include enough source locations, evidence, reproduction details, "
             "impact, and validation state for independent evaluation. Do not write or archive "
@@ -590,8 +592,10 @@ def build_worker_prompt_bundle(
             f"Toolchain versions: {dict(toolchain_versions or {})}.",
             f"Target ISAs: {', '.join(isas) or 'all applicable ISAs'}.",
             f"Discovery date: {discovered or 'record the current run date'}.",
-            "Do not enumerate, read, search, or quote findings/, FINDINGS.md, reports/DREV-*, "
-            "or any prior DREV record. Treat accidental exposure as a tainted run.",
+            "Audit only the current source tree and the supplied public documents. "
+            "Evaluator-only benchmark records are unavailable and out of scope. Mark the "
+            "run tainted only if a tool actually reveals a concrete private record or DREV "
+            "identifier; merely restating this isolation rule is not exposure.",
             "Return one JSON object conforming to the supplied AuditReport schema. Do not "
             "write or archive findings.",
         ]
