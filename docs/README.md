@@ -8,7 +8,7 @@ status: IMPLEMENTED
 
 # docs/
 
-技术文档主体在 [`tech-docs/`](./tech-docs/README.md)（自 2026-05-08 起）；一次性汇报/答辩材料在 [`presentations/`](./presentations/README.md)。论文源码、图件和构建产物已迁移至 [zjy-dev/defuzz-paper](https://github.com/zjy-dev/defuzz-paper)。
+技术文档主体在 [`tech-docs/`](./tech-docs/README.md)（自 2026-05-08 起）；一次性汇报/答辩材料在 [`presentations/`](./presentations/README.md)。
 
 > **快速跳转**：
 > - 技术文档总入口：[`docs/tech-docs/README.md`](./tech-docs/README.md)

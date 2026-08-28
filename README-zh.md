@@ -55,7 +55,6 @@ uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # 回溯到确定
 
 ## 文档
 
-- 论文源码与实验说明：[zjy-dev/defuzz-paper](https://github.com/zjy-dev/defuzz-paper)
 - 架构权威文档：[docs/tech-docs/architecture/agentic-loop-redesign.md](docs/tech-docs/architecture/agentic-loop-redesign.md)
 - 系统总览（组件 + 数据流）：[docs/tech-docs/architecture/overview.md](docs/tech-docs/architecture/overview.md)
 - 技术栈：[docs/tech-docs/reference/tech-stack.md](docs/tech-docs/reference/tech-stack.md)

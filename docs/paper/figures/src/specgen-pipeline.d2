@@ -1,0 +1,21 @@
+# Fig: complementary invariant discovery and feedback (academic monochrome)
+# render: d2 --theme=0 --pad=8 specgen-pipeline.d2 ../specgen-pipeline.svg
+
+classes: {
+  node: { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  key:  { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  out:  { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A"; border-radius: 18 } }
+}
+
+direction: down
+
+review: "Broad-coverage path\nLarge compiler corpus\n→ segmented CoT review\n→ coarse candidates with evidence" { class: node }
+rag: "Root-cause path\nHistorical bugs + confirmed new findings\n→ root-cause RAG\n(middle-end + target backends)\n→ homologues for next campaign" { class: node }
+pool: "Unified candidates\nreview candidates + generalized homologues" { class: node }
+ground: "Two static grounding gates + novelty check" { class: key }
+accepted: "Accepted security invariant" { class: out }
+
+review -> pool: "candidate" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+rag -> pool: "generalize" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+pool -> ground: "validate" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+ground -> accepted: "accept" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }

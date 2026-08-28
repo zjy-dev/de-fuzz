@@ -114,6 +114,16 @@ SpecAuditor.pdf
 # Auto-research runtime state
 orchestrator/.autoresearch/
 
+# LaTeX build artifacts (paper source is tracked)
+docs/paper/*.aux
+docs/paper/*.bbl
+docs/paper/*.blg
+docs/paper/*.log
+docs/paper/*.out
+docs/paper/*.toc
+docs/paper/*.lof
+docs/paper/*.lot
+
 /findings
 fuzz_out*/
 compiler-audit/

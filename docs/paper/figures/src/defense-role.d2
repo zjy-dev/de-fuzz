@@ -1,0 +1,23 @@
+# Fig: compiler-inserted defenses as the runtime last line (academic monochrome)
+# render: d2 --theme=0 --pad=8 defense-role.d2 ../defense-role.svg
+
+classes: {
+  box: { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  emph: { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  outcome: { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A"; border-radius: 20 } }
+}
+
+direction: down
+
+app: "Upper-layer code\n(memory-safety bug triggered)" { class: box }
+
+defense: "Compiler-inserted defenses  —  the last line\nstack canary · _FORTIFY_SOURCE · IBT/CET\nCFI · PAC · shadow stack" {
+  class: emph
+}
+
+halted: "defense enforced:\nprogram halted" { class: outcome }
+bypass: "silent failure:\nattacker proceeds" { class: outcome }
+
+app -> defense: "exploit fires" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+defense -> halted: "contract holds" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }
+defense -> bypass: "contract broken" { style: { stroke: "#1A1A1A"; stroke-width: 1; font-color: "#555555" } }

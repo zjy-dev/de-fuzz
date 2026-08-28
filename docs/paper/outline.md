@@ -1,0 +1,48 @@
+# DeFuzz Paper Outline
+
+- Abstract（摘要）
+- 1. Introduction（引言）
+  - 1.1 Silent failure（静默失效）
+  - 1.2 Two coupled challenges（两个相互纠缠的挑战）
+  - 1.3 Our approach（我们的方法）
+  - 1.4 Contributions（贡献）
+- 2. Background and Motivation（背景与动机）
+  - 2.1 Compiler defenses and the mechanism × ISA matrix（编译器防御与机制 × ISA 矩阵）
+  - 2.2 Silent failure: a real case（静默失效：一个真实案例）
+  - 2.3 Why existing methods miss it（现有方法为何漏检）
+  - 2.4 Scope and threat model（研究范围与威胁模型）
+- 3. System Overview（系统概览）
+- 4. Security Invariants for Compiler Defenses（编译器防御的安全不变量）
+  - 4.1 What is a security invariant（什么是安全不变量）
+  - 4.2 Survey methodology and sources（调研方法与来源）
+  - 4.3 A bottom-up taxonomy（自底向上的分类法）
+  - 4.4 Machine-checkable form: static vs dynamic（可机器验证形态：静态与动态）
+- 5. Cross-Mechanism Invariant Generation（跨机制不变量生成）
+  - 5.1 Motivation: abstract-failure-mode transfer（动机：抽象失效模式迁移）
+  - 5.2 Pipeline: distill → analogy → specialize → entailment（流水线：蒸馏 → 类比 → 实例化 → 蕴含）
+  - 5.3 Retrieval: BM25 and embedding are complementary（检索：BM25 与嵌入互补）
+  - 5.4 Grounding gates and reproducibility（锚定门与可复现性）
+- 6. Oracle: From Invariants to Verdicts（预言机：从不变量到判定）
+  - 6.1 Checker design（判定器设计）
+  - 6.2 Mechanism aggregator and flag profiles（机制聚合器与标志配置）
+  - 6.3 Checker metadata as a single source of truth（判定器元数据作为单一真源）
+- 7. Agentic Loop（代理循环）
+  - 7.1 Design principles（设计原则）
+  - 7.2 Explicit orchestration and the blackboard（显式编排与共享黑板）
+  - 7.3 Three agents（三个代理）
+  - 7.4 Checker-routed seeds, ISA-bound checkers（判定器路由的种子、ISA 绑定的判定器）
+- 8. Implementation（工程实现）
+- 9. Evaluation（实验评估）
+  - Setup（实验设置）
+  - RQ1 — Real bugs（RQ1 — 真实漏洞）
+  - RQ2 — Invariant generation quality（RQ2 — 不变量生成质量）
+  - RQ3 — Ablation（RQ3 — 消融实验）
+  - RQ4 — Explicit orchestration（RQ4 — 显式编排）
+  - RQ5 — Agentic vs. fuzz loop（RQ5 — 代理循环对比模糊测试循环）
+- 10. Discussion and Limitations（讨论与局限）
+- 11. Related Work（相关工作）
+  - Compiler bug finding（编译器漏洞发现）
+  - Silent/security bugs in compilers（编译器中的静默/安全漏洞）
+  - LLM/RAG property generation（基于 LLM/RAG 的属性生成）
+  - LLM-agent fuzzing（LLM 代理模糊测试）
+- 12. Conclusion（结论）

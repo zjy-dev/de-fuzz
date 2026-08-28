@@ -1,0 +1,27 @@
+# Fig: bottom-up root-cause taxonomy over 468 invariants (academic monochrome)
+# render: d2 --theme=0 --pad=8 invariant-taxonomy.d2 ../invariant-taxonomy.svg
+
+classes: {
+  root: { style: { fill: "#E3E3E3"; stroke: "#1A1A1A"; stroke-width: 2; font-color: "#1A1A1A" } }
+  fam:  { style: { fill: white; stroke: "#1A1A1A"; stroke-width: 1; font-color: "#1A1A1A" } }
+  leaf: { style: { fill: white; stroke: "#7A7A7A"; stroke-width: 1; font-color: "#333333" } }
+}
+
+direction: down
+
+root: "468 catalogued security invariants\n(clustered data-first, no top-down scheme)" { class: root; width: 360 }
+
+f1: "Exit-time sensitive-register /\nstate residue" { class: fam; width: 220 }
+f2: "Stack-clash frame-size\ntruncation" { class: fam; width: 220 }
+f3: "RISC-V large-address\nmaterialization" { class: fam; width: 220 }
+
+f1a: "fast / exceptional exit\nbypasses register clearing" { class: leaf; width: 220 }
+f2a: "integer narrowing flips\nframe size negative;\nprobe loop skipped" { class: leaf; width: 220 }
+f3a: "unintended sign extension\nwhile splitting a large\naddress/offset" { class: leaf; width: 220 }
+
+root -> f1: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+root -> f2: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+root -> f3: "" { style: { stroke: "#1A1A1A"; stroke-width: 1 } }
+f1 -> f1a: "" { style: { stroke: "#7A7A7A"; stroke-width: 1 } }
+f2 -> f2a: "" { style: { stroke: "#7A7A7A"; stroke-width: 1 } }
+f3 -> f3a: "" { style: { stroke: "#7A7A7A"; stroke-width: 1 } }
