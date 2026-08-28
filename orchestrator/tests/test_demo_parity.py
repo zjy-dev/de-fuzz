@@ -9,9 +9,12 @@ from pydantic import ValidationError
 from defuzz_loop.audit_schema import AuditCandidate, families_for_mechanisms
 from defuzz_loop.parity import (
     BenchmarkPolicy,
+    DemoFinding,
+    ParityScope,
     aggregate_findings,
     evaluate_demo_parity,
     normalize_mechanism,
+    normalize_toolchain_version,
     parity_metrics,
     parse_demo_findings,
 )
@@ -187,8 +190,13 @@ poc_verified: true""",
         "superset_coverage": 0.5,
         "match_count": 1,
         "raw_total": 2,
+        "profile_total": 2,
+        "scoped_total": 2,
         "benchmark_total": 2,
         "profile": "custom",
+        "scope_status": "not_requested",
+        "empty_scope": False,
+        "not_applicable": False,
         "threshold": 0.8,
         "threshold_metric": "f1",
         "threshold_blocking": False,
@@ -256,6 +264,238 @@ poc_verified: false""",
     assert default.missing_demo_ids == ["DREV-2026-001"]
     assert all_records.benchmark_total == 3
     assert all_records.excluded_ids == []
+
+
+def test_parity_scope_dimensions_are_or_within_and_across(tmp_path: Path) -> None:
+    records = (
+        ("001", "gcc", "gcc-17-20260531", "stack-protector", "x86_64"),
+        ("002", "gcc", "gcc-17 (20260531 snapshot)", "ibt", "aarch64"),
+        ("003", "llvm", "llvmorg-22.1.4", "stack-protector", "x86_64"),
+        ("004", "gcc", "gcc-16.2.0", "stack-protector", "x86_64"),
+    )
+    for suffix, toolchain, version, mechanism, isa in records:
+        _write_finding(
+            tmp_path,
+            f"DREV-2026-{suffix}",
+            f"""id: DREV-2026-{suffix}
+toolchain: {toolchain}
+toolchain_version: {version}
+mechanism: {mechanism}
+isa: [{isa}]
+invariant_violated: Scope fixture {suffix}.
+status: draft
+poc_verified: true""",
+        )
+
+    result = evaluate_demo_parity(
+        [],
+        tmp_path,
+        scope=ParityScope(
+            toolchains=("gnu-gcc", "llvm"),
+            version=("gcc-17.0.0-20260531", "gcc-16"),
+            mechanisms=("stack-canary", "cet-ibt"),
+            isas=("x86-64", "arm64"),
+        ),
+    )
+
+    assert result.raw_total == 4
+    assert result.profile_total == 4
+    assert result.scoped_total == 3
+    assert result.benchmark_total == 3
+    assert result.scope_status == "applicable"
+    assert result.scope_report.selected_demo_ids == [
+        "DREV-2026-001",
+        "DREV-2026-002",
+        "DREV-2026-004",
+    ]
+    assert result.missing_demo_ids == [
+        "DREV-2026-001",
+        "DREV-2026-002",
+        "DREV-2026-004",
+    ]
+    assert result.demo_aggregates.total == 4  # Compatibility: profile aggregate.
+    assert result.scoped_aggregates.total == 3
+
+
+def test_parity_scope_demo_ids_are_exact_and_exclusive(tmp_path: Path) -> None:
+    for suffix in ("001", "002"):
+        _write_finding(
+            tmp_path,
+            f"DREV-2026-{suffix}",
+            f"""id: DREV-2026-{suffix}
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: Exact ID fixture {suffix}.
+status: draft
+poc_verified: true""",
+        )
+
+    result = evaluate_demo_parity(
+        [], tmp_path, scope={"demo_ids": ["DREV-2026-002", "DREV-4040-999"]}
+    )
+
+    assert result.scoped_total == 1
+    assert result.scope_report.selected_demo_ids == ["DREV-2026-002"]
+    assert result.scope_report.unresolved_demo_ids == ["DREV-4040-999"]
+    with pytest.raises(ValidationError, match="demo_ids cannot be combined"):
+        ParityScope(demo_ids=("DREV-2026-001",), toolchains=("gcc",))
+    with pytest.raises(ValidationError, match="requires demo_ids"):
+        ParityScope()
+
+
+def test_profile_precedes_scope_and_empty_scope_is_not_applicable(tmp_path: Path) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: Retracted fixture.
+status: retracted
+poc_verified: true""",
+    )
+
+    result = evaluate_demo_parity(
+        [],
+        tmp_path,
+        scope={"demo_ids": ["DREV-2026-001"]},
+        threshold=0.5,
+        threshold_blocking=True,
+    )
+
+    assert result.raw_total == 1
+    assert result.profile_total == 0
+    assert result.scoped_total == 0
+    assert result.scope_status == "not_applicable"
+    assert result.empty_scope is True
+    assert result.not_applicable is True
+    assert result.threshold_pass is None
+    assert result.threshold_blocked is False
+    assert result.superset_coverage == 0.0
+    assert result.missing_demo_ids == []
+    metrics = parity_metrics(result)
+    assert metrics["not_applicable"] is True
+    assert metrics["threshold_pass"] is None
+
+
+def test_empty_dimension_scope_is_not_applicable_without_threshold_failure(
+    tmp_path: Path,
+) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: Concrete scoped finding.
+status: draft
+poc_verified: true""",
+    )
+
+    result = evaluate_demo_parity(
+        [],
+        tmp_path,
+        scope={"toolchains": ["llvm"]},
+        threshold=1.0,
+        threshold_blocking=True,
+    )
+
+    assert result.profile_total == 1
+    assert result.scoped_total == 0
+    assert result.scope_status == "not_applicable"
+    assert result.threshold_pass is None
+    assert result.threshold_blocked is False
+
+
+def test_no_scope_preserves_profile_denominator(tmp_path: Path) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: Unscoped compatibility fixture.
+status: draft
+poc_verified: true""",
+    )
+
+    result = evaluate_demo_parity([], tmp_path)
+
+    assert result.scope is None
+    assert result.scope_status == "not_requested"
+    assert result.not_applicable is False
+    assert result.profile_total == result.scoped_total == result.benchmark_total == 1
+
+
+def test_generic_isa_matches_any_concrete_lane_but_missing_isa_does_not(
+    tmp_path: Path,
+) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [generic]
+invariant_violated: Generic fixture.
+status: draft
+poc_verified: true""",
+    )
+    _write_finding(
+        tmp_path,
+        "DREV-2026-002",
+        """id: DREV-2026-002
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+invariant_violated: Missing ISA fixture.
+status: draft
+poc_verified: true""",
+    )
+
+    result = evaluate_demo_parity([], tmp_path, scope={"isas": ["aarch64"]})
+
+    assert result.scope_report.selected_demo_ids == ["DREV-2026-001"]
+
+
+def test_scalar_demo_isa_is_normalized_for_scope(tmp_path: Path) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: amd64
+invariant_violated: Scalar ISA fixture.
+status: draft
+poc_verified: true""",
+    )
+
+    result = evaluate_demo_parity([], tmp_path, scope={"isas": ["x86_64"]})
+
+    assert result.scope_report.selected_demo_ids == ["DREV-2026-001"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "gcc-17-20260531",
+        "gcc-17 (20260531 snapshot)",
+        "gcc-17.0.0-20260531",
+    ),
+)
+def test_gcc17_version_spellings_share_one_scope_key(value: str) -> None:
+    assert normalize_toolchain_version(value, toolchain="gcc") == "gcc-17"
 
 
 def test_profiles_report_raw_statuses_and_exclusion_reasons(tmp_path: Path) -> None:
@@ -371,6 +611,182 @@ poc_verified: true""",
     ]
     assert result.matches[0].score == 1.0
     assert 0.6 <= result.matches[1].score < 1.0
+
+
+def test_stable_key_cannot_match_a_wrong_toolchain_or_mechanism(tmp_path: Path) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+finding_key: globally-stable-key
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: GCC stack-protector invariant.
+status: draft
+poc_verified: true""",
+    )
+    wrong_lane = _candidate(
+        finding_key="globally-stable-key",
+        toolchain="llvm",
+        mechanism="ibt",
+        invariant_violated="Unrelated LLVM IBT invariant.",
+        root_cause="Unrelated LLVM IBT invariant.",
+    )
+
+    result = evaluate_demo_parity([wrong_lane], tmp_path)
+
+    assert result.matches == []
+    assert result.missing_demo_ids == ["DREV-2026-001"]
+    assert result.unmatched_candidate_indices == [0]
+
+
+@pytest.mark.parametrize(
+    ("toolchain_version", "isa"),
+    [
+        ("gcc-16", ["x86_64"]),
+        ("gcc-17", ["aarch64"]),
+    ],
+)
+def test_stable_key_cannot_cross_version_or_isa_lanes(
+    tmp_path: Path, toolchain_version: str, isa: list[str]
+) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+finding_key: globally-stable-key
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: GCC stack-protector invariant.
+status: draft
+poc_verified: true""",
+    )
+    wrong_lane = _candidate(
+        finding_key="globally-stable-key",
+        toolchain="gcc",
+        toolchain_version=toolchain_version,
+        mechanism="stack-protector",
+        isa=isa,
+        invariant_violated="GCC stack-protector invariant.",
+        root_cause="GCC stack-protector invariant.",
+    )
+
+    result = evaluate_demo_parity([wrong_lane], tmp_path)
+
+    assert result.matches == []
+    assert result.missing_demo_ids == ["DREV-2026-001"]
+    assert result.unmatched_candidate_indices == [0]
+
+
+def test_generic_isa_is_compatible_across_concrete_isa_lane(tmp_path: Path) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+finding_key: globally-stable-key
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [generic]
+invariant_violated: GCC stack-protector invariant.
+status: draft
+poc_verified: true""",
+    )
+    candidate = _candidate(
+        finding_key="globally-stable-key",
+        toolchain="gcc",
+        toolchain_version="gcc-17.0.0-20260531",
+        mechanism="stack-protector",
+        isa=["x86_64"],
+        invariant_violated="GCC stack-protector invariant.",
+        root_cause="GCC stack-protector invariant.",
+    )
+
+    result = evaluate_demo_parity([candidate], tmp_path)
+
+    assert [(match.demo_id, match.match_method) for match in result.matches] == [
+        ("DREV-2026-001", "finding_key")
+    ]
+
+
+def test_x86_family_scope_and_candidate_match_x86_64_demo(tmp_path: Path) -> None:
+    _write_finding(
+        tmp_path,
+        "DREV-2026-001",
+        """id: DREV-2026-001
+finding_key: globally-stable-key
+toolchain: gcc
+toolchain_version: gcc-17
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: GCC stack-protector invariant.
+status: draft
+poc_verified: true""",
+    )
+    candidate = _candidate(
+        finding_key="globally-stable-key",
+        toolchain="gcc",
+        toolchain_version="gcc-17",
+        mechanism="stack-protector",
+        isa=["x86"],
+        invariant_violated="GCC stack-protector invariant.",
+        root_cause="GCC stack-protector invariant.",
+    )
+
+    result = evaluate_demo_parity(
+        [candidate],
+        tmp_path,
+        scope={
+            "toolchains": ["gcc"],
+            "version": ["gcc-17"],
+            "mechanisms": ["stack-protector"],
+            "isas": ["x86"],
+        },
+    )
+
+    assert result.scoped_total == 1
+    assert [(match.demo_id, match.match_method) for match in result.matches] == [
+        ("DREV-2026-001", "finding_key")
+    ]
+
+
+def test_duplicate_demo_ids_do_not_mark_unmatched_records_as_matched() -> None:
+    demos = [
+        DemoFinding(
+            id="DREV-DUPLICATE",
+            toolchain="llvm",
+            toolchain_version="llvm-22",
+            mechanism="stack-protector",
+            isa=["x86_64"],
+            invariant_violated="The first unique invariant.",
+            status="draft",
+            poc_verified=True,
+        ),
+        DemoFinding(
+            id="DREV-DUPLICATE",
+            toolchain="llvm",
+            toolchain_version="llvm-22",
+            mechanism="stack-protector",
+            isa=["x86_64"],
+            invariant_violated="The second distinct invariant.",
+            status="draft",
+            poc_verified=True,
+        ),
+    ]
+    candidate = _candidate(
+        invariant_violated="The first unique invariant.",
+        root_cause="The first unique invariant.",
+    )
+
+    result = evaluate_demo_parity([candidate], demos)
+
+    assert result.match_count == 1
+    assert result.recall == 0.5
+    assert result.missing_demo_ids == ["DREV-DUPLICATE"]
 
 
 def test_ambiguous_token_matches_are_reported_and_never_counted(tmp_path: Path) -> None:

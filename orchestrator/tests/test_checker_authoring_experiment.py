@@ -16,6 +16,7 @@ import defuzz_loop.experiment_engine.checker_authoring as checker_authoring
 from defuzz_loop.checker_bundle import load_checker_bundle
 from defuzz_loop.experiment_engine import AgentResult, ExperimentPlan
 from defuzz_loop.experiment_engine.checker_authoring import (
+    CHECKER_INPUT_SCOPE_FILENAME,
     RESULTS_FILENAME,
     CheckerAuthoringRunner,
     CommandResult,
@@ -304,17 +305,24 @@ def _plan(
     *,
     max_attempts: int = 2,
     token_budget: int = 100_000,
+    mechanisms: tuple[str, ...] | None = None,
+    isas: tuple[str, ...] | None = None,
 ) -> ExperimentPlan:
+    parameters: dict[str, Any] = {
+        "accepted_invariants": str(invariant_path),
+        "max_attempts": max_attempts,
+    }
+    if mechanisms is not None:
+        parameters["mechanisms"] = list(mechanisms)
+    if isas is not None:
+        parameters["isas"] = list(isas)
     return ExperimentPlan.from_dict(
         {
             "run_id": "checker-run",
             "experiment": "checker-authoring",
             "source_root": str(source),
             "budget": {"token_budget": token_budget},
-            "parameters": {
-                "accepted_invariants": str(invariant_path),
-                "max_attempts": max_attempts,
-            },
+            "parameters": parameters,
         }
     )
 
@@ -349,6 +357,222 @@ def test_normalizes_input_and_renders_current_checker_contract(tmp_path: Path) -
         assert required in prompt
 
 
+@pytest.mark.parametrize(
+    ("target", "requested", "expected"),
+    [
+        ("", ("x86_64",), True),
+        ("Linux", ("x86_64",), True),
+        ("Android", ("aarch64",), True),
+        ("amd64", ("x86_64",), True),
+        ("x86_64, aarch64", ("aarch64",), True),
+        ("x86_64 / aarch64", ("aarch64",), True),
+        ("x86", ("i386",), True),
+        ("x86", ("x86_64",), True),
+        ("i386", ("x86_64",), False),
+        ("RISC-V", ("riscv32",), True),
+        ("RISC-V", ("riscv64",), True),
+        ("riscv32", ("riscv64",), False),
+        ("riscv64gc", ("riscv64",), True),
+        ("riscv64gc", ("x86_64",), False),
+        ("arm64", ("aarch64",), True),
+        ("aarch64", ("arm64",), True),
+        ("arm", ("aarch64",), False),
+        ("powerpc64le", ("x86_64",), False),
+        ("config-smoke", ("fixture",), True),
+        ("unknown-architecture", ("x86_64",), False),
+    ],
+)
+def test_target_isa_scope_compatibility(
+    target: str, requested: tuple[str, ...], expected: bool
+) -> None:
+    normalized = tuple(checker_authoring.normalize_isa(value) for value in requested)
+    assert checker_authoring._target_matches_isa_scope(target, normalized) is expected
+
+
+def test_scope_accepts_singular_mechanism_compatibility_alias(tmp_path: Path) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants)
+
+    selected, report = checker_authoring._project_input_scope(
+        load_accepted_invariants(invariants),
+        parameters={
+            "mechanisms": [],
+            "mechanism": "SSP",
+            "isas": (),
+            "isa": "arm64",
+        },
+        source_path=invariants.resolve(),
+    )
+
+    assert [item.invariant_id for item in selected] == ["INV-TEST-001"]
+    assert report["requested"]["mechanisms"] == ["stack-protector"]
+    assert report["requested"]["isas"] == ["aarch64"]
+
+
+@pytest.mark.asyncio
+async def test_scope_filters_before_backend_and_records_normalized_projection(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    rows = [
+        {
+            "invariant_id": "INV-OUT-ISA",
+            "statement": "only the 32-bit x86 target is supported",
+            "mechanism": "stack-canary",
+            "target": "i386",
+        },
+        {
+            "invariant_id": "INV-IN",
+            "statement": "the guard is checked on x86 targets",
+            "mechanism": "stack-protector",
+            "target": "x86",
+        },
+        {
+            "invariant_id": "INV-OUT-MECHANISM",
+            "statement": "indirect branches begin with ENDBR",
+            "mechanism": "CET / IBT",
+            "target": "amd64",
+        },
+    ]
+    invariants.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+    )
+    source_hash = hashlib.sha256(invariants.read_bytes()).hexdigest()
+    backend = CumulativeAgentBackend()
+    runner = CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=FakeWorkspaceFactory(),
+        command_executor=FakeCommandExecutor([True]),
+    )
+
+    result = await runner.run(
+        _plan(
+            source_checkout,
+            invariants,
+            max_attempts=1,
+            mechanisms=("SSP",),
+            isas=("x86-64",),
+        ),
+        1,
+        tmp_path / "output",
+    )
+
+    assert result.success
+    assert [request.metadata["invariant_id"] for request in backend.requests] == [
+        "INV-IN"
+    ]
+    assert result.metrics["invariants"] == 1
+    assert result.metrics["input_invariants"] == 3
+    assert result.metrics["selected_invariants"] == 1
+    assert result.metrics["excluded_invariants"] == 2
+    assert result.metadata["requested_mechanisms"] == ["stack-protector"]
+    assert result.metadata["requested_isas"] == ["x86_64"]
+    assert result.metadata["accepted_invariants_sha256"] == source_hash
+    assert any(
+        artifact.path == CHECKER_INPUT_SCOPE_FILENAME
+        and artifact.kind == "checker-input-scope"
+        for artifact in result.artifacts
+    )
+
+    report = json.loads(
+        (tmp_path / "output" / CHECKER_INPUT_SCOPE_FILENAME).read_text(encoding="utf-8")
+    )
+    assert report["source_artifact"]["path"] == str(invariants.resolve())
+    assert report["source_artifact"]["sha256"] == source_hash
+    assert report["requested"] == {
+        "mechanisms": ["stack-protector"],
+        "isas": ["x86_64"],
+    }
+    assert report["counts"] == {"total": 3, "selected": 1, "excluded": 2}
+    assert report["total_invariant_ids"] == [
+        "INV-IN",
+        "INV-OUT-ISA",
+        "INV-OUT-MECHANISM",
+    ]
+    assert report["selected_invariant_ids"] == ["INV-IN"]
+    assert report["excluded_invariant_ids"] == [
+        "INV-OUT-ISA",
+        "INV-OUT-MECHANISM",
+    ]
+    assert {
+        item["invariant_id"]: item["reasons"]
+        for item in report["excluded_invariants"]
+    } == {
+        "INV-OUT-ISA": ["isa_out_of_scope"],
+        "INV-OUT-MECHANISM": ["mechanism_out_of_scope"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_nonempty_scope_with_zero_selected_fails_before_workspace_or_backend(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants)
+    workspace_factory = FakeWorkspaceFactory()
+    backend = FakeAgentBackend()
+    output = tmp_path / "output"
+
+    result = await CheckerAuthoringRunner(
+        backend=backend,
+        workspace_factory=workspace_factory,
+        command_executor=FakeCommandExecutor([True]),
+    ).run(
+        _plan(source_checkout, invariants, mechanisms=("ibt",)),
+        1,
+        output,
+    )
+
+    assert result.status == "failed"
+    assert result.error == "checker input scope selected no accepted invariants"
+    assert backend.requests == []
+    assert workspace_factory.roots == []
+    assert result.metrics["input_invariants"] == 1
+    assert result.metrics["selected_invariants"] == 0
+    assert result.metrics["excluded_invariants"] == 1
+    assert any(
+        artifact.path == CHECKER_INPUT_SCOPE_FILENAME for artifact in result.artifacts
+    )
+    report = json.loads((output / CHECKER_INPUT_SCOPE_FILENAME).read_text())
+    assert report["selected_invariant_ids"] == []
+    assert report["excluded_invariants"] == [
+        {
+            "invariant_id": "INV-TEST-001",
+            "normalized_mechanism": "stack-protector",
+            "reasons": ["mechanism_out_of_scope"],
+            "target": ["aarch64"],
+            "target_isas": ["aarch64"],
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_runner_rejects_frozen_input_hash_mismatch_before_backend(
+    source_checkout: Path, tmp_path: Path
+) -> None:
+    invariants = tmp_path / "accepted-invariants.jsonl"
+    _write_invariants(invariants)
+    backend = FakeAgentBackend()
+    base_plan = _plan(source_checkout, invariants)
+    plan = base_plan.model_copy(
+        update={
+            "parameters": {
+                **base_plan.parameters,
+                "accepted_invariants_sha256": "0" * 64,
+            }
+        }
+    )
+
+    with pytest.raises(ValueError, match="accepted_invariants SHA-256 mismatch"):
+        await CheckerAuthoringRunner(
+            backend=backend,
+            workspace_factory=FakeWorkspaceFactory(),
+            command_executor=FakeCommandExecutor([True]),
+        ).run(plan, 1, tmp_path / "output")
+
+    assert backend.requests == []
+
+
 @pytest.mark.asyncio
 async def test_runner_isolates_each_invariant_and_records_repair_lineage(
     source_checkout: Path, tmp_path: Path
@@ -376,6 +600,9 @@ async def test_runner_isolates_each_invariant_and_records_repair_lineage(
     assert result.metrics["first_passed"] == 0
     assert result.metrics["final_passed"] == 1
     assert result.metrics["agent_attempts"] == 2
+    assert result.metrics["input_invariants"] == 1
+    assert result.metrics["selected_invariants"] == 1
+    assert result.metrics["excluded_invariants"] == 0
     assert len(backend.requests) == 2
     assert backend.requests[0].writable is True
     assert backend.requests[0].cwd != source_checkout
@@ -397,6 +624,10 @@ async def test_runner_isolates_each_invariant_and_records_repair_lineage(
     assert all(ref["path"] == "token_usage.jsonl" for ref in row["token_refs"])
     assert row["first_patch"]["path"].endswith("first.patch")
     assert row["final_patch"]["path"].endswith("final.patch")
+    scope = json.loads((output / CHECKER_INPUT_SCOPE_FILENAME).read_text())
+    assert scope["scope_requested"] is False
+    assert scope["selected_invariant_ids"] == ["INV-TEST-001"]
+    assert scope["excluded_invariant_ids"] == []
     first_patch = output / row["first_patch"]["path"]
     final_patch = output / row["final_patch"]["path"]
     assert "// first" in first_patch.read_text(encoding="utf-8")

@@ -257,7 +257,9 @@ uv run defuzz-experiment agent-audit \
   --run-id part3-formal \
   --reference-root <reference-root> \
   --target-tree <compiler-audit-tree> \
+  --accepted-invariants <part-i-accepted-invariants.jsonl> \
   --compiler gcc \
+  --toolchain-version gcc-17.0.0-20260531 \
   --mechanism canary \
   --isa x86_64 \
   --checker-bundle-manifest <checker-bundle-manifest.json> \
@@ -273,6 +275,9 @@ Notes:
 - Full Part III requires either a checker bundle or legacy online oracle
   commands. Formal paper runs use the frozen Part II bundle path, whose trusted
   dispatcher supplies both online feedback and offline verification.
+- For a standalone continuation, pass the frozen Part I artifact separately via
+  `--accepted-invariants` while `--from-run` (or `--checker-bundle-manifest`)
+  supplies the Part II bundle. The CLI hashes both inputs before any worker runs.
 - If the legacy `--online-oracle-command` fallback is used for a standalone
   diagnostic, it is candidate-bound and must include `{candidate_fingerprint}`.
 - `--verification-command` is reserved for trusted offline verification steps

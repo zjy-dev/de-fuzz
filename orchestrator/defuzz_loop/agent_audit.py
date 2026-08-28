@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import os
 import shutil
@@ -51,6 +52,7 @@ from .online_oracle import (
 )
 from .parity import (
     ParityProfile,
+    ParityScope,
     ThresholdMetric,
     evaluate_demo_parity,
     finding_identity,
@@ -102,12 +104,18 @@ class _CheckerBundleRuntime:
         catalog_artifact = manifest.artifacts.catalog
         dispatcher_artifact = manifest.artifacts.dispatcher
         patch_artifact = manifest.artifacts.cumulative_patch
+        scoped_invariants_artifact = manifest.artifacts.scoped_invariants
+        input_scope_artifact = manifest.artifacts.input_scope
         assert catalog_artifact is not None
         assert dispatcher_artifact is not None
         assert patch_artifact is not None
+        assert scoped_invariants_artifact is not None
+        assert input_scope_artifact is not None
         assert self.bundle.catalog is not None
         assert self.bundle.dispatcher is not None
         assert self.bundle.cumulative_patch is not None
+        assert self.bundle.scoped_invariants is not None
+        assert self.bundle.input_scope is not None
         return {
             "enabled": True,
             "bundle_id": manifest.bundle_id,
@@ -117,12 +125,19 @@ class _CheckerBundleRuntime:
             "coverage_complete": manifest.coverage_complete,
             "included_invariant_ids": list(manifest.included_invariant_ids),
             "failed_invariant_ids": list(manifest.failed_invariant_ids),
+            "source_invariants_sha256": manifest.source_invariants_sha256,
+            "requested_mechanisms": list(manifest.requested_mechanisms),
+            "requested_isas": list(manifest.requested_isas),
             "catalog_path": str(self.bundle.catalog),
             "catalog_sha256": catalog_artifact.sha256,
             "dispatcher_path": str(self.bundle.dispatcher),
             "dispatcher_sha256": dispatcher_artifact.sha256,
             "cumulative_patch_path": str(self.bundle.cumulative_patch),
             "cumulative_patch_sha256": patch_artifact.sha256,
+            "scoped_invariants_path": str(self.bundle.scoped_invariants),
+            "scoped_invariants_sha256": scoped_invariants_artifact.sha256,
+            "input_scope_path": str(self.bundle.input_scope),
+            "input_scope_sha256": input_scope_artifact.sha256,
             "toolchains_config": str(self.toolchains_config),
             "toolchains_config_sha256": _sha256_file(self.toolchains_config),
             "compiler": self.compiler,
@@ -521,13 +536,38 @@ def _write_json(path: Path, value: Any) -> None:
 
 def _load_generated_invariants(
     parameters: Mapping[str, Any],
-) -> tuple[list[dict[str, Any]], str | None, Path | None]:
+    checker_runtime: _CheckerBundleRuntime | None = None,
+) -> tuple[list[dict[str, Any]], str | None, Path | None, str]:
     configured = parameters.get("accepted_invariants")
-    if configured is None:
-        return [], None, None
-    if not isinstance(configured, (str, Path)):
-        raise ValueError("accepted_invariants must be a JSONL filesystem path")
-    path = Path(configured).expanduser().resolve(strict=True)
+    source = "explicit"
+    if checker_runtime is not None:
+        scoped_path = checker_runtime.bundle.scoped_invariants
+        scoped_artifact = checker_runtime.bundle.manifest.artifacts.scoped_invariants
+        if scoped_path is None or scoped_artifact is None:
+            raise ValueError("ready checker bundle has no scoped_invariants artifact")
+        if configured is not None:
+            if not isinstance(configured, (str, Path)):
+                raise ValueError("accepted_invariants must be a JSONL filesystem path")
+            explicit_path = Path(configured).expanduser().resolve(strict=True)
+            if not explicit_path.is_file() or explicit_path.is_symlink():
+                raise ValueError(
+                    f"accepted_invariants is not a regular file: {explicit_path}"
+                )
+            explicit_hash = _sha256_file(explicit_path)
+            if not hmac.compare_digest(explicit_hash, scoped_artifact.sha256):
+                raise ValueError(
+                    "accepted_invariants SHA-256 does not match checker-bundle "
+                    "scoped_invariants: "
+                    f"expected {scoped_artifact.sha256}, got {explicit_hash}"
+                )
+        path = scoped_path
+        source = "checker-bundle-scoped"
+    elif configured is None:
+        return [], None, None, "none"
+    else:
+        if not isinstance(configured, (str, Path)):
+            raise ValueError("accepted_invariants must be a JSONL filesystem path")
+        path = Path(configured).expanduser().resolve(strict=True)
     if not path.is_file() or path.is_symlink():
         raise ValueError(f"accepted_invariants is not a regular file: {path}")
     actual_hash = _sha256_file(path)
@@ -554,7 +594,7 @@ def _load_generated_invariants(
         records.append(value)
     if not records:
         raise ValueError("accepted_invariants contains no records")
-    return records, actual_hash, path
+    return records, actual_hash, path, source
 
 
 def _coerce_plan(plan: ExperimentPlan | Mapping[str, Any]) -> ExperimentPlan:
@@ -763,11 +803,6 @@ async def run(
     parameters = resolved.parameters
     try:
         require_verified_candidates = _required_verified_candidates(parameters)
-        (
-            generated_invariants,
-            generated_invariants_sha256,
-            generated_invariants_path,
-        ) = _load_generated_invariants(parameters)
         configured_compiler = _configured_compiler(
             parameters,
             required=bool(parameters.get("checker_bundle_manifest")),
@@ -777,6 +812,12 @@ async def run(
             required=require_verified_candidates,
             compiler=configured_compiler,
         )
+        (
+            generated_invariants,
+            generated_invariants_sha256,
+            generated_invariants_path,
+            generated_invariants_source,
+        ) = _load_generated_invariants(parameters, checker_runtime)
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         # The trust boundary is validated before any worker prompt or backend
         # invocation. A tampered bundle can therefore never influence a worker.
@@ -1339,6 +1380,15 @@ async def run(
                     len(generated_invariants) if variant is not AuditVariant.BARE_AGENT else 0
                 ),
                 "sha256": generated_invariants_sha256,
+                "path": str(generated_invariants_path)
+                if generated_invariants_path is not None
+                else None,
+                "source": generated_invariants_source,
+                "bundle_id": (
+                    checker_runtime.bundle.manifest.bundle_id
+                    if checker_runtime is not None
+                    else None
+                ),
             },
             "reports": [report.model_dump(mode="json") for report in reports],
             "worker_validity": worker_validity,
@@ -1384,6 +1434,19 @@ async def run(
         if parameters.get("demo_parity") or parameters.get("parity_threshold") is not None:
             threshold_value = parameters.get("parity_threshold")
             threshold = float(threshold_value) if threshold_value is not None else None
+            raw_parity_scope = parameters.get("parity_scope")
+            try:
+                parity_scope = (
+                    ParityScope.model_validate(raw_parity_scope)
+                    if raw_parity_scope is not None
+                    else None
+                )
+            except (TypeError, ValueError) as exc:
+                return StageResult(
+                    stage="agent-audit",
+                    status="failed",
+                    error=f"invalid parity_scope: {exc}",
+                )
             # Keep the evaluator boundary strict: admitted-but-unverified worker
             # claims never contribute to parity or superset-coverage metrics.
             parity_report = evaluate_demo_parity(
@@ -1398,6 +1461,7 @@ async def run(
                     ParityProfile,
                     parameters.get("parity_profile", "demo-workset"),
                 ),
+                scope=parity_scope,
             )
             parity_path = destination / "demo-parity.json"
             _write_json(parity_path, parity_report)
@@ -1423,6 +1487,15 @@ async def run(
                     len(generated_invariants) if variant is not AuditVariant.BARE_AGENT else 0
                 ),
                 "sha256": generated_invariants_sha256,
+                "path": str(generated_invariants_path)
+                if generated_invariants_path is not None
+                else None,
+                "source": generated_invariants_source,
+                "bundle_id": (
+                    checker_runtime.bundle.manifest.bundle_id
+                    if checker_runtime is not None
+                    else None
+                ),
             },
             "archive_performed": False,
             "findings_access": "excluded-from-workspace",

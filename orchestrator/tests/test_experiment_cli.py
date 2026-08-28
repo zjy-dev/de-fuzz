@@ -103,6 +103,10 @@ def test_leaf_help_exposes_only_relevant_paths(
         assert "--inputs" in help_text
         assert "--source-root" in help_text
         assert "--reference-root" in help_text
+        assert "--mechanism NAME" in help_text
+        assert "--isa ISA" in help_text
+        assert "aliases are normalized" in help_text
+        assert "architecture families are compatible" in help_text
     else:
         if leaf != "bare-agent":
             assert "--from-run" in help_text
@@ -774,6 +778,14 @@ def _install_fakes(
         ).hexdigest()
         assert plan.parameters["require_verified_candidates"] is True
         assert "checker_artifacts" not in plan.parameters
+        scoped_invariants = Path(plan.parameters["accepted_invariants"])
+        assert scoped_invariants.name == "scoped-accepted-invariants.jsonl"
+        assert plan.parameters["accepted_invariants_sha256"] == hashlib.sha256(
+            scoped_invariants.read_bytes()
+        ).hexdigest()
+        assert plan.parameters["accepted_invariants_source"] == (
+            "checker-bundle-scoped"
+        )
         assert plan.parameters["require_host_read_isolation"] is True
         if plan.variant in {"without-oracle", "bare-agent"}:
             assert not plan.parameters.get("online_oracle_command")
@@ -803,6 +815,8 @@ def _write_checker_bundle(root: Path) -> Path:
     patch = root / "checker-bundle.patch"
     catalog = root / "checker-catalog.json"
     dispatcher = root / "checker-dispatcher"
+    scoped_invariants = root / "scoped-accepted-invariants.jsonl"
+    input_scope = root / "checker-input-scope.json"
     patch.write_text("fixture patch\n", encoding="utf-8")
     catalog.write_text(
         json.dumps(
@@ -822,6 +836,35 @@ def _write_checker_bundle(root: Path) -> Path:
     )
     dispatcher.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     dispatcher.chmod(0o755)
+    scoped_invariants.write_text(
+        json.dumps(
+            {
+                "invariant_id": "INV-1",
+                "statement": "CLI_BUNDLE_SCOPED_SENTINEL",
+                "mechanism": "stack-protector",
+                "target": "x86_64",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    source_invariants_sha = "7" * 64
+    input_scope.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "defuzz-checker-input-scope",
+                "source_artifact": {"sha256": source_invariants_sha},
+                "requested": {"mechanisms": [], "isas": []},
+                "scope_requested": False,
+                "selected_invariant_ids": ["INV-1"],
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     artifacts = {
         name: {
@@ -834,6 +877,8 @@ def _write_checker_bundle(root: Path) -> Path:
             "cumulative_patch": patch,
             "catalog": catalog,
             "dispatcher": dispatcher,
+            "scoped_invariants": scoped_invariants,
+            "input_scope": input_scope,
         }.items()
     }
     payload: dict[str, Any] = {
@@ -844,6 +889,9 @@ def _write_checker_bundle(root: Path) -> Path:
         "source_root_sha256": "1" * 64,
         "source_tree_sha256": "1" * 64,
         "final_tree_sha256": "2" * 64,
+        "source_invariants_sha256": source_invariants_sha,
+        "requested_mechanisms": [],
+        "requested_isas": [],
         "coverage_complete": True,
         "budget_exhausted": False,
         "included_invariant_ids": ["INV-1"],
@@ -1337,12 +1385,14 @@ def test_audit_help_exposes_bundle_only_where_user_may_supply_it(
         help_text = capsys.readouterr().out
         assert "--checker-bundle-manifest" in help_text
         assert "--toolchains-config" in help_text
+        assert "--accepted-invariants JSONL" in help_text
 
     with pytest.raises(SystemExit):
         cli.main(["ablation", "bare-agent", "--help"])
     help_text = capsys.readouterr().out
     assert "--checker-bundle-manifest" not in help_text
     assert "--toolchains-config" not in help_text
+    assert "--accepted-invariants" not in help_text
 
 
 def test_full_explicit_bundle_supplies_online_and_offline_runtime_without_commands(
@@ -1387,6 +1437,174 @@ def test_full_explicit_bundle_supplies_online_and_offline_runtime_without_comman
     assert stored["parameters"]["online_oracle_command"] == []
     assert stored["parameters"]["verification_command"] == []
     assert calls
+
+
+def test_audit_from_run_defaults_to_bundle_scoped_invariants(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict[str, Any]] = []
+    _install_fakes(monkeypatch, calls)
+    reference = tmp_path / "reference"
+    for relative in cli._REQUIRED_REFERENCE_PATHS:
+        path = reference / relative
+        if path.suffix:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture\n", encoding="utf-8")
+        else:
+            path.mkdir(parents=True, exist_ok=True)
+    upstream = tmp_path / "part-ii"
+    manifest = _write_upstream_run(
+        upstream, stage="checker-authoring", filename="checker-bundle-manifest.json"
+    )
+    toolchains = tmp_path / "toolchains.yaml"
+    toolchains.write_text("toolchains: {}\n", encoding="utf-8")
+    plan = cli.ExperimentPlan.from_mapping(
+        cli._resolved_plan(
+            cli.build_parser().parse_args(
+                [
+                    "agent-audit",
+                    "--from-run",
+                    str(upstream),
+                    "--toolchains-config",
+                    str(toolchains),
+                    "--target-tree",
+                    str(tmp_path),
+                    "--reference-root",
+                    str(reference),
+                    "--agent-binary",
+                    "fake-agent",
+                ]
+            )
+        )
+    )
+    resolved = cli._plan_for_repetition(plan, 1, "agent-audit")
+    scoped = manifest.parent / "scoped-accepted-invariants.jsonl"
+
+    assert resolved.parameters["accepted_invariants"] == str(scoped.resolve())
+    assert resolved.parameters["accepted_invariants_sha256"] == hashlib.sha256(
+        scoped.read_bytes()
+    ).hexdigest()
+    assert resolved.parameters["accepted_invariants_source"] == "checker-bundle-scoped"
+    assert resolved.parameters["checker_bundle_manifest"].endswith(
+        "checker-bundle-manifest.json"
+    )
+
+
+def test_audit_explicit_matching_invariants_are_canonicalized_to_bundle_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict[str, Any]] = []
+    _install_fakes(monkeypatch, calls)
+    upstream = tmp_path / "part-ii"
+    manifest = _write_upstream_run(
+        upstream, stage="checker-authoring", filename="checker-bundle-manifest.json"
+    )
+    scoped = manifest.parent / "scoped-accepted-invariants.jsonl"
+    explicit = tmp_path / "accepted-invariants-copy.jsonl"
+    explicit.write_bytes(scoped.read_bytes())
+    toolchains = tmp_path / "toolchains.yaml"
+    toolchains.write_text("toolchains: {}\n", encoding="utf-8")
+
+    plan = cli.ExperimentPlan.from_mapping(
+        cli._resolved_plan(
+            cli.build_parser().parse_args(
+                [
+                    "agent-audit",
+                    "--from-run",
+                    str(upstream),
+                    "--accepted-invariants",
+                    str(explicit),
+                    "--toolchains-config",
+                    str(toolchains),
+                    "--target-tree",
+                    str(tmp_path),
+                    "--agent-binary",
+                    "fake-agent",
+                ]
+            )
+        )
+    )
+
+    resolved = cli._plan_for_repetition(plan, 1, "agent-audit")
+
+    assert resolved.parameters["accepted_invariants"] == str(scoped.resolve())
+    assert resolved.parameters["accepted_invariants_sha256"] == hashlib.sha256(
+        scoped.read_bytes()
+    ).hexdigest()
+    assert resolved.parameters["accepted_invariants_source"] == "checker-bundle-scoped"
+
+
+def test_audit_rejects_spliced_invariants_before_worker_or_run_creation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[dict[str, Any]] = []
+    _install_fakes(monkeypatch, calls)
+    upstream = tmp_path / "part-ii"
+    _write_upstream_run(
+        upstream, stage="checker-authoring", filename="checker-bundle-manifest.json"
+    )
+    explicit = tmp_path / "spliced-invariants.jsonl"
+    explicit.write_text('{"invariant_id":"INV-SPLICED"}\n', encoding="utf-8")
+    toolchains = tmp_path / "toolchains.yaml"
+    toolchains.write_text("toolchains: {}\n", encoding="utf-8")
+    reference = tmp_path / "reference"
+    for relative in cli._REQUIRED_REFERENCE_PATHS:
+        path = reference / relative
+        if path.suffix:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture\n", encoding="utf-8")
+        else:
+            path.mkdir(parents=True, exist_ok=True)
+    output_root = tmp_path / "runs"
+
+    result = cli.main(
+        [
+            "agent-audit",
+            "--from-run",
+            str(upstream),
+            "--accepted-invariants",
+            str(explicit),
+            "--toolchains-config",
+            str(toolchains),
+            "--target-tree",
+            str(tmp_path),
+            "--reference-root",
+            str(reference),
+            "--agent-binary",
+            "fake-agent",
+            "--output-root",
+            str(output_root),
+        ]
+    )
+
+    assert result == cli.EXIT_CONFIGURATION_ERROR
+    assert "does not match checker-bundle scoped_invariants" in capsys.readouterr().err
+    assert calls == []
+    assert not output_root.exists()
+
+
+def test_frozen_bundle_assertion_rejects_scoped_invariant_drift(tmp_path: Path) -> None:
+    manifest = _write_checker_bundle(tmp_path / "bundle")
+    scoped = manifest.parent / "scoped-accepted-invariants.jsonl"
+    plan = cli.ExperimentPlan.from_mapping(
+        {
+            "run_id": "frozen-scoped",
+            "experiment": "agent-audit",
+            "source_root": str(tmp_path),
+            "parameters": {
+                "accepted_invariants": str(scoped),
+                "accepted_invariants_sha256": hashlib.sha256(
+                    scoped.read_bytes()
+                ).hexdigest(),
+            },
+        }
+    )
+    scoped.write_text('{"invariant_id":"INV-TAMPERED"}\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="frozen accepted invariants SHA-256 mismatch"):
+        cli._assert_frozen_bundle_inputs(plan)
 
 
 def test_without_oracle_uses_bundle_only_for_offline_verification(
@@ -1878,6 +2096,55 @@ def test_checker_root_remains_relative_to_source_root() -> None:
     plan = cli._resolved_plan(args)
 
     assert plan["parameters"]["checker_root"] == "core/internal/oracle"
+
+
+def test_checker_scope_flags_are_repeatable_and_recorded_in_plan() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "checker-authoring",
+            "--inputs",
+            "accepted.jsonl",
+            "--mechanism",
+            "canary",
+            "--mechanism",
+            "CET / IBT",
+            "--isa",
+            "x86-64",
+            "--isa",
+            "riscv64",
+        ]
+    )
+
+    parameters = cli._resolved_plan(args)["parameters"]
+
+    assert parameters["mechanisms"] == ["canary", "CET / IBT"]
+    assert parameters["isas"] == ["x86-64", "riscv64"]
+
+
+def test_standalone_audit_derives_evaluator_scope_and_toolchain_version() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "agent-audit",
+            "--toolchain-version",
+            "gcc-17.0.0-20260531",
+            "--mechanism",
+            "canary",
+            "--isa",
+            "x86-64",
+        ]
+    )
+
+    parameters = cli._resolved_plan(args)["parameters"]
+
+    assert parameters["toolchain_versions"] == {
+        "gcc": "gcc-17.0.0-20260531"
+    }
+    assert parameters["parity_scope"] == {
+        "toolchains": ["gcc"],
+        "version": ["gcc-17"],
+        "mechanisms": ["stack-protector"],
+        "isas": ["x86_64"],
+    }
 
 
 def test_reference_root_defaults_from_environment(

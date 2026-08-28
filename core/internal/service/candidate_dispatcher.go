@@ -202,19 +202,22 @@ func RuntimeCheckerCatalog() CheckerCatalog {
 }
 
 type bundleManifestEnvelope struct {
-	SchemaVersion        int      `json:"schema_version"`
-	Kind                 string   `json:"kind"`
-	Status               string   `json:"status"`
-	BundleID             string   `json:"bundle_id"`
-	SourceRoot           string   `json:"source_root"`
-	SourceRootSHA256     string   `json:"source_root_sha256"`
-	SourceTreeSHA256     string   `json:"source_tree_sha256"`
-	FinalTreeSHA256      string   `json:"final_tree_sha256"`
-	CoverageComplete     bool     `json:"coverage_complete"`
-	BudgetExhausted      bool     `json:"budget_exhausted"`
-	IncludedInvariantIDs []string `json:"included_invariant_ids"`
-	FailedInvariantIDs   []string `json:"failed_invariant_ids"`
-	Invariants           []struct {
+	SchemaVersion          int      `json:"schema_version"`
+	Kind                   string   `json:"kind"`
+	Status                 string   `json:"status"`
+	BundleID               string   `json:"bundle_id"`
+	SourceRoot             string   `json:"source_root"`
+	SourceRootSHA256       string   `json:"source_root_sha256"`
+	SourceTreeSHA256       string   `json:"source_tree_sha256"`
+	FinalTreeSHA256        string   `json:"final_tree_sha256"`
+	SourceInvariantsSHA256 string   `json:"source_invariants_sha256"`
+	RequestedMechanisms    []string `json:"requested_mechanisms"`
+	RequestedISAs          []string `json:"requested_isas"`
+	CoverageComplete       bool     `json:"coverage_complete"`
+	BudgetExhausted        bool     `json:"budget_exhausted"`
+	IncludedInvariantIDs   []string `json:"included_invariant_ids"`
+	FailedInvariantIDs     []string `json:"failed_invariant_ids"`
+	Invariants             []struct {
 		InvariantID       string   `json:"invariant_id"`
 		FinalStatus       string   `json:"final_status"`
 		InfrastructureErr bool     `json:"infrastructure_error"`
@@ -223,9 +226,11 @@ type bundleManifestEnvelope struct {
 		Files             []string `json:"files"`
 	} `json:"invariants"`
 	Artifacts struct {
-		CumulativePatch *bundleArtifact `json:"cumulative_patch"`
-		Catalog         *bundleArtifact `json:"catalog"`
-		Dispatcher      *bundleArtifact `json:"dispatcher"`
+		CumulativePatch  *bundleArtifact `json:"cumulative_patch"`
+		Catalog          *bundleArtifact `json:"catalog"`
+		Dispatcher       *bundleArtifact `json:"dispatcher"`
+		ScopedInvariants *bundleArtifact `json:"scoped_invariants"`
+		InputScope       *bundleArtifact `json:"input_scope"`
 	} `json:"artifacts"`
 	Validation struct {
 		Status string         `json:"status"`
@@ -281,10 +286,16 @@ func loadBundleCatalog(manifestPath, catalogPath, executablePath string) (map[st
 	if err := validateObjectKeys(rawManifest, []string{
 		"schema_version", "kind", "status", "bundle_id", "source_root",
 		"source_root_sha256", "source_tree_sha256", "final_tree_sha256",
+		"source_invariants_sha256", "requested_mechanisms", "requested_isas",
 		"coverage_complete", "budget_exhausted", "included_invariant_ids",
 		"failed_invariant_ids", "invariants", "artifacts", "validation",
 	}); err != nil {
 		return nil, fmt.Errorf("bundle manifest: %w", err)
+	}
+	for _, field := range []string{"requested_mechanisms", "requested_isas"} {
+		if err := validateRequestedScopeValues(field, rawManifest); err != nil {
+			return nil, err
+		}
 	}
 	if err := validateArtifactObjects(rawManifest); err != nil {
 		return nil, fmt.Errorf("bundle manifest: %w", err)
@@ -304,6 +315,8 @@ func loadBundleCatalog(manifestPath, catalogPath, executablePath string) (map[st
 		{"cumulative_patch", manifest.Artifacts.CumulativePatch},
 		{"catalog", manifest.Artifacts.Catalog},
 		{"dispatcher", manifest.Artifacts.Dispatcher},
+		{"scoped_invariants", manifest.Artifacts.ScopedInvariants},
+		{"input_scope", manifest.Artifacts.InputScope},
 	}
 	resolved := make(map[string]string, len(artifacts))
 	contents := make(map[string][]byte, len(artifacts))
@@ -406,9 +419,10 @@ func validateBundleManifest(manifest bundleManifestEnvelope, raw map[string]any)
 		return fmt.Errorf("checker-bundle bundle_id mismatch: expected %s, got %s", manifest.BundleID, actualBundleID)
 	}
 	for name, value := range map[string]string{
-		"source_root_sha256": manifest.SourceRootSHA256,
-		"source_tree_sha256": manifest.SourceTreeSHA256,
-		"final_tree_sha256":  manifest.FinalTreeSHA256,
+		"source_root_sha256":       manifest.SourceRootSHA256,
+		"source_tree_sha256":       manifest.SourceTreeSHA256,
+		"final_tree_sha256":        manifest.FinalTreeSHA256,
+		"source_invariants_sha256": manifest.SourceInvariantsSHA256,
 	} {
 		if !validSHA256(value) {
 			return fmt.Errorf("bundle manifest %s must be a lowercase SHA-256", name)
@@ -420,8 +434,9 @@ func validateBundleManifest(manifest bundleManifestEnvelope, raw map[string]any)
 	if manifest.Validation.Status != "passed" || manifest.Validation.Build == nil || manifest.Validation.Build["status"] != "passed" {
 		return fmt.Errorf("ready bundle validation and dispatcher build must have passed")
 	}
-	if manifest.Artifacts.CumulativePatch == nil || manifest.Artifacts.Catalog == nil || manifest.Artifacts.Dispatcher == nil {
-		return fmt.Errorf("ready bundle requires cumulative_patch, catalog, and dispatcher artifacts")
+	if manifest.Artifacts.CumulativePatch == nil || manifest.Artifacts.Catalog == nil || manifest.Artifacts.Dispatcher == nil ||
+		manifest.Artifacts.ScopedInvariants == nil || manifest.Artifacts.InputScope == nil {
+		return fmt.Errorf("ready bundle requires cumulative_patch, catalog, dispatcher, scoped_invariants, and input_scope artifacts")
 	}
 	if hasDuplicates(manifest.IncludedInvariantIDs) || hasDuplicates(manifest.FailedInvariantIDs) {
 		return fmt.Errorf("bundle invariant ID lists must not contain duplicates")
@@ -1150,6 +1165,28 @@ func hasDuplicates(values []string) bool {
 	return false
 }
 
+func validateRequestedScopeValues(field string, raw map[string]any) error {
+	values, ok := raw[field].([]any)
+	if !ok {
+		return fmt.Errorf("bundle manifest %s must be an array of strings", field)
+	}
+	seen := make(map[string]bool, len(values))
+	for _, rawValue := range values {
+		value, ok := rawValue.(string)
+		if !ok {
+			return fmt.Errorf("bundle manifest %s must be an array of strings", field)
+		}
+		if value == "" || value != strings.TrimSpace(value) {
+			return fmt.Errorf("bundle manifest %s values must be non-empty and have no surrounding whitespace", field)
+		}
+		if seen[value] {
+			return fmt.Errorf("bundle manifest %s values must be unique", field)
+		}
+		seen[value] = true
+	}
+	return nil
+}
+
 func decodeJSONObject(data []byte) (map[string]any, error) {
 	if !utf8.Valid(data) {
 		return nil, fmt.Errorf("invalid UTF-8")
@@ -1192,7 +1229,7 @@ func validateArtifactObjects(manifest map[string]any) error {
 	if !ok {
 		return fmt.Errorf("artifacts must be an object")
 	}
-	roles := []string{"cumulative_patch", "catalog", "dispatcher"}
+	roles := []string{"cumulative_patch", "catalog", "dispatcher", "scoped_invariants", "input_scope"}
 	if err := validateObjectKeys(rawArtifacts, roles); err != nil {
 		return fmt.Errorf("artifacts: %w", err)
 	}

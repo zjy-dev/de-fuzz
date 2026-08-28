@@ -14,12 +14,14 @@ import (
 )
 
 type bundleTestFixture struct {
-	root           string
-	manifestPath   string
-	catalogPath    string
-	dispatcherPath string
-	patchPath      string
-	payload        map[string]any
+	root                 string
+	manifestPath         string
+	catalogPath          string
+	dispatcherPath       string
+	patchPath            string
+	scopedInvariantsPath string
+	inputScopePath       string
+	payload              map[string]any
 }
 
 func newBundleTestFixture(t *testing.T) *bundleTestFixture {
@@ -27,6 +29,7 @@ func newBundleTestFixture(t *testing.T) *bundleTestFixture {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "artifacts"), 0o755))
 	require.NoError(t, os.MkdirAll(filepath.Join(root, "bin"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "inputs"), 0o755))
 
 	var checker map[string]any
 	for _, candidate := range RuntimeCheckerCatalog().Checkers {
@@ -53,24 +56,45 @@ func newBundleTestFixture(t *testing.T) *bundleTestFixture {
 	catalogBytes = append(catalogBytes, '\n')
 	patchBytes := []byte("diff --git a/checker.go b/checker.go\n")
 	dispatcherBytes := []byte("fixture dispatcher\n")
+	scopedInvariantsBytes := []byte(`{"invariant_id":"INV-IBT-B01","mechanism":"ibt"}` + "\n")
+	sourceInvariantsSHA256 := strings.Repeat("8", 64)
+	inputScopeBytes, err := json.Marshal(map[string]any{
+		"schema_version": 1,
+		"kind":           "defuzz-checker-input-scope",
+		"source_artifact": map[string]any{
+			"path": "/source/accepted-invariants.jsonl", "sha256": sourceInvariantsSHA256,
+		},
+		"requested":              map[string]any{"mechanisms": []any{"ibt"}, "isas": []any{"x86_64"}},
+		"scope_requested":        true,
+		"selected_invariant_ids": []any{"INV-IBT-B01"},
+	})
+	require.NoError(t, err)
+	inputScopeBytes = append(inputScopeBytes, '\n')
 
 	fixture := &bundleTestFixture{
 		root: root, manifestPath: filepath.Join(root, "checker-bundle-manifest.json"),
-		catalogPath:    filepath.Join(root, "artifacts", "catalog.json"),
-		dispatcherPath: filepath.Join(root, "bin", "dispatcher"),
-		patchPath:      filepath.Join(root, "artifacts", "checkers.patch"),
+		catalogPath:          filepath.Join(root, "artifacts", "catalog.json"),
+		dispatcherPath:       filepath.Join(root, "bin", "dispatcher"),
+		patchPath:            filepath.Join(root, "artifacts", "checkers.patch"),
+		scopedInvariantsPath: filepath.Join(root, "inputs", "scoped-accepted-invariants.jsonl"),
+		inputScopePath:       filepath.Join(root, "inputs", "checker-input-scope.json"),
 	}
 	require.NoError(t, os.WriteFile(fixture.catalogPath, catalogBytes, 0o644))
 	require.NoError(t, os.WriteFile(fixture.patchPath, patchBytes, 0o644))
 	require.NoError(t, os.WriteFile(fixture.dispatcherPath, dispatcherBytes, 0o755))
+	require.NoError(t, os.WriteFile(fixture.scopedInvariantsPath, scopedInvariantsBytes, 0o644))
+	require.NoError(t, os.WriteFile(fixture.inputScopePath, inputScopeBytes, 0o644))
 
 	fixture.payload = map[string]any{
 		"schema_version": 1, "kind": "defuzz-checker-bundle", "status": "ready",
 		"bundle_id": strings.Repeat("0", 64), "source_root": "/source",
-		"source_root_sha256": strings.Repeat("3", 64),
-		"source_tree_sha256": strings.Repeat("4", 64),
-		"final_tree_sha256":  strings.Repeat("5", 64),
-		"coverage_complete":  true, "budget_exhausted": false,
+		"source_root_sha256":       strings.Repeat("3", 64),
+		"source_tree_sha256":       strings.Repeat("4", 64),
+		"final_tree_sha256":        strings.Repeat("5", 64),
+		"source_invariants_sha256": sourceInvariantsSHA256,
+		"requested_mechanisms":     []any{"ibt"},
+		"requested_isas":           []any{"x86_64"},
+		"coverage_complete":        true, "budget_exhausted": false,
 		"included_invariant_ids": []any{"INV-IBT-B01"}, "failed_invariant_ids": []any{},
 		"invariants": []any{map[string]any{
 			"invariant_id": "INV-IBT-B01", "final_status": "passed",
@@ -79,9 +103,11 @@ func newBundleTestFixture(t *testing.T) *bundleTestFixture {
 			"lineage": map[string]any{"confidence": json.Number("0.5")},
 		}},
 		"artifacts": map[string]any{
-			"cumulative_patch": artifactTestRecord("artifacts/checkers.patch", patchBytes, "cumulative-patch"),
-			"catalog":          artifactTestRecord("artifacts/catalog.json", catalogBytes, "checker-catalog"),
-			"dispatcher":       artifactTestRecord("bin/dispatcher", dispatcherBytes, "checker-dispatcher"),
+			"cumulative_patch":  artifactTestRecord("artifacts/checkers.patch", patchBytes, "cumulative-patch"),
+			"catalog":           artifactTestRecord("artifacts/catalog.json", catalogBytes, "checker-catalog"),
+			"dispatcher":        artifactTestRecord("bin/dispatcher", dispatcherBytes, "checker-dispatcher"),
+			"scoped_invariants": artifactTestRecord("inputs/scoped-accepted-invariants.jsonl", scopedInvariantsBytes, "scoped-accepted-invariants"),
+			"input_scope":       artifactTestRecord("inputs/checker-input-scope.json", inputScopeBytes, "checker-input-scope"),
 		},
 		"validation": map[string]any{"status": "passed", "commands": []any{}, "build": map[string]any{"status": "passed"}},
 	}
@@ -158,8 +184,81 @@ func TestLoadBundleCatalogRejectsReadyManifestWithUnprocessedInvariant(t *testin
 	require.ErrorContains(t, err, "unprocessed")
 }
 
+func TestLoadBundleCatalogRequiresProvenanceFields(t *testing.T) {
+	for _, field := range []string{"source_invariants_sha256", "requested_mechanisms", "requested_isas"} {
+		t.Run(field, func(t *testing.T) {
+			fixture := newBundleTestFixture(t)
+			delete(fixture.payload, field)
+			fixture.writeManifest(t, true)
+
+			_, err := loadBundleCatalog(fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath)
+			require.ErrorContains(t, err, `missing top-level field "`+field+`"`)
+		})
+	}
+}
+
+func TestLoadBundleCatalogValidatesSourceInvariantsSHA256(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+	}{
+		{name: "uppercase", value: strings.Repeat("A", 64)},
+		{name: "short", value: strings.Repeat("0", 63)},
+		{name: "null", value: nil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newBundleTestFixture(t)
+			fixture.payload["source_invariants_sha256"] = test.value
+			fixture.writeManifest(t, true)
+
+			_, err := loadBundleCatalog(fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath)
+			require.ErrorContains(t, err, "source_invariants_sha256 must be a lowercase SHA-256")
+		})
+	}
+}
+
+func TestLoadBundleCatalogValidatesRequestedScope(t *testing.T) {
+	tests := []struct {
+		name  string
+		field string
+		value any
+		want  string
+	}{
+		{name: "mechanisms null", field: "requested_mechanisms", value: nil, want: "must be an array of strings"},
+		{name: "isas scalar", field: "requested_isas", value: "x86_64", want: "must be an array of strings"},
+		{name: "blank", field: "requested_mechanisms", value: []any{""}, want: "must be non-empty"},
+		{name: "surrounding whitespace", field: "requested_isas", value: []any{" x86_64"}, want: "no surrounding whitespace"},
+		{name: "duplicate", field: "requested_mechanisms", value: []any{"ibt", "ibt"}, want: "must be unique"},
+		{name: "non-string", field: "requested_isas", value: []any{json.Number("1")}, want: "must be an array of strings"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newBundleTestFixture(t)
+			fixture.payload[test.field] = test.value
+			fixture.writeManifest(t, true)
+
+			_, err := loadBundleCatalog(fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath)
+			require.ErrorContains(t, err, test.want)
+		})
+	}
+}
+
+func TestLoadBundleCatalogRequiresProvenanceArtifacts(t *testing.T) {
+	for _, role := range []string{"scoped_invariants", "input_scope"} {
+		t.Run(role, func(t *testing.T) {
+			fixture := newBundleTestFixture(t)
+			fixture.payload["artifacts"].(map[string]any)[role] = nil
+			fixture.writeManifest(t, true)
+
+			_, err := loadBundleCatalog(fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath)
+			require.ErrorContains(t, err, `artifact "`+role+`" must be an object`)
+		})
+	}
+}
+
 func TestLoadBundleCatalogRejectsEveryArtifactTamper(t *testing.T) {
-	for _, role := range []string{"cumulative_patch", "catalog", "dispatcher"} {
+	for _, role := range []string{"cumulative_patch", "catalog", "dispatcher", "scoped_invariants", "input_scope"} {
 		t.Run(role, func(t *testing.T) {
 			fixture := newBundleTestFixture(t)
 			relative := fixture.payload["artifacts"].(map[string]any)[role].(map[string]any)["path"].(string)
@@ -171,7 +270,7 @@ func TestLoadBundleCatalogRejectsEveryArtifactTamper(t *testing.T) {
 }
 
 func TestLoadBundleCatalogRejectsArtifactSizeTampering(t *testing.T) {
-	for _, role := range []string{"cumulative_patch", "catalog", "dispatcher"} {
+	for _, role := range []string{"cumulative_patch", "catalog", "dispatcher", "scoped_invariants", "input_scope"} {
 		t.Run(role, func(t *testing.T) {
 			fixture := newBundleTestFixture(t)
 			artifact := fixture.payload["artifacts"].(map[string]any)[role].(map[string]any)
@@ -216,6 +315,19 @@ func TestLoadBundleCatalogRejectsManifestAndArtifactSymlinks(t *testing.T) {
 	})
 }
 
+func TestLoadBundleCatalogRejectsProvenanceArtifactSymlink(t *testing.T) {
+	fixture := newBundleTestFixture(t)
+	target := filepath.Join(fixture.root, "scope-target.json")
+	content, err := os.ReadFile(fixture.inputScopePath)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(target, content, 0o644))
+	require.NoError(t, os.Remove(fixture.inputScopePath))
+	require.NoError(t, os.Symlink(target, fixture.inputScopePath))
+
+	_, err = loadBundleCatalog(fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath)
+	require.ErrorContains(t, err, "must not contain symlinks")
+}
+
 func TestLoadBundleCatalogRejectsDifferentRunningDispatcher(t *testing.T) {
 	fixture := newBundleTestFixture(t)
 	other := filepath.Join(fixture.root, "bin", "other")
@@ -231,6 +343,21 @@ func TestLoadBundleCatalogRejectsArtifactsResolvingToSameFile(t *testing.T) {
 	require.NoError(t, os.Remove(fixture.dispatcherPath))
 	require.NoError(t, os.Link(fixture.patchPath, fixture.dispatcherPath))
 	fixture.payload["artifacts"].(map[string]any)["dispatcher"] = artifactTestRecord("bin/dispatcher", patchBytes, "checker-dispatcher")
+	fixture.writeManifest(t, true)
+
+	_, err = loadBundleCatalog(fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath)
+	require.ErrorContains(t, err, "resolve to the same file")
+}
+
+func TestLoadBundleCatalogRejectsProvenanceArtifactsResolvingToSameFile(t *testing.T) {
+	fixture := newBundleTestFixture(t)
+	scopedBytes, err := os.ReadFile(fixture.scopedInvariantsPath)
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(fixture.inputScopePath))
+	require.NoError(t, os.Link(fixture.scopedInvariantsPath, fixture.inputScopePath))
+	fixture.payload["artifacts"].(map[string]any)["input_scope"] = artifactTestRecord(
+		"inputs/checker-input-scope.json", scopedBytes, "checker-input-scope",
+	)
 	fixture.writeManifest(t, true)
 
 	_, err = loadBundleCatalog(fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath)

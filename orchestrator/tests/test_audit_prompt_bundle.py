@@ -152,6 +152,36 @@ if args.mode == 'verify':
     dispatcher.chmod(0o755)
     patch = root / "checker-bundle.patch"
     patch.write_text("diff --git a/x b/x\n", encoding="utf-8")
+    scoped_invariants = root / "scoped-accepted-invariants.jsonl"
+    scoped_invariants.write_text(
+        json.dumps(
+            {
+                "invariant_id": "INV-ONE",
+                "statement": "BUNDLE_SCOPED_INVARIANT_SENTINEL",
+                "mechanism": "stack-protector",
+                "target": "x86_64",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    source_invariants_sha = "7" * 64
+    input_scope = root / "checker-input-scope.json"
+    input_scope.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "defuzz-checker-input-scope",
+                "source_artifact": {"sha256": source_invariants_sha},
+                "requested": {"mechanisms": [], "isas": []},
+                "scope_requested": False,
+                "selected_invariant_ids": ["INV-ONE"],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     source_tree_sha = "2" * 64
     final_tree_sha = "3" * 64
     catalog = root / "checker-catalog.json"
@@ -194,6 +224,9 @@ if args.mode == 'verify':
         "source_root_sha256": "1" * 64,
         "source_tree_sha256": source_tree_sha,
         "final_tree_sha256": final_tree_sha,
+        "source_invariants_sha256": source_invariants_sha,
+        "requested_mechanisms": [],
+        "requested_isas": [],
         "coverage_complete": True,
         "budget_exhausted": False,
         "included_invariant_ids": ["INV-ONE"],
@@ -211,6 +244,10 @@ if args.mode == 'verify':
             "cumulative_patch": artifact(patch, "cumulative-patch"),
             "catalog": artifact(catalog, "checker-catalog"),
             "dispatcher": artifact(dispatcher, "checker-dispatcher"),
+            "scoped_invariants": artifact(
+                scoped_invariants, "scoped-accepted-invariants"
+            ),
+            "input_scope": artifact(input_scope, "checker-input-scope"),
         },
         "validation": {
             "status": "passed",
@@ -322,6 +359,132 @@ def test_prompt_variants_have_exact_visibility_and_never_read_findings(tmp_path:
         )
 
 
+def test_generated_invariants_are_filtered_by_mechanism_and_isa_scope(
+    tmp_path: Path,
+) -> None:
+    root = _reference(tmp_path)
+    records: list[dict[str, Any]] = [
+        {
+            "invariant_id": "INV-GENERIC",
+            "statement": "INCLUDE_GENERIC",
+            "mechanism": "stack-canary",
+        },
+        {
+            "invariant_id": "INV-PLATFORM",
+            "statement": "INCLUDE_PLATFORM",
+            "mechanism": "stack-protector",
+            "target": ["Android", "config-smoke"],
+        },
+        {
+            "invariant_id": "INV-MULTI",
+            "statement": "INCLUDE_MULTI_ISA",
+            "mechanism": "SSP",
+            "target": "riscv64 / x86_64",
+        },
+        {
+            "invariant_id": "INV-FAMILY",
+            "statement": "INCLUDE_ISA_FAMILY",
+            "mechanism": "stack-protector",
+            "target": "x86",
+        },
+        {
+            "invariant_id": "INV-LEGACY-ISA",
+            "statement": "INCLUDE_LEGACY_ISA",
+            "mechanism": "stack-protector",
+            "isa": "amd64",
+        },
+        {
+            "invariant_id": "INV-WIDTH",
+            "statement": "EXCLUDE_ISA_WIDTH",
+            "mechanism": "stack-protector",
+            "target": "i386",
+        },
+        {
+            "invariant_id": "INV-UNKNOWN",
+            "statement": "EXCLUDE_UNKNOWN_ISA",
+            "mechanism": "stack-protector",
+            "target": "unknown-architecture",
+        },
+        {
+            "invariant_id": "INV-MIXED-UNKNOWN",
+            "statement": "EXCLUDE_MIXED_UNKNOWN_ISA",
+            "mechanism": "stack-protector",
+            "target": ["generic", "unknown-architecture"],
+        },
+        {
+            "invariant_id": "INV-OTHER-MECHANISM",
+            "statement": "EXCLUDE_OTHER_MECHANISM",
+            "mechanism": "stack-clash-protection",
+            "target": "x86_64",
+        },
+    ]
+
+    bundle = build_worker_prompt_bundle(
+        root,
+        "A",
+        "without-oracle",
+        mechanisms=["SSP"],
+        isas=["x86-64"],
+        generated_invariants=records,
+    )
+
+    document = next(
+        document for document in bundle.documents if document.kind == "generated-invariants"
+    )
+    payload = json.loads(document.content)
+    assert [
+        item["invariant_id"] for item in payload["accepted_invariants"]
+    ] == [
+        "INV-GENERIC",
+        "INV-PLATFORM",
+        "INV-MULTI",
+        "INV-FAMILY",
+        "INV-LEGACY-ISA",
+    ]
+    assert payload["accepted_invariants"][-1]["target"] == "amd64"
+    for sentinel in (
+        "EXCLUDE_ISA_WIDTH",
+        "EXCLUDE_UNKNOWN_ISA",
+        "EXCLUDE_MIXED_UNKNOWN_ISA",
+        "EXCLUDE_OTHER_MECHANISM",
+    ):
+        assert sentinel not in bundle.prompt
+
+
+@pytest.mark.parametrize(
+    ("target", "requested_isa", "expected"),
+    [
+        ("RISC-V", "riscv32", True),
+        ("riscv64", "riscv32", False),
+        ("arm", "aarch64", False),
+    ],
+)
+def test_generated_invariant_isa_family_compatibility(
+    tmp_path: Path, target: str, requested_isa: str, expected: bool
+) -> None:
+    bundle = build_worker_prompt_bundle(
+        _reference(tmp_path),
+        "A",
+        "without-oracle",
+        mechanisms=["stack-protector"],
+        isas=[requested_isa],
+        generated_invariants=[
+            {
+                "invariant_id": "INV-TARGET",
+                "statement": "TARGET_SENTINEL",
+                "mechanism": "stack-protector",
+                "target": target,
+            }
+        ],
+    )
+
+    generated = [
+        document for document in bundle.documents if document.kind == "generated-invariants"
+    ]
+    assert bool(generated) is expected
+    assert ("TARGET_SENTINEL" in bundle.prompt) is expected
+
+
 def test_new_mechanism_prompt_overlay_is_scoped_and_leak_resistant(
     tmp_path: Path,
 ) -> None:
@@ -416,12 +579,20 @@ class _FakeBackend:
     def __init__(self) -> None:
         self.requests: list[AgentRequest] = []
         self.workspace_files: list[set[str]] = []
+        self.workspace_text: list[str] = []
         self.workspace_read_only: list[bool] = []
 
     async def run(self, request: AgentRequest) -> AgentResult:
         self.requests.append(request)
         self.workspace_files.append(
             {path.relative_to(request.cwd).as_posix() for path in request.cwd.rglob("*")}
+        )
+        self.workspace_text.append(
+            "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in request.cwd.rglob("*")
+                if path.is_file()
+            )
         )
         self.workspace_read_only.append(
             not bool(request.cwd.stat().st_mode & stat.S_IWUSR)
@@ -729,6 +900,67 @@ async def test_runner_uses_fake_backend_in_canonical_order_without_archive(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_parity_scope_is_evaluator_only_and_never_reaches_worker(
+    tmp_path: Path,
+) -> None:
+    root = _reference(tmp_path)
+    source = _source(tmp_path)
+    sentinel = "__EVALUATOR_ONLY_PARITY_SCOPE__"
+    finding = root / "findings" / "DREV-2099-997" / "README.md"
+    finding.parent.mkdir(parents=True)
+    finding.write_text(
+        """---
+id: __EVALUATOR_ONLY_PARITY_SCOPE__
+toolchain: gcc
+toolchain_version: gcc-17-20260531
+mechanism: stack-protector
+isa: [x86_64]
+invariant_violated: Every protected return checks the saved guard.
+status: draft
+poc_verified: true
+---
+# evaluator fixture
+""",
+        encoding="utf-8",
+    )
+    backend = _FakeBackend()
+    output = tmp_path / "scope-evaluator-only"
+
+    result = await run(
+        ExperimentPlan(
+            run_id="scope-evaluator-only",
+            experiment="agent-audit",
+            variant="without-oracle",
+            source_root=source,
+            parameters={
+                "reference_root": str(root),
+                "compiler": "gcc",
+                "families": ["A"],
+                "demo_parity": True,
+                "parity_scope": {"demo_ids": [sentinel]},
+            },
+        ),
+        1,
+        output,
+        backend,
+    )
+
+    assert result.success
+    assert len(backend.requests) == 1
+    request = backend.requests[0]
+    assert sentinel not in request.prompt
+    assert "parity_scope" not in request.prompt
+    assert "parity_scope" not in request.metadata
+    assert sentinel not in json.dumps(request.metadata, sort_keys=True)
+    assert all(sentinel not in path for path in backend.workspace_files[0])
+    assert sentinel not in backend.workspace_text[0]
+    report = json.loads((output / "demo-parity.json").read_text(encoding="utf-8"))
+    assert report["scope"]["demo_ids"] == [sentinel]
+    assert report["scope_report"]["selected_demo_ids"] == [sentinel]
+    assert report["scope_status"] == "applicable"
+
+
+@pytest.mark.asyncio
 async def test_runner_rejects_overlapping_original_source_and_reference_roots(
     tmp_path: Path,
 ) -> None:
@@ -921,6 +1153,7 @@ async def test_formal_bundle_routes_one_dispatcher_in_both_modes(
     (source / "compiler.c").write_text("one\ntwo\nthree\nfour\nfive\n", encoding="utf-8")
     manifest, toolchains = _checker_bundle(tmp_path)
     output = tmp_path / "formal-bundle-run"
+    backend = _CandidateBackend()
 
     result = await run(
         ExperimentPlan(
@@ -940,7 +1173,7 @@ async def test_formal_bundle_routes_one_dispatcher_in_both_modes(
         ),
         1,
         output,
-        _CandidateBackend(),
+        backend,
     )
 
     assert result.success
@@ -970,6 +1203,29 @@ async def test_formal_bundle_routes_one_dispatcher_in_both_modes(
     assert [item["mode"] for item in invocations] == ["online", "verify"]
     assert [item["compiler"] for item in invocations] == ["gcc", "gcc"]
     assert summary["checker_bundle"]["compiler"] == "gcc"
+    scoped = manifest.parent / "scoped-accepted-invariants.jsonl"
+    input_scope = manifest.parent / "checker-input-scope.json"
+    scoped_hash = _sha256_bytes(scoped.read_bytes())
+    assert "BUNDLE_SCOPED_INVARIANT_SENTINEL" in backend.requests[0].prompt
+    assert summary["generated_invariants"] == {
+        "visible_to_worker": True,
+        "records": 1,
+        "sha256": scoped_hash,
+        "path": str(scoped.resolve()),
+        "source": "checker-bundle-scoped",
+        "bundle_id": summary["checker_bundle"]["bundle_id"],
+    }
+    assert summary["checker_bundle"]["scoped_invariants_path"] == str(
+        scoped.resolve()
+    )
+    assert summary["checker_bundle"]["scoped_invariants_sha256"] == scoped_hash
+    assert summary["checker_bundle"]["input_scope_path"] == str(
+        input_scope.resolve()
+    )
+    assert summary["checker_bundle"]["input_scope_sha256"] == _sha256_bytes(
+        input_scope.read_bytes()
+    )
+    assert result.metadata["generated_invariants"] == summary["generated_invariants"]
 
 
 @pytest.mark.asyncio
@@ -1375,6 +1631,44 @@ async def test_formal_bundle_tamper_fails_before_worker(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_formal_bundle_rejects_spliced_invariants_before_worker(tmp_path: Path) -> None:
+    reference = _reference(tmp_path)
+    source = _source(tmp_path)
+    manifest, toolchains = _checker_bundle(tmp_path)
+    spliced = tmp_path / "spliced-invariants.jsonl"
+    spliced.write_text(
+        '{"invariant_id":"INV-SPLICED","statement":"DO_NOT_SHOW"}\n',
+        encoding="utf-8",
+    )
+    backend = _FakeBackend()
+
+    result = await run(
+        ExperimentPlan(
+            run_id="spliced-invariants",
+            experiment="agent-audit",
+            variant="without-oracle",
+            source_root=source,
+            parameters={
+                "reference_root": str(reference),
+                "compiler": "gcc",
+                "checker_bundle_manifest": str(manifest),
+                "toolchains_config": str(toolchains),
+                "accepted_invariants": str(spliced),
+                "require_verified_candidates": True,
+            },
+        ),
+        1,
+        tmp_path / "spliced-output",
+        backend,
+    )
+
+    assert result.status == "failed"
+    assert "does not match checker-bundle scoped_invariants" in (result.error or "")
+    assert backend.requests == []
+    assert not (tmp_path / "spliced-output").exists()
+
+
+@pytest.mark.asyncio
 async def test_formal_zero_candidate_run_is_a_valid_negative_outcome(
     tmp_path: Path,
 ) -> None:
@@ -1598,6 +1892,7 @@ async def test_bare_runner_is_one_neutral_worker_and_can_keep_workspace(
         full_backend,
     )
     backend = _FakeBackend()
+    manifest, toolchains = _checker_bundle(tmp_path)
     result = await run(
         ExperimentPlan(
             run_id="bare",
@@ -1610,6 +1905,9 @@ async def test_bare_runner_is_one_neutral_worker_and_can_keep_workspace(
                 "mechanisms": ["stack-protector"],
                 "families": ["A"],
                 "keep_workspace": True,
+                "checker_bundle_manifest": str(manifest),
+                "toolchains_config": str(toolchains),
+                "require_verified_candidates": True,
             },
         ),
         1,
@@ -1623,11 +1921,24 @@ async def test_bare_runner_is_one_neutral_worker_and_can_keep_workspace(
     assert request.metadata["family"] == "neutral"
     assert "FAMILY_A_ONLY" not in request.prompt
     assert "stack-protector" not in request.prompt
+    assert "BUNDLE_SCOPED_INVARIANT_SENTINEL" not in request.prompt
+    assert "BUNDLE_SCOPED_INVARIANT_SENTINEL" not in json.dumps(
+        request.metadata, sort_keys=True
+    )
+    assert "BUNDLE_SCOPED_INVARIANT_SENTINEL" not in backend.workspace_text[0]
     assert "AuditReport" not in request.prompt
     assert request.cwd.is_dir()
     assert result.metadata["workspace_path"] == str(request.cwd)
     assert result.metadata["workspace_kept"] is True
     assert result.metadata["host_absolute_path_read_isolation"] is True
+    assert result.metadata["generated_invariants"]["visible_to_worker"] is False
+    assert result.metadata["generated_invariants"]["records"] == 0
+    assert result.metadata["generated_invariants"]["source"] == (
+        "checker-bundle-scoped"
+    )
+    assert result.metadata["generated_invariants"]["sha256"] == _sha256_bytes(
+        (manifest.parent / "scoped-accepted-invariants.jsonl").read_bytes()
+    )
     assert full_result.metadata["workspace_sha256"] == result.metadata["workspace_sha256"]
     request.cwd.chmod(request.cwd.stat().st_mode | stat.S_IRWXU)
     for path in request.cwd.rglob("*"):

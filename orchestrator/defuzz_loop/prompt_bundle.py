@@ -23,6 +23,7 @@ from .audit_schema import (
     AuditVariant,
     audit_report_json_schema,
     canonical_family,
+    normalize_isa,
     normalize_mechanism,
 )
 
@@ -95,6 +96,34 @@ _MECHANISM_PROMPT_GUIDANCE: dict[str, str] = {
         "late lowering, target-specific epilogues, and linker-visible code paths."
     ),
 }
+
+# Keep these local rules aligned with checker_authoring's input projection so
+# Part III cannot regain a Part I invariant that Part II scoped out.
+_ISA_TOKEN_PATTERNS = (
+    (r"^(?:x86-64|amd64|x64)(?:-|$)", "x86_64"),
+    (r"^(?:i[3-6]86|x86-32)(?:-|$)", "i386"),
+    (r"^x86(?:-|$)", "x86"),
+    (r"^(?:riscv64|risc-v64|risc-v-64)(?:[a-z0-9]*)(?:-|$)", "riscv64"),
+    (r"^(?:riscv32|risc-v32|risc-v-32)(?:[a-z0-9]*)(?:-|$)", "riscv32"),
+    (r"^(?:riscv|risc-v)(?:-|$)", "riscv"),
+    (r"^(?:aarch64|arm64)(?:-|$)", "aarch64"),
+    (r"^(?:arm|arm32|armv[4-9][a-z0-9]*|thumbv?[0-9]*)(?:-|$)", "arm"),
+    (r"^(?:powerpc64|ppc64)(?:le|be)?(?:-|$)", "ppc64"),
+    (r"^(?:powerpc|ppc)(?:-|$)", "ppc"),
+    (r"^mips64(?:el)?(?:-|$)", "mips64"),
+    (r"^mips(?:el)?(?:-|$)", "mips"),
+    (r"^s390x(?:-|$)", "s390x"),
+    (r"^s390(?:-|$)", "s390"),
+    (r"^sparc64(?:-|$)", "sparc64"),
+    (r"^sparc(?:-|$)", "sparc"),
+    (r"^loongarch64(?:-|$)", "loongarch64"),
+    (r"^wasm64(?:-|$)", "wasm64"),
+    (r"^wasm32(?:-|$)", "wasm32"),
+    (r"^(?:alpha|hppa|m68k|xtensa|csky|or1k|arc|microblaze)(?:-|$)", None),
+)
+_GENERIC_TARGETS = frozenset(
+    {"all", "any", "generic", "linux", "android", "config-smoke"}
+)
 
 # Compatibility name retained for callers of the first prompt-overlay API; the
 # implementation and alias table now live exclusively in audit_schema.
@@ -375,12 +404,75 @@ def _mechanism_guidance_document(mechanisms: Sequence[str]) -> PromptDocument | 
     )
 
 
+def _known_isa(value: str) -> tuple[bool, str | None]:
+    folded = normalize_isa(value).replace("_", "-")
+    for pattern, canonical in _ISA_TOKEN_PATTERNS:
+        if re.search(pattern, folded):
+            return True, canonical or folded.split("-", 1)[0]
+    return False, None
+
+
+def _target_values(target: Any) -> tuple[str, ...]:
+    if target is None:
+        return ()
+    values = target if isinstance(target, (list, tuple)) else [target]
+    return tuple(
+        token
+        for value in values
+        for token in re.split(r"\s*(?:,|/|\||;)\s*", str(value).strip())
+        if token
+    )
+
+
+def _isa_compatible(requested: str, target: str) -> bool:
+    if requested == target:
+        return True
+    for family, members in (
+        ("x86", frozenset({"i386", "x86_64"})),
+        ("riscv", frozenset({"riscv32", "riscv64"})),
+    ):
+        if requested == family and target in members:
+            return True
+        if target == family and requested in members:
+            return True
+    return False
+
+
+def _target_matches_isa_scope(target: Any, requested_isas: Sequence[str]) -> bool:
+    """Mirror Part II target scoping for the worker-visible invariant handoff."""
+
+    if not requested_isas:
+        return True
+    raw_targets = _target_values(target)
+    if not raw_targets:
+        return True
+    normalized_targets = tuple(normalize_isa(value) for value in raw_targets)
+    if any(requested in normalized_targets for requested in requested_isas):
+        return True
+    classifications = tuple(_known_isa(value) for value in raw_targets)
+    known_targets = tuple(
+        sorted({isa for is_isa, isa in classifications if is_isa and isa is not None})
+    )
+    if not known_targets:
+        return all(normalize_isa(value) in _GENERIC_TARGETS for value in raw_targets)
+    for requested in requested_isas:
+        requested_classified, requested_isa = _known_isa(requested)
+        if requested_classified and requested_isa is not None and any(
+            _isa_compatible(requested_isa, target_isa) for target_isa in known_targets
+        ):
+            return True
+    return False
+
+
 def _generated_invariant_document(
-    records: Sequence[Mapping[str, Any]], mechanisms: Sequence[str]
+    records: Sequence[Mapping[str, Any]],
+    mechanisms: Sequence[str],
+    isas: Sequence[str] = (),
 ) -> PromptDocument | None:
     """Render the Part I handoff without leaking its host path or raw provenance."""
 
     wanted = {normalize_mechanism(value) for value in mechanisms}
+    wanted_isas = tuple(sorted({normalize_isa(value) for value in isas if value.strip()}))
     safe_fields = (
         "invariant_id",
         "statement",
@@ -401,8 +493,15 @@ def _generated_invariant_document(
         mechanism = normalize_mechanism(str(record.get("mechanism", "")))
         if wanted and mechanism not in wanted:
             continue
+        target = record.get(
+            "target", record.get("isa", record.get("applicable_isas"))
+        )
+        if wanted_isas and not _target_matches_isa_scope(target, wanted_isas):
+            continue
         item = {key: record[key] for key in safe_fields if key in record}
         item["mechanism"] = mechanism
+        if "target" not in item and target is not None:
+            item["target"] = target
         selected.append(item)
     if not selected:
         return None
@@ -528,7 +627,9 @@ def build_worker_prompt_bundle(
                 continue
             documents.append(_document(root, path, kind))
     if policy.include_invariants:
-        generated = _generated_invariant_document(generated_invariants, selected_mechanisms)
+        generated = _generated_invariant_document(
+            generated_invariants, selected_mechanisms, isas
+        )
         if generated is not None:
             documents.append(generated)
     if policy.include_online_oracle:

@@ -27,7 +27,12 @@ from pydantic import (
     model_validator,
 )
 
-from .audit_schema import AuditCandidate, AuditReport, normalize_mechanism
+from .audit_schema import (
+    AuditCandidate,
+    AuditReport,
+    normalize_isa,
+    normalize_mechanism,
+)
 
 _TOP_LEVEL = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]*(.*))?$")
 _MARKDOWN = re.compile(r"[*_#>\[\]{}()]+")
@@ -51,6 +56,7 @@ ThresholdMetric = Literal["f1", "recall"]
 ParityProfile = Literal["demo-workset", "poc-verified"]
 ResolvedParityProfile = Literal["demo-workset", "poc-verified", "custom"]
 ExclusionReason = Literal["schema_invalid", "retracted", "poc_not_verified"]
+ScopeStatus = Literal["not_requested", "applicable", "not_applicable"]
 _PROFILE_DESCRIPTIONS: dict[ResolvedParityProfile, str] = {
     "demo-workset": (
         "Engineering parity/superset workset: schema-valid, non-retracted demo "
@@ -82,6 +88,7 @@ class DemoFinding(BaseModel):
     toolchain: str = ""
     toolchain_version: str = ""
     mechanism: str = ""
+    isa: list[str] = Field(default_factory=list)
     invariant_violated: str = ""
     root_cause: str = ""
     status: str = ""
@@ -105,7 +112,7 @@ class DemoFinding(BaseModel):
             return value.strip().casefold() == "true"
         return None
 
-    @field_validator("checker_ids", "schema_issues", mode="before")
+    @field_validator("isa", "checker_ids", "schema_issues", mode="before")
     @classmethod
     def _list_or_empty(cls, value: Any) -> list[Any]:
         if value in (None, ""):
@@ -152,6 +159,110 @@ class BenchmarkProfileReport(BaseModel):
 
     name: ResolvedParityProfile
     description: str
+    aggregates: FindingAggregates = Field(default_factory=FindingAggregates)
+
+
+class ParityScope(BaseModel):
+    """Evaluator-only benchmark scope.
+
+    Values within one dimension are ORed; populated dimensions are ANDed.
+    Exact ``demo_ids`` cannot be combined with dimension filters.  Absence of
+    this model preserves the historical unscoped benchmark behavior.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    toolchains: tuple[str, ...] = ()
+    version: tuple[str, ...] = ()
+    mechanisms: tuple[str, ...] = ()
+    isas: tuple[str, ...] = ()
+    demo_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_compatibility_names(cls, value: Any) -> Any:
+        if not isinstance(value, Mapping):
+            return value
+        payload = dict(value)
+        aliases = {
+            "compiler": "toolchains",
+            "toolchain": "toolchains",
+            "versions": "version",
+            "mechanism": "mechanisms",
+            "isa": "isas",
+        }
+        for alias, canonical in aliases.items():
+            if alias not in payload:
+                continue
+            if canonical in payload:
+                raise ValueError(f"{alias} cannot be combined with {canonical}")
+            payload[canonical] = payload.pop(alias)
+        return payload
+
+    @field_validator("toolchains", "version", "mechanisms", "isas", "demo_ids", mode="before")
+    @classmethod
+    def _tuple_values(cls, value: Any) -> tuple[str, ...]:
+        if value in (None, ""):
+            return ()
+        values = (value,) if isinstance(value, str) else tuple(value)
+        normalized = tuple(str(item).strip() for item in values)
+        if any(not item for item in normalized):
+            raise ValueError("parity scope values must be non-empty strings")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("parity scope values must be unique")
+        return normalized
+
+    @field_validator("toolchains")
+    @classmethod
+    def _normalize_toolchains(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(normalize_toolchain(item) for item in value))
+
+    @field_validator("mechanisms")
+    @classmethod
+    def _normalize_mechanisms(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(normalize_mechanism(item) for item in value))
+
+    @field_validator("isas")
+    @classmethod
+    def _normalize_isas(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(normalize_isa(item) for item in value))
+
+    @model_validator(mode="after")
+    def _validate_selector_mode(self) -> ParityScope:
+        dimensions = (self.toolchains, self.version, self.mechanisms, self.isas)
+        if self.demo_ids and any(dimensions):
+            raise ValueError("demo_ids cannot be combined with dimension filters")
+        if not self.demo_ids and not any(dimensions):
+            raise ValueError("parity scope requires demo_ids or at least one dimension")
+        normalized_versions: list[str] = []
+        for version in self.version:
+            if self.toolchains:
+                normalized_versions.extend(
+                    normalize_toolchain_version(version, toolchain=toolchain)
+                    for toolchain in self.toolchains
+                )
+            else:
+                normalized_versions.append(normalize_toolchain_version(version))
+        object.__setattr__(
+            self, "version", tuple(dict.fromkeys(normalized_versions))
+        )
+        return self
+
+    @property
+    def versions(self) -> tuple[str, ...]:
+        """Compatibility spelling for callers using a plural dimension name."""
+
+        return self.version
+
+
+class ParityScopeReport(BaseModel):
+    requested: ParityScope | None = None
+    status: ScopeStatus = "not_requested"
+    empty_scope: bool = False
+    not_applicable: bool = False
+    selected_demo_ids: list[str] = Field(default_factory=list)
+    excluded_demo_ids: list[str] = Field(default_factory=list)
+    unresolved_demo_ids: list[str] = Field(default_factory=list)
     aggregates: FindingAggregates = Field(default_factory=FindingAggregates)
 
 
@@ -230,13 +341,14 @@ class BenchmarkExclusion(BaseModel):
 
 
 class ParityResult(BaseModel):
-    schema_version: int = 3
+    schema_version: int = 4
     matches: list[ParityMatch] = Field(default_factory=list)
     ambiguous_matches: list[AmbiguousParityMatch] = Field(default_factory=list)
     missing_demo_ids: list[str] = Field(default_factory=list)
     unmatched_candidate_indices: list[int] = Field(default_factory=list)
     raw_corpus_aggregates: FindingAggregates = Field(default_factory=FindingAggregates)
     profile_aggregates: FindingAggregates = Field(default_factory=FindingAggregates)
+    scoped_aggregates: FindingAggregates = Field(default_factory=FindingAggregates)
     # Compatibility name used by early reports. It is the selected-profile
     # aggregate, not the unfiltered raw corpus aggregate.
     demo_aggregates: FindingAggregates = Field(default_factory=FindingAggregates)
@@ -247,6 +359,8 @@ class ParityResult(BaseModel):
     f1: float = 0.0
     match_count: int = Field(default=0, ge=0)
     raw_total: int = Field(default=0, ge=0)
+    profile_total: int = Field(default=0, ge=0)
+    scoped_total: int = Field(default=0, ge=0)
     benchmark_total: int = Field(default=0, ge=0)
     profile: ResolvedParityProfile = "demo-workset"
     profile_description: str = _PROFILE_DESCRIPTIONS["demo-workset"]
@@ -260,6 +374,11 @@ class ParityResult(BaseModel):
     exclusion_reasons: dict[str, list[str]] = Field(default_factory=dict)
     excluded_ids: list[str] = Field(default_factory=list)
     benchmark_policy: BenchmarkPolicy = Field(default_factory=BenchmarkPolicy)
+    scope: ParityScope | None = None
+    scope_report: ParityScopeReport = Field(default_factory=ParityScopeReport)
+    scope_status: ScopeStatus = "not_requested"
+    empty_scope: bool = False
+    not_applicable: bool = False
     threshold: float | None = Field(default=None, ge=0.0, le=1.0)
     threshold_metric: ThresholdMetric = "recall"
     threshold_blocking: bool = False
@@ -282,10 +401,25 @@ class ParityResult(BaseModel):
             description=self.profile_description,
             aggregates=self.profile_aggregates,
         )
-        self.superset_coverage = self.recall
+        self.profile_total = self.profile_aggregates.total
+        self.scoped_total = self.scoped_aggregates.total
+        self.benchmark_total = self.scoped_total
+        self.scope = self.scope_report.requested
+        self.scope_status = self.scope_report.status
+        self.empty_scope = self.scope_report.empty_scope
+        self.not_applicable = self.scope_report.not_applicable
+        self.superset_coverage = 0.0 if self.not_applicable else self.recall
         metric = self.recall if self.threshold_metric == "recall" else self.f1
-        self.threshold_pass = metric >= self.threshold if self.threshold is not None else None
-        self.threshold_blocked = self.threshold_blocking and self.threshold_pass is False
+        self.threshold_pass = (
+            None
+            if self.not_applicable or self.threshold is None
+            else metric >= self.threshold
+        )
+        self.threshold_blocked = (
+            not self.not_applicable
+            and self.threshold_blocking
+            and self.threshold_pass is False
+        )
         return self
 
     @property
@@ -309,8 +443,13 @@ def parity_metrics(result: ParityResult) -> dict[str, int | float | bool | str |
         "superset_coverage": result.superset_coverage,
         "match_count": result.match_count,
         "raw_total": result.raw_total,
+        "profile_total": result.profile_total,
+        "scoped_total": result.scoped_total,
         "benchmark_total": result.benchmark_total,
         "profile": result.profile,
+        "scope_status": result.scope_status,
+        "empty_scope": result.empty_scope,
+        "not_applicable": result.not_applicable,
         "threshold": result.threshold,
         "threshold_metric": result.threshold_metric,
         "threshold_blocking": result.threshold_blocking,
@@ -322,6 +461,30 @@ def parity_metrics(result: ParityResult) -> dict[str, int | float | bool | str |
 def normalize_toolchain(value: str) -> str:
     normalized = "-".join(_WORDS.findall(unicodedata.normalize("NFKC", value).casefold()))
     return _TOOLCHAIN_ALIASES.get(normalized, normalized)
+
+
+def normalize_toolchain_version(value: str, *, toolchain: str = "") -> str:
+    """Normalize stable compiler release identities without using snapshot dates.
+
+    GCC spellings such as ``gcc-17-20260531``,
+    ``gcc-17 (20260531 snapshot)``, and ``gcc-17.0.0-20260531`` all
+    normalize to ``gcc-17``.  Other toolchains use the same major-release rule
+    only when their name is explicit or supplied separately.
+    """
+
+    folded = unicodedata.normalize("NFKC", value).casefold().strip()
+    normalized_toolchain = normalize_toolchain(toolchain)
+    known_toolchains = ("gcc", "llvm", "clang", "lld", "binutils", "compiler-rt")
+    for name in known_toolchains:
+        match = re.search(rf"(?<![a-z0-9]){re.escape(name)}(?:org)?[-\s_]*v?(\d{{1,3}})", folded)
+        if match:
+            canonical = normalize_toolchain(name)
+            return f"{canonical}-{int(match.group(1))}"
+    if normalized_toolchain:
+        match = re.match(r"^\s*v?(\d{1,3})(?:\.\d+)*", folded)
+        if match:
+            return f"{normalized_toolchain}-{int(match.group(1))}"
+    return "-".join(_WORDS.findall(folded))
 
 
 def normalize_root_cause(value: str) -> str:
@@ -438,12 +601,59 @@ def _scope_compatible(
 ) -> bool:
     left_identity = finding_identity(left)
     right_identity = finding_identity(right)
-    return (
+    if not (
         bool(left_identity.toolchain)
         and left_identity.toolchain == right_identity.toolchain
         and bool(left_identity.mechanism)
         and left_identity.mechanism == right_identity.mechanism
+    ):
+        return False
+
+    left_version = normalize_toolchain_version(
+        str(_value(left, "toolchain_version", "")),
+        toolchain=left_identity.toolchain,
     )
+    right_version = normalize_toolchain_version(
+        str(_value(right, "toolchain_version", "")),
+        toolchain=right_identity.toolchain,
+    )
+    # A declared release is a lane constraint.  Missing legacy metadata remains
+    # compatible, but two declared and different releases must never match.
+    if left_version and right_version and left_version != right_version:
+        return False
+
+    def normalized_isas(value: object) -> set[str]:
+        raw = _value(value, "isa", ())
+        if raw in (None, ""):
+            return set()
+        values = (raw,) if isinstance(raw, str) else raw
+        return {normalize_isa(str(item)) for item in values if str(item).strip()}
+
+    left_isas = normalized_isas(left)
+    right_isas = normalized_isas(right)
+    # `generic` is an explicit wildcard.  As with version, absent metadata is
+    # retained for backwards compatibility; conflicting declared ISAs are not.
+    if left_isas and right_isas and not _isa_sets_compatible(left_isas, right_isas):
+        return False
+    return True
+
+
+def _isa_pair_compatible(left: str, right: str) -> bool:
+    if left == right or "generic" in {left, right}:
+        return True
+    for family, members in (
+        ("x86", frozenset({"i386", "x86_64"})),
+        ("riscv", frozenset({"riscv32", "riscv64"})),
+    ):
+        if left == family and right in members:
+            return True
+        if right == family and left in members:
+            return True
+    return False
+
+
+def _isa_sets_compatible(left: set[str] | frozenset[str], right: set[str] | frozenset[str]) -> bool:
+    return any(_isa_pair_compatible(lhs, rhs) for lhs in left for rhs in right)
 
 
 def _token_set(value: object) -> frozenset[str]:
@@ -702,6 +912,74 @@ def _policy_findings(
     return included, excluded
 
 
+def _scope_versions(scope: ParityScope) -> frozenset[str]:
+    return frozenset(scope.version)
+
+
+def _finding_isas(finding: DemoFinding) -> frozenset[str]:
+    return frozenset(normalize_isa(value) for value in finding.isa if value.strip())
+
+
+def _scope_matches(finding: DemoFinding, scope: ParityScope) -> bool:
+    if scope.demo_ids:
+        return finding.id in scope.demo_ids
+    if scope.toolchains and normalize_toolchain(finding.toolchain) not in scope.toolchains:
+        return False
+    if scope.version:
+        finding_version = normalize_toolchain_version(
+            finding.toolchain_version, toolchain=finding.toolchain
+        )
+        if finding_version not in _scope_versions(scope):
+            return False
+    if scope.mechanisms and normalize_mechanism(finding.mechanism) not in scope.mechanisms:
+        return False
+    if scope.isas:
+        finding_isas = _finding_isas(finding)
+        if not finding_isas or not _isa_sets_compatible(finding_isas, frozenset(scope.isas)):
+            return False
+    return True
+
+
+def _scope_findings(
+    findings: Sequence[DemoFinding], scope: ParityScope | None
+) -> tuple[list[DemoFinding], ParityScopeReport]:
+    if scope is None:
+        unscoped_findings = list(findings)
+        return unscoped_findings, ParityScopeReport(
+            status="not_requested",
+            selected_demo_ids=[
+                finding.id or finding.source_path for finding in unscoped_findings
+            ],
+            aggregates=aggregate_findings(unscoped_findings),
+        )
+
+    selected: list[DemoFinding] = []
+    excluded_ids: list[str] = []
+    for finding in findings:
+        if _scope_matches(finding, scope):
+            selected.append(finding)
+        else:
+            excluded_ids.append(finding.id or finding.source_path)
+    selected_ids = [finding.id or finding.source_path for finding in selected]
+    selected_id_set = set(selected_ids)
+    unresolved = (
+        [demo_id for demo_id in scope.demo_ids if demo_id not in selected_id_set]
+        if scope.demo_ids
+        else []
+    )
+    empty = not selected
+    return selected, ParityScopeReport(
+        requested=scope,
+        status="not_applicable" if empty else "applicable",
+        empty_scope=empty,
+        not_applicable=empty,
+        selected_demo_ids=selected_ids,
+        excluded_demo_ids=excluded_ids,
+        unresolved_demo_ids=unresolved,
+        aggregates=aggregate_findings(selected),
+    )
+
+
 def _resolve_unique_edges(
     candidates: Sequence[AuditCandidate],
     demos: Sequence[DemoFinding],
@@ -710,7 +988,13 @@ def _resolve_unique_edges(
     edges: Mapping[tuple[int, int], float],
     *,
     match_method: str,
-) -> tuple[list[ParityMatch], list[AmbiguousParityMatch], set[int], set[int]]:
+) -> tuple[
+    list[ParityMatch],
+    list[AmbiguousParityMatch],
+    set[int],
+    set[int],
+    set[int],
+]:
     """Resolve isolated one-to-one edges; quarantine all ambiguous components."""
 
     candidate_edges: defaultdict[int, set[int]] = defaultdict(set)
@@ -803,7 +1087,7 @@ def _resolve_unique_edges(
 
     handled_candidates = matched_candidates | visited_candidates
     handled_demos = matched_demos | visited_demos
-    return matches, ambiguous, handled_candidates, handled_demos
+    return matches, ambiguous, handled_candidates, handled_demos, matched_demos
 
 
 def _tier_edges(
@@ -820,6 +1104,8 @@ def _tier_edges(
         candidate = candidates[candidate_index]
         for demo_index in sorted(demo_indices):
             demo = demos[demo_index]
+            if not _scope_compatible(candidate, demo):
+                continue
             score = 0.0
             if tier == "finding_key":
                 text_key = _finding_key(candidate)
@@ -861,6 +1147,7 @@ def evaluate_demo_parity(
     threshold_blocking: bool = False,
     profile: ParityProfile | None = None,
     benchmark_policy: BenchmarkPolicy | Mapping[str, Any] | None = None,
+    scope: ParityScope | Mapping[str, Any] | None = None,
     token_similarity_threshold: float = _DEFAULT_TOKEN_SIMILARITY_THRESHOLD,
 ) -> ParityResult:
     """Layered, deterministic one-to-one parity matching.
@@ -900,7 +1187,15 @@ def evaluate_demo_parity(
         policy = BenchmarkPolicy.model_validate(
             {**policy.model_dump(mode="python"), "profile": profile}
         )
-    benchmark_findings, exclusions = _policy_findings(parsed.findings, policy)
+    profile_findings, exclusions = _policy_findings(parsed.findings, policy)
+    resolved_scope = (
+        scope if isinstance(scope, ParityScope) else ParityScope.model_validate(scope)
+        if scope is not None
+        else None
+    )
+    benchmark_findings, scope_report = _scope_findings(
+        profile_findings, resolved_scope
+    )
     excluded_ids = [exclusion.finding_id for exclusion in exclusions]
     exclusions_by_reason = {
         reason: [
@@ -933,7 +1228,13 @@ def evaluate_demo_parity(
         )
         if not edges:
             continue
-        tier_matches, tier_ambiguous, matched_candidates, matched_demos = (
+        (
+            tier_matches,
+            tier_ambiguous,
+            handled_candidates,
+            handled_demos,
+            tier_matched_demos,
+        ) = (
             _resolve_unique_edges(
                 candidate_items,
                 benchmark_findings,
@@ -945,17 +1246,12 @@ def evaluate_demo_parity(
         )
         matches.extend(tier_matches)
         ambiguous.extend(tier_ambiguous)
-        available_candidates -= matched_candidates
-        available_demos -= matched_demos
+        available_candidates -= handled_candidates
+        available_demos -= handled_demos
         matched_candidate_indices.update(
             match.candidate_index for match in tier_matches
         )
-        matched_demo_ids = {match.demo_id for match in tier_matches}
-        matched_demo_indices.update(
-            index
-            for index, finding in enumerate(benchmark_findings)
-            if (finding.id or finding.source_path) in matched_demo_ids
-        )
+        matched_demo_indices.update(tier_matched_demos)
 
     matches.sort(key=lambda match: (match.candidate_index, match.demo_id))
     missing = [
@@ -967,7 +1263,8 @@ def evaluate_demo_parity(
     recall = len(matches) / len(benchmark_findings) if benchmark_findings else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
     raw_aggregates = aggregate_findings(parsed)
-    profile_aggregates = aggregate_findings(benchmark_findings)
+    profile_aggregates = aggregate_findings(profile_findings)
+    scoped_aggregates = aggregate_findings(benchmark_findings)
     return ParityResult(
         matches=matches,
         ambiguous_matches=ambiguous,
@@ -975,6 +1272,7 @@ def evaluate_demo_parity(
         unmatched_candidate_indices=unmatched,
         raw_corpus_aggregates=raw_aggregates,
         profile_aggregates=profile_aggregates,
+        scoped_aggregates=scoped_aggregates,
         demo_aggregates=profile_aggregates,
         candidate_aggregates=aggregate_findings(candidate_items),
         parse_issues=parsed.issues,
@@ -982,12 +1280,16 @@ def evaluate_demo_parity(
         recall=recall,
         f1=f1,
         raw_total=len(parsed.findings),
+        profile_total=len(profile_findings),
+        scoped_total=len(benchmark_findings),
         benchmark_total=len(benchmark_findings),
         profile=policy.profile,
         exclusions=exclusions,
         exclusion_reasons=exclusions_by_reason,
         excluded_ids=excluded_ids,
         benchmark_policy=policy,
+        scope=resolved_scope,
+        scope_report=scope_report,
         threshold=threshold,
         threshold_metric=threshold_metric,
         threshold_blocking=threshold_blocking,

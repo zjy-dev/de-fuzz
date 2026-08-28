@@ -78,12 +78,20 @@ class CheckerBundleArtifacts(_StrictModel):
     cumulative_patch: CheckerBundleArtifact | None = None
     catalog: CheckerBundleArtifact | None = None
     dispatcher: CheckerBundleArtifact | None = None
+    scoped_invariants: CheckerBundleArtifact | None = None
+    input_scope: CheckerBundleArtifact | None = None
 
     @model_validator(mode="after")
     def _paths_are_unique(self) -> CheckerBundleArtifacts:
         paths = [
             artifact.path
-            for artifact in (self.cumulative_patch, self.catalog, self.dispatcher)
+            for artifact in (
+                self.cumulative_patch,
+                self.catalog,
+                self.dispatcher,
+                self.scoped_invariants,
+                self.input_scope,
+            )
             if artifact is not None
         ]
         if len(set(paths)) != len(paths):
@@ -135,6 +143,9 @@ class CheckerBundleManifest(_StrictModel):
     source_root_sha256: Sha256Hex
     source_tree_sha256: Sha256Hex
     final_tree_sha256: Sha256Hex
+    source_invariants_sha256: Sha256Hex
+    requested_mechanisms: list[NonEmptyString]
+    requested_isas: list[NonEmptyString]
     coverage_complete: bool
     budget_exhausted: bool
     included_invariant_ids: list[NonEmptyString]
@@ -142,6 +153,17 @@ class CheckerBundleManifest(_StrictModel):
     invariants: list[CheckerBundleInvariant]
     artifacts: CheckerBundleArtifacts
     validation: CheckerBundleValidation
+
+    @field_validator("requested_mechanisms", "requested_isas")
+    @classmethod
+    def _scope_values_are_canonical(cls, values: list[str]) -> list[str]:
+        if any(value != value.strip() for value in values):
+            raise ValueError(
+                "checker-bundle requested scope values must not have surrounding whitespace"
+            )
+        if len(set(values)) != len(values):
+            raise ValueError("checker-bundle requested scope values must be unique")
+        return values
 
     @model_validator(mode="after")
     def _manifest_is_consistent(self) -> CheckerBundleManifest:
@@ -192,6 +214,8 @@ class CheckerBundleManifest(_StrictModel):
                 self.artifacts.cumulative_patch,
                 self.artifacts.catalog,
                 self.artifacts.dispatcher,
+                self.artifacts.scoped_invariants,
+                self.artifacts.input_scope,
             )
         )
         all_invariants_terminal = all(
@@ -212,7 +236,7 @@ class CheckerBundleManifest(_StrictModel):
                 "checker-bundle status must be 'ready' exactly when all invariants are "
                 "terminal without infrastructure errors or budget exhaustion, at least "
                 "one checker is included, validation passed, and the dispatcher build and "
-                "all required artifacts are present"
+                "all required output and input-provenance artifacts are present"
             )
         return self
 
@@ -226,6 +250,8 @@ class ValidatedCheckerBundle(_StrictModel):
     cumulative_patch: Path | None
     catalog: Path | None
     dispatcher: Path | None
+    scoped_invariants: Path | None
+    input_scope: Path | None
 
 
 def compute_bundle_id(
@@ -322,6 +348,116 @@ def _resolve_artifact(
     return resolved
 
 
+def _load_json_object(path: Path, *, role: str) -> Mapping[str, Any]:
+    try:
+        with path.open("r", encoding="utf-8") as stream:
+            payload = json.load(stream)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"checker-bundle {role} artifact must contain valid UTF-8 JSON") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"checker-bundle {role} artifact must contain a JSON object")
+    return payload
+
+
+def _scope_string_list(value: Any, *, field: str) -> list[str]:
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item or item != item.strip() for item in value
+    ):
+        raise ValueError(
+            f"checker-bundle input_scope {field} must be a list of non-empty strings"
+        )
+    if len(set(value)) != len(value):
+        raise ValueError(f"checker-bundle input_scope {field} values must be unique")
+    return value
+
+
+def _validate_input_provenance(
+    manifest: CheckerBundleManifest,
+    *,
+    scoped_invariants: Path | None,
+    input_scope: Path | None,
+) -> None:
+    """Cross-check the two content-addressed inputs against manifest lineage."""
+
+    if scoped_invariants is None or input_scope is None:
+        return
+    scope_payload = _load_json_object(input_scope, role="input_scope")
+    if scope_payload.get("schema_version") != 1:
+        raise ValueError("checker-bundle input_scope schema_version must be 1")
+    if scope_payload.get("kind") != "defuzz-checker-input-scope":
+        raise ValueError(
+            "checker-bundle input_scope kind must be 'defuzz-checker-input-scope'"
+        )
+
+    source_artifact = scope_payload.get("source_artifact")
+    if not isinstance(source_artifact, Mapping):
+        raise ValueError(
+            "checker-bundle input_scope source_artifact must contain a JSON object"
+        )
+    if source_artifact.get("sha256") != manifest.source_invariants_sha256:
+        raise ValueError(
+            "checker-bundle source_invariants_sha256 does not match input_scope "
+            "source_artifact.sha256"
+        )
+
+    requested = scope_payload.get("requested")
+    if not isinstance(requested, Mapping):
+        raise ValueError("checker-bundle input_scope requested must contain a JSON object")
+    mechanisms = _scope_string_list(
+        requested.get("mechanisms"), field="requested.mechanisms"
+    )
+    isas = _scope_string_list(requested.get("isas"), field="requested.isas")
+    if scope_payload.get("scope_requested") is not bool(mechanisms or isas):
+        raise ValueError(
+            "checker-bundle input_scope scope_requested does not match requested scope"
+        )
+    if mechanisms != manifest.requested_mechanisms:
+        raise ValueError(
+            "checker-bundle requested_mechanisms do not match input_scope requested.mechanisms"
+        )
+    if isas != manifest.requested_isas:
+        raise ValueError(
+            "checker-bundle requested_isas do not match input_scope requested.isas"
+        )
+
+    selected_ids = _scope_string_list(
+        scope_payload.get("selected_invariant_ids"), field="selected_invariant_ids"
+    )
+    scoped_ids: list[str] = []
+    try:
+        with scoped_invariants.open("r", encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, 1):
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if not isinstance(row, Mapping):
+                    raise ValueError(
+                        f"checker-bundle scoped_invariants line {line_number} must be an object"
+                    )
+                invariant_id = row.get("invariant_id")
+                if (
+                    not isinstance(invariant_id, str)
+                    or not invariant_id
+                    or invariant_id != invariant_id.strip()
+                ):
+                    raise ValueError(
+                        "checker-bundle scoped_invariants invariant_id must be a "
+                        "non-empty string"
+                    )
+                scoped_ids.append(invariant_id)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            "checker-bundle scoped_invariants artifact must contain valid UTF-8 JSONL"
+        ) from exc
+    if len(set(scoped_ids)) != len(scoped_ids):
+        raise ValueError("checker-bundle scoped_invariants invariant_id values must be unique")
+    if scoped_ids != selected_ids:
+        raise ValueError(
+            "checker-bundle scoped_invariants IDs do not match input_scope "
+            "selected_invariant_ids"
+        )
+
+
 def validate_checker_bundle(
     manifest: CheckerBundleManifest | Mapping[str, Any],
     manifest_path: str | os.PathLike[str],
@@ -353,6 +489,8 @@ def validate_checker_bundle(
         ("cumulative_patch", typed_manifest.artifacts.cumulative_patch),
         ("catalog", typed_manifest.artifacts.catalog),
         ("dispatcher", typed_manifest.artifacts.dispatcher),
+        ("scoped_invariants", typed_manifest.artifacts.scoped_invariants),
+        ("input_scope", typed_manifest.artifacts.input_scope),
     )
     resolved_by_role: dict[str, Path] = {}
     seen_resolved: dict[Path, str] = {}
@@ -369,6 +507,12 @@ def validate_checker_bundle(
         seen_resolved[resolved] = role
         resolved_by_role[role] = resolved
 
+    _validate_input_provenance(
+        typed_manifest,
+        scoped_invariants=resolved_by_role.get("scoped_invariants"),
+        input_scope=resolved_by_role.get("input_scope"),
+    )
+
     return ValidatedCheckerBundle(
         manifest=typed_manifest,
         manifest_path=path,
@@ -376,6 +520,8 @@ def validate_checker_bundle(
         cumulative_patch=resolved_by_role.get("cumulative_patch"),
         catalog=resolved_by_role.get("catalog"),
         dispatcher=resolved_by_role.get("dispatcher"),
+        scoped_invariants=resolved_by_role.get("scoped_invariants"),
+        input_scope=resolved_by_role.get("input_scope"),
     )
 
 

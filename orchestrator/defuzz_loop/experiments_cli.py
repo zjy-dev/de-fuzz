@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import hmac
 import importlib
 import json
 import os
@@ -398,6 +399,35 @@ def _add_checker_arguments(parser: argparse.ArgumentParser) -> None:
         default="auto",
         help="checker implementation strategy recorded in the plan (default: auto)",
     )
+    scope = parser.add_argument_group(
+        "checker input scope",
+        description=(
+            "Project accepted Part I invariants to the requested target before any "
+            "checker-authoring agent runs. Empty scope selects all accepted invariants."
+        ),
+    )
+    scope.add_argument(
+        "--mechanism",
+        dest="mechanisms",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help=(
+            "accepted-invariant mechanism allowlist (repeatable; aliases are "
+            "normalized; default: all mechanisms)"
+        ),
+    )
+    scope.add_argument(
+        "--isa",
+        dest="isas",
+        action="append",
+        default=[],
+        metavar="ISA",
+        help=(
+            "accepted-invariant target ISA allowlist (repeatable; aliases and "
+            "architecture families are compatible; default: all targets)"
+        ),
+    )
 
 
 def _add_checker_authoring_parser(subparsers: Any) -> None:
@@ -410,7 +440,7 @@ def _add_checker_authoring_parser(subparsers: Any) -> None:
         ),
         epilog=(
             "example: defuzz-experiment checker-authoring --from-run runs/invariants-r1 "
-            "--source-root .. --show-plan"
+            "--source-root .. --mechanism canary --isa x86-64 --show-plan"
         ),
         formatter_class=_HelpFormatter,
     )
@@ -448,6 +478,16 @@ def _add_audit_arguments(
             metavar="YAML",
             help="toolchain configuration used by the checker-bundle dispatcher",
         )
+        bundle.add_argument(
+            "--accepted-invariants",
+            type=Path,
+            metavar="JSONL",
+            help=(
+                "optional copy of the bundle-scoped accepted invariants supplied "
+                "to Full and without-oracle workers; its SHA-256 must match the "
+                "checker bundle artifact"
+            ),
+        )
     scope = parser.add_argument_group("audit scope")
     scope.add_argument(
         "--reference-root",
@@ -471,6 +511,15 @@ def _add_audit_arguments(
         choices=("gcc", "llvm"),
         default="gcc",
         help="compiler under audit (default: gcc)",
+    )
+    scope.add_argument(
+        "--toolchain-version",
+        dest="toolchain_version",
+        metavar="VERSION",
+        help=(
+            "frozen compiler release label used in worker context and evaluator "
+            "scope (for example: gcc-17.0.0-20260531)"
+        ),
     )
     scope.add_argument(
         "--mechanism",
@@ -974,6 +1023,9 @@ def _input_snapshot(plan: ExperimentPlan) -> dict[str, Any]:
     checker_manifest = plan.parameters.get("checker_bundle_manifest")
     if checker_manifest:
         snapshot["checker_bundle_manifest"] = _snapshot_path(checker_manifest)
+    accepted_invariants = plan.parameters.get("accepted_invariants")
+    if accepted_invariants:
+        snapshot["accepted_invariants"] = _snapshot_path(accepted_invariants)
     toolchains_config = plan.parameters.get("toolchains_config")
     if toolchains_config:
         snapshot["toolchains_config"] = _snapshot_path(toolchains_config)
@@ -1101,6 +1153,28 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("bare-agent does not accept --inputs or --from-run")
     if experiment == "ablation" and variant == "without-rag":
         parameters["generation_path"] = "segmented-cot"
+    if experiment == "agent-audit" or (
+        experiment == "ablation" and variant in {"without-oracle", "bare-agent"}
+    ):
+        version = parameters.get("toolchain_version")
+        mechanisms = _as_list(parameters.get("mechanism"))
+        isas = _as_list(parameters.get("isa"))
+        if version or mechanisms or isas:
+            from defuzz_loop.parity import ParityScope
+
+            parity_scope = ParityScope(
+                toolchains=(str(parameters.get("compiler", "gcc")),),
+                version=(str(version),) if version else (),
+                mechanisms=tuple(str(item) for item in mechanisms),
+                isas=tuple(str(item) for item in isas),
+            )
+            parameters["parity_scope"] = parity_scope.model_dump(
+                mode="json", exclude_defaults=True
+            )
+        if version:
+            parameters["toolchain_versions"] = {
+                str(parameters.get("compiler", "gcc")): str(version)
+            }
 
     source_root = values.get("source_root") or values.get("target_tree")
     run_root = output_root / run_id
@@ -1374,7 +1448,7 @@ def _checker_bundle_inputs(
 
 def _validated_checker_bundle_inputs(
     plan: ExperimentPlan, repetition: int
-) -> tuple[Path, Path, str, str] | None:
+) -> tuple[Path, Path, str, str, Path, str] | None:
     resolved = _checker_bundle_inputs(plan, repetition)
     if resolved is None:
         return None
@@ -1382,6 +1456,25 @@ def _validated_checker_bundle_inputs(
     from defuzz_loop.checker_bundle import load_checker_bundle
 
     bundle = load_checker_bundle(manifest, require_ready=True)
+    scoped_invariants = bundle.scoped_invariants
+    scoped_artifact = bundle.manifest.artifacts.scoped_invariants
+    if scoped_invariants is None or scoped_artifact is None:
+        raise ValueError("ready checker bundle has no scoped_invariants artifact")
+    explicit_invariants = plan.parameters.get("accepted_invariants")
+    if explicit_invariants:
+        explicit_path = Path(str(explicit_invariants)).expanduser().resolve(strict=False)
+        if not explicit_path.is_file() or explicit_path.is_symlink():
+            raise ValueError(
+                "accepted invariants is not an existing regular file: "
+                f"{explicit_path}"
+            )
+        explicit_hash = _sha256_file(explicit_path)
+        if not hmac.compare_digest(explicit_hash, scoped_artifact.sha256):
+            raise ValueError(
+                "accepted invariants SHA-256 does not match checker-bundle "
+                "scoped_invariants: "
+                f"expected {scoped_artifact.sha256}, got {explicit_hash}"
+            )
     if not toolchains.is_file():
         raise ValueError(f"toolchains config is not an existing file: {toolchains}")
     manifest_hash = _sha256_file(bundle.manifest_path)
@@ -1396,6 +1489,8 @@ def _validated_checker_bundle_inputs(
         toolchains.resolve(strict=True),
         manifest_hash,
         _sha256_file(toolchains),
+        scoped_invariants,
+        scoped_artifact.sha256,
     )
 
 
@@ -1494,12 +1589,18 @@ def _validate_baseline_run(plan: ExperimentPlan, stage: str) -> None:
                     f"{plan.variant} baseline must freeze a checker bundle and toolchains config"
                 )
             comparisons["checker bundle manifest hashes"] = (
-                [cast(tuple[Path, Path, str, str], item)[2] for item in current_bundles],
-                [cast(tuple[Path, Path, str, str], item)[2] for item in baseline_bundles],
+                [cast(tuple[Path, Path, str, str, Path, str], item)[2] for item in current_bundles],
+                [
+                    cast(tuple[Path, Path, str, str, Path, str], item)[2]
+                    for item in baseline_bundles
+                ],
             )
             comparisons["toolchains config hashes"] = (
-                [cast(tuple[Path, Path, str, str], item)[3] for item in current_bundles],
-                [cast(tuple[Path, Path, str, str], item)[3] for item in baseline_bundles],
+                [cast(tuple[Path, Path, str, str, Path, str], item)[3] for item in current_bundles],
+                [
+                    cast(tuple[Path, Path, str, str, Path, str], item)[3]
+                    for item in baseline_bundles
+                ],
             )
     mismatches = [
         f"{name}: requested={current!r}, baseline={frozen!r}"
@@ -1516,29 +1617,54 @@ def _plan_for_repetition(plan: ExperimentPlan, repetition: int, stage: str) -> E
     inputs = parameters.get("inputs")
     if stage == "checker-authoring":
         if from_run:
-            parameters["accepted_invariants"] = str(
-                _from_run_artifact(from_run, repetition, "accepted-invariants.jsonl")
-            )
+            accepted_path = _from_run_artifact(
+                from_run, repetition, "accepted-invariants.jsonl"
+            ).resolve(strict=True)
+            parameters["accepted_invariants"] = str(accepted_path)
+            parameters["accepted_invariants_sha256"] = _sha256_file(accepted_path)
         elif inputs:
-            parameters["accepted_invariants"] = inputs
+            accepted_path = Path(str(inputs)).expanduser().resolve(strict=True)
+            if accepted_path.is_dir():
+                accepted_path = (accepted_path / "accepted-invariants.jsonl").resolve(
+                    strict=True
+                )
+            parameters["accepted_invariants"] = str(accepted_path)
+            parameters["accepted_invariants_sha256"] = _sha256_file(accepted_path)
     elif stage == "agent-audit":
         checker_bundle = _validated_checker_bundle_inputs(plan, repetition)
         if checker_bundle is not None:
-            manifest, toolchains, manifest_hash, toolchains_hash = checker_bundle
+            (
+                manifest,
+                toolchains,
+                manifest_hash,
+                toolchains_hash,
+                scoped_invariants,
+                scoped_invariants_hash,
+            ) = checker_bundle
             parameters.update(
                 {
                     "checker_bundle_manifest": str(manifest),
                     "checker_bundle_sha256": manifest_hash,
                     "toolchains_config": str(toolchains),
                     "toolchains_config_sha256": toolchains_hash,
+                    "accepted_invariants": str(scoped_invariants),
+                    "accepted_invariants_sha256": scoped_invariants_hash,
+                    "accepted_invariants_source": "checker-bundle-scoped",
                     "require_verified_candidates": True,
                 }
             )
             # Bare workers remain blind to the bundle. agent_audit only uses it
             # after structural admission for the common offline verify policy.
             parameters.pop("checker_artifacts", None)
-        elif inputs:
-            parameters["checker_artifacts"] = inputs
+        else:
+            accepted_invariants = parameters.get("accepted_invariants")
+            if accepted_invariants:
+                accepted_path = Path(str(accepted_invariants)).expanduser().resolve(strict=True)
+                parameters["accepted_invariants"] = str(accepted_path)
+                parameters["accepted_invariants_sha256"] = _sha256_file(accepted_path)
+                parameters["accepted_invariants_source"] = "explicit"
+            if inputs:
+                parameters["checker_artifacts"] = inputs
     return plan.model_copy(update={"parameters": parameters})
 
 
@@ -1550,6 +1676,11 @@ def _assert_frozen_bundle_inputs(plan: ExperimentPlan) -> None:
     pairs = (
         (manifest, expected_manifest, "checker bundle manifest"),
         (toolchains, expected_toolchains, "toolchains config"),
+        (
+            plan.parameters.get("accepted_invariants"),
+            plan.parameters.get("accepted_invariants_sha256"),
+            "accepted invariants",
+        ),
     )
     for raw_path, expected, label in pairs:
         if raw_path is None:
@@ -1613,6 +1744,14 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
             raise ValueError("agent-audit requires --target-tree")
         _require_directory(plan.source_root, "target tree")
         _require_reference_documents(plan.parameters.get("reference_root"))
+        accepted_invariants = plan.parameters.get("accepted_invariants")
+        if accepted_invariants:
+            accepted_path = Path(str(accepted_invariants)).expanduser().resolve(strict=False)
+            if not accepted_path.is_file() or accepted_path.is_symlink():
+                raise ValueError(
+                    "accepted invariants is not an existing regular file: "
+                    f"{accepted_path}"
+                )
         for value in plan.parameters.get("inputs", []):
             path = Path(value).expanduser().resolve(strict=False)
             if not path.is_file():

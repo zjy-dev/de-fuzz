@@ -31,13 +31,82 @@ def _artifact(path: Path, root: Path, kind: str) -> ArtifactRef:
     return ArtifactRef.from_path(path, base_dir=root, kind=kind)
 
 
-def _write_bundle(output_dir: Path, *, coverage_complete: bool = False) -> Path:
+def _write_bundle(
+    output_dir: Path,
+    *,
+    accepted_invariants: Path,
+    mechanisms: list[str],
+    isas: list[str],
+    coverage_complete: bool = False,
+) -> Path:
     patch = output_dir / "bundle.patch"
     catalog = output_dir / "checker-catalog.json"
     dispatcher = output_dir / "bin" / "checker-dispatcher"
+    scoped_invariants = output_dir / "scoped-accepted-invariants.jsonl"
+    input_scope = output_dir / "checker-input-scope.json"
     dispatcher.parent.mkdir(parents=True, exist_ok=True)
+    records = [
+        json.loads(line)
+        for line in accepted_invariants.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    invariant_ids = [str(record["invariant_id"]) for record in records]
+    selected_records = [
+        record
+        for record in records
+        if (not mechanisms or record.get("mechanism") in mechanisms)
+        and (not isas or record.get("target") in isas)
+    ]
+    selected_ids = [str(record["invariant_id"]) for record in selected_records]
+    excluded_ids = [
+        invariant_id
+        for invariant_id in invariant_ids
+        if invariant_id not in set(selected_ids)
+    ]
+    scoped_invariants.write_text(
+        "".join(
+            json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            + "\n"
+            for record in selected_records
+        ),
+        encoding="utf-8",
+    )
+    input_scope.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "defuzz-checker-input-scope",
+                "source_artifact": ArtifactRef.from_path(
+                    accepted_invariants, kind="accepted-invariants"
+                ).to_dict(),
+                "requested": {"mechanisms": mechanisms, "isas": isas},
+                "scope_requested": bool(mechanisms or isas),
+                "counts": {
+                    "total": len(records),
+                    "selected": len(selected_records),
+                    "excluded": len(excluded_ids),
+                },
+                "total_invariant_ids": invariant_ids,
+                "selected_invariant_ids": selected_ids,
+                "excluded_invariant_ids": excluded_ids,
+                "excluded_invariants": [
+                    {"invariant_id": invariant_id, "reasons": ["out_of_scope"]}
+                    for invariant_id in excluded_ids
+                ],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     patch.write_text("fixture patch\n", encoding="utf-8")
-    catalog.write_text('{"checkers": ["INV-1"]}\n', encoding="utf-8")
+    included_ids = selected_ids if coverage_complete else selected_ids[:1]
+    failed_ids = [] if coverage_complete else selected_ids[1:]
+    catalog.write_text(
+        json.dumps({"checkers": included_ids}, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     dispatcher.write_text("fixture dispatcher\n", encoding="utf-8")
     dispatcher.chmod(0o755)
     artifacts = {
@@ -51,6 +120,8 @@ def _write_bundle(output_dir: Path, *, coverage_complete: bool = False) -> Path:
             "cumulative_patch": patch,
             "catalog": catalog,
             "dispatcher": dispatcher,
+            "scoped_invariants": scoped_invariants,
+            "input_scope": input_scope,
         }.items()
     }
     payload: dict[str, Any] = {
@@ -62,30 +133,23 @@ def _write_bundle(output_dir: Path, *, coverage_complete: bool = False) -> Path:
         "source_root_sha256": "1" * 64,
         "source_tree_sha256": "1" * 64,
         "final_tree_sha256": "2" * 64,
+        "source_invariants_sha256": _sha256(accepted_invariants),
+        "requested_mechanisms": mechanisms,
+        "requested_isas": isas,
         "invariants": [
             {
-                "invariant_id": "INV-1",
-                "final_status": "passed",
+                "invariant_id": invariant_id,
+                "final_status": (
+                    "passed" if coverage_complete or index == 0 else "failed"
+                ),
                 "parent_tree_sha256": "1" * 64,
                 "result_tree_sha256": "2" * 64,
                 "files": [],
-            },
-            *(
-                []
-                if coverage_complete
-                else [
-                    {
-                        "invariant_id": "INV-2",
-                        "final_status": "failed",
-                        "parent_tree_sha256": "2" * 64,
-                        "result_tree_sha256": "2" * 64,
-                        "files": [],
-                    }
-                ]
-            ),
+            }
+            for index, invariant_id in enumerate(selected_ids)
         ],
-        "included_invariant_ids": ["INV-1"],
-        "failed_invariant_ids": [] if coverage_complete else ["INV-2"],
+        "included_invariant_ids": included_ids,
+        "failed_invariant_ids": failed_ids,
         "budget_exhausted": False,
         "artifacts": artifacts,
         "validation": {
@@ -225,7 +289,7 @@ def _configure_http_backend(path: Path, *, model: str = "http-fixture-model") ->
 def _fixture_runners(
     calls: list[tuple[str, str, str, int]],
     *,
-    invariant_count: int = 1,
+    invariant_count: int = 3,
     tamper_bundle: bool = False,
     tamper_bundle_in_part_iii: bool = False,
     part_i_tokens: int | None = None,
@@ -252,7 +316,17 @@ def _fixture_runners(
         path = output_dir / "accepted-invariants.jsonl"
         path.write_text(
             "".join(
-                json.dumps({"invariant_id": f"INV-{index + 1}", "statement": "x"}) + "\n"
+                json.dumps(
+                    {
+                        "invariant_id": f"INV-{index + 1}",
+                        "statement": "x",
+                        "mechanism": (
+                            "stack-protector" if index < 2 else "fortify-source"
+                        ),
+                        "target": "x86_64" if index < 2 else "aarch64",
+                    }
+                )
+                + "\n"
                 for index in range(invariant_count)
             ),
             encoding="utf-8",
@@ -277,7 +351,15 @@ def _fixture_runners(
         input_path = Path(plan.parameters["accepted_invariants"])
         assert input_path.is_file()
         assert plan.parameters["accepted_invariants_sha256"] == _sha256(input_path)
-        manifest = _write_bundle(output_dir, coverage_complete=False)
+        assert plan.parameters["mechanisms"] == ["stack-protector"]
+        assert plan.parameters["isas"] == ["x86_64"]
+        manifest = _write_bundle(
+            output_dir,
+            accepted_invariants=input_path,
+            mechanisms=list(plan.parameters["mechanisms"]),
+            isas=list(plan.parameters["isas"]),
+            coverage_complete=False,
+        )
         if tamper_bundle:
             (output_dir / "checker-catalog.json").write_text("tampered\n")
         return StageResult(
@@ -303,14 +385,41 @@ def _fixture_runners(
         assert plan.parameters["require_verified_candidates"] is True
         invariant_path = Path(plan.parameters["accepted_invariants"])
         assert invariant_path.is_file()
-        assert plan.parameters["accepted_invariants_sha256"] == _sha256(invariant_path)
+        bundle_payload = json.loads(bundle.read_text(encoding="utf-8"))
+        scoped_ref = bundle_payload["artifacts"]["scoped_invariants"]
+        scoped_path = (bundle.parent / scoped_ref["path"]).resolve()
+        assert invariant_path.resolve() == scoped_path
+        assert plan.parameters["accepted_invariants_sha256"] == scoped_ref["sha256"]
+        assert _sha256(invariant_path) == scoped_ref["sha256"]
+        scoped_ids = [
+            json.loads(line)["invariant_id"]
+            for line in invariant_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert scoped_ids == ["INV-1", "INV-2"]
+        input_scope_ref = bundle_payload["artifacts"]["input_scope"]
+        input_scope_path = (bundle.parent / input_scope_ref["path"]).resolve()
+        input_scope = json.loads(input_scope_path.read_text(encoding="utf-8"))
+        assert input_scope["source_artifact"]["sha256"] == bundle_payload[
+            "source_invariants_sha256"
+        ]
+        assert input_scope["source_artifact"]["sha256"] != scoped_ref["sha256"]
+        assert input_scope["requested"] == {
+            "mechanisms": ["stack-protector"],
+            "isas": ["x86_64"],
+        }
         assert plan.parameters["parity_profile"] == "demo-workset"
         assert plan.parameters["parity_threshold_metric"] == "recall"
+        assert plan.parameters["parity_scope"] == {
+            "toolchains": ["gcc"],
+            "version": ["fixture"],
+            "mechanisms": ["stack-protector"],
+            "isas": ["x86_64"],
+        }
         if tamper_bundle_in_part_iii:
             (bundle.parent / "checker-catalog.json").write_text(
                 "tampered during Part III\n", encoding="utf-8"
             )
-        bundle_payload = json.loads(bundle.read_text(encoding="utf-8"))
         toolchains = Path(plan.parameters["toolchains_config"])
         summary = output_dir / "agent-audit-summary.json"
         summary.write_text(
@@ -329,8 +438,21 @@ def _fixture_runners(
                         "bundle_id": bundle_payload["bundle_id"],
                         "manifest_path": str(bundle.resolve()),
                         "manifest_sha256": _sha256(bundle),
+                        "scoped_invariants_path": str(scoped_path),
+                        "scoped_invariants_sha256": scoped_ref["sha256"],
+                        "input_scope_path": str(input_scope_path),
+                        "input_scope_sha256": input_scope_ref["sha256"],
+                        "source_invariants_sha256": bundle_payload[
+                            "source_invariants_sha256"
+                        ],
                         "toolchains_config": str(toolchains.resolve()),
                         "toolchains_config_sha256": _sha256(toolchains),
+                    },
+                    "generated_invariants": {
+                        "visible_to_worker": plan.variant != "bare-agent",
+                        "records": len(scoped_ids),
+                        "path": str(scoped_path),
+                        "sha256": scoped_ref["sha256"],
                     },
                 }
             )
@@ -689,12 +811,44 @@ def test_typed_config_canonicalizes_target_scope_aliases(tmp_path: Path) -> None
     payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     payload["targets"][0]["mechanisms"] = ["stack-canary"]
     payload["targets"][0]["isas"] = ["x86-64"]
+    payload["targets"][0]["version"] = "gcc-17.0.0-20260531"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
     config = load_pipeline_config(path)
 
     assert config.targets[0].mechanisms == ["stack-protector"]
     assert config.targets[0].isas == ["x86_64"]
+
+    manifest = tmp_path / "checker-bundle-manifest.json"
+    manifest.write_text("{}\n", encoding="utf-8")
+    accepted = tmp_path / "accepted-invariants.jsonl"
+    accepted.write_text('{"invariant_id": "INV-1"}\n', encoding="utf-8")
+    checker_plan = pipeline_mod._stage_plan(
+        config,
+        config.targets[0],
+        "full",
+        1,
+        "part_ii",
+        tmp_path / "lane",
+        accepted_invariants=accepted,
+    )
+    assert checker_plan.parameters["mechanisms"] == ["stack-protector"]
+    assert checker_plan.parameters["isas"] == ["x86_64"]
+    plan = pipeline_mod._stage_plan(
+        config,
+        config.targets[0],
+        "full",
+        1,
+        "part_iii",
+        tmp_path / "lane",
+        accepted_invariants=accepted,
+        checker_bundle_manifest=manifest,
+    )
+    assert plan.parameters["parity_scope"]["mechanisms"] == [
+        "stack-protector"
+    ]
+    assert plan.parameters["parity_scope"]["isas"] == ["x86_64"]
+    assert plan.parameters["parity_scope"]["version"] == ["gcc-17"]
 
 
 @pytest.mark.parametrize(
@@ -864,6 +1018,12 @@ def test_typed_config_selects_parity_profile_and_metric(tmp_path: Path) -> None:
     assert plan.parameters["parity_profile"] == "poc-verified"
     assert plan.parameters["parity_threshold"] == 0.75
     assert plan.parameters["parity_threshold_metric"] == "f1"
+    assert plan.parameters["parity_scope"] == {
+        "toolchains": ["gcc"],
+        "version": ["fixture"],
+        "mechanisms": ["stack-protector"],
+        "isas": ["x86_64"],
+    }
 
 
 @pytest.mark.parametrize(

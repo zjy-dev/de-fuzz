@@ -29,7 +29,8 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
 from defuzz_loop.audit_schema import normalize_isa, normalize_mechanism
-from defuzz_loop.parity import ParityProfile, ThresholdMetric
+from defuzz_loop.checker_bundle import load_checker_bundle
+from defuzz_loop.parity import ParityProfile, ParityScope, ThresholdMetric
 from defuzz_loop.token_usage import TokenUsageContext, TokenUsageSink, use_token_usage
 
 from .agent_backend import AgentBackend, AgentRequest, AgentResult, ExecAgentBackend
@@ -458,11 +459,42 @@ class PipelineRunners:
             source_tree_sha256 = str(_content_snapshot(source_root)["sha256"])
             patch_path = output_dir / "bundle.patch"
             catalog_path = output_dir / "checker-catalog.json"
+            scoped_invariants_path = output_dir / "scoped-accepted-invariants.jsonl"
+            input_scope_path = output_dir / "checker-input-scope.json"
             # Mirror the production bundle layout so fixture campaigns exercise
             # nested artifact copying and containment checks as well.
             dispatcher_path = output_dir / "bin" / "checker-dispatcher"
             dispatcher_path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_bytes(patch_path, b"# fixture pipeline: no source changes\n")
+            atomic_write_bytes(scoped_invariants_path, input_path.read_bytes())
+            requested_mechanisms = list(plan.parameters.get("mechanisms", []))
+            requested_isas = list(plan.parameters.get("isas", []))
+            _atomic_write_json(
+                input_scope_path,
+                {
+                    "schema_version": 1,
+                    "kind": "defuzz-checker-input-scope",
+                    "source_artifact": {
+                        "path": str(input_path),
+                        "sha256": _sha256_file(input_path),
+                        "size_bytes": input_path.stat().st_size,
+                    },
+                    "requested": {
+                        "mechanisms": requested_mechanisms,
+                        "isas": requested_isas,
+                    },
+                    "scope_requested": bool(requested_mechanisms or requested_isas),
+                    "counts": {
+                        "total": len(invariant_ids),
+                        "selected": len(invariant_ids),
+                        "excluded": 0,
+                    },
+                    "total_invariant_ids": invariant_ids,
+                    "selected_invariant_ids": invariant_ids,
+                    "excluded_invariant_ids": [],
+                    "excluded_invariants": [],
+                },
+            )
             _atomic_write_json(
                 catalog_path,
                 {
@@ -490,6 +522,8 @@ class PipelineRunners:
                 "cumulative_patch": patch_path,
                 "catalog": catalog_path,
                 "dispatcher": dispatcher_path,
+                "scoped_invariants": scoped_invariants_path,
+                "input_scope": input_scope_path,
             }
             artifacts = {
                 name: ArtifactRef.from_path(path, base_dir=output_dir, kind=name).to_dict()
@@ -503,6 +537,9 @@ class PipelineRunners:
                 "source_root_sha256": source_tree_sha256,
                 "source_tree_sha256": source_tree_sha256,
                 "final_tree_sha256": source_tree_sha256,
+                "source_invariants_sha256": _sha256_file(input_path),
+                "requested_mechanisms": requested_mechanisms,
+                "requested_isas": requested_isas,
                 "coverage_complete": True,
                 "budget_exhausted": False,
                 "included_invariant_ids": invariant_ids,
@@ -1645,6 +1682,8 @@ def _stage_plan(
                 "accepted_invariants_sha256": _sha256_file(accepted_invariants),
                 "checker_root": config.checker.checker_root.as_posix(),
                 "max_attempts": config.checker.max_attempts,
+                "mechanisms": target.mechanisms,
+                "isas": target.isas,
             }
         )
         experiment = "checker-authoring"
@@ -1652,6 +1691,12 @@ def _stage_plan(
     else:
         assert checker_bundle_manifest is not None
         assert accepted_invariants is not None
+        parity_scope = ParityScope(
+            toolchains=(target.compiler,),
+            version=(target.version,),
+            mechanisms=tuple(target.mechanisms),
+            isas=tuple(target.isas),
+        )
         common.update(
             {
                 "accepted_invariants": str(accepted_invariants),
@@ -1661,6 +1706,9 @@ def _stage_plan(
                 "source_roots": [str(path) for path in target.audit_source_roots],
                 "mechanisms": target.mechanisms,
                 "isas": target.isas,
+                "parity_scope": parity_scope.model_dump(
+                    mode="json", exclude_defaults=True
+                ),
                 "max_concurrency": config.audit.max_concurrency,
                 "oracle_rounds": config.audit.oracle_rounds,
                 "demo_parity": config.audit.demo_parity,
@@ -2247,6 +2295,10 @@ async def _run_lane(
 
     part_iii_dir = lane_dir / "part_iii"
     frozen_bundle_integrity = _bundle_integrity(bundle_path)
+    validated_bundle = load_checker_bundle(bundle_path, require_ready=True)
+    if validated_bundle.scoped_invariants is None:
+        raise ValueError("ready checker bundle has no scoped_invariants artifact")
+    scoped_invariant_path = validated_bundle.scoped_invariants
     toolchains_path = (
         frozen_upstream.toolchains_path
         if frozen_upstream is not None
@@ -2264,7 +2316,7 @@ async def _run_lane(
         repetition,
         "part_iii",
         lane_dir,
-        accepted_invariants=invariant_path,
+        accepted_invariants=scoped_invariant_path,
         checker_bundle_manifest=bundle_path,
     )
     result_iii, usage_iii = await _invoke_stage(

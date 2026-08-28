@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol, cast
 
+from defuzz_loop.audit_schema import normalize_isa, normalize_mechanism
 from defuzz_loop.checker_bundle import (
     CHECKER_BUNDLE_MANIFEST_FILENAME,
     CheckerBundleManifest,
@@ -48,6 +49,8 @@ from .workspace import (
 )
 
 RESULTS_FILENAME = "results.jsonl"
+CHECKER_INPUT_SCOPE_FILENAME = "checker-input-scope.json"
+SCOPED_ACCEPTED_INVARIANTS_FILENAME = "scoped-accepted-invariants.jsonl"
 CHECKER_BUNDLE_PATCH_FILENAME = "checker-bundle.patch"
 CHECKER_CATALOG_FILENAME = "checker-catalog.json"
 DEFAULT_DISPATCHER_PATH = "bin/defuzz-candidate-dispatcher"
@@ -418,6 +421,201 @@ def load_accepted_invariants(path: str | os.PathLike[str]) -> list[NormalizedInv
         seen.add(item.invariant_id)
         records.append(item)
     return records
+
+
+def _normalized_scope_values(
+    parameters: Mapping[str, Any],
+    *,
+    plural: str,
+    singular: str,
+    normalize: Callable[[str], str],
+) -> tuple[str, ...]:
+    """Read one optional plural scope with a legacy singular alias."""
+
+    raw = parameters.get(plural)
+    if raw is None or (isinstance(raw, (list, tuple)) and not raw):
+        raw = parameters.get(singular)
+    if raw is None:
+        return ()
+    values = [raw] if isinstance(raw, str) else list(raw)
+    normalized: list[str] = []
+    for value in values:
+        if not isinstance(value, str):
+            raise TypeError(f"{plural} must contain only strings")
+        item = normalize(value)
+        if not item:
+            raise ValueError(f"{plural} must contain only non-empty values")
+        normalized.append(item)
+    return tuple(sorted(set(normalized)))
+
+
+_ISA_TOKEN_PATTERNS = (
+    (r"^(?:x86-64|amd64|x64)(?:-|$)", "x86_64"),
+    (r"^(?:i[3-6]86|x86-32)(?:-|$)", "i386"),
+    (r"^x86(?:-|$)", "x86"),
+    (r"^(?:riscv64|risc-v64|risc-v-64)(?:[a-z0-9]*)(?:-|$)", "riscv64"),
+    (r"^(?:riscv32|risc-v32|risc-v-32)(?:[a-z0-9]*)(?:-|$)", "riscv32"),
+    (r"^(?:riscv|risc-v)(?:-|$)", "riscv"),
+    (r"^(?:aarch64|arm64)(?:-|$)", "aarch64"),
+    (r"^(?:arm|arm32|armv[4-9][a-z0-9]*|thumbv?[0-9]*)(?:-|$)", "arm"),
+    (r"^(?:powerpc64|ppc64)(?:le|be)?(?:-|$)", "ppc64"),
+    (r"^(?:powerpc|ppc)(?:-|$)", "ppc"),
+    (r"^mips64(?:el)?(?:-|$)", "mips64"),
+    (r"^mips(?:el)?(?:-|$)", "mips"),
+    (r"^s390x(?:-|$)", "s390x"),
+    (r"^s390(?:-|$)", "s390"),
+    (r"^sparc64(?:-|$)", "sparc64"),
+    (r"^sparc(?:-|$)", "sparc"),
+    (r"^loongarch64(?:-|$)", "loongarch64"),
+    (r"^wasm64(?:-|$)", "wasm64"),
+    (r"^wasm32(?:-|$)", "wasm32"),
+    (r"^(?:alpha|hppa|m68k|xtensa|csky|or1k|arc|microblaze)(?:-|$)", None),
+)
+_GENERIC_TARGETS = frozenset(
+    {"all", "any", "generic", "linux", "android", "config-smoke"}
+)
+
+
+def _known_isa(value: str) -> tuple[bool, str | None]:
+    """Classify one target token as a known ISA or a non-ISA label."""
+
+    folded = normalize_isa(value).replace("_", "-")
+    for pattern, canonical in _ISA_TOKEN_PATTERNS:
+        if re.search(pattern, folded):
+            return True, canonical or folded.split("-", 1)[0]
+    return False, None
+
+
+def _target_values(target: Any) -> tuple[str, ...]:
+    if target is None:
+        return ()
+    values = target if isinstance(target, (list, tuple)) else [target]
+    return tuple(
+        token
+        for value in values
+        for token in re.split(r"\s*(?:,|/|\||;)\s*", str(value).strip())
+        if token
+    )
+
+
+def _target_isas(target: Any) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                known
+                for value in _target_values(target)
+                if (classified := _known_isa(value))[0]
+                for known in (classified[1],)
+                if known is not None
+            }
+        )
+    )
+
+
+def _isa_compatible(requested: str, target: str) -> bool:
+    if requested == target:
+        return True
+    for family, members in (
+        ("x86", frozenset({"i386", "x86_64"})),
+        ("riscv", frozenset({"riscv32", "riscv64"})),
+    ):
+        if requested == family and target in members:
+            return True
+        if target == family and requested in members:
+            return True
+    return False
+
+
+def _target_matches_isa_scope(target: Any, requested_isas: Sequence[str]) -> bool:
+    """Match asserted ISAs; empty and platform-only targets remain generic."""
+
+    if not requested_isas:
+        return True
+    raw_targets = _target_values(target)
+    if not raw_targets:
+        return True
+    normalized_targets = tuple(normalize_isa(value) for value in raw_targets)
+    if any(requested in normalized_targets for requested in requested_isas):
+        return True
+    classifications = tuple(_known_isa(value) for value in raw_targets)
+    known_targets = tuple(
+        sorted({isa for is_isa, isa in classifications if is_isa and isa is not None})
+    )
+    if not known_targets:
+        # Explicit platform/generic labels constrain something other than ISA.
+        # Other unknown target spellings fail closed so an unrecognized
+        # architecture cannot silently leak across target lanes.
+        return all(normalize_isa(value) in _GENERIC_TARGETS for value in raw_targets)
+    for requested in requested_isas:
+        requested_classified, requested_isa = _known_isa(requested)
+        if requested_classified and requested_isa is not None and any(
+            _isa_compatible(requested_isa, target_isa) for target_isa in known_targets
+        ):
+            return True
+    return False
+
+
+def _project_input_scope(
+    invariants: Sequence[NormalizedInvariant],
+    *,
+    parameters: Mapping[str, Any],
+    source_path: Path,
+) -> tuple[list[NormalizedInvariant], dict[str, Any]]:
+    requested_mechanisms = _normalized_scope_values(
+        parameters,
+        plural="mechanisms",
+        singular="mechanism",
+        normalize=normalize_mechanism,
+    )
+    requested_isas = _normalized_scope_values(
+        parameters, plural="isas", singular="isa", normalize=normalize_isa
+    )
+    source_ref = ArtifactRef.from_path(
+        source_path, kind="accepted-invariants"
+    ).to_dict()
+    ordered = sorted(invariants, key=lambda item: item.invariant_id)
+    selected: list[NormalizedInvariant] = []
+    excluded: list[dict[str, Any]] = []
+    for invariant in ordered:
+        mechanism = normalize_mechanism(str(invariant.value.get("mechanism") or ""))
+        target = invariant.value.get("target")
+        reasons: list[str] = []
+        if requested_mechanisms and mechanism not in requested_mechanisms:
+            reasons.append("mechanism_out_of_scope")
+        if requested_isas and not _target_matches_isa_scope(target, requested_isas):
+            reasons.append("isa_out_of_scope")
+        if reasons:
+            excluded.append(
+                {
+                    "invariant_id": invariant.invariant_id,
+                    "reasons": reasons,
+                    "normalized_mechanism": mechanism,
+                    "target": target,
+                    "target_isas": list(_target_isas(target)),
+                }
+            )
+        else:
+            selected.append(invariant)
+
+    return selected, {
+        "schema_version": 1,
+        "kind": "defuzz-checker-input-scope",
+        "source_artifact": source_ref,
+        "requested": {
+            "mechanisms": list(requested_mechanisms),
+            "isas": list(requested_isas),
+        },
+        "scope_requested": bool(requested_mechanisms or requested_isas),
+        "counts": {
+            "total": len(ordered),
+            "selected": len(selected),
+            "excluded": len(excluded),
+        },
+        "total_invariant_ids": [item.invariant_id for item in ordered],
+        "selected_invariant_ids": [item.invariant_id for item in selected],
+        "excluded_invariant_ids": [item["invariant_id"] for item in excluded],
+        "excluded_invariants": excluded,
+    }
 
 
 def render_checker_prompt(
@@ -1398,9 +1596,101 @@ class CheckerAuthoringRunner:
                 messages=["variant policy disables dedicated invariant checkers"],
             )
 
-        invariants = sorted(
-            load_accepted_invariants(input_path), key=lambda item: item.invariant_id
+        input_path = input_path.resolve(strict=True)
+        expected_input_hash = parameters.get("accepted_invariants_sha256")
+        pre_read_input_hash = hashlib.sha256(input_path.read_bytes()).hexdigest()
+        if expected_input_hash is not None and pre_read_input_hash != expected_input_hash:
+            raise ValueError(
+                "accepted_invariants SHA-256 mismatch: "
+                f"expected {expected_input_hash}, got {pre_read_input_hash}"
+            )
+        all_invariants = load_accepted_invariants(input_path)
+        invariants, scope_report = _project_input_scope(
+            all_invariants, parameters=parameters, source_path=input_path
         )
+        actual_input_hash = cast(dict[str, Any], scope_report["source_artifact"])[
+            "sha256"
+        ]
+        if expected_input_hash is not None and expected_input_hash != actual_input_hash:
+            raise ValueError(
+                "accepted_invariants SHA-256 mismatch: "
+                f"expected {expected_input_hash}, got {actual_input_hash}"
+            )
+        scope_path = destination / CHECKER_INPUT_SCOPE_FILENAME
+        _atomic_write_json(scope_path, scope_report)
+        scope_artifact = ArtifactRef.from_path(
+            scope_path, base_dir=destination, kind="checker-input-scope"
+        )
+        scoped_invariants_path = destination / SCOPED_ACCEPTED_INVARIANTS_FILENAME
+        _atomic_write(
+            scoped_invariants_path,
+            "".join(
+                json.dumps(
+                    invariant.value,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n"
+                for invariant in invariants
+            ),
+        )
+        scoped_invariants_artifact = ArtifactRef.from_path(
+            scoped_invariants_path,
+            base_dir=destination,
+            kind="scoped-accepted-invariants",
+        )
+        scope_counts = cast(dict[str, int], scope_report["counts"])
+        requested_scope = cast(dict[str, list[str]], scope_report["requested"])
+        scope_metrics = {
+            "input_invariants": scope_counts["total"],
+            "total_invariants": scope_counts["total"],
+            "selected_invariants": scope_counts["selected"],
+            "excluded_invariants": scope_counts["excluded"],
+        }
+        scope_metadata = {
+            **scope_metrics,
+            "accepted_invariants_sha256": cast(
+                dict[str, Any], scope_report["source_artifact"]
+            )["sha256"],
+            "checker_input_scope": CHECKER_INPUT_SCOPE_FILENAME,
+            "requested_mechanisms": requested_scope["mechanisms"],
+            "requested_isas": requested_scope["isas"],
+            "scope_counts": scope_counts,
+        }
+        if scope_report["scope_requested"] and not invariants:
+            _atomic_write(results_path, "")
+            error = "checker input scope selected no accepted invariants"
+            return StageResult(
+                stage="checker-authoring",
+                status="failed",
+                artifacts=[
+                    ArtifactRef.from_path(
+                        results_path, base_dir=destination, kind="results"
+                    ),
+                    scope_artifact,
+                    scoped_invariants_artifact,
+                ],
+                metrics={
+                    "invariants": 0,
+                    **scope_metrics,
+                    "first_passed": 0,
+                    "final_passed": 0,
+                    "failed": 0,
+                    "budget_exhausted": 0,
+                    "unprocessed": 0,
+                    "agent_attempts": 0,
+                    "reused": 0,
+                    "bundle_ready": False,
+                    "coverage_complete": False,
+                },
+                metadata={
+                    "input_path": os.fspath(input_path),
+                    "results_path": os.fspath(results_path),
+                    **scope_metadata,
+                },
+                error=error,
+            )
         max_attempts = int(parameters.get("max_attempts", parameters.get("attempt_cap", 3)))
         if not 1 <= max_attempts <= 10:
             raise ValueError("max_attempts must be between 1 and 10")
@@ -1709,7 +1999,12 @@ class CheckerAuthoringRunner:
                     "cumulative_patch": bundle_patch_ref,
                     "catalog": catalog_ref,
                     "dispatcher": dispatcher_ref,
+                    "scoped_invariants": scoped_invariants_artifact.to_dict(),
+                    "input_scope": scope_artifact.to_dict(),
                 },
+                "source_invariants_sha256": actual_input_hash,
+                "requested_mechanisms": requested_scope["mechanisms"],
+                "requested_isas": requested_scope["isas"],
                 "validation": {
                     "status": validation_status,
                     "commands": final_validation,
@@ -1736,6 +2031,8 @@ class CheckerAuthoringRunner:
         )
         artifacts = [
             ArtifactRef.from_path(results_path, base_dir=destination, kind="results"),
+            scope_artifact,
+            scoped_invariants_artifact,
             ArtifactRef.from_path(
                 bundle_patch_path, base_dir=destination, kind="checker-bundle-patch"
             ),
@@ -1802,6 +2099,7 @@ class CheckerAuthoringRunner:
             artifacts=artifacts,
             metrics={
                 "invariants": len(rows),
+                **scope_metrics,
                 "first_passed": first_passed,
                 "first_pass_rate": first_passed / len(rows) if rows else 0.0,
                 "final_passed": final_passed,
@@ -1817,6 +2115,7 @@ class CheckerAuthoringRunner:
             metadata={
                 "input_path": os.fspath(input_path),
                 "results_path": os.fspath(results_path),
+                **scope_metadata,
                 "attempt_cap": max_attempts,
                 "checker_bundle_manifest": os.fspath(manifest_path),
                 "bundle_id": manifest.bundle_id,
@@ -1861,6 +2160,8 @@ async def run(
 
 
 __all__ = [
+    "CHECKER_INPUT_SCOPE_FILENAME",
+    "SCOPED_ACCEPTED_INVARIANTS_FILENAME",
     "CheckerAuthoringRunner",
     "CommandExecutor",
     "CommandResult",
