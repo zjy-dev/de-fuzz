@@ -133,10 +133,10 @@ failures retain provider-reported token usage. For the HTTP backend, usage is
 recorded for every Responses round and accumulated across tool rounds; missing
 usage remains explicitly non-comparable and invalidates a formal repetition.
 `--demo-parity` writes an orchestrator-only engineering comparison
-after workers exit and is not itself a formal paper result. See
-[`docs/paper/experiment_status.md`](docs/paper/experiment_status.md) for the
-current contract and [`docs/paper/experiment_runbook.md`](docs/paper/experiment_runbook.md)
-for the execution procedure and exact commands.
+after workers exit and is not itself a formal paper result. See the standalone
+[`zjy-dev/defuzz-paper`](https://github.com/zjy-dev/defuzz-paper) repository for
+the manuscript, current experiment contract, execution procedure, and exact
+commands.
 
 The instrumented GCC under test is built out-of-tree; see
 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md).
@@ -144,6 +144,7 @@ ISA→toolchain paths live in [`configs/toolchains.yaml`](configs/toolchains.yam
 
 ## Docs
 
+- Paper manuscript and experiment notes: [zjy-dev/defuzz-paper](https://github.com/zjy-dev/defuzz-paper)
 - Architecture (authoritative): [docs/tech-docs/architecture/agentic-loop-redesign.md](docs/tech-docs/architecture/agentic-loop-redesign.md)
 - System overview (components + dataflow): [docs/tech-docs/architecture/overview.md](docs/tech-docs/architecture/overview.md)
 - Tech stack: [docs/tech-docs/reference/tech-stack.md](docs/tech-docs/reference/tech-stack.md)
