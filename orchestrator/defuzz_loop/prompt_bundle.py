@@ -596,6 +596,12 @@ def build_worker_prompt_bundle(
             "Evaluator-only benchmark records are unavailable and out of scope. Mark the "
             "run tainted only if a tool actually reveals a concrete private record or DREV "
             "identifier; merely restating this isolation rule is not exposure.",
+            "The permitted reference documents below are delivered inline in this prompt, "
+            "not as files in the source workspace; their absence from the local source tree "
+            "is expected and is not a defect. Leave parse_issues empty unless you literally "
+            "cannot emit the required structured JSON. Record scope limits or environment "
+            "observations in coverage_gaps or next_steps, never in parse_issues. Use the "
+            "discovery date given above verbatim; do not require a clock.",
             "Return one JSON object conforming to the supplied AuditReport schema. Do not "
             "write or archive findings.",
         ]
