@@ -952,6 +952,11 @@ async def test_emits_cumulative_ready_bundle_in_deterministic_input_order(
     ]
     assert catalog["source_tree_sha256"] == rows[0]["parent_tree_sha256"]
     assert catalog["result_tree_sha256"] == rows[1]["result_tree_sha256"]
+    assert all(item["mechanism"] == "canary" for item in catalog["checkers"])
+    assert all(
+        item["generated_mechanism"] == "stack-protector"
+        for item in catalog["checkers"]
+    )
 
     manifest = json.loads((output / "checker-bundle-manifest.json").read_text())
     assert manifest["kind"] == "defuzz-checker-bundle"

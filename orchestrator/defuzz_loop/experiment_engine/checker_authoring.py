@@ -970,7 +970,14 @@ def _diagnostic_catalog_entry(
         "invariant_id": checker_id,
         "generated_invariant_id": invariant.invariant_id,
         "statement": invariant.value.get("statement"),
-        "mechanism": invariant.value.get("mechanism"),
+        # Runtime routing fields (including mechanism) come exclusively from
+        # the compiled dispatcher catalog. Keep the generated label under a
+        # distinct diagnostic key so it cannot corrupt the trusted route. The
+        # generated label is normalized so downstream diagnostics can compare
+        # it against canonical mechanism names.
+        "generated_mechanism": (
+            normalize_mechanism(str(invariant.value.get("mechanism") or "")) or None
+        ),
         "target": invariant.value.get("target"),
         "lineage": invariant.lineage,
         "parent_tree_sha256": row.get("parent_tree_sha256"),
