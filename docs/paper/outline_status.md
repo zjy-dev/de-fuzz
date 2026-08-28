@@ -35,9 +35,8 @@ This document tracks the completion status of the DeFuzz paper outline, ensuring
 
 ## 4. Security Invariants for Compiler Defenses
 - [x] 4.1 What is a security invariant
-- [x] 4.2 Survey methodology and sources
-- [x] 4.3 A bottom-up taxonomy
-- [x] 4.4 Machine-checkable form: static vs dynamic
+- [x] 4.2 Corpus Construction and Candidate Extraction
+- [x] 4.3 Machine-Checkable Form: Static vs. Dynamic
 
 ## 5. Cross-Mechanism Invariant Generation
 - [x] 5.1 Motivation: abstract-failure-mode transfer

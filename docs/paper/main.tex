@@ -229,14 +229,7 @@ The invariant archive is synthesized from three primary knowledge domains: compi
 
 Given the vast scale of the compiler codebase, relevant semantic evidence is frequently fragmented across disparate compilation phases and backend templates. To address this, we partition the source material by mechanism and function boundaries. We then apply a segmented Chain-of-Thought (CoT) prompting strategy~\cite{wei2022chain}, instructing the model to isolate the protected asset, the activation conditions, and the required security property within each segment. It is critical to note that this pass strictly produces \emph{candidates}. To prevent hallucination and ensure empirical validity, every candidate must retain its provenance and subsequently pass the stringent grounding and novelty gates detailed in \S\ref{sec:specgen}.
 
-\subsection{A Bottom-Up Taxonomy}
-Rather than imposing a preconceived, top-down categorization, we cluster the catalogued invariants using a data-first approach. This bottom-up methodology prevents preset bias and allows the genuine structural root causes to emerge directly from the data (Figure~\ref{fig:invariant-taxonomy}).
-
-Our analysis reveals three predominant failure families that recur across different mechanisms and architectures. The first is \emph{exit-time sensitive-register residue}, wherein a fast or exceptional function exit bypasses the register-clearing routines that a defense (e.g., zero-call-used-regs) relies upon. The second involves \emph{stack-clash frame-size truncation}, where a forced integer narrowing flips a heavily padded frame size to a negative value, thereby skipping the required probing loop. The third is \emph{large-address materialization errors}, particularly prevalent on RISC-V, where unintended sign extensions during the synthesis of large offsets silently shift the computed boundary addresses of shadow stacks or safe regions.
-\incfig{invariant-taxonomy}{Bottom-up root-cause families over 468
-invariants; three families recur across mechanism and ISA.}
-
-\subsection{Machine-checkable form: static vs dynamic}
+\subsection{Machine-Checkable Form: Static vs. Dynamic}
 Each invariant is classified by whether its violation can be observed in the un-executed binary (e.g., symbols, sections, disassembly, strings) or if it strictly requires execution traces (e.g., exit status, output flags, register snapshots). This classification is guided by observability, decisiveness, computational cost, and attribution capability. To maintain precision, invariants exhibiting both static and dynamic violation signals are bifurcated into distinct checkers rather than being merged into a single heuristic.
 
 \section{Cross-Mechanism Invariant Generation}\label{sec:specgen}
