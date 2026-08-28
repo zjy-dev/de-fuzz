@@ -742,7 +742,7 @@ async def _run_worker(
             _write_json(worker_dir / "admission.json", admission_payload)
             return bundle, report, "worker output rejected by findings leak guard"
     if not result.success:
-        message = f"backend exited with status {result.exit_code}"
+        message = result.error or f"backend exited with status {result.exit_code}"
         report = AuditReport(
             family=bundle.family.key,
             variant=bundle.variant.value,
