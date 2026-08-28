@@ -265,6 +265,60 @@ func TestCandidateDispatcherExpandsDependenciesAndDifferentialISAs(t *testing.T)
 	assert.True(t, ids["INV-SP-L02"])
 }
 
+func TestCandidateDispatcherCompileOnlyForStaticRoutes(t *testing.T) {
+	// A static ELF-inspection route (INV-IBT-B01) accepts entry-point-free
+	// snippets, so the dispatcher must build compile-only even when the
+	// candidate omits -c. A dynamic route (INV-SP-L02, requires execution)
+	// must never have -c injected.
+	tests := []struct {
+		name         string
+		checker      string
+		mechanism    string
+		flags        string
+		wantHasDashC bool
+	}{
+		{name: "static route gains -c", checker: "INV-IBT-B01", mechanism: "ibt", flags: `["-O2","-fcf-protection=branch"]`, wantHasDashC: true},
+		{name: "static route keeps explicit -c once", checker: "INV-IBT-B01", mechanism: "ibt", flags: `["-O2","-c"]`, wantHasDashC: true},
+		{name: "dynamic route never gains -c", checker: "INV-SP-L02", mechanism: "canary", flags: `["-O2"]`, wantHasDashC: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			builder := &recordingCandidateBuilder{}
+			dispatcher := &CandidateDispatcher{
+				Toolchains: fakeToolchains("x86_64", "aarch64", "riscv64", "loongarch64"),
+				Builder:    builder,
+				EvaluatorFactory: func(string) (oracle.MechanismEvaluator, error) {
+					return fakeMechanismEvaluator{verdict: oracle.VerdictPass}, nil
+				},
+			}
+			payload := fmt.Sprintf(
+				`{"toolchain":"gcc","mechanism":%q,"isa":["x86_64"],"checker_ids":[%q],"minimal_trigger":{"source":"unsigned long g(void){return 0x1fa1e0ff3ULL;}","flags":%s}}`,
+				test.mechanism, test.checker, test.flags,
+			)
+			_, err := dispatchFixture(t, dispatcher, payload, CandidateModeOnline)
+			require.NoError(t, err)
+			require.NotEmpty(t, builder.calls)
+			var x86Call *candidateBuildCall
+			for i := range builder.calls {
+				if builder.calls[i].isa == "x86_64" {
+					x86Call = &builder.calls[i]
+				}
+			}
+			require.NotNil(t, x86Call, "x86_64 build must occur")
+			hasDashC := contains(x86Call.flags, "-c")
+			assert.Equal(t, test.wantHasDashC, hasDashC, "compile-only injection for %s", test.name)
+			// -c must appear at most once even when the candidate already asked for it.
+			count := 0
+			for _, f := range x86Call.flags {
+				if f == "-c" {
+					count++
+				}
+			}
+			assert.LessOrEqual(t, count, 1, "-c must not be duplicated")
+		})
+	}
+}
+
 func TestCompilerBuilderSelectsTrustedCompilerPath(t *testing.T) {
 	tests := []struct {
 		name, compiler, gccPath, clangPath, wantCompiler, wantError string

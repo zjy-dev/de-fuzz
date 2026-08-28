@@ -597,7 +597,16 @@ func (d *CandidateDispatcher) Dispatch(req CandidateDispatchRequest) (CandidateD
 	}
 	for _, isa := range isas {
 		tc := selectedToolchains[isa]
-		build, buildErr := builder.Build(&candidate, isa, tc, flags)
+		// Static checkers inspect the produced ELF, not a running program, so a
+		// self-contained minimal trigger need not define `main`. Building
+		// compile-only for static-only routes matches the object-file analysis
+		// contract and avoids spurious link failures on entry-point-free
+		// snippets; any dynamic route still forces a full link + execution.
+		buildFlags := flags
+		if staticOnlyRoutes(byISA[isa]) && !contains(flags, "-c") {
+			buildFlags = append(append([]string(nil), flags...), "-c")
+		}
+		build, buildErr := builder.Build(&candidate, isa, tc, buildFlags)
 		if build.cleanupDir != "" {
 			defer os.RemoveAll(build.cleanupDir)
 		}
@@ -1109,6 +1118,22 @@ func groupRoutes(routes []checkerRoute) map[string][]checkerRoute {
 		out[route.ISA] = append(out[route.ISA], route)
 	}
 	return out
+}
+
+// staticOnlyRoutes reports whether every checker selected for an ISA is a
+// static ELF-inspection checker. Such routes never execute the artifact, so a
+// compile-only object is sufficient and avoids linking entry-point-free
+// minimal triggers.
+func staticOnlyRoutes(routes []checkerRoute) bool {
+	if len(routes) == 0 {
+		return false
+	}
+	for _, route := range routes {
+		if route.Category != oracle.CategoryStatic {
+			return false
+		}
+	}
+	return true
 }
 
 func sortedKeys[V any](values map[string]V) []string {
