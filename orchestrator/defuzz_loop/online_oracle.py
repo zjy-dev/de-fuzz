@@ -408,7 +408,13 @@ class CommandOnlineOracle:
 def render_oracle_feedback(results: Sequence[OnlineOracleResult]) -> str:
     """Render only the public oracle contract for delivery to an audit worker."""
 
-    sections: list[str] = []
+    sections: list[str] = [
+        "Interpretation: each verdict covers only the bundle-scoped checker_ids "
+        "selected for that candidate. PASS does not refute a distinct claimed "
+        "related_invariant; retain a source-grounded candidate when its claimed "
+        "canonical invariant differs, and let the independent final verify pass "
+        "evaluate that related invariant."
+    ]
     for result in results:
         lines = [
             f"Candidate {result.candidate_fingerprint}",

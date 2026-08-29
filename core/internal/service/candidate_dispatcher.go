@@ -540,7 +540,7 @@ func (d *CandidateDispatcher) Dispatch(req CandidateDispatchRequest) (CandidateD
 		return response, err
 	}
 
-	routes, unsupported, err := d.resolveRoutes(&candidate)
+	routes, unsupported, err := d.resolveRoutes(&candidate, req.Mode)
 	if err != nil {
 		return response, err
 	}
@@ -682,7 +682,7 @@ type checkerRoute struct {
 	ISA string
 }
 
-func (d *CandidateDispatcher) resolveRoutes(candidate *Candidate) ([]checkerRoute, bool, error) {
+func (d *CandidateDispatcher) resolveRoutes(candidate *Candidate, mode CandidateMode) ([]checkerRoute, bool, error) {
 	metadata := d.Metadata
 	if len(metadata) == 0 {
 		metadata = oracle.AllCheckerMetadata()
@@ -696,7 +696,17 @@ func (d *CandidateDispatcher) resolveRoutes(candidate *Candidate) ([]checkerRout
 	}
 
 	requested := uniqueStrings(candidate.CheckerIDs)
-	if len(requested) == 0 {
+	// Online feedback is deliberately limited to Part II's checker bundle.
+	// Final verification is a separate trust boundary: when a candidate names
+	// canonical related invariants, verify them with the trusted checkers
+	// compiled into the manifest-bound dispatcher. This lets a newly discovered
+	// violation be independently reproduced even when its checker was not one
+	// of the generated online-guidance checkers.
+	useBundleAllowlist := true
+	if mode == CandidateModeVerify && len(candidate.RelatedInvariants) > 0 {
+		requested = uniqueStrings(candidate.RelatedInvariants)
+		useBundleAllowlist = false
+	} else if len(requested) == 0 {
 		requested = uniqueStrings(candidate.RelatedInvariants)
 	}
 	canonicalMechanism, knownMechanism := canonicalMechanism(candidate.Mechanism)
@@ -739,7 +749,7 @@ func (d *CandidateDispatcher) resolveRoutes(candidate *Candidate) ([]checkerRout
 		return nil
 	}
 	for _, id := range requested {
-		if len(d.CatalogAllowlist) > 0 && !d.CatalogAllowlist[id] {
+		if useBundleAllowlist && len(d.CatalogAllowlist) > 0 && !d.CatalogAllowlist[id] {
 			return nil, false, fmt.Errorf("checker %q is not included in the checker bundle", id)
 		}
 		if err := addWithDependencies(id); err != nil {

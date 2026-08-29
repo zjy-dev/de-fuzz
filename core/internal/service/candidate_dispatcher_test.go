@@ -189,6 +189,42 @@ func TestCandidateDispatcherAliasesAndCheckerIDsDriveRouting(t *testing.T) {
 	}
 }
 
+func TestCandidateDispatcherSeparatesOnlineGuidanceFromFinalVerification(t *testing.T) {
+	builder := &recordingCandidateBuilder{}
+	dispatcher := &CandidateDispatcher{
+		Toolchains:       fakeToolchains("x86_64"),
+		Builder:          builder,
+		CatalogAllowlist: map[string]bool{"INV-IBT-P01": true},
+		EvaluatorFactory: func(string) (oracle.MechanismEvaluator, error) {
+			return fakeMechanismEvaluator{verdict: oracle.VerdictFail}, nil
+		},
+	}
+	payload := `{"toolchain":"gcc","mechanism":"ibt","isa":["x86_64"],"checker_ids":["INV-IBT-P01"],"related_invariants":["INV-IBT-B01"],"minimal_trigger":{"source":"unsigned long g(void){return 0x1fa1e0ff3ULL;}","flags":["-O2","-fcf-protection=branch"]}}`
+
+	online, err := dispatchFixture(t, dispatcher, payload, CandidateModeOnline)
+	require.NoError(t, err)
+	require.Len(t, online.Results, 1)
+	assert.Equal(t, "INV-IBT-P01", online.Results[0].ID)
+
+	verified, err := dispatchFixture(t, dispatcher, payload, CandidateModeVerify)
+	require.NoError(t, err)
+	require.Len(t, verified.Results, 1)
+	assert.Equal(t, "INV-IBT-B01", verified.Results[0].ID)
+}
+
+func TestCandidateDispatcherVerifyRejectsUnknownRelatedInvariant(t *testing.T) {
+	dispatcher := &CandidateDispatcher{
+		Toolchains:       fakeToolchains("x86_64"),
+		Builder:          &recordingCandidateBuilder{},
+		CatalogAllowlist: map[string]bool{"INV-IBT-P01": true},
+	}
+	payload := `{"toolchain":"gcc","mechanism":"ibt","isa":["x86_64"],"checker_ids":["INV-IBT-P01"],"related_invariants":["INV-NOT-COMPILED"],"minimal_trigger":{"source":"int x;","flags":["-c"]}}`
+
+	_, err := dispatchFixture(t, dispatcher, payload, CandidateModeVerify)
+
+	require.ErrorContains(t, err, `unknown checker id "INV-NOT-COMPILED"`)
+}
+
 func TestCandidateDispatcherNormalizesISAAliasesAndTargetTripleFallback(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -994,7 +994,10 @@ async def run(
         "\n\n# Checker routing contract\n\n"
         "For every candidate, set checker_ids to one or more checker_id values "
         "from the permitted checker catalog. Select only checkers relevant to the "
-        "candidate; the deterministic dispatcher expands dependencies and ISA routes."
+        "candidate; these bundle-scoped IDs drive online feedback. Also put each "
+        "canonical invariant actually claimed by the candidate in related_invariants. "
+        "The final verify pass resolves those IDs only against trusted checkers compiled "
+        "into the same manifest-bound dispatcher, then expands dependencies and ISA routes."
         if checker_runtime is not None and resolved.policy.use_online_oracle
         else ""
     )
@@ -1287,6 +1290,11 @@ async def run(
         invalid_workers = len(worker_validity) - valid_workers
         if checker_runtime is not None:
             verification_commands = [checker_runtime.verification_command]
+            # Online checker_ids are bundle-scoped. The manifest-bound dispatcher
+            # is also the trusted final verifier and may select canonical
+            # related_invariants compiled into that same executable, so the
+            # verifier validates those IDs itself rather than applying the
+            # online allowlist a second time.
             allowed_checker_ids: frozenset[str] | None = checker_runtime.checker_ids
         else:
             raw_commands = parameters.get("verification_command", [])
@@ -1318,8 +1326,16 @@ async def run(
                 candidate,
                 [lease.root],
                 commands=verification_commands,
-                allowed_checker_ids=allowed_checker_ids,
-                require_checker_ids=(checker_runtime is not None and variant is AuditVariant.FULL),
+                allowed_checker_ids=(
+                    None
+                    if checker_runtime is not None and candidate.related_invariants
+                    else allowed_checker_ids
+                ),
+                require_checker_ids=(
+                    checker_runtime is not None
+                    and variant is AuditVariant.FULL
+                    and not candidate.related_invariants
+                ),
             )
             verification_results.append(verification)
             if verification.confirmed and time_to_first_verified_ms is None:

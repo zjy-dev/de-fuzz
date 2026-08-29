@@ -358,6 +358,7 @@ def test_render_feedback_uses_only_the_public_result_contract() -> None:
 
     rendered = render_oracle_feedback([result])
 
+    assert "PASS does not refute a distinct claimed related_invariant" in rendered
     assert "reproduced by the checker" in rendered
     assert "exit=1" in rendered
     assert "hidden_finding" not in rendered

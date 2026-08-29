@@ -698,6 +698,7 @@ class _CandidateBackend:
         *,
         evidence_code: str | None = None,
         checker_ids: tuple[str, ...] = ("INV-ONE",),
+        related_invariants: tuple[str, ...] = (),
         toolchain: str = "gcc",
         mechanism: str = "stack-protector",
         isas: tuple[str, ...] = ("x86_64",),
@@ -705,6 +706,7 @@ class _CandidateBackend:
         self.requests: list[AgentRequest] = []
         self.evidence_code = evidence_code
         self.checker_ids = checker_ids
+        self.related_invariants = related_invariants
         self.toolchain = toolchain
         self.mechanism = mechanism
         self.isas = isas
@@ -718,6 +720,7 @@ class _CandidateBackend:
             "mechanism": self.mechanism,
             "isa": list(self.isas),
             "checker_ids": list(self.checker_ids),
+            "related_invariants": list(self.related_invariants),
             "invariant_violated": "A concrete invariant.",
             "evidence_file_line": ["compiler.c:1"],
             "evidence_code": source,
@@ -1512,6 +1515,48 @@ async def test_formal_full_missing_checker_ids_is_invalid(tmp_path: Path) -> Non
     verification = summary["candidate_verification"][0]
     assert verification["status"] == "invalid"
     assert any("requires at least one checker_id" in issue for issue in verification["issues"])
+
+
+@pytest.mark.asyncio
+async def test_formal_full_uses_related_invariants_for_final_verification(
+    tmp_path: Path,
+) -> None:
+    reference = _reference(tmp_path)
+    source = _source(tmp_path)
+    (source / "compiler.c").write_text("one\ntwo\nthree\nfour\nfive\n", encoding="utf-8")
+    manifest, toolchains = _checker_bundle(tmp_path)
+    output = tmp_path / "formal-related-invariant-verification"
+
+    result = await run(
+        ExperimentPlan(
+            run_id="formal-related-invariant-verification",
+            experiment="agent-audit",
+            variant="full",
+            source_root=source,
+            parameters={
+                "reference_root": str(reference),
+                "compiler": "gcc",
+                "families": ["A"],
+                "checker_bundle_manifest": str(manifest),
+                "toolchains_config": str(toolchains),
+                "require_verified_candidates": True,
+            },
+        ),
+        1,
+        output,
+        _CandidateBackend(
+            checker_ids=("INV-ONE",), related_invariants=("INV-IBT-B01",)
+        ),
+    )
+
+    assert result.status == "completed"
+    assert result.result_valid is True
+    assert result.metrics["candidate_verified"] == 1
+    invocations = [
+        json.loads(line)
+        for line in (manifest.parent / "invocations.jsonl").read_text().splitlines()
+    ]
+    assert [item["mode"] for item in invocations] == ["online", "verify"]
 
 
 @pytest.mark.asyncio
