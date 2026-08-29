@@ -1,7 +1,7 @@
 ---
 title: DeFuzz 论文实验结构与进度
 description: 按 DeFuzz 主流程组织的三个主实验 Part 与独立消融实验
-last_updated: 2026-08-28
+last_updated: 2026-08-29
 status: DRAFT
 ---
 
@@ -90,10 +90,28 @@ defuzz-experiment
 | --- | --- | --- | --- | --- | --- |
 | **Part I：不变量生成实验** | 编译器源码、规格与 ABI 文档、历史漏洞及补丁 | DeFuzz 能否从大规模语料中生成正确、有安全意义、可证伪且不重复的安全不变量？Segmented CoT 与 RAG 是否互补？ | 运行两条互补路径：① Segmented CoT 对完整语料分段审阅，保证广度；② RAG 以历史漏洞根因为 probe，检索并迁移高价值同构模式。两路候选进入相同的 grounding 与 novelty 过滤。 | CoT/RAG 各自产出数、交集与增量；候选接受率；专家判定的有效率与 Cohen's kappa；novelty；每条有效不变量的 Token、时间和人工成本。 | **正式数据未运行。** 先前 GCC 16.1 RAG 探索产生过 24 probes、4,496 chunks、BM25 9 条、dense 7 条、去重并集 11 条，但不可作为 GCC 17 正式 baseline 的结果。当前需要先完成 HTTP pilot，再基于冻结 GCC 17 corpus 运行两路生成与专家盲评。 |
 | **Part II：Checker 编写实验** | Part I 通过验证的不变量，以及对应 statement、observation、evidence、target/ISA 信息 | 生成的不变量能否稳定转化为可执行、可复用且判定准确的 static/dynamic checker？编写 checker 需要多少自动化与人工修正？ | 逐条在同一个累计 workspace 中将 accepted invariant 转为 checker；每项失败回滚，成功项保留；最后全树验证并构建 content-addressed checker bundle。 | checker 转换成功率；一次编译/测试通过率；最终通过率；static/dynamic 分布；TP/FN/FP/TN 与 Pass/Fail/NA/Error 分布；人工修改次数与时间；每个 checker 的 Token/运行成本。 | **工程实现完成，正式实验未运行。** 已输出 `results.jsonl`、累计 patch、runtime catalog、可执行 dispatcher 和 manifest，并校验文件 ownership、依赖闭包、tree hash 与 artifact hash。 |
-| **Part III：Agent 审计实验** | 目标编译器与防御机制、Part I 的不变量、Part II 的 executable checkers | 在不变量与 checker 的指导下，Agent 能否系统审计编译器防御并发现真实静默失效？ | Agent 按机制与 ISA 审计目标源码、构造或迭代触发样例；Full 使用 checker 在线反馈；所有 variant 在 worker 结束后由同一冻结 dispatcher 独立验证。 | 审计的 compiler/mechanism/ISA 覆盖；候选数；checker-confirmed 数；PoC verified 数；去重后的真实缺陷数；假阳性率；上游 reported/confirmed/fixed/CVE 数；time-to-first-finding、Token 与总审计成本。 | **工程实现完成，正式结果未冻结。** 已跑通 x86_64 IBT 的真实 Clang E2E，得到 deterministic `FAIL` 并形成 `verified-findings`；该结果只证明链路，不作为正式论文缺陷统计。 |
+| **Part III：Agent 审计实验** | 目标编译器与防御机制、Part I 的不变量、Part II 的 executable checkers | 在不变量与 checker 的指导下，Agent 能否系统审计编译器防御并发现真实静默失效？ | Agent 按机制与 ISA 审计目标源码、构造或迭代触发样例；Full 使用 checker 在线反馈；所有 variant 在 worker 结束后由同一冻结 dispatcher 独立验证。 | 审计的 compiler/mechanism/ISA 覆盖；候选数；checker-confirmed 数；PoC verified 数；去重后的真实缺陷数；假阳性率；上游 reported/confirmed/fixed/CVE 数；time-to-first-finding、Token 与总审计成本。 | **链路已在真实 GCC17 上端到端验证，产出 1 个确定性 verified finding；正式多重复 campaign 统计未完成。** 真实模型 Agent（`coconut-gpt-5-6-terra-max`，reasoning medium）在冻结 GCC 17.0.0-experimental 20260531 上独立提出 IBT immediate-masking 缺陷候选；冻结 dispatcher 的独立 canonical checker `INV-IBT-B01` 确定性复现 `FAIL`（`f+0x8@0x8[.text]`），在线引导 checker `INVGEN-…` 与最终 checker 分离。详见下方“GCC17 端到端 verified finding”。该结果证明真实后端链路可发现真实缺陷，但仍是单机制、单重复结果，不等于完整 campaign 的缺陷计数与消融对比。 |
 
 三个 Part 必须按同一条证据链衔接：Part I 的输出是 accepted invariants；Part II 只统计由这些 invariants 转换并验证的 checkers；Part III 的五项 gate 仅表示候选结构完整。最终 finding 还必须通过独立的源码 excerpt 核验和由 orchestrator 冻结命令驱动的离线 checker/PoC 验证；Agent 自报的 `poc_verified` 不构成确认。
 Formal clean-room 要求同样适用于“发现集”边界：历史 bug 文档与 reference docs 可用于 Invariant Generation / Checker Writing / Agent Audit，但 evaluator-only `findings/` 不得暴露给 worker。这样 Part III 的有效 finding 只能来自当前 campaign 的审计与独立复核，不能从既有 findings 库中直接复用答案。
+
+## GCC17 端到端 verified finding（真实后端，单重复）
+
+这是当前唯一一条跑通“真实模型 Agent 提出候选 → 冻结 dispatcher 独立确定性验证”的完整链路结果，用于证明后端链路能在真实 GCC17 上发现真实缺陷；**它是单机制、单重复结果，不是正式 campaign 的缺陷计数或消融结论。**
+
+- **目标**：GCC `17.0.0 experimental 20260531`，commit `f20bc4c2fe00928013c533e241b89ae3a6724ca1`，`x86_64-linux-gnu`，机制 IBT（`-fcf-protection=branch`）。
+- **缺陷**：`ix86_endbr_immediate_operand`（`gcc/config/i386/predicates.md`）用移位后的整数值与 32 位 ENDBR 编码比较，而不是对四字节窗口取掩码；高位非零、低四字节恰为 `F3 0F 1E FA`（ENDBR64）的 64 位立即数被放行，可在函数体内形成非预期 landing pad，削弱 IBT 前向边 CFI。
+- **Agent 侧**：`coconut-gpt-5-6-terra-max`，reasoning `medium`，DeFuzz 直连本地 Coconut `/v1/responses`；候选通过结构准入，指纹 `567b8940…b8998e`，agent-audit 阶段 9 次调用共 1,380,909 tokens（`usage_missing_count=0`）。
+- **双 oracle 验证**（同一冻结 dispatcher、同一候选、同一 toolchain）：
+
+  | 模式 | 路由 checker | verdict | 含义 |
+  | --- | --- | --- | --- |
+  | `-mode online` | bundle `checker_ids` → `INVGEN-0DD8B9A56F5624D8`（函数入口 ENDBR 属性） | `PASS` | 在线引导 checker 只确认间接目标入口有 ENDBR，用于引导 Agent，不能证明函数体内无 stray ENDBR。 |
+  | `-mode verify` | `related_invariants` → 编译期 canonical `INV-IBT-B01` | `FAIL`（exit 0） | 独立 canonical checker 确定性检出 `found 1 unintended ENDBR opcode(s) inside function bodies: f+0x8@0x8[.text]`。 |
+
+- **关键设计结论**：在线引导 checker 与最终独立 checker 必须分离。在线 `PASS` 不能推翻另一条 `related_invariant`；最终验证由编译进冻结 dispatcher 的 canonical checker（`INV-IBT-B01`，不在 bundle catalog 中）独立、fail-closed 地执行。Agent 自报 `poc_verified` 不构成确认。
+- **证据目录**：`de-fuzz-experiment-runs/stages/gcc17-http-terra-r5-finalverify-evidence-20260829/`，含 `r5-candidate.json`、`online.stdout.json`、`verify.stdout.json`、各自 stderr 日志与 `provenance.json`（记录候选指纹、bundle/dispatcher/catalog SHA-256、toolchain、命令与双模式 verdict）。
+- **可信 bundle**：`de-fuzz-experiment-runs/stages/gcc17-http-terra-scoped-part2-r5-finalverify-20260829/rep-001/artifacts/`，`bundle_id=f1e74449…e2c2`，dispatcher `47d50a3a…b891`，catalog `ef57e21c…06254`，含 15 个 Part II checker；`INV-IBT-B01` 为 dispatcher 内编译 canonical checker。
 
 ## 独立消融实验
 
@@ -143,5 +161,5 @@ Formal clean-room 要求同样适用于“发现集”边界：历史 bug 文档
 | 共同前置：统一 CLI、HTTP Responses backend、Token 统计与数据隔离 | **工程实现完成，HTTP pilot 通过** | 冻结 YAML、GCC revision、模型与预算，启动正式 campaign。 |
 | Part I：不变量生成 | **HTTP pilot 通过；GCC 17 正式数据未运行** | 对完整冻结语料运行 Segmented CoT + RAG 并进行专家盲评。 |
 | Part II：Checker 编写 | **累计 bundle 工程与跨语言 E2E 通过；正式数据未完成** | 使用 Part I 正式输出执行，统计首次/最终通过率和人工复核成本。 |
-| Part III：Agent 审计 | **online/offline checker 闭环与真实 Clang E2E 通过；正式数据未完成** | 在冻结 toolchain/source 上进行重复审计，汇总 verified findings 与上游状态。 |
+| Part III：Agent 审计 | **真实 GCC17 后端链路已端到端验证并产出 1 个确定性 verified finding（IBT）；正式多重复 campaign 未完成** | 在冻结 toolchain/source 上按机制/ISA 进行重复审计，汇总 verified findings、假阳性率与上游状态。 |
 | 四个 variant：Full、w/o RAG、w/o Oracle、裸 Agent | **四臂 fixture smoke 通过；正式数据未运行** | 在同一 HTTP backend、GCC 17 baseline 与预算下运行固定重复次数，并报告均值、方差或置信区间。 |
