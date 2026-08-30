@@ -51,7 +51,7 @@ _EXCLUDED_PARTS = {
     "target",
 }
 _TARGET_SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]*$")
-_VERSION_SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+-]*$")
+_VERSION_TEXT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+() /-]{0,255}$")
 _COMPILER_ALIASES = {
     "gcc": "GCC",
     "gnu-compiler-collection": "GCC",
@@ -145,8 +145,11 @@ def _normalize_version_value(value: str) -> str:
     stripped = value.strip()
     if not stripped:
         return ""
-    if not _VERSION_SLUG.fullmatch(stripped):
-        raise ValueError("must be a compact version string or empty")
+    if not _VERSION_TEXT.fullmatch(stripped):
+        raise ValueError(
+            "must be a single-line printable version string of at most 256 "
+            "characters or empty"
+        )
     return stripped
 
 

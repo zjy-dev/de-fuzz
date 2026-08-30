@@ -611,6 +611,86 @@ def test_accepted_invariant_allows_empty_target_and_version() -> None:
     assert record.mechanism == "stack-protector"
 
 
+def test_part_i_accepts_frozen_version_with_commit_provenance() -> None:
+    version = (
+        "17.0.0 experimental 20260531 "
+        "(commit f20bc4c2fe00928013c533e241b89ae3a6724ca1)"
+    )
+    record = AcceptedInvariant(
+        invariant_id="INVGEN-TEST",
+        statement=_STATEMENT,
+        observation="The return path lacks a guard comparison.",
+        generation_path="rag",
+        generation_paths=["rag"],
+        provenance=[],
+        compiler="GCC",
+        version=version,
+        target="aarch64",
+        mechanism="stack-protector",
+        source_kind="source",
+        source_url_or_path="gcc/guard.cc:10",
+        evidence_snippet="emit guard check before return",
+        protected_asset="saved return address",
+        activation_condition="stack protection is enabled",
+        falsifiability={
+            "observability": "inspect emitted return path",
+            "determinism": "comparison exists or does not",
+            "cost": "one inspection",
+            "static_or_dynamic": "static",
+        },
+    )
+    review = SegmentReview.model_validate(
+        {
+            "candidates": [
+                {
+                    "statement": _STATEMENT,
+                    "observation": "The return path lacks a guard comparison.",
+                    "protected_asset": "saved return address",
+                    "activation_condition": "stack protection is enabled",
+                    "mechanism": "stack-protector",
+                    "compiler": "GCC",
+                    "version": version,
+                    "target": "aarch64",
+                    "falsifiability": {
+                        "observability": "inspect emitted return path",
+                        "determinism": "comparison exists or does not",
+                        "cost": "one inspection",
+                        "static_or_dynamic": "static",
+                    },
+                }
+            ]
+        }
+    )
+
+    assert record.version == version
+    assert review.candidates[0].version == version
+
+
+@pytest.mark.parametrize("version", ["17.0.0\ncommit deadbeef", "x" * 257])
+def test_part_i_rejects_unsafe_or_unbounded_versions(version: str) -> None:
+    with pytest.raises(ValidationError, match="single-line printable"):
+        SegmentReview.model_validate(
+            {
+                "candidates": [
+                    {
+                        "statement": _STATEMENT,
+                        "observation": "The return path lacks a guard comparison.",
+                        "protected_asset": "saved return address",
+                        "activation_condition": "stack protection is enabled",
+                        "mechanism": "stack-protector",
+                        "version": version,
+                        "falsifiability": {
+                            "observability": "inspect emitted return path",
+                            "determinism": "comparison exists or does not",
+                            "cost": "one inspection",
+                            "static_or_dynamic": "static",
+                        },
+                    }
+                ]
+            }
+        )
+
+
 async def test_rag_pipeline_uses_injected_judge_without_building_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
