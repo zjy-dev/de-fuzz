@@ -71,11 +71,11 @@ Go core 一个进程开两个 listener：gRPC（默认 `127.0.0.1:50051`，确�
 | `xgcc` / 交叉 gcc (插桩 GCC) | 按 (checker→ISA) 矩阵编译每颗 seed | build 节点（`BuildService.Build`） | `configs/toolchains.yaml` 每 ISA 的 `gcc_path` |
 | `gcovr` | 把 `.gcda` 转成 JSON 覆盖率报告 | coverage 节点（`CoverageService.Measure`，经注入的 measurer） | measurer 装配层 |
 | `gcov-14` | 被 `gcovr` 内部调用解 `.gcno`/`.gcda` | 同上 | gcovr 的 `--gcov-executable` |
-| `qemu-aarch64` / `qemu-riscv64` 等 | 跨架构 user-mode 执行 | oracle 的动态 checker | `configs/toolchains.yaml` 每 ISA 的 `qemu_path` + `qemu_sysroot` |
+| `qemu-aarch64` / `qemu-riscv64` 等 | 跨架构 user-mode 执行 | oracle 的动态 checker | `configs/toolchains.yaml` 每 ISA 的 `qemu_path` + `qemu_args` + `qemu_sysroot` |
 | `creduce` | 违反时缩小 PoC | 最小化 agent 的 MCP tool `creduce_run` | — |
 | `python3 + uv` | 编排层运行时（LangGraph + 三个 agent） | 整个 run | `orchestrator/configs/llm.yaml` |
 
-ISA → toolchain 的映射集中在 `configs/toolchains.yaml`；某 ISA 缺工具链时 build 节点产出 error cell（R8）而非崩溃，loop 优雅降级。外部二进制的存在性由用户负责保证。
+ISA → toolchain 的映射集中在 `configs/toolchains.yaml`。正式实验要求每个 ISA 显式设置 `native`：`native: true` 直接执行，`native: false` 必须提供可执行的 `qemu_path`；否则 preflight 直接失败。编译器与 QEMU runner 的路径、文件哈希、参数及 QEMU sysroot 都写入冻结 plan。静态 checker 只分析 ELF，不启动 QEMU；动态 checker 才通过该执行后端运行。四 ISA 单机配置模板见 `configs/toolchains.qemu.example.yaml`。
 
 ## 6. LLM Provider
 

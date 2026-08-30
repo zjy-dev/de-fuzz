@@ -40,6 +40,32 @@ func TestNewGCCCompiler(t *testing.T) {
 	assert.Equal(t, []string{"-Wall", "-O2"}, compiler.cflags)
 }
 
+func TestGCCCompilerDriverArgsPrecedeCompilerFlags(t *testing.T) {
+	workDir := t.TempDir()
+	compiler := NewGCCCompiler(GCCCompilerConfig{
+		GCCPath:    "/trusted/compiler-wrapper",
+		WorkDir:    workDir,
+		DriverArgs: []string{"--image", "gcc17:aarch64", "--"},
+		CFlags:     []string{"-O2"},
+	})
+
+	var captured []string
+	compiler.executor = &MockExecutor{
+		RunFunc: func(_ string, args ...string) (*exec.ExecutionResult, error) {
+			captured = append([]string(nil), args...)
+			return &exec.ExecutionResult{ExitCode: 0}, nil
+		},
+	}
+
+	_, err := compiler.Compile(&seed.Seed{
+		Meta: seed.Metadata{ID: 2}, Content: "int main(void) { return 0; }",
+	})
+
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(captured), 4)
+	assert.Equal(t, []string{"--image", "gcc17:aarch64", "--", "-O2"}, captured[:4])
+}
+
 func TestGCCCompiler_GetWorkDir(t *testing.T) {
 	cfg := GCCCompilerConfig{
 		WorkDir: "/custom/work/dir",

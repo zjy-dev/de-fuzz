@@ -1,0 +1,45 @@
+# Single-host four-ISA toolchain template. Replace every /ABS/... placeholder.
+# Exactly one execution mode must be selected per ISA:
+#   native: true  -> execute target programs directly on the host
+#   native: false -> execute dynamic checkers through qemu_path
+#
+# Static-only checkers still compile every selected ISA but do not invoke QEMU.
+# qemu_args are trusted configuration argv placed before `-L <qemu_sysroot>`
+# and the target binary. They may be omitted when the emulator default CPU is
+# the intended experimental baseline.
+toolchains:
+  x86_64:
+    gcc_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-compiler-driver.sh
+    driver_args: [--image, "defuzz-gcc17-x86_64@sha256:REPLACE", --compiler, /opt/gcc17/bin/gcc, --, -B/opt/gcc17/libexec/gcc/x86_64-linux-gnu/17]
+    qemu_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-qemu-user.sh
+    qemu_args: [--image, "defuzz-gcc17-x86_64@sha256:REPLACE", --emulator, /usr/bin/qemu-x86_64, --, -L, /usr/x86_64-linux-gnu, --binary]
+    qemu_sysroot: ""
+    cflags: []
+    native: false
+
+  aarch64:
+    gcc_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-compiler-driver.sh
+    driver_args: [--image, "defuzz-gcc17-aarch64@sha256:REPLACE", --compiler, /opt/gcc17/bin/aarch64-linux-gnu-gcc, --, -B/opt/gcc17/libexec/gcc/aarch64-linux-gnu/17, "-Wl,-rpath-link,/usr/aarch64-linux-gnu/lib"]
+    qemu_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-qemu-user.sh
+    qemu_args: [--image, "defuzz-gcc17-aarch64@sha256:REPLACE", --emulator, /usr/bin/qemu-aarch64, --, -cpu, max, -L, /usr/aarch64-linux-gnu, --binary]
+    qemu_sysroot: ""
+    cflags: []
+    native: false
+
+  riscv64:
+    gcc_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-compiler-driver.sh
+    driver_args: [--image, "defuzz-gcc17-riscv64@sha256:REPLACE", --compiler, /opt/gcc17/bin/riscv64-linux-gnu-gcc, --, -B/opt/gcc17/libexec/gcc/riscv64-linux-gnu/17, "-Wl,-rpath-link,/usr/riscv64-linux-gnu/lib"]
+    qemu_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-qemu-user.sh
+    qemu_args: [--image, "defuzz-gcc17-riscv64@sha256:REPLACE", --emulator, /usr/bin/qemu-riscv64, --, -cpu, rv64, -L, /usr/riscv64-linux-gnu, --binary]
+    qemu_sysroot: ""
+    cflags: []
+    native: false
+
+  loongarch64:
+    gcc_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-compiler-driver.sh
+    driver_args: [--image, "defuzz-gcc17-loongarch64@sha256:REPLACE", --compiler, /opt/gcc17/bin/loongarch64-linux-gnu-gcc, --, -B/opt/gcc17/libexec/gcc/loongarch64-linux-gnu/17]
+    qemu_path: /ABS/PATH/TO/de-fuzz/scripts/toolchains/docker-qemu-user.sh
+    qemu_args: [--image, "defuzz-gcc17-loongarch64@sha256:REPLACE", --emulator, /opt/qemu-10.2/bin/qemu-loongarch64, --, -cpu, la464, -L, /qemu/loongarch64, --binary]
+    qemu_sysroot: ""
+    cflags: []
+    native: false

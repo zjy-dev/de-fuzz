@@ -264,11 +264,7 @@ class PipelineConfig(_StrictModel):
             )
         if self.mode == "formal" and not self.audit.require_verified_candidates:
             raise ValueError("formal mode requires audit.require_verified_candidates=true")
-        if (
-            self.mode == "formal"
-            and self.backend.kind != "http"
-            and self.backend.model is None
-        ):
+        if self.mode == "formal" and self.backend.kind != "http" and self.backend.model is None:
             raise ValueError("formal mode requires backend.model to pin the exact model")
         if self.mode == "formal" and self.generation.max_segments is not None:
             raise ValueError(
@@ -586,9 +582,7 @@ class PipelineRunners:
             del backend
             bundle_path = Path(str(plan.parameters["checker_bundle_manifest"])).resolve(strict=True)
             bundle = _validate_bundle_manifest(bundle_path)
-            invariant_path = Path(str(plan.parameters["accepted_invariants"])).resolve(
-                strict=True
-            )
+            invariant_path = Path(str(plan.parameters["accepted_invariants"])).resolve(strict=True)
             if plan.parameters["accepted_invariants_sha256"] != _sha256_file(invariant_path):
                 raise ValueError("fixture accepted invariants SHA-256 mismatch")
             toolchains = Path(str(plan.parameters["toolchains_config"])).resolve(strict=True)
@@ -1006,15 +1000,23 @@ _TOOLCHAIN_FIELDS = frozenset(
     {
         "gcc_path",
         "clang_path",
+        "driver_args",
         "prefix",
         "sysroot",
         "cflags",
         "qemu_path",
+        "qemu_args",
         "qemu_sysroot",
         "native",
     }
 )
-_TOOLCHAIN_STRING_FIELDS = _TOOLCHAIN_FIELDS - {"cflags", "native"}
+_TOOLCHAIN_STRING_FIELDS = _TOOLCHAIN_FIELDS - {
+    "cflags",
+    "driver_args",
+    "qemu_args",
+    "native",
+}
+_TOOLCHAIN_LIST_FIELDS = frozenset({"cflags", "driver_args", "qemu_args"})
 
 
 def _load_formal_toolchains(path: Path) -> Mapping[str, Any]:
@@ -1045,13 +1047,17 @@ def _load_formal_toolchains(path: Path) -> Mapping[str, Any]:
                 raise ValueError(
                     f"toolchains config ISA {isa!r} field {field!r} must be a string: {path}"
                 )
-        if "cflags" in entry and (
-            not isinstance(entry["cflags"], list)
-            or not all(isinstance(item, str) for item in entry["cflags"])
-        ):
-            raise ValueError(
-                f"toolchains config ISA {isa!r} field 'cflags' must be a list of strings: {path}"
-            )
+        for field in _TOOLCHAIN_LIST_FIELDS:
+            if field in entry and (
+                not isinstance(entry[field], list)
+                or not all(
+                    isinstance(item, str) and item and "\x00" not in item for item in entry[field]
+                )
+            ):
+                raise ValueError(
+                    f"toolchains config ISA {isa!r} field {field!r} must be a list "
+                    f"of non-empty, NUL-free strings: {path}"
+                )
         if "native" in entry and not isinstance(entry["native"], bool):
             raise ValueError(
                 f"toolchains config ISA {isa!r} field 'native' must be a boolean: {path}"
@@ -1060,7 +1066,6 @@ def _load_formal_toolchains(path: Path) -> Mapping[str, Any]:
 
 
 def _formal_toolchain_drivers(config: PipelineConfig) -> list[dict[str, Any]]:
-    cached: dict[Path, Mapping[str, Any]] = {}
     drivers: list[dict[str, Any]] = []
     for target in config.targets:
         if not target.mechanisms:
@@ -1068,67 +1073,174 @@ def _formal_toolchain_drivers(config: PipelineConfig) -> list[dict[str, Any]]:
         if not target.isas:
             raise ValueError(f"formal target {target.id!r} isas must not be empty")
         config_path = _toolchains_for(config, target).resolve(strict=True)
-        toolchains = cached.get(config_path)
-        if toolchains is None:
-            toolchains = _load_formal_toolchains(config_path)
-            cached[config_path] = toolchains
-        driver_field = "gcc_path" if target.compiler == "gcc" else "clang_path"
-        for isa in target.isas:
-            entry = toolchains.get(isa)
-            context = (
-                f"target={target.id!r}, isa={isa!r}, compiler={target.compiler!r}, "
-                f"config={config_path}"
+        drivers.extend(
+            formal_toolchain_identities(
+                config_path,
+                target_id=target.id,
+                compiler=target.compiler,
+                isas=target.isas,
             )
-            if entry is None:
-                raise ValueError(
-                    f"formal toolchain preflight failed ({context}): ISA {isa!r} is not configured"
-                )
-            if not isinstance(entry, Mapping):
-                # _load_formal_toolchains validates every entry; retain this guard
-                # for type narrowing and defense in depth.
+        )
+    return drivers
+
+
+def formal_toolchain_identities(
+    config_path: str | os.PathLike[str],
+    *,
+    target_id: str,
+    compiler: CompilerName,
+    isas: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Validate and freeze compiler/QEMU identities for one formal target."""
+
+    path = Path(config_path).expanduser().resolve(strict=True)
+    toolchains = _load_formal_toolchains(path)
+    selected_isas = list(isas) or [normalize_isa(str(isa)) for isa in toolchains]
+    driver_field = "gcc_path" if compiler == "gcc" else "clang_path"
+    drivers: list[dict[str, Any]] = []
+    for isa in selected_isas:
+        entry = toolchains.get(isa)
+        context = f"target={target_id!r}, isa={isa!r}, compiler={compiler!r}, config={path}"
+        if entry is None:
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): ISA {isa!r} is not configured"
+            )
+        if not isinstance(entry, Mapping):
+            # _load_formal_toolchains validates every entry; retain this guard
+            # for type narrowing and defense in depth.
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): toolchain entry must be a mapping"
+            )
+        raw_driver = entry.get(driver_field)
+        if not isinstance(raw_driver, str) or not raw_driver.strip():
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): "
+                f"{driver_field} must be a non-empty string"
+            )
+        configured_driver = Path(raw_driver)
+        if not configured_driver.is_absolute():
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): "
+                f"{driver_field} must be absolute, got {raw_driver!r}"
+            )
+        try:
+            driver = configured_driver.resolve(strict=True)
+        except OSError as exc:
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): "
+                f"{driver_field} does not resolve: {raw_driver!r}"
+            ) from exc
+        if not driver.is_file():
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): "
+                f"driver is not a regular file: {driver}"
+            )
+        if not os.access(driver, os.X_OK):
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): driver is not executable: {driver}"
+            )
+        record = {
+            "target_id": target_id,
+            "isa": isa,
+            "compiler": compiler,
+            "path": str(driver),
+            "sha256": _sha256_file(driver),
+            "size_bytes": driver.stat().st_size,
+            "args": list(entry.get("driver_args", [])),
+        }
+        configured_sysroot = entry.get("sysroot", "")
+        if configured_sysroot:
+            compiler_sysroot = Path(str(configured_sysroot))
+            if not compiler_sysroot.is_absolute():
                 raise ValueError(
                     f"formal toolchain preflight failed ({context}): "
-                    "toolchain entry must be a mapping"
-                )
-            raw_driver = entry.get(driver_field)
-            if not isinstance(raw_driver, str) or not raw_driver.strip():
-                raise ValueError(
-                    f"formal toolchain preflight failed ({context}): "
-                    f"{driver_field} must be a non-empty string"
-                )
-            configured_driver = Path(raw_driver)
-            if not configured_driver.is_absolute():
-                raise ValueError(
-                    f"formal toolchain preflight failed ({context}): "
-                    f"{driver_field} must be absolute, got {raw_driver!r}"
+                    f"sysroot must be absolute, got {configured_sysroot!r}"
                 )
             try:
-                driver = configured_driver.resolve(strict=True)
+                compiler_sysroot = compiler_sysroot.resolve(strict=True)
             except OSError as exc:
                 raise ValueError(
                     f"formal toolchain preflight failed ({context}): "
-                    f"{driver_field} does not resolve: {raw_driver!r}"
+                    f"sysroot does not resolve: {configured_sysroot!r}"
                 ) from exc
-            if not driver.is_file():
+            if not compiler_sysroot.is_dir():
                 raise ValueError(
                     f"formal toolchain preflight failed ({context}): "
-                    f"driver is not a regular file: {driver}"
+                    f"sysroot is not a directory: {compiler_sysroot}"
                 )
-            if not os.access(driver, os.X_OK):
-                raise ValueError(
-                    f"formal toolchain preflight failed ({context}): "
-                    f"driver is not executable: {driver}"
-                )
-            drivers.append(
-                {
-                    "target_id": target.id,
-                    "isa": isa,
-                    "compiler": target.compiler,
-                    "path": str(driver),
-                    "sha256": _sha256_file(driver),
-                    "size_bytes": driver.stat().st_size,
-                }
+            record["sysroot"] = str(compiler_sysroot)
+        if "native" not in entry:
+            raise ValueError(
+                f"formal toolchain preflight failed ({context}): native must be set explicitly"
             )
+        if bool(entry["native"]):
+            if entry.get("qemu_path") or entry.get("qemu_args") or entry.get("qemu_sysroot"):
+                raise ValueError(
+                    f"formal toolchain preflight failed ({context}): native toolchain "
+                    "must not configure qemu_path, qemu_args, or qemu_sysroot"
+                )
+            record["execution"] = {"mode": "native"}
+        else:
+            raw_qemu = entry.get("qemu_path")
+            if not isinstance(raw_qemu, str) or not raw_qemu.strip():
+                raise ValueError(
+                    f"formal toolchain preflight failed ({context}): non-native ISA "
+                    "requires qemu_path"
+                )
+            configured_qemu = Path(raw_qemu)
+            if not configured_qemu.is_absolute():
+                raise ValueError(
+                    f"formal toolchain preflight failed ({context}): "
+                    f"qemu_path must be absolute, got {raw_qemu!r}"
+                )
+            try:
+                qemu = configured_qemu.resolve(strict=True)
+            except OSError as exc:
+                raise ValueError(
+                    f"formal toolchain preflight failed ({context}): "
+                    f"qemu_path does not resolve: {raw_qemu!r}"
+                ) from exc
+            if not qemu.is_file():
+                raise ValueError(
+                    f"formal toolchain preflight failed ({context}): "
+                    f"QEMU runner is not a regular file: {qemu}"
+                )
+            if not os.access(qemu, os.X_OK):
+                raise ValueError(
+                    f"formal toolchain preflight failed ({context}): "
+                    f"QEMU runner is not executable: {qemu}"
+                )
+            raw_sysroot = entry.get("qemu_sysroot", "")
+            sysroot: str | None = None
+            if raw_sysroot:
+                configured_qemu_sysroot = Path(str(raw_sysroot))
+                if not configured_qemu_sysroot.is_absolute():
+                    raise ValueError(
+                        f"formal toolchain preflight failed ({context}): "
+                        f"qemu_sysroot must be absolute, got {raw_sysroot!r}"
+                    )
+                try:
+                    resolved_sysroot = configured_qemu_sysroot.resolve(strict=True)
+                except OSError as exc:
+                    raise ValueError(
+                        f"formal toolchain preflight failed ({context}): "
+                        f"qemu_sysroot does not resolve: {raw_sysroot!r}"
+                    ) from exc
+                if not resolved_sysroot.is_dir():
+                    raise ValueError(
+                        f"formal toolchain preflight failed ({context}): "
+                        f"qemu_sysroot is not a directory: {resolved_sysroot}"
+                    )
+                sysroot = str(resolved_sysroot)
+            record["execution"] = {
+                "mode": "qemu-user",
+                "path": str(qemu),
+                "sha256": _sha256_file(qemu),
+                "size_bytes": qemu.stat().st_size,
+                "args": list(entry.get("qemu_args", [])),
+                "sysroot": sysroot,
+            }
+        drivers.append(record)
     return drivers
 
 
@@ -1206,8 +1318,8 @@ def build_pipeline_plan(
     http_config_size_bytes: int | None = None
     if config.backend.kind == "http":
         assert config.backend.config_path is not None
-        http_config, http_config_sha256, http_config_size_bytes = (
-            load_http_agent_config_snapshot(config.backend.config_path)
+        http_config, http_config_sha256, http_config_size_bytes = load_http_agent_config_snapshot(
+            config.backend.config_path
         )
         if config.backend.model is not None and config.backend.model != http_config.model:
             raise ValueError(
@@ -1706,9 +1818,7 @@ def _stage_plan(
                 "source_roots": [str(path) for path in target.audit_source_roots],
                 "mechanisms": target.mechanisms,
                 "isas": target.isas,
-                "parity_scope": parity_scope.model_dump(
-                    mode="json", exclude_defaults=True
-                ),
+                "parity_scope": parity_scope.model_dump(mode="json", exclude_defaults=True),
                 "max_concurrency": config.audit.max_concurrency,
                 "oracle_rounds": config.audit.oracle_rounds,
                 "demo_parity": config.audit.demo_parity,
@@ -2490,9 +2600,7 @@ async def run_pipeline(
     frozen_http_config: HTTPAgentConfig | None = None
     if config.backend.kind == "http":
         assert config.backend.config_path is not None
-        expected_config_hash = str(
-            plan["backend_identity"]["config_file"]["sha256"]
-        )
+        expected_config_hash = str(plan["backend_identity"]["config_file"]["sha256"])
         if _sha256_file(config.backend.config_path) != expected_config_hash:
             raise ValueError(
                 "HTTP agent config changed after pipeline planning; restart with a new run_id"
@@ -2510,9 +2618,7 @@ async def run_pipeline(
         # HTTP file after this point.
         config = config.model_copy(
             update={
-                "backend": config.backend.model_copy(
-                    update={"model": frozen_http_config.model}
-                )
+                "backend": config.backend.model_copy(update={"model": frozen_http_config.model})
             }
         )
     selected_runners = runners or (

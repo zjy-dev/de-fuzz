@@ -59,14 +59,11 @@ def _write_bundle(
     ]
     selected_ids = [str(record["invariant_id"]) for record in selected_records]
     excluded_ids = [
-        invariant_id
-        for invariant_id in invariant_ids
-        if invariant_id not in set(selected_ids)
+        invariant_id for invariant_id in invariant_ids if invariant_id not in set(selected_ids)
     ]
     scoped_invariants.write_text(
         "".join(
-            json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-            + "\n"
+            json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
             for record in selected_records
         ),
         encoding="utf-8",
@@ -139,9 +136,7 @@ def _write_bundle(
         "invariants": [
             {
                 "invariant_id": invariant_id,
-                "final_status": (
-                    "passed" if coverage_complete or index == 0 else "failed"
-                ),
+                "final_status": ("passed" if coverage_complete or index == 0 else "failed"),
                 "parent_tree_sha256": "1" * 64,
                 "result_tree_sha256": "2" * 64,
                 "files": [],
@@ -320,9 +315,7 @@ def _fixture_runners(
                     {
                         "invariant_id": f"INV-{index + 1}",
                         "statement": "x",
-                        "mechanism": (
-                            "stack-protector" if index < 2 else "fortify-source"
-                        ),
+                        "mechanism": ("stack-protector" if index < 2 else "fortify-source"),
                         "target": "x86_64" if index < 2 else "aarch64",
                     }
                 )
@@ -400,9 +393,9 @@ def _fixture_runners(
         input_scope_ref = bundle_payload["artifacts"]["input_scope"]
         input_scope_path = (bundle.parent / input_scope_ref["path"]).resolve()
         input_scope = json.loads(input_scope_path.read_text(encoding="utf-8"))
-        assert input_scope["source_artifact"]["sha256"] == bundle_payload[
-            "source_invariants_sha256"
-        ]
+        assert (
+            input_scope["source_artifact"]["sha256"] == bundle_payload["source_invariants_sha256"]
+        )
         assert input_scope["source_artifact"]["sha256"] != scoped_ref["sha256"]
         assert input_scope["requested"] == {
             "mechanisms": ["stack-protector"],
@@ -442,9 +435,7 @@ def _fixture_runners(
                         "scoped_invariants_sha256": scoped_ref["sha256"],
                         "input_scope_path": str(input_scope_path),
                         "input_scope_sha256": input_scope_ref["sha256"],
-                        "source_invariants_sha256": bundle_payload[
-                            "source_invariants_sha256"
-                        ],
+                        "source_invariants_sha256": bundle_payload["source_invariants_sha256"],
                         "toolchains_config": str(toolchains.resolve()),
                         "toolchains_config_sha256": _sha256(toolchains),
                     },
@@ -728,8 +719,113 @@ def test_formal_plan_records_compiler_driver_identity(
             "path": str(driver.resolve()),
             "sha256": _sha256(driver),
             "size_bytes": driver.stat().st_size,
+            "args": [],
+            "execution": {"mode": "native"},
         }
     ]
+
+
+def test_formal_plan_records_qemu_identity_for_non_native_isa(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = {
+        "id": "gcc-aarch64",
+        "compiler": "gcc",
+        "version": "fixture",
+        "corpus_root": "corpus",
+        "source_root": "audit-source",
+        "mechanisms": ["canary"],
+        "isas": ["aarch64"],
+    }
+    path = _write_config(tmp_path, mode="formal", targets=[target])
+    driver = _write_executable(tmp_path / "fixture-aarch64-gcc")
+    qemu = _write_executable(tmp_path / "qemu-aarch64")
+    sysroot = tmp_path / "aarch64-sysroot"
+    sysroot.mkdir()
+    (tmp_path / "toolchains.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "toolchains": {
+                    "aarch64": {
+                        "gcc_path": str(driver),
+                        "driver_args": ["--image", "gcc-aarch64", "--"],
+                        "sysroot": str(sysroot),
+                        "qemu_path": str(qemu),
+                        "qemu_args": ["-cpu", "max"],
+                        "qemu_sysroot": str(sysroot),
+                        "native": False,
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
+        lambda paths, *, output_root: None,
+    )
+    monkeypatch.setattr("defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__)
+
+    plan = build_pipeline_plan(load_pipeline_config(path), config_path=path)
+
+    identity = plan["toolchain_drivers"][0]
+    assert identity["args"] == ["--image", "gcc-aarch64", "--"]
+    assert identity["execution"] == {
+        "mode": "qemu-user",
+        "path": str(qemu.resolve()),
+        "sha256": _sha256(qemu),
+        "size_bytes": qemu.stat().st_size,
+        "args": ["-cpu", "max"],
+        "sysroot": str(sysroot.resolve()),
+    }
+    assert identity["sysroot"] == str(sysroot.resolve())
+
+
+@pytest.mark.parametrize(
+    ("entry_update", "error"),
+    [
+        ({"native": False}, "requires qemu_path"),
+        ({"native": False, "qemu_path": "qemu-aarch64"}, "qemu_path must be absolute"),
+        ({"native": False, "qemu_path": "MISSING"}, "qemu_path does not resolve"),
+        ({"native": True, "qemu_path": "DRIVER"}, "native toolchain must not configure"),
+        ({"native": True, "sysroot": "relative-sysroot"}, "sysroot must be absolute"),
+    ],
+)
+def test_formal_plan_rejects_ambiguous_or_missing_qemu_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry_update: dict[str, Any],
+    error: str,
+) -> None:
+    target = {
+        "id": "gcc-aarch64",
+        "compiler": "gcc",
+        "version": "fixture",
+        "corpus_root": "corpus",
+        "source_root": "audit-source",
+        "mechanisms": ["canary"],
+        "isas": ["aarch64"],
+    }
+    path = _write_config(tmp_path, mode="formal", targets=[target])
+    driver = _write_executable(tmp_path / "fixture-aarch64-gcc")
+    entry = {"gcc_path": str(driver), **entry_update}
+    if entry.get("qemu_path") == "DRIVER":
+        entry["qemu_path"] = str(driver)
+    elif entry.get("qemu_path") == "MISSING":
+        entry["qemu_path"] = str(tmp_path / "missing-qemu")
+    (tmp_path / "toolchains.yaml").write_text(
+        yaml.safe_dump({"toolchains": {"aarch64": entry}}, sort_keys=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
+        lambda paths, *, output_root: None,
+    )
+    monkeypatch.setattr("defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__)
+
+    with pytest.raises(ValueError, match=error):
+        build_pipeline_plan(load_pipeline_config(path), config_path=path)
 
 
 @pytest.mark.parametrize(
@@ -844,9 +940,7 @@ def test_typed_config_canonicalizes_target_scope_aliases(tmp_path: Path) -> None
         accepted_invariants=accepted,
         checker_bundle_manifest=manifest,
     )
-    assert plan.parameters["parity_scope"]["mechanisms"] == [
-        "stack-protector"
-    ]
+    assert plan.parameters["parity_scope"]["mechanisms"] == ["stack-protector"]
     assert plan.parameters["parity_scope"]["isas"] == ["x86_64"]
     assert plan.parameters["parity_scope"]["version"] == ["gcc-17"]
 
@@ -906,7 +1000,7 @@ def test_formal_plan_requires_resolved_regular_executable_driver(
     elif driver_kind == "not-executable":
         driver.write_text("not executable\n", encoding="utf-8")
         driver.chmod(0o644)
-    payload = {"toolchains": {"x86_64": {"gcc_path": str(driver)}}}
+    payload = {"toolchains": {"x86_64": {"gcc_path": str(driver), "native": True}}}
     (tmp_path / "toolchains.yaml").write_text(
         yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
     )
@@ -1202,9 +1296,7 @@ async def test_default_http_pipeline_constructs_backend_without_binary_or_networ
     monkeypatch.setattr(pipeline_mod, "HTTPResponsesAgentBackend", FakeHTTPBackend)
     config = load_pipeline_config(path)
     target = config.targets[0]
-    plan = pipeline_mod._stage_plan(
-        config, target, "full", 1, "part_i", tmp_path / "lane"
-    )
+    plan = pipeline_mod._stage_plan(config, target, "full", 1, "part_i", tmp_path / "lane")
     received: list[Any] = []
 
     async def runner(_plan: Any, _repetition: int, _output_dir: Path, backend: Any) -> StageResult:
@@ -1537,9 +1629,7 @@ async def test_formal_pipeline_fails_closed_without_host_read_isolation(
         "defuzz_loop.experiment_engine.pipeline._assert_clean_repositories",
         lambda paths, *, output_root: None,
     )
-    monkeypatch.setattr(
-        "defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__
-    )
+    monkeypatch.setattr("defuzz_loop.experiment_engine.pipeline.shutil.which", lambda _: __file__)
     calls: list[tuple[str, str, str, int]] = []
     runners = _fixture_runners(calls)
     runners = PipelineRunners(

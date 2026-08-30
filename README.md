@@ -119,8 +119,9 @@ boundaries:
 - `configs/experiments/formal.example.yaml` is the formal campaign template.
   It stays in `mode: formal`, requires `backend.kind: http` plus a valid
   `config_path`, refuses dirty Git inputs, forbids `DEFUZZ_FAST_PLAN`, preflights
-  compiler-specific drivers from `toolchains.yaml`, rejects capped/sharded Part I
-  selections, and fails closed instead of silently using fixture runners.
+  compiler-specific drivers and QEMU execution paths from `toolchains.yaml`,
+  rejects capped/sharded Part I selections, and fails closed instead of silently
+  using fixture runners or executing a foreign-ISA binary on the host.
 
 Existing run IDs are refused unless `--resume` is given; upstream artifacts and
 input snapshots are hash-checked. Formal runs keep a clean-room boundary around
@@ -141,6 +142,10 @@ for the execution procedure and exact commands.
 The instrumented GCC under test is built out-of-tree; see
 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md).
 ISA→toolchain paths live in [`configs/toolchains.yaml`](configs/toolchains.yaml).
+For a one-host `x86_64 / aarch64 / riscv64 / loongarch64` campaign, start from
+[`configs/toolchains.qemu.example.yaml`](configs/toolchains.qemu.example.yaml).
+Each ISA is configured explicitly as native or QEMU user-mode; formal plans hash
+both the compiler driver and the QEMU runner.
 
 ## Docs
 

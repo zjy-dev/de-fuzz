@@ -48,6 +48,7 @@ type GCCCompiler struct {
 	gccPath    string   // Path to gcc executable (e.g., "gcc" or "/usr/bin/aarch64-linux-gnu-gcc")
 	workDir    string   // Working directory for compilation
 	prefixPath string   // -B prefix path for compiler components (cc1, as, ld, etc.)
+	driverArgs []string // Trusted wrapper arguments inserted before compiler flags
 	cflags     []string // Additional compiler flags as a slice
 	allowLLM   bool     // Whether LLM-provided seed flags are applied
 }
@@ -57,6 +58,7 @@ type GCCCompilerConfig struct {
 	GCCPath          string   // Path to GCC executable
 	WorkDir          string   // Working directory
 	PrefixPath       string   // -B prefix path for finding compiler components (cc1, as, ld)
+	DriverArgs       []string // Trusted wrapper arguments inserted before compiler flags
 	CFlags           []string // Additional compiler flags as a slice
 	DisableLLMCFlags bool     // Disable LLM-provided seed flags for deterministic strategy profiles
 }
@@ -68,6 +70,7 @@ func NewGCCCompiler(cfg GCCCompilerConfig) *GCCCompiler {
 		gccPath:    cfg.GCCPath,
 		workDir:    cfg.WorkDir,
 		prefixPath: cfg.PrefixPath,
+		driverArgs: append([]string(nil), cfg.DriverArgs...),
 		cflags:     cfg.CFlags,
 		allowLLM:   !cfg.DisableLLMCFlags,
 	}
@@ -189,7 +192,8 @@ func (c *GCCCompiler) buildCompileCommand(s *seed.Seed, sourceFile, binaryPath s
 		effectiveFlags = append(effectiveFlags, appliedLLMCFlags...)
 	}
 
-	args := make([]string, 0, len(effectiveFlags)+3)
+	args := make([]string, 0, len(c.driverArgs)+len(effectiveFlags)+3)
+	args = append(args, c.driverArgs...)
 	args = append(args, effectiveFlags...)
 	args = append(args, sourceFile, "-o", binaryPath)
 

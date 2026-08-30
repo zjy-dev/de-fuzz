@@ -147,14 +147,24 @@ func getExitCode(ps *os.ProcessState, runErr error) int {
 type QEMUOracleExecutorAdapter struct {
 	qemuPath   string
 	sysroot    string
+	qemuArgs   []string
 	timeoutSec int
 }
 
 // NewQEMUOracleExecutorAdapter creates a new QEMUOracleExecutorAdapter.
 func NewQEMUOracleExecutorAdapter(qemuPath, sysroot string, timeoutSec int) *QEMUOracleExecutorAdapter {
+	return NewQEMUOracleExecutorAdapterWithArgs(qemuPath, sysroot, nil, timeoutSec)
+}
+
+// NewQEMUOracleExecutorAdapterWithArgs creates a QEMU adapter with trusted
+// emulator arguments. Arguments are placed before QEMU's -L option and the
+// target program, so flags such as `-cpu max` are not exposed to candidate
+// control.
+func NewQEMUOracleExecutorAdapterWithArgs(qemuPath, sysroot string, qemuArgs []string, timeoutSec int) *QEMUOracleExecutorAdapter {
 	return &QEMUOracleExecutorAdapter{
 		qemuPath:   qemuPath,
 		sysroot:    sysroot,
+		qemuArgs:   append([]string(nil), qemuArgs...),
 		timeoutSec: timeoutSec,
 	}
 }
@@ -169,7 +179,7 @@ func (a *QEMUOracleExecutorAdapter) ExecuteWithInput(binaryPath string, stdin st
 	}
 
 	// Build QEMU command: qemu-aarch64 -L <sysroot> <binary>
-	args := []string{}
+	args := append([]string(nil), a.qemuArgs...)
 	if a.sysroot != "" {
 		args = append(args, "-L", a.sysroot)
 	}
@@ -211,7 +221,7 @@ func (a *QEMUOracleExecutorAdapter) ExecuteWithArgs(binaryPath string, args ...s
 	}
 
 	// Build QEMU command: qemu-aarch64 -L <sysroot> <binary> <args...>
-	qemuArgs := []string{}
+	qemuArgs := append([]string(nil), a.qemuArgs...)
 	if a.sysroot != "" {
 		qemuArgs = append(qemuArgs, "-L", a.sysroot)
 	}

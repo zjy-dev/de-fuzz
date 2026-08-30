@@ -7,20 +7,22 @@
 # Per ISA:
 #   gcc_path     : (cross-)gcc executable
 #   clang_path   : (cross-)clang executable for LLVM campaign targets
+#   driver_args  : trusted compiler-wrapper arguments; optional
+#   driver_args  : trusted wrapper arguments inserted before compiler flags; optional
 #   prefix       : -B prefix for compiler components (cc1, as, ld); optional
 #   sysroot      : --sysroot for cross builds; optional (native omits it)
 #   cflags       : mechanism/ISA flags injected into every compile
-#   qemu_path    : user-mode emulator for dynamic checkers; omit for native
+#   qemu_path    : user-mode emulator or trusted QEMU wrapper; required when native=false
+#   qemu_args    : trusted emulator arguments inserted before -L and the binary
 #   qemu_sysroot : -L sysroot for QEMU
 #   native       : true for the host ISA (run binaries directly, no QEMU)
 #
-# Paths below are placeholders — point them at your installed toolchains.
-#
-# This run targets aarch64 FORTIFY only. We run inside a native aarch64 Linux
-# VM, so aarch64 is the host ISA (native: true, no QEMU). FORTIFY requires
-# optimization to take effect, so the cflags enable -O2 -D_FORTIFY_SOURCE=2.
-# x86_64 / riscv64 are intentionally omitted: their build cells become error
-# artifacts (R8) that the oracle skips, scoping the sweep to aarch64.
+# This checked-in file is a developer example, not a formal campaign config.
+# For a one-host x86_64/aarch64/riscv64/loongarch64 campaign, copy
+# `configs/toolchains.qemu.example.yaml`, replace every placeholder with an
+# absolute executable/sysroot path, and select those four ISAs in the campaign.
+# Formal preflight rejects an ambiguous execution mode and records compiler and
+# QEMU identities in plan.json.
 toolchains:
   aarch64:
     gcc_path: gcc

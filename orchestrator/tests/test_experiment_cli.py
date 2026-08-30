@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from defuzz_loop import experiments_cli as cli
 from defuzz_loop.experiment_engine import AgentRequest, AgentResult, StageResult
@@ -29,9 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize("path", HELP_PATHS)
-def test_every_command_has_clear_help(
-    path: list[str], capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_every_command_has_clear_help(path: list[str], capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as exc:
         cli.main([*path, "--help"])
 
@@ -41,9 +40,7 @@ def test_every_command_has_clear_help(
     if not path:
         assert "DeFuzz unified experiment launcher" in help_text
         assert "examples:" in help_text
-        assert (
-            "--config configs/experiments/example.yaml --show-plan" in help_text
-        )
+        assert "--config configs/experiments/example.yaml --show-plan" in help_text
         assert "configs/experiments/run.yaml" not in help_text
     elif path[-1] != "ablation":
         assert "--show-plan" in help_text
@@ -120,9 +117,7 @@ def test_leaf_help_exposes_only_relevant_paths(
         assert "superset coverage" in help_text
 
 
-@pytest.mark.parametrize(
-    "path", [["invariant-generation"], ["ablation", "without-rag"]]
-)
+@pytest.mark.parametrize("path", [["invariant-generation"], ["ablation", "without-rag"]])
 def test_part_i_help_exposes_segment_selection_with_full_corpus_warning(
     path: list[str], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -246,9 +241,7 @@ def test_audit_plan_selects_parity_profile_and_threshold_metric(
 
 def _subcommand_names(parser: argparse.ArgumentParser) -> set[str]:
     subparsers = next(
-        action
-        for action in parser._actions
-        if isinstance(action, argparse._SubParsersAction)
+        action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
     )
     return set(subparsers.choices)
 
@@ -263,9 +256,7 @@ def test_command_enumeration_is_exact() -> None:
         "ablation",
     }
     top_level = next(
-        action
-        for action in parser._actions
-        if isinstance(action, argparse._SubParsersAction)
+        action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
     )
     assert _subcommand_names(top_level.choices["ablation"]) == {
         "without-rag",
@@ -323,9 +314,7 @@ def test_show_plan_is_side_effect_free_and_reports_backend_availability(
         "token_budget": 12000,
     }
     assert plan["parameters"]["generation_path"] == "rag"
-    assert plan["launches"][0]["output_dir"].endswith(
-        "inv-r1/rep-001/artifacts"
-    )
+    assert plan["launches"][0]["output_dir"].endswith("inv-r1/rep-001/artifacts")
     assert not output_root.exists()
 
 
@@ -568,9 +557,7 @@ def test_explicit_agent_path_requires_a_regular_executable_target(
     assert cli._resolve_agent_binary(str(tmp_path / "missing")) == (None, False)
 
 
-@pytest.mark.parametrize(
-    "variant", ["without-rag", "without-oracle", "bare-agent"]
-)
+@pytest.mark.parametrize("variant", ["without-rag", "without-oracle", "bare-agent"])
 def test_ablation_show_plan_rejects_missing_baseline_without_creating_output(
     variant: str,
     tmp_path: Path,
@@ -606,12 +593,7 @@ def test_fast_plan_marks_recursive_snapshot_as_unfrozen(
     (corpus / "input.c").write_text("int x;\n", encoding="utf-8")
     monkeypatch.setenv("DEFUZZ_FAST_PLAN", "1")
 
-    assert (
-        cli.main(
-            ["invariant-generation", "--corpus-root", str(corpus), "--show-plan"]
-        )
-        == 0
-    )
+    assert cli.main(["invariant-generation", "--corpus-root", str(corpus), "--show-plan"]) == 0
     plan = json.loads(capsys.readouterr().out)
     snapshot = plan["parameters"]["input_snapshot"]["roots"]["corpus_root"]
     assert snapshot["kind"] == "directory-stat"
@@ -707,14 +689,10 @@ class _FakeBackend:
         )
 
 
-def _install_fakes(
-    monkeypatch: pytest.MonkeyPatch, calls: list[dict[str, Any]]
-) -> None:
+def _install_fakes(monkeypatch: pytest.MonkeyPatch, calls: list[dict[str, Any]]) -> None:
     monkeypatch.setattr(cli.shutil, "which", lambda binary: f"/bin/{binary}")
 
-    def backend_factory(
-        binary: str = "traex", model: str | None = None, **_: Any
-    ) -> _FakeBackend:
+    def backend_factory(binary: str = "traex", model: str | None = None, **_: Any) -> _FakeBackend:
         return _FakeBackend(calls, binary=binary, model=model)
 
     async def invariant_runner(
@@ -730,9 +708,7 @@ def _install_fakes(
                 cwd=Path.cwd(),
                 output_dir=output_dir / "agent",
                 deny_read_paths=[Path(plan.parameters["reference_root"]) / "findings"],
-                require_host_read_isolation=plan.parameters[
-                    "require_host_read_isolation"
-                ],
+                require_host_read_isolation=plan.parameters["require_host_read_isolation"],
                 metadata={"stage": "part-i"},
             )
         )
@@ -742,9 +718,7 @@ def _install_fakes(
     async def checker_runner(
         plan: Any, repetition: int, output_dir: Path, backend: Any
     ) -> StageResult:
-        assert plan.parameters["accepted_invariants"].endswith(
-            "accepted-invariants.jsonl"
-        )
+        assert plan.parameters["accepted_invariants"].endswith("accepted-invariants.jsonl")
         assert plan.parameters["require_host_read_isolation"] is True
         await backend.run(
             AgentRequest(
@@ -752,9 +726,7 @@ def _install_fakes(
                 cwd=Path.cwd(),
                 output_dir=output_dir / "agent",
                 deny_read_paths=[Path(plan.parameters["reference_root"]) / "findings"],
-                require_host_read_isolation=plan.parameters[
-                    "require_host_read_isolation"
-                ],
+                require_host_read_isolation=plan.parameters["require_host_read_isolation"],
                 metadata={"stage": "part-ii"},
             )
         )
@@ -768,24 +740,25 @@ def _install_fakes(
             "checker-bundle-manifest.json"
         )
         manifest = Path(plan.parameters["checker_bundle_manifest"])
-        assert plan.parameters["checker_bundle_sha256"] == hashlib.sha256(
-            manifest.read_bytes()
-        ).hexdigest()
+        assert (
+            plan.parameters["checker_bundle_sha256"]
+            == hashlib.sha256(manifest.read_bytes()).hexdigest()
+        )
         toolchains = Path(plan.parameters["toolchains_config"])
         assert toolchains.is_file()
-        assert plan.parameters["toolchains_config_sha256"] == hashlib.sha256(
-            toolchains.read_bytes()
-        ).hexdigest()
+        assert (
+            plan.parameters["toolchains_config_sha256"]
+            == hashlib.sha256(toolchains.read_bytes()).hexdigest()
+        )
         assert plan.parameters["require_verified_candidates"] is True
         assert "checker_artifacts" not in plan.parameters
         scoped_invariants = Path(plan.parameters["accepted_invariants"])
         assert scoped_invariants.name == "scoped-accepted-invariants.jsonl"
-        assert plan.parameters["accepted_invariants_sha256"] == hashlib.sha256(
-            scoped_invariants.read_bytes()
-        ).hexdigest()
-        assert plan.parameters["accepted_invariants_source"] == (
-            "checker-bundle-scoped"
+        assert (
+            plan.parameters["accepted_invariants_sha256"]
+            == hashlib.sha256(scoped_invariants.read_bytes()).hexdigest()
         )
+        assert plan.parameters["accepted_invariants_source"] == ("checker-bundle-scoped")
         assert plan.parameters["require_host_read_isolation"] is True
         if plan.variant in {"without-oracle", "bare-agent"}:
             assert not plan.parameters.get("online_oracle_command")
@@ -795,9 +768,7 @@ def _install_fakes(
                 cwd=Path.cwd(),
                 output_dir=output_dir / "agent",
                 deny_read_paths=[Path(plan.parameters["reference_root"])],
-                require_host_read_isolation=plan.parameters[
-                    "require_host_read_isolation"
-                ],
+                require_host_read_isolation=plan.parameters["require_host_read_isolation"],
                 metadata={"stage": "part-iii"},
             )
         )
@@ -825,9 +796,7 @@ def _write_checker_bundle(root: Path) -> Path:
                 "kind": "defuzz-checker-catalog",
                 "source_tree_sha256": "1" * 64,
                 "result_tree_sha256": "2" * 64,
-                "checkers": [
-                    {"checker_id": "INV-1", "invariant_id": "INV-1"}
-                ],
+                "checkers": [{"checker_id": "INV-1", "invariant_id": "INV-1"}],
             },
             sort_keys=True,
         )
@@ -913,18 +882,16 @@ def _write_checker_bundle(root: Path) -> Path:
         },
     }
     payload["bundle_id"] = hashlib.sha256(
-        json.dumps(
-            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-        ).encode("utf-8")
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
     ).hexdigest()
     manifest = root / "checker-bundle-manifest.json"
     manifest.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
     return manifest
 
 
-def _write_upstream_run(
-    root: Path, *, stage: str, filename: str, content: bytes = b"{}\n"
-) -> Path:
+def _write_upstream_run(root: Path, *, stage: str, filename: str, content: bytes = b"{}\n") -> Path:
     artifact = root / "rep-001/artifacts" / filename
     if filename == "checker-bundle-manifest.json":
         artifact = _write_checker_bundle(artifact.parent)
@@ -1045,13 +1012,9 @@ def test_every_leaf_dispatches_and_writes_complete_artifact_layout(
         baseline = tmp_path / f"baseline-{run_id}"
         baseline.mkdir()
         baseline_experiment = (
-            "invariant-generation"
-            if stage == "invariant-generation"
-            else "agent-audit"
+            "invariant-generation" if stage == "invariant-generation" else "agent-audit"
         )
-        (baseline / "manifest.json").write_text(
-            json.dumps({"status": "completed"})
-        )
+        (baseline / "manifest.json").write_text(json.dumps({"status": "completed"}))
         baseline_parameters: dict[str, Any] = {
             "model": "fake-model",
             "agent_binary": "fake-agent",
@@ -1067,9 +1030,7 @@ def test_every_leaf_dispatches_and_writes_complete_artifact_layout(
             )
         else:
             baseline_source = str(tmp_path)
-            baseline_bundle = _write_checker_bundle(
-                baseline / "rep-001/artifacts"
-            )
+            baseline_bundle = _write_checker_bundle(baseline / "rep-001/artifacts")
             baseline_parameters.update(
                 {
                     "reference_root": str(reference_root),
@@ -1143,17 +1104,17 @@ def test_every_leaf_dispatches_and_writes_complete_artifact_layout(
         assert denied == [reference_root.resolve()]
     if "--from-run" in command:
         stored_plan = json.loads((run_root / "plan.json").read_text())
-        artifact_snapshot = stored_plan["parameters"]["input_snapshot"][
-            "from_run"
-        ]["artifacts"][0]
-        expected = previous / "rep-001/artifacts" / (
-            "accepted-invariants.jsonl"
-            if stage == "checker-authoring"
-            else "checker-bundle-manifest.json"
+        artifact_snapshot = stored_plan["parameters"]["input_snapshot"]["from_run"]["artifacts"][0]
+        expected = (
+            previous
+            / "rep-001/artifacts"
+            / (
+                "accepted-invariants.jsonl"
+                if stage == "checker-authoring"
+                else "checker-bundle-manifest.json"
+            )
         )
-        assert artifact_snapshot["sha256"] == hashlib.sha256(
-            expected.read_bytes()
-        ).hexdigest()
+        assert artifact_snapshot["sha256"] == hashlib.sha256(expected.read_bytes()).hexdigest()
     if command[:2] == ["ablation", "bare-agent"]:
         stored_plan = json.loads((run_root / "plan.json").read_text())
         parameters = stored_plan["parameters"]
@@ -1281,9 +1242,7 @@ def test_existing_run_requires_resume_and_completed_rep_is_not_replayed(
     assert len(read_jsonl(token_path)) == 1
 
     stored_plan = json.loads((output_root / "stable/plan.json").read_text())
-    corpus_snapshot = stored_plan["parameters"]["input_snapshot"]["roots"][
-        "corpus_root"
-    ]
+    corpus_snapshot = stored_plan["parameters"]["input_snapshot"]["roots"]["corpus_root"]
     assert corpus_snapshot["kind"] == "tree-metadata"
     assert corpus_snapshot["manifest_sha256"]
     (corpus / "input.c").write_text("int main(void) { return 1; }\n")
@@ -1317,9 +1276,7 @@ def test_resume_rejects_same_input_path_after_content_changes(
     ]
 
     assert cli.main(command) == 0
-    stored_plan = json.loads(
-        (output_root / "checker-authoring/plan.json").read_text()
-    )
+    stored_plan = json.loads((output_root / "checker-authoring/plan.json").read_text())
     snapshot = stored_plan["parameters"]["input_snapshot"]["inputs"][0]
     assert snapshot["sha256"] == hashlib.sha256(inputs.read_bytes()).hexdigest()
 
@@ -1393,6 +1350,65 @@ def test_audit_help_exposes_bundle_only_where_user_may_supply_it(
     assert "--checker-bundle-manifest" not in help_text
     assert "--toolchains-config" not in help_text
     assert "--accepted-invariants" not in help_text
+
+
+def test_standalone_audit_preflights_non_native_qemu(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    reference = tmp_path / "reference"
+    for relative in cli._REQUIRED_REFERENCE_PATHS:
+        path = reference / relative
+        if path.suffix:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fixture\n", encoding="utf-8")
+        else:
+            path.mkdir(parents=True, exist_ok=True)
+    bundle = _write_checker_bundle(tmp_path / "bundle")
+    compiler = tmp_path / "gcc"
+    compiler.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    compiler.chmod(0o755)
+    toolchains = tmp_path / "toolchains.yaml"
+    toolchains.write_text(
+        yaml.safe_dump(
+            {
+                "toolchains": {
+                    "aarch64": {
+                        "gcc_path": str(compiler),
+                        "native": False,
+                    }
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    plan = cli.ExperimentPlan.from_mapping(
+        cli._resolved_plan(
+            cli.build_parser().parse_args(
+                [
+                    "agent-audit",
+                    "--target-tree",
+                    str(target),
+                    "--reference-root",
+                    str(reference),
+                    "--checker-bundle-manifest",
+                    str(bundle),
+                    "--toolchains-config",
+                    str(toolchains),
+                    "--isa",
+                    "aarch64",
+                    "--agent-binary",
+                    "fake-agent",
+                ]
+            )
+        )
+    )
+    monkeypatch.setattr(cli, "_binary_available", lambda _: True)
+
+    with pytest.raises(ValueError, match="requires qemu_path"):
+        cli._validate_execution_inputs(plan)
 
 
 def test_full_explicit_bundle_supplies_online_and_offline_runtime_without_commands(
@@ -1481,13 +1497,12 @@ def test_audit_from_run_defaults_to_bundle_scoped_invariants(
     scoped = manifest.parent / "scoped-accepted-invariants.jsonl"
 
     assert resolved.parameters["accepted_invariants"] == str(scoped.resolve())
-    assert resolved.parameters["accepted_invariants_sha256"] == hashlib.sha256(
-        scoped.read_bytes()
-    ).hexdigest()
-    assert resolved.parameters["accepted_invariants_source"] == "checker-bundle-scoped"
-    assert resolved.parameters["checker_bundle_manifest"].endswith(
-        "checker-bundle-manifest.json"
+    assert (
+        resolved.parameters["accepted_invariants_sha256"]
+        == hashlib.sha256(scoped.read_bytes()).hexdigest()
     )
+    assert resolved.parameters["accepted_invariants_source"] == "checker-bundle-scoped"
+    assert resolved.parameters["checker_bundle_manifest"].endswith("checker-bundle-manifest.json")
 
 
 def test_audit_explicit_matching_invariants_are_canonicalized_to_bundle_artifact(
@@ -1528,9 +1543,10 @@ def test_audit_explicit_matching_invariants_are_canonicalized_to_bundle_artifact
     resolved = cli._plan_for_repetition(plan, 1, "agent-audit")
 
     assert resolved.parameters["accepted_invariants"] == str(scoped.resolve())
-    assert resolved.parameters["accepted_invariants_sha256"] == hashlib.sha256(
-        scoped.read_bytes()
-    ).hexdigest()
+    assert (
+        resolved.parameters["accepted_invariants_sha256"]
+        == hashlib.sha256(scoped.read_bytes()).hexdigest()
+    )
     assert resolved.parameters["accepted_invariants_source"] == "checker-bundle-scoped"
 
 
@@ -1595,9 +1611,7 @@ def test_frozen_bundle_assertion_rejects_scoped_invariant_drift(tmp_path: Path) 
             "source_root": str(tmp_path),
             "parameters": {
                 "accepted_invariants": str(scoped),
-                "accepted_invariants_sha256": hashlib.sha256(
-                    scoped.read_bytes()
-                ).hexdigest(),
+                "accepted_invariants_sha256": hashlib.sha256(scoped.read_bytes()).hexdigest(),
             },
         }
     )
@@ -1650,9 +1664,7 @@ def test_without_oracle_uses_bundle_only_for_offline_verification(
                     "toolchain_versions": None,
                     "reference_root": str(reference),
                     "checker_bundle_manifest": str(bundle),
-                    "checker_bundle_sha256": hashlib.sha256(
-                        bundle.read_bytes()
-                    ).hexdigest(),
+                    "checker_bundle_sha256": hashlib.sha256(bundle.read_bytes()).hexdigest(),
                     "toolchains_config": str(toolchains),
                 },
             }
@@ -1698,9 +1710,7 @@ def test_from_run_rejects_tampered_checker_bundle_before_worker(
         stage="checker-authoring",
         filename="checker-bundle-manifest.json",
     )
-    (upstream / "rep-001/artifacts/checker-catalog.json").write_text(
-        "tampered\n", encoding="utf-8"
-    )
+    (upstream / "rep-001/artifacts/checker-catalog.json").write_text("tampered\n", encoding="utf-8")
     reference = tmp_path / "reference"
     for relative in cli._REQUIRED_REFERENCE_PATHS:
         path = reference / relative
@@ -1810,9 +1820,7 @@ def test_ablation_baseline_freezes_model_budgets_source_and_repetitions(
     bundle = _write_checker_bundle(tmp_path / "checker-bundle")
     toolchains = tmp_path / "toolchains.yaml"
     toolchains.write_text("toolchains: {}\n", encoding="utf-8")
-    (baseline / "manifest.json").write_text(
-        json.dumps({"status": "completed"})
-    )
+    (baseline / "manifest.json").write_text(json.dumps({"status": "completed"}))
     (baseline / "plan.json").write_text(
         json.dumps(
             {
@@ -1834,9 +1842,7 @@ def test_ablation_baseline_freezes_model_budgets_source_and_repetitions(
                     "max_concurrency": 1,
                     "reference_root": str(reference_root),
                     "checker_bundle_manifest": str(bundle),
-                    "checker_bundle_sha256": hashlib.sha256(
-                        bundle.read_bytes()
-                    ).hexdigest(),
+                    "checker_bundle_sha256": hashlib.sha256(bundle.read_bytes()).hexdigest(),
                     "toolchains_config": str(toolchains),
                     "oracle_rounds": 1,
                 },
@@ -2013,11 +2019,7 @@ def test_audit_ablation_rejects_same_root_path_after_content_drift(
     (baseline / "manifest.json").write_text('{"status": "completed"}\n')
     (baseline / "plan.json").write_text(json.dumps(baseline_plan))
 
-    changed = (
-        target_file
-        if changed_root == "source"
-        else reference / "docs/prompts/full-review.md"
-    )
+    changed = target_file if changed_root == "source" else reference / "docs/prompts/full-review.md"
     changed.write_text("changed after baseline snapshot\n", encoding="utf-8")
     output_root = tmp_path / "runs"
     result = cli.main(
@@ -2089,9 +2091,7 @@ def test_semantic_configuration_error_returns_two(
 
 
 def test_checker_root_remains_relative_to_source_root() -> None:
-    args = cli.build_parser().parse_args(
-        ["checker-authoring", "--inputs", "accepted.jsonl"]
-    )
+    args = cli.build_parser().parse_args(["checker-authoring", "--inputs", "accepted.jsonl"])
 
     plan = cli._resolved_plan(args)
 
@@ -2136,9 +2136,7 @@ def test_standalone_audit_derives_evaluator_scope_and_toolchain_version() -> Non
 
     parameters = cli._resolved_plan(args)["parameters"]
 
-    assert parameters["toolchain_versions"] == {
-        "gcc": "gcc-17.0.0-20260531"
-    }
+    assert parameters["toolchain_versions"] == {"gcc": "gcc-17.0.0-20260531"}
     assert parameters["parity_scope"] == {
         "toolchains": ["gcc"],
         "version": ["gcc-17"],
@@ -2185,9 +2183,7 @@ def test_checker_authoring_reference_root_defaults_from_environment(
     assert plan["parameters"]["reference_root"] == str(reference_root)
 
 
-@pytest.mark.parametrize(
-    "stage", ["invariant-generation", "checker-authoring", "agent-audit"]
-)
+@pytest.mark.parametrize("stage", ["invariant-generation", "checker-authoring", "agent-audit"])
 def test_standalone_execution_fails_closed_without_host_read_isolation(
     stage: str,
     tmp_path: Path,
@@ -2198,9 +2194,7 @@ def test_standalone_execution_fails_closed_without_host_read_isolation(
     monkeypatch.setattr(cli.shutil, "which", lambda binary: f"/bin/{binary}")
 
     class NoIsolationBackend(_FakeBackend):
-        def __init__(
-            self, calls: list[dict[str, Any]], *, binary: str, model: str | None
-        ) -> None:
+        def __init__(self, calls: list[dict[str, Any]], *, binary: str, model: str | None) -> None:
             super().__init__(calls, binary=binary, model=model)
             self.supports_host_read_isolation = False
 
@@ -2269,10 +2263,7 @@ def test_missing_required_execution_inputs_fail_before_creating_run(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     output_root = tmp_path / "runs"
-    assert (
-        cli.main([*command, "--output-root", str(output_root)])
-        == cli.EXIT_CONFIGURATION_ERROR
-    )
+    assert cli.main([*command, "--output-root", str(output_root)]) == cli.EXIT_CONFIGURATION_ERROR
     assert message in capsys.readouterr().err
     assert not output_root.exists()
 

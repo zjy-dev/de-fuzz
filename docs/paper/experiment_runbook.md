@@ -43,6 +43,13 @@ Formal runs fail closed unless all of the following are true:
 - Each ISA used by a formal target has a configured absolute compiler driver in
   `toolchains.yaml`. GCC targets require `gcc_path`; LLVM targets require
   `clang_path`.
+- Each formal ISA explicitly selects its execution mode. Set `native: true` only
+  when target binaries run directly on the experiment host. Otherwise set
+  `native: false` and provide an absolute executable `qemu_path`; use
+  `qemu_sysroot` for dynamically linked targets and optional `qemu_args` such as
+  `[-cpu, max]`. Static-only checker routes compile but do not invoke QEMU.
+  `driver_args` similarly carries trusted arguments for a containerized compiler
+  wrapper and is inserted before all compiler flags.
 - `DEFUZZ_FAST_PLAN` is unset. Formal mode explicitly forbids it.
 - The host/backend combination supports the required read-isolation boundary for
   formal agent stages.
@@ -127,13 +134,62 @@ audit roots must come from that frozen checkout. The YAML version label records
 the baseline, while the plan independently records the Git revision and hashes
 the selected toolchain driver.
 
-Formal pipeline preflight loads `toolchains.yaml` and validates drivers per
-`target.compiler` and per ISA:
+Formal pipeline preflight loads `toolchains.yaml` and validates drivers and
+execution backends per `target.compiler` and per ISA:
 
 - `compiler: gcc` requires an absolute, executable `gcc_path`.
 - `compiler: llvm` requires an absolute, executable `clang_path`.
+- `native` is mandatory. A non-native ISA requires an absolute, executable
+  `qemu_path`; a configured `qemu_sysroot` must be an absolute directory.
 - Every configured driver is hashed into the frozen plan so the campaign records
-  exactly which compiler frontends were used.
+  exactly which compiler frontends were used. The plan also hashes every QEMU
+  runner and records its trusted arguments and sysroot.
+
+For the primary four-ISA matrix, copy
+`configs/toolchains.qemu.example.yaml` to a machine-local formal config and
+replace all placeholders. Select `x86_64`, `aarch64`, `riscv64`, and
+`loongarch64` in the target. On a host where one of those ISAs is native, mark
+only that entry `native: true` and remove its QEMU fields. On macOS, Linux ELF
+binaries are not native even when the CPU architecture matches; use a trusted
+Linux/QEMU container wrapper and keep `native: false`.
+The checked-in `scripts/toolchains/docker-compiler-driver.sh` and
+`scripts/toolchains/docker-qemu-user.sh` wrappers provide this host-to-container
+bridge. Pin container images by digest in `driver_args`/`qemu_args`; an image tag
+alone is mutable and is insufficient provenance for a paper run. Keep
+container-internal compiler prefixes and sysroots in `driver_args`; use the
+wrappers' repeatable `--mount` option only for dependencies stored outside the
+image.
+Use `scripts/toolchains/docker-image-ref.sh IMAGE` to obtain the local
+repository plus immutable image ID used in formal wrapper arguments.
+Build missing GCC17 cross drivers with
+`scripts/toolchains/build-gcc17-cross.sh <isa>`. The script defaults to the
+frozen source under `.work/gcc17-env/src`, writes each ISA to separate build
+and install directories, and creates a detached writable source worktree per
+ISA for GCC-generated backend documentation. The canonical source can be
+redirected with `DEFUZZ_GCC17_SOURCE`; build roots and image selection use
+`DEFUZZ_GCC17_CROSS_ROOT`, `DEFUZZ_GCC17_CROSS_IMAGE`, and
+`DEFUZZ_GCC17_CROSS_PLATFORM`.
+For RISC-V and LoongArch, first run
+`scripts/toolchains/build-binutils-cross.sh <isa>` to build the pinned GNU
+binutils 2.44 target tools. The current GCC 17 RISC-V backend emits Zc
+attributes rejected by Debian 12's binutils 2.40. LoongArch additionally needs
+the verified community glibc/Linux-header bundle under
+`.work/gcc17-cross-env/loongarch-community-root`. Debian 12's QEMU 7.2 exits
+with `SIGILL` on that LoongArch userspace; build the pinned QEMU 10.2.0
+`loongarch64-linux-user` binary with
+`scripts/toolchains/build-qemu-loongarch64.sh` and include it in the frozen
+runtime image.
+After all compiler and emulator builds finish, create the unified runtime image
+with `scripts/toolchains/build-gcc17-four-isa-image.sh`. The command validates
+the frozen GCC revision and the QEMU binary hash, then prints the immutable
+`repository@sha256:image-id` reference for `toolchains.yaml`.
+
+Before spending model budget, run:
+
+```sh
+scripts/toolchains/docker-qemu-smoke.sh <toolchains.yaml> gcc \
+  x86_64 aarch64 riscv64 loongarch64
+```
 
 If an ISA is missing or the driver path is relative, absent, non-regular, or
 non-executable, `pipeline --show-plan` already fails.

@@ -52,6 +52,7 @@ uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # 回溯到确定
 ```
 
 被测的插桩 GCC 在项目外构建，见 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md)。ISA→toolchain 路径配在 [`configs/toolchains.yaml`](configs/toolchains.yaml)。
+单机运行 `x86_64 / aarch64 / riscv64 / loongarch64` 时，从 [`configs/toolchains.qemu.example.yaml`](configs/toolchains.qemu.example.yaml) 复制正式配置。每个 ISA 必须显式标记 native，或为动态 checker 配置 QEMU user-mode；正式 plan 会记录并哈希编译器与 QEMU runner，避免跨 ISA 二进制误走本机执行。
 
 ## 文档
 

@@ -1,0 +1,32 @@
+ARG BASE_IMAGE=local/gcc17-cross-base:debian12
+FROM ${BASE_IMAGE}
+
+ARG GCC_REVISION
+ARG QEMU_LOONGARCH64_SHA256
+
+COPY install-x86_64/opt/gcc17/ /opt/gcc17/
+COPY install-aarch64/ /opt/gcc17/
+COPY install-riscv64/ /opt/gcc17/
+COPY install-loongarch64/ /opt/gcc17/
+COPY install-binutils-riscv64/ /opt/binutils/
+COPY install-binutils-loongarch64/ /opt/binutils/
+COPY install-qemu-10.2.0/bin/qemu-loongarch64 /opt/qemu-10.2/bin/qemu-loongarch64
+COPY loongarch-community-root/ /toolchain/
+
+RUN set -eux; \
+    echo "${QEMU_LOONGARCH64_SHA256}  /opt/qemu-10.2/bin/qemu-loongarch64" | sha256sum -c -; \
+    chmod 0755 /opt/qemu-10.2/bin/qemu-loongarch64; \
+    for target in aarch64-linux-gnu riscv64-linux-gnu loongarch64-linux-gnu; do \
+      runtime=/opt/gcc17/lib/gcc/$target/17.0.0; \
+      if [ -f "$runtime/libgcc.a" ] && [ ! -e "$runtime/libgcc_eh.a" ]; then \
+        ln -s libgcc.a "$runtime/libgcc_eh.a"; \
+      fi; \
+    done; \
+    mkdir -p /qemu/loongarch64; \
+    ln -s /toolchain/usr/loongarch64-linux-gnu/lib /qemu/loongarch64/lib; \
+    ln -s /toolchain/usr/loongarch64-linux-gnu/lib /qemu/loongarch64/lib64
+
+LABEL org.opencontainers.image.title="DeFuzz GCC17 four-ISA runtime" \
+      org.opencontainers.image.revision="${GCC_REVISION}" \
+      org.opencontainers.image.version="17.0.0-20260531-qemu10.2.0" \
+      org.opencontainers.image.qemu.loongarch64.sha256="${QEMU_LOONGARCH64_SHA256}"

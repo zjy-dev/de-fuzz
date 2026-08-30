@@ -50,7 +50,7 @@ toolchains_config: /ABS/PATH/TO/de-fuzz/main/configs/toolchains.formal.yaml
 
 targets:
   # Freeze the source checkout at f20bc4c2fe00928013c533e241b89ae3a6724ca1.
-  - id: gcc17-20260531-canary
+  - id: gcc17-20260531-canary-four-isa
     compiler: gcc
     version: "17.0.0 experimental 20260531 (commit f20bc4c2fe00928013c533e241b89ae3a6724ca1)"
     corpus_root: /ABS/PATH/TO/gcc-f20bc4c2fe00928013c533e241b89ae3a6724ca1/source/for/part1
@@ -58,8 +58,9 @@ targets:
       - /ABS/PATH/TO/gcc-f20bc4c2fe00928013c533e241b89ae3a6724ca1/source/for/part3
     mechanisms:
       - canary
-    isas:
-      - x86_64
+    # The paper's primary single-machine matrix. Non-native entries must use
+    # qemu_path in toolchains.formal.yaml; static-only checkers do not execute.
+    isas: [x86_64, aarch64, riscv64, loongarch64]
 
 checker:
   source_root: /ABS/PATH/TO/de-fuzz/main

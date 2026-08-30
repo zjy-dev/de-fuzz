@@ -15,7 +15,6 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/compiler"
 	"github.com/zjy-dev/de-fuzz/internal/oracle"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
-	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 	pb "github.com/zjy-dev/de-fuzz/internal/service/pb"
 )
 
@@ -122,6 +121,7 @@ func (s *BuildServer) compileForISA(sd *seed.Seed, isa string) (out struct {
 		GCCPath:          tc.GCCPath,
 		WorkDir:          workDir,
 		PrefixPath:       tc.Prefix,
+		DriverArgs:       tc.DriverArgs,
 		CFlags:           tc.CFlags,
 		DisableLLMCFlags: true, // deterministic build node: no seed/LLM flags
 	})
@@ -213,9 +213,22 @@ func (s *OracleServer) Analyze(_ context.Context, req *pb.OracleRequest) (*pb.Or
 	var results []*pb.InvariantResult
 	for _, key := range order {
 		g := groups[key]
+		var runtimeExecutor oracle.Executor
+		if checkerIDsRequireExecution(g.checkerIDs) {
+			runtimeExecutor, err = s.executorForISA(g.isa)
+			if err != nil {
+				for id := range g.checkerIDs {
+					results = append(results, &pb.InvariantResult{
+						Id: id, Verdict: pb.Verdict_VERDICT_ERROR,
+						Reason: fmt.Sprintf("executor unavailable: %v", err), Isa: g.isa,
+					})
+				}
+				continue
+			}
+		}
 		ctx := &oracle.AnalyzeContext{
 			BinaryPath: g.binaryPath,
-			Executor:   s.executorForISA(g.isa),
+			Executor:   runtimeExecutor,
 		}
 		invResults, err := evaluator.Evaluate(sd, ctx, g.checkerIDs)
 		if err != nil {
@@ -251,15 +264,23 @@ func (s *OracleServer) Analyze(_ context.Context, req *pb.OracleRequest) (*pb.Or
 
 // executorForISA returns a native or QEMU executor depending on the toolchain
 // config. Static-only mechanisms ignore it; it may be nil for unconfigured ISAs.
-func (s *OracleServer) executorForISA(isa string) oracle.Executor {
+func (s *OracleServer) executorForISA(isa string) (oracle.Executor, error) {
 	tc, ok := s.toolchains.Lookup(isa)
 	if !ok {
-		return executor.NewOracleExecutorAdapter(s.timeoutSec)
+		return nil, fmt.Errorf("no toolchain configured for ISA %q", isa)
 	}
-	if tc.Native || tc.QEMUPath == "" {
-		return executor.NewOracleExecutorAdapter(s.timeoutSec)
+	runtimeExecutor, _, err := tc.oracleExecutor(s.timeoutSec)
+	return runtimeExecutor, err
+}
+
+func checkerIDsRequireExecution(ids map[string]bool) bool {
+	for id := range ids {
+		metadata, ok := oracle.LookupCheckerMetadata(id)
+		if !ok || metadata.Category == oracle.CategoryDynamic {
+			return true
+		}
 	}
-	return executor.NewQEMUOracleExecutorAdapter(tc.QEMUPath, tc.QEMUSysroot, s.timeoutSec)
+	return false
 }
 
 // ── CoverageService (T009) ───────────────────────────────────────────────

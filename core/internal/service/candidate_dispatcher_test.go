@@ -355,6 +355,53 @@ func TestCandidateDispatcherCompileOnlyForStaticRoutes(t *testing.T) {
 	}
 }
 
+func TestCandidateDispatcherRejectsDynamicNonNativeRouteWithoutQEMU(t *testing.T) {
+	builder := &recordingCandidateBuilder{}
+	dispatcher := &CandidateDispatcher{
+		Toolchains: &Toolchains{Toolchains: map[string]Toolchain{
+			"aarch64": {GCCPath: "cc", Native: false},
+		}},
+		Builder: builder,
+	}
+	payload := `{"toolchain":"gcc","mechanism":"fortify-source","isa":["aarch64"],"checker_ids":["INV-FORT-R01"],"minimal_trigger":{"source":"int main(void){return 0;}","flags":["-O2"]}}`
+
+	_, err := dispatchFixture(t, dispatcher, payload, CandidateModeOnline)
+
+	require.ErrorContains(t, err, "non-native toolchain requires qemu_path")
+	assert.Empty(t, builder.calls, "execution configuration must fail before build")
+}
+
+func TestCandidateDispatcherRecordsQEMUExecutionIdentity(t *testing.T) {
+	qemuPath := filepath.Join(t.TempDir(), "qemu-aarch64")
+	require.NoError(t, os.WriteFile(qemuPath, []byte("fixture qemu\n"), 0o755))
+	resolvedQEMU, err := filepath.EvalSymlinks(qemuPath)
+	require.NoError(t, err)
+	builder := &recordingCandidateBuilder{}
+	dispatcher := &CandidateDispatcher{
+		Toolchains: &Toolchains{Toolchains: map[string]Toolchain{
+			"aarch64": {
+				GCCPath: "cc", QEMUPath: qemuPath,
+				QEMUArgs: []string{"-cpu", "max"}, QEMUSysroot: "/sysroot",
+			},
+		}},
+		Builder: builder,
+		EvaluatorFactory: func(string) (oracle.MechanismEvaluator, error) {
+			return fakeMechanismEvaluator{verdict: oracle.VerdictPass}, nil
+		},
+	}
+	payload := `{"toolchain":"gcc","mechanism":"fortify-source","isa":["aarch64"],"checker_ids":["INV-FORT-R01"],"minimal_trigger":{"source":"int main(void){return 0;}","flags":["-O2"]}}`
+
+	response, err := dispatchFixture(t, dispatcher, payload, CandidateModeOnline)
+
+	require.NoError(t, err)
+	require.Len(t, response.Builds, 1)
+	assert.Equal(t, "qemu-user", response.Builds[0].ExecutionMode)
+	assert.Equal(t, resolvedQEMU, response.Builds[0].Executor)
+	assert.Equal(t, []string{"-cpu", "max", "-L", "/sysroot"}, response.Builds[0].ExecutorArgs)
+	digest := sha256.Sum256([]byte("fixture qemu\n"))
+	assert.Equal(t, fmt.Sprintf("%x", digest), response.Builds[0].ExecutorSHA256)
+}
+
 func TestCompilerBuilderSelectsTrustedCompilerPath(t *testing.T) {
 	tests := []struct {
 		name, compiler, gccPath, clangPath, wantCompiler, wantError string

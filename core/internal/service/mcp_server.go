@@ -17,7 +17,6 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/compiler"
 	"github.com/zjy-dev/de-fuzz/internal/oracle"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
-	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 )
 
 // MCP read-only tools for agents (contracts/mcp-tools.md). The MCP server shares
@@ -361,6 +360,7 @@ func compileExecHandler(mechanism string, toolchains *Toolchains) mcp.ToolHandle
 			GCCPath:          tc.GCCPath,
 			WorkDir:          workDir,
 			PrefixPath:       tc.Prefix,
+			DriverArgs:       tc.DriverArgs,
 			CFlags:           tc.CFlags,
 			DisableLLMCFlags: true,
 		})
@@ -391,9 +391,17 @@ func compileExecHandler(mechanism string, toolchains *Toolchains) mcp.ToolHandle
 		if in.CheckerID != "" {
 			allowed[in.CheckerID] = true
 		}
+		var runtimeExecutor oracle.Executor
+		if in.CheckerID == "" || checkerIDsRequireExecution(allowed) {
+			runtimeExecutor, _, err = tc.oracleExecutor(defaultExecTimeoutSec)
+			if err != nil {
+				out.Stderr = fmt.Sprintf("executor: %v", err)
+				return nil, out, nil
+			}
+		}
 		ctx := &oracle.AnalyzeContext{
 			BinaryPath: res.BinaryPath,
-			Executor:   executorFor(tc),
+			Executor:   runtimeExecutor,
 		}
 		results, err := evaluator.Evaluate(sd, ctx, allowed)
 		if err != nil {
@@ -408,13 +416,4 @@ func compileExecHandler(mechanism string, toolchains *Toolchains) mcp.ToolHandle
 		}
 		return nil, out, nil
 	}
-}
-
-// executorFor mirrors OracleServer.executorForISA: native runs directly, others
-// run under QEMU when configured.
-func executorFor(tc Toolchain) oracle.Executor {
-	if tc.Native || tc.QEMUPath == "" {
-		return executor.NewOracleExecutorAdapter(defaultExecTimeoutSec)
-	}
-	return executor.NewQEMUOracleExecutorAdapter(tc.QEMUPath, tc.QEMUSysroot, defaultExecTimeoutSec)
 }

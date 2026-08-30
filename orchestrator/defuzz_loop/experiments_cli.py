@@ -1168,9 +1168,7 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
                 mechanisms=tuple(str(item) for item in mechanisms),
                 isas=tuple(str(item) for item in isas),
             )
-            parameters["parity_scope"] = parity_scope.model_dump(
-                mode="json", exclude_defaults=True
-            )
+            parameters["parity_scope"] = parity_scope.model_dump(mode="json", exclude_defaults=True)
         if version:
             parameters["toolchain_versions"] = {
                 str(parameters.get("compiler", "gcc")): str(version)
@@ -1465,8 +1463,7 @@ def _validated_checker_bundle_inputs(
         explicit_path = Path(str(explicit_invariants)).expanduser().resolve(strict=False)
         if not explicit_path.is_file() or explicit_path.is_symlink():
             raise ValueError(
-                "accepted invariants is not an existing regular file: "
-                f"{explicit_path}"
+                f"accepted invariants is not an existing regular file: {explicit_path}"
             )
         explicit_hash = _sha256_file(explicit_path)
         if not hmac.compare_digest(explicit_hash, scoped_artifact.sha256):
@@ -1562,12 +1559,8 @@ def _validate_baseline_run(plan: ExperimentPlan, stage: str) -> None:
                 baseline.parameters.get(name),
             )
         for plural, singular in (("mechanisms", "mechanism"), ("isas", "isa")):
-            current_scope = plan.parameters.get(
-                plural, plan.parameters.get(singular, [])
-            )
-            baseline_scope = baseline.parameters.get(
-                plural, baseline.parameters.get(singular, [])
-            )
+            current_scope = plan.parameters.get(plural, plan.parameters.get(singular, []))
+            baseline_scope = baseline.parameters.get(plural, baseline.parameters.get(singular, []))
             normalize = normalize_mechanism if plural == "mechanisms" else normalize_isa
             comparisons[plural] = (
                 sorted(normalize(str(item)) for item in _as_list(current_scope)),
@@ -1625,9 +1618,7 @@ def _plan_for_repetition(plan: ExperimentPlan, repetition: int, stage: str) -> E
         elif inputs:
             accepted_path = Path(str(inputs)).expanduser().resolve(strict=True)
             if accepted_path.is_dir():
-                accepted_path = (accepted_path / "accepted-invariants.jsonl").resolve(
-                    strict=True
-                )
+                accepted_path = (accepted_path / "accepted-invariants.jsonl").resolve(strict=True)
             parameters["accepted_invariants"] = str(accepted_path)
             parameters["accepted_invariants_sha256"] = _sha256_file(accepted_path)
     elif stage == "agent-audit":
@@ -1749,8 +1740,7 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
             accepted_path = Path(str(accepted_invariants)).expanduser().resolve(strict=False)
             if not accepted_path.is_file() or accepted_path.is_symlink():
                 raise ValueError(
-                    "accepted invariants is not an existing regular file: "
-                    f"{accepted_path}"
+                    f"accepted invariants is not an existing regular file: {accepted_path}"
                 )
         for value in plan.parameters.get("inputs", []):
             path = Path(value).expanduser().resolve(strict=False)
@@ -1767,6 +1757,21 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
             _validated_checker_bundle_inputs(plan, repetition)
             for repetition in range(1, plan.repetitions + 1)
         ]
+        toolchains_config = plan.parameters.get("toolchains_config")
+        if toolchains_config:
+            from defuzz_loop.experiment_engine.pipeline import (
+                formal_toolchain_identities,
+            )
+
+            compiler = str(plan.parameters.get("compiler", "gcc"))
+            if compiler not in {"gcc", "llvm"}:
+                raise ValueError("compiler must be gcc or llvm")
+            formal_toolchain_identities(
+                str(toolchains_config),
+                target_id=plan.run_id,
+                compiler=cast(Any, compiler),
+                isas=[normalize_isa(str(item)) for item in _as_list(plan.parameters.get("isa"))],
+            )
         if plan.variant in {"without-oracle", "bare-agent"} and plan.parameters.get(
             "online_oracle_command"
         ):
@@ -1792,8 +1797,7 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
         config = _http_config_for_plan(plan)
         if not os.environ.get(config.api_key_env):
             raise ValueError(
-                "HTTP agent API key environment variable is unavailable: "
-                f"{config.api_key_env}"
+                f"HTTP agent API key environment variable is unavailable: {config.api_key_env}"
             )
     else:
         binary = str(plan.parameters.get("agent_binary", "traex"))
@@ -1831,17 +1835,13 @@ def _http_config_for_plan(plan: ExperimentPlan) -> HTTPAgentConfig:
     if not isinstance(expected_hash, str) or not expected_hash:
         raise ValueError("HTTP agent plan is missing the frozen config SHA-256")
     if not path.is_file() or _sha256_file(path) != expected_hash:
-        raise ValueError(
-            "HTTP agent config no longer matches the frozen plan; create a new run"
-        )
+        raise ValueError("HTTP agent config no longer matches the frozen plan; create a new run")
     try:
         config, actual_hash, _ = load_http_agent_config_snapshot(path)
     except (OSError, ValueError) as exc:
         raise ValueError(f"HTTP agent config is invalid: {path}: {exc}") from exc
     if actual_hash != expected_hash:
-        raise ValueError(
-            "HTTP agent config changed while it was being frozen; create a new run"
-        )
+        raise ValueError("HTTP agent config changed while it was being frozen; create a new run")
     return config
 
 

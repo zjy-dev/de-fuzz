@@ -22,7 +22,6 @@ import (
 	"github.com/zjy-dev/de-fuzz/internal/compiler"
 	"github.com/zjy-dev/de-fuzz/internal/oracle"
 	"github.com/zjy-dev/de-fuzz/internal/seed"
-	executor "github.com/zjy-dev/de-fuzz/internal/seed_executor"
 )
 
 // CandidateMode controls the exit-code interpretation applied by the CLI.
@@ -133,6 +132,10 @@ type CandidateBuild struct {
 	Compiler       string   `json:"compiler,omitempty"`
 	Args           []string `json:"args,omitempty"`
 	EffectiveFlags []string `json:"effective_flags,omitempty"`
+	ExecutionMode  string   `json:"execution_mode"`
+	Executor       string   `json:"executor,omitempty"`
+	ExecutorArgs   []string `json:"executor_args,omitempty"`
+	ExecutorSHA256 string   `json:"executor_sha256,omitempty"`
 	Stdout         string   `json:"stdout,omitempty"`
 	Stderr         string   `json:"stderr,omitempty"`
 	Error          string   `json:"error,omitempty"`
@@ -597,6 +600,26 @@ func (d *CandidateDispatcher) Dispatch(req CandidateDispatchRequest) (CandidateD
 	}
 	for _, isa := range isas {
 		tc := selectedToolchains[isa]
+		requiresExecution := routesRequireExecution(byISA[isa])
+		var runtimeExecutor oracle.Executor
+		executionMode := "static-only"
+		executorPath := ""
+		var executorArgs []string
+		if requiresExecution {
+			runtimeExecutor, executorPath, err = tc.oracleExecutor(defaultExecTimeoutSec)
+			if err != nil {
+				return response, fmt.Errorf("execute ISA %q: %w", isa, err)
+			}
+			if tc.Native {
+				executionMode = "native"
+			} else {
+				executionMode = "qemu-user"
+				executorArgs = append([]string(nil), tc.QEMUArgs...)
+				if tc.QEMUSysroot != "" {
+					executorArgs = append(executorArgs, "-L", tc.QEMUSysroot)
+				}
+			}
+		}
 		// Static checkers inspect the produced ELF, not a running program, so a
 		// self-contained minimal trigger need not define `main`. Building
 		// compile-only for static-only routes matches the object-file analysis
@@ -607,6 +630,15 @@ func (d *CandidateDispatcher) Dispatch(req CandidateDispatchRequest) (CandidateD
 			buildFlags = append(append([]string(nil), flags...), "-c")
 		}
 		build, buildErr := builder.Build(&candidate, isa, tc, buildFlags)
+		build.ExecutionMode = executionMode
+		build.Executor = executorPath
+		build.ExecutorArgs = executorArgs
+		if executorPath != "" {
+			build.ExecutorSHA256, err = fileSHA256(executorPath)
+			if err != nil {
+				return response, fmt.Errorf("hash executor for ISA %q: %w", isa, err)
+			}
+		}
 		if build.cleanupDir != "" {
 			defer os.RemoveAll(build.cleanupDir)
 		}
@@ -632,7 +664,7 @@ func (d *CandidateDispatcher) Dispatch(req CandidateDispatchRequest) (CandidateD
 			}
 			results, evalErr := evaluator.Evaluate(sd, &oracle.AnalyzeContext{
 				BinaryPath: build.BinaryPath,
-				Executor:   candidateExecutor(tc),
+				Executor:   runtimeExecutor,
 			}, byOracle[oracleName])
 			if evalErr != nil {
 				return response, fmt.Errorf("evaluate oracle %q on ISA %q: %w", oracleName, isa, evalErr)
@@ -825,7 +857,8 @@ func (b CompilerBuilder) Build(candidate *Candidate, isa string, tc Toolchain, f
 	}
 	configFlags = append(configFlags, language...)
 	cc := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
-		GCCPath: compilerPath, WorkDir: workDir, PrefixPath: tc.Prefix, CFlags: configFlags,
+		GCCPath: compilerPath, WorkDir: workDir, PrefixPath: tc.Prefix,
+		DriverArgs: tc.DriverArgs, CFlags: configFlags,
 	})
 	sd := &seed.Seed{Meta: seed.Metadata{ID: hashID(candidate.ID)}, Content: candidate.MinimalTrigger.Source, CFlags: append([]string(nil), flags...)}
 	result, err := cc.Compile(sd)
@@ -898,11 +931,13 @@ func defaultEvaluatorFactory(name string) (oracle.MechanismEvaluator, error) {
 	return evaluator, nil
 }
 
-func candidateExecutor(tc Toolchain) oracle.Executor {
-	if tc.Native || tc.QEMUPath == "" {
-		return executor.NewOracleExecutorAdapter(defaultExecTimeoutSec)
+func routesRequireExecution(routes []checkerRoute) bool {
+	for _, route := range routes {
+		if route.Category == oracle.CategoryDynamic {
+			return true
+		}
 	}
-	return executor.NewQEMUOracleExecutorAdapter(tc.QEMUPath, tc.QEMUSysroot, defaultExecTimeoutSec)
+	return false
 }
 
 func normalizeCandidateFlags(raw StringList) ([]string, error) {
@@ -1098,6 +1133,19 @@ func validSHA256(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
+}
+
+func fileSHA256(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	digest := sha256.New()
+	if _, err := io.Copy(digest, file); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
 func uniqueStrings(values []string) []string {

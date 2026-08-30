@@ -26,6 +26,37 @@ toolchains:
 	assert.Equal(t, "/trusted/clang", tc.ClangPath)
 }
 
+func TestLoadToolchainsSupportsQEMUArguments(t *testing.T) {
+	path := writeToolchainsFixture(t, `
+toolchains:
+  aarch64:
+    gcc_path: /trusted/aarch64-linux-gnu-gcc
+    driver_args: [--image, defuzz-gcc17:aarch64, --]
+    qemu_path: /trusted/qemu-aarch64
+    qemu_args: [-cpu, max]
+    qemu_sysroot: /trusted/aarch64-sysroot
+    native: false
+`)
+
+	toolchains, err := LoadToolchains(path)
+	require.NoError(t, err)
+	tc, ok := toolchains.Lookup("aarch64")
+	require.True(t, ok)
+	assert.Equal(t, []string{"-cpu", "max"}, tc.QEMUArgs)
+	assert.Equal(t, []string{"--image", "defuzz-gcc17:aarch64", "--"}, tc.DriverArgs)
+	assert.Equal(t, "/trusted/qemu-aarch64", tc.QEMUPath)
+	assert.Equal(t, "/trusted/aarch64-sysroot", tc.QEMUSysroot)
+	assert.False(t, tc.Native)
+}
+
+func TestNonNativeToolchainRequiresResolvableQEMU(t *testing.T) {
+	_, _, err := (Toolchain{Native: false}).oracleExecutor(1)
+	require.ErrorContains(t, err, "requires qemu_path")
+
+	_, _, err = (Toolchain{Native: false, QEMUPath: "defuzz-qemu-does-not-exist"}).oracleExecutor(1)
+	require.ErrorContains(t, err, "resolve qemu_path")
+}
+
 func TestLoadToolchainsRetainsLegacyGCCOnlyConfig(t *testing.T) {
 	path := writeToolchainsFixture(t, `
 toolchains:
