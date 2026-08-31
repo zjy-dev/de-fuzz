@@ -50,7 +50,7 @@ _EXCLUDED_PARTS = {
     "reports",
     "target",
 }
-_TARGET_SLUG = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]*$")
+_TARGET_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+ -]{0,63}$")
 _VERSION_TEXT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+() /-]{0,255}$")
 _COMPILER_ALIASES = {
     "gcc": "GCC",
@@ -136,9 +136,9 @@ def _normalize_target_value(value: str) -> str:
         return ""
     if stripped.casefold() == "generic":
         raise ValueError("must be explicit or omitted; do not use generic")
-    if not _TARGET_SLUG.fullmatch(stripped):
-        raise ValueError("must be a compact target slug or empty")
-    return stripped
+    if not _TARGET_LABEL.fullmatch(stripped):
+        raise ValueError("must be a single-line target label of at most 64 characters or empty")
+    return re.sub(r" +", "-", stripped)
 
 
 def _normalize_version_value(value: str) -> str:
@@ -581,9 +581,11 @@ value itself must already be slug-shaped: no whitespace, parentheses, slashes,
 periods, copied sentences, or impact prose. Aliases like `stack-canary` or
 `ssp` are allowed because they normalize to canonical slugs. `compiler` may be
 omitted only when the segment does not name it; if present it must be `GCC` or
-`LLVM`. `target` and `version` are optional, but when unknown they must be
-omitted as empty strings rather than guessed; do not emit placeholders such as
-`generic`, `unknown`, or prose. If this segment does not entail a fully
+`LLVM`. `target` and `version` are optional. A target may be an ISA slug or a
+short, explicit platform label such as `LEON VxWorks`; the runner canonicalizes
+spaces to hyphens. When unknown, omit it as an empty string rather than guessing;
+do not emit placeholders such as `generic`, `unknown`, or descriptive prose.
+If this segment does not entail a fully
 specified candidate, return an empty candidates list instead of guessing or
 omitting required semantic fields. Return only candidates entailed by this
 exact segment. Do not use or reproduce demo findings, do not invent paths, and

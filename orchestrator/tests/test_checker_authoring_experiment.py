@@ -378,6 +378,11 @@ def test_normalizes_input_and_renders_current_checker_contract(tmp_path: Path) -
         ("aarch64", ("arm64",), True),
         ("arm", ("aarch64",), False),
         ("powerpc64le", ("x86_64",), False),
+        (
+            "LEON-VxWorks",
+            ("x86_64", "aarch64", "riscv64", "loongarch64"),
+            False,
+        ),
         ("config-smoke", ("fixture",), True),
         ("unknown-architecture", ("x86_64",), False),
     ],

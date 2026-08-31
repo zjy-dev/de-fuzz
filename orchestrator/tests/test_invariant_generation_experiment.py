@@ -611,6 +611,82 @@ def test_accepted_invariant_allows_empty_target_and_version() -> None:
     assert record.mechanism == "stack-protector"
 
 
+def test_part_i_normalizes_explicit_platform_target_from_formal_run() -> None:
+    target = "LEON VxWorks"
+    record = AcceptedInvariant(
+        invariant_id="INVGEN-TEST",
+        statement=_STATEMENT,
+        observation="Software trap 0 dispatches a stack-limit overflow.",
+        generation_path="segmented-cot",
+        generation_paths=["segmented-cot"],
+        provenance=[],
+        compiler="GCC",
+        version="",
+        target=target,
+        mechanism="stack-limit",
+        source_kind="source",
+        source_url_or_path="gcc/ada/init.c:1",
+        evidence_snippet="LEON VxWorks stack checking uses software trap 0",
+        protected_asset="stack memory integrity",
+        activation_condition="LEON VxWorks kernel stack checking is enabled",
+        falsifiability={
+            "observability": "trigger a stack-limit overflow",
+            "determinism": "trap 0 dispatch occurs or does not",
+            "cost": "one target execution",
+            "static_or_dynamic": "dynamic",
+        },
+    )
+    review = SegmentReview.model_validate(
+        {
+            "candidates": [
+                {
+                    "statement": _STATEMENT,
+                    "observation": "Software trap 0 dispatches a stack-limit overflow.",
+                    "protected_asset": "stack memory integrity",
+                    "activation_condition": ("LEON VxWorks kernel stack checking is enabled"),
+                    "mechanism": "stack-limit",
+                    "compiler": "GCC",
+                    "target": target,
+                    "falsifiability": {
+                        "observability": "trigger a stack-limit overflow",
+                        "determinism": "trap 0 dispatch occurs or does not",
+                        "cost": "one target execution",
+                        "static_or_dynamic": "dynamic",
+                    },
+                }
+            ]
+        }
+    )
+
+    assert record.target == "LEON-VxWorks"
+    assert review.candidates[0].target == "LEON-VxWorks"
+
+
+@pytest.mark.parametrize("target", ["LEON\nVxWorks", "x" * 65])
+def test_part_i_rejects_unsafe_or_unbounded_targets(target: str) -> None:
+    with pytest.raises(ValidationError, match="single-line.*64 characters"):
+        SegmentReview.model_validate(
+            {
+                "candidates": [
+                    {
+                        "statement": _STATEMENT,
+                        "observation": "A required check is absent.",
+                        "protected_asset": "return address",
+                        "activation_condition": "stack protection is enabled",
+                        "mechanism": "stack-protector",
+                        "target": target,
+                        "falsifiability": {
+                            "observability": "inspect emitted code",
+                            "determinism": "check exists or does not",
+                            "cost": "one inspection",
+                            "static_or_dynamic": "static",
+                        },
+                    }
+                ]
+            }
+        )
+
+
 def test_part_i_accepts_frozen_version_with_commit_provenance() -> None:
     version = (
         "17.0.0 experimental 20260531 "
