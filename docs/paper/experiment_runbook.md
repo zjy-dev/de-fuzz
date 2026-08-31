@@ -340,6 +340,11 @@ Notes:
 - Full Part III requires either a checker bundle or legacy online oracle
   commands. Formal paper runs use the frozen Part II bundle path, whose trusted
   dispatcher supplies both online feedback and offline verification.
+- A generated checker may depend on a trusted checker already present in the
+  frozen source baseline. Such transitive dependencies are recorded separately
+  as `dependency_checker_ids` and included in the content-addressed runtime
+  catalog. They are executed by the dispatcher but are not counted as generated
+  checker successes or exposed to the agent as directly selectable outputs.
 - For a standalone continuation, pass the frozen Part I artifact separately via
   `--accepted-invariants` while `--from-run` (or `--checker-bundle-manifest`)
   supplies the Part II bundle. The CLI hashes both inputs before any worker runs.

@@ -124,6 +124,7 @@ class _CheckerBundleRuntime:
             "status": manifest.status,
             "coverage_complete": manifest.coverage_complete,
             "included_invariant_ids": list(manifest.included_invariant_ids),
+            "dependency_checker_ids": list(manifest.dependency_checker_ids),
             "failed_invariant_ids": list(manifest.failed_invariant_ids),
             "source_invariants_sha256": manifest.source_invariants_sha256,
             "requested_mechanisms": list(manifest.requested_mechanisms),
@@ -189,6 +190,23 @@ def _catalog_checker_ids(bundle: ValidatedCheckerBundle) -> frozenset[str]:
     entries = payload.get("checkers")
     if not isinstance(entries, list):
         raise ValueError("trusted checker catalog checkers must be an array")
+    dependency_ids = payload.get("dependency_checker_ids", [])
+    if not isinstance(dependency_ids, list) or not all(
+        isinstance(item, str) and item and item == item.strip()
+        for item in dependency_ids
+    ):
+        raise ValueError(
+            "trusted checker catalog dependency_checker_ids must be an array of "
+            "non-empty strings"
+        )
+    if len(set(dependency_ids)) != len(dependency_ids):
+        raise ValueError(
+            "trusted checker catalog dependency_checker_ids must be unique"
+        )
+    if set(dependency_ids) != set(bundle.manifest.dependency_checker_ids):
+        raise ValueError(
+            "trusted checker catalog dependency_checker_ids do not match manifest"
+        )
     checker_ids: list[str] = []
     invariant_ids: list[str] = []
     for index, entry in enumerate(entries):
@@ -204,17 +222,25 @@ def _catalog_checker_ids(bundle: ValidatedCheckerBundle) -> frozenset[str]:
             raise ValueError(
                 f"trusted checker catalog entry {index} checker_id must equal invariant_id"
             )
+        if checker_id in dependency_ids and entry.get("bundle_role") != "dependency":
+            raise ValueError(
+                f"trusted checker catalog dependency {checker_id!r} has invalid bundle_role"
+            )
         checker_ids.append(checker_id)
         invariant_ids.append(invariant_id)
     if len(set(checker_ids)) != len(checker_ids):
         raise ValueError("trusted checker catalog checker_id values must be unique")
-    if set(invariant_ids) != set(bundle.manifest.included_invariant_ids):
+    expected_catalog_ids = set(bundle.manifest.included_invariant_ids) | set(
+        bundle.manifest.dependency_checker_ids
+    )
+    if set(invariant_ids) != expected_catalog_ids:
         raise ValueError(
-            "trusted checker catalog entries do not match manifest included_invariant_ids"
+            "trusted checker catalog entries do not match manifest included and "
+            "dependency checker IDs"
         )
     if not checker_ids:
         raise ValueError("trusted checker catalog contains no executable checkers")
-    return frozenset(checker_ids)
+    return frozenset(bundle.manifest.included_invariant_ids)
 
 
 def _configured_compiler(parameters: Mapping[str, Any], *, required: bool) -> CompilerName | None:
@@ -993,7 +1019,9 @@ async def run(
     checker_routing_prompt = (
         "\n\n# Checker routing contract\n\n"
         "For every candidate, set checker_ids to one or more checker_id values "
-        "from the permitted checker catalog. Select only checkers relevant to the "
+        "whose bundle_role is `generated` or `reused`; entries marked `dependency` "
+        "are invoked automatically and must not be selected directly. Select only "
+        "checkers relevant to the "
         "candidate; these bundle-scoped IDs drive online feedback. Also put each "
         "canonical invariant actually claimed by the candidate in related_invariants. "
         "The final verify pass resolves those IDs only against trusted checkers compiled "

@@ -270,6 +270,26 @@ def test_load_rejects_scoped_invariant_ids_that_disagree_with_scope(
         load_checker_bundle(manifest_path)
 
 
+def test_manifest_accepts_disjoint_runtime_dependency_checker_ids(tmp_path: Path) -> None:
+    payload, manifest_path = _ready_bundle(tmp_path / "bundle")
+    payload["dependency_checker_ids"] = ["INV-BASE"]
+    _write_manifest(manifest_path.parent, payload)
+
+    bundle = load_checker_bundle(manifest_path)
+
+    assert bundle.manifest.included_invariant_ids == ["INV-ONE"]
+    assert bundle.manifest.dependency_checker_ids == ["INV-BASE"]
+
+
+def test_manifest_rejects_dependency_checker_id_overlap(tmp_path: Path) -> None:
+    payload, manifest_path = _ready_bundle(tmp_path / "bundle")
+    payload["dependency_checker_ids"] = ["INV-ONE"]
+    _write_manifest(manifest_path.parent, payload)
+
+    with pytest.raises(ValidationError, match="dependency_checker_ids must be disjoint"):
+        load_checker_bundle(manifest_path)
+
+
 def test_load_rejects_tampered_scoped_invariants(tmp_path: Path) -> None:
     _, manifest_path = _ready_bundle(tmp_path / "bundle")
     (manifest_path.parent / "inputs/scoped-accepted-invariants.jsonl").write_text(

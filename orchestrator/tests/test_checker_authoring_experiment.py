@@ -884,6 +884,113 @@ async def test_multiple_generated_invariants_share_one_reused_runtime_checker(
     ]
 
 
+def test_runtime_catalog_includes_transitive_source_dependencies(tmp_path: Path) -> None:
+    invariant = checker_authoring.NormalizedInvariant(
+        value={
+            "invariant_id": "INV-GEN-A",
+            "statement": "A generated checker uses a trusted baseline fact.",
+            "mechanism": "stack-protector",
+        },
+        source_path=tmp_path / "accepted-invariants.jsonl",
+        source_line=1,
+        source_sha256="1" * 64,
+    )
+    row = {
+        "invariant_id": invariant.invariant_id,
+        "reused_checker_id": None,
+        "file_changes": [],
+        "parent_tree_sha256": "2" * 64,
+        "result_tree_sha256": "3" * 64,
+    }
+    runtime = {
+        "schema_version": 1,
+        "kind": "defuzz-checker-catalog",
+        "checkers": [
+            {
+                "id": "INV-GEN-A",
+                "oracle": "canary",
+                "mechanism": "stack-protector",
+                "requires": ["INV-BASE-B"],
+                "applicable_isas": ["x86_64"],
+                "mode": "single",
+                "cost": "cheap",
+                "category": "dynamic",
+            },
+            {
+                "id": "INV-BASE-B",
+                "oracle": "canary",
+                "mechanism": "stack-protector",
+                "requires": ["INV-BASE-C"],
+                "applicable_isas": ["x86_64"],
+                "mode": "single",
+                "cost": "cheap",
+                "category": "dynamic",
+            },
+            {
+                "id": "INV-BASE-C",
+                "oracle": "canary",
+                "mechanism": "stack-protector",
+                "requires": [],
+                "applicable_isas": ["x86_64"],
+                "mode": "single",
+                "cost": "cheap",
+                "category": "dynamic",
+            },
+        ],
+    }
+
+    catalog = checker_authoring._runtime_catalog(
+        json.dumps(runtime),
+        included=[(invariant, row)],
+        source_tree_sha256="2" * 64,
+        final_tree_sha256="3" * 64,
+    )
+
+    assert catalog["dependency_checker_ids"] == ["INV-BASE-B", "INV-BASE-C"]
+    by_id = {item["checker_id"]: item for item in catalog["checkers"]}
+    assert set(by_id) == {"INV-GEN-A", "INV-BASE-B", "INV-BASE-C"}
+    assert by_id["INV-GEN-A"]["bundle_role"] == "generated"
+    assert by_id["INV-BASE-B"]["bundle_role"] == "dependency"
+    assert by_id["INV-BASE-C"]["lineage"] == {"source": "source-baseline"}
+
+
+def test_runtime_catalog_rejects_missing_dependency(tmp_path: Path) -> None:
+    invariant = checker_authoring.NormalizedInvariant(
+        value={
+            "invariant_id": "INV-GEN-A",
+            "statement": "A generated checker uses a missing fact.",
+        },
+        source_path=tmp_path / "accepted-invariants.jsonl",
+        source_line=1,
+        source_sha256="1" * 64,
+    )
+    row = {
+        "invariant_id": invariant.invariant_id,
+        "reused_checker_id": None,
+        "file_changes": [],
+        "parent_tree_sha256": "2" * 64,
+        "result_tree_sha256": "3" * 64,
+    }
+    runtime = {
+        "schema_version": 1,
+        "kind": "defuzz-checker-catalog",
+        "checkers": [
+            {
+                "id": "INV-GEN-A",
+                "requires": ["INV-MISSING"],
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="missing checker 'INV-MISSING'"):
+        checker_authoring._runtime_catalog(
+            json.dumps(runtime),
+            included=[(invariant, row)],
+            source_tree_sha256="2" * 64,
+            final_tree_sha256="3" * 64,
+        )
+
+
 @pytest.mark.asyncio
 async def test_part_ii_rejects_untrusted_reuse_metadata(
     source_checkout: Path, tmp_path: Path

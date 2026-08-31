@@ -219,6 +219,7 @@ type bundleManifestEnvelope struct {
 	CoverageComplete       bool     `json:"coverage_complete"`
 	BudgetExhausted        bool     `json:"budget_exhausted"`
 	IncludedInvariantIDs   []string `json:"included_invariant_ids"`
+	DependencyCheckerIDs   []string `json:"dependency_checker_ids"`
 	FailedInvariantIDs     []string `json:"failed_invariant_ids"`
 	Invariants             []struct {
 		InvariantID       string   `json:"invariant_id"`
@@ -249,9 +250,10 @@ type bundleArtifact struct {
 }
 
 type bundleCatalogEnvelope struct {
-	SchemaVersion int                  `json:"schema_version"`
-	Kind          string               `json:"kind"`
-	Checkers      []bundleCatalogEntry `json:"checkers"`
+	SchemaVersion        int                  `json:"schema_version"`
+	Kind                 string               `json:"kind"`
+	DependencyCheckerIDs []string             `json:"dependency_checker_ids"`
+	Checkers             []bundleCatalogEntry `json:"checkers"`
 }
 
 type bundleCatalogEntry struct {
@@ -286,17 +288,22 @@ func loadBundleCatalog(manifestPath, catalogPath, executablePath string) (map[st
 	if err != nil {
 		return nil, fmt.Errorf("parse bundle manifest: %w", err)
 	}
-	if err := validateObjectKeys(rawManifest, []string{
+	if err := validateObjectKeysWithOptional(rawManifest, []string{
 		"schema_version", "kind", "status", "bundle_id", "source_root",
 		"source_root_sha256", "source_tree_sha256", "final_tree_sha256",
 		"source_invariants_sha256", "requested_mechanisms", "requested_isas",
 		"coverage_complete", "budget_exhausted", "included_invariant_ids",
 		"failed_invariant_ids", "invariants", "artifacts", "validation",
-	}); err != nil {
+	}, []string{"dependency_checker_ids"}); err != nil {
 		return nil, fmt.Errorf("bundle manifest: %w", err)
 	}
 	for _, field := range []string{"requested_mechanisms", "requested_isas"} {
 		if err := validateRequestedScopeValues(field, rawManifest); err != nil {
+			return nil, err
+		}
+	}
+	if _, present := rawManifest["dependency_checker_ids"]; present {
+		if err := validateRequestedScopeValues("dependency_checker_ids", rawManifest); err != nil {
 			return nil, err
 		}
 	}
@@ -361,6 +368,9 @@ func loadBundleCatalog(manifestPath, catalogPath, executablePath string) (map[st
 	if catalog.SchemaVersion != 1 || catalog.Kind != "defuzz-checker-catalog" {
 		return nil, fmt.Errorf("checker catalog must be schema version 1 and kind defuzz-checker-catalog")
 	}
+	if hasDuplicates(catalog.DependencyCheckerIDs) || !sameStringSet(catalog.DependencyCheckerIDs, manifest.DependencyCheckerIDs) {
+		return nil, fmt.Errorf("checker catalog dependency_checker_ids do not match bundle manifest")
+	}
 	runtime := make(map[string]oracle.CheckerMetadata)
 	for _, metadata := range oracle.AllCheckerMetadata() {
 		runtime[metadata.ID] = metadata
@@ -393,10 +403,18 @@ func loadBundleCatalog(manifestPath, catalogPath, executablePath string) (map[st
 			}
 		}
 	}
-	if !sameStringSet(sortedKeys(allowlist), uniqueStrings(manifest.IncludedInvariantIDs)) {
-		return nil, fmt.Errorf("checker catalog IDs do not exactly match bundle included_invariant_ids")
+	expectedCatalogIDs := uniqueStrings(append(
+		append([]string(nil), manifest.IncludedInvariantIDs...),
+		manifest.DependencyCheckerIDs...,
+	))
+	if !sameStringSet(sortedKeys(allowlist), expectedCatalogIDs) {
+		return nil, fmt.Errorf("checker catalog IDs do not exactly match bundle included and dependency checker IDs")
 	}
-	return allowlist, nil
+	directAllowlist := make(map[string]bool, len(manifest.IncludedInvariantIDs))
+	for _, id := range manifest.IncludedInvariantIDs {
+		directAllowlist[id] = true
+	}
+	return directAllowlist, nil
 }
 
 func validateBundleManifest(manifest bundleManifestEnvelope, raw map[string]any) error {
@@ -441,7 +459,7 @@ func validateBundleManifest(manifest bundleManifestEnvelope, raw map[string]any)
 		manifest.Artifacts.ScopedInvariants == nil || manifest.Artifacts.InputScope == nil {
 		return fmt.Errorf("ready bundle requires cumulative_patch, catalog, dispatcher, scoped_invariants, and input_scope artifacts")
 	}
-	if hasDuplicates(manifest.IncludedInvariantIDs) || hasDuplicates(manifest.FailedInvariantIDs) {
+	if hasDuplicates(manifest.IncludedInvariantIDs) || hasDuplicates(manifest.DependencyCheckerIDs) || hasDuplicates(manifest.FailedInvariantIDs) {
 		return fmt.Errorf("bundle invariant ID lists must not contain duplicates")
 	}
 	for _, id := range manifest.IncludedInvariantIDs {
@@ -474,6 +492,14 @@ func validateBundleManifest(manifest bundleManifestEnvelope, raw map[string]any)
 			return fmt.Errorf("ready bundle invariant %q is unprocessed", invariant.InvariantID)
 		default:
 			return fmt.Errorf("bundle invariant %q has invalid final_status %q", invariant.InvariantID, invariant.FinalStatus)
+		}
+	}
+	for _, id := range manifest.DependencyCheckerIDs {
+		if contains(manifest.IncludedInvariantIDs, id) || contains(manifest.FailedInvariantIDs, id) {
+			return fmt.Errorf("bundle dependency checker IDs must be disjoint from included and failed invariant IDs")
+		}
+		if seenInvariant[id] {
+			return fmt.Errorf("bundle dependency checker %q must not have a generated invariant row", id)
 		}
 	}
 	if !sameStringSet(passed, manifest.IncludedInvariantIDs) || !sameStringSet(failed, manifest.FailedInvariantIDs) {
@@ -1290,8 +1316,15 @@ func decodeJSONObject(data []byte) (map[string]any, error) {
 }
 
 func validateObjectKeys(object map[string]any, allowed []string) error {
-	wanted := make(map[string]bool, len(allowed))
-	for _, key := range allowed {
+	return validateObjectKeysWithOptional(object, allowed, nil)
+}
+
+func validateObjectKeysWithOptional(object map[string]any, required, optional []string) error {
+	wanted := make(map[string]bool, len(required)+len(optional))
+	for _, key := range required {
+		wanted[key] = true
+	}
+	for _, key := range optional {
 		wanted[key] = true
 	}
 	for key := range object {
@@ -1299,7 +1332,7 @@ func validateObjectKeys(object map[string]any, allowed []string) error {
 			return fmt.Errorf("unknown top-level field %q", key)
 		}
 	}
-	for _, key := range allowed {
+	for _, key := range required {
 		if _, exists := object[key]; !exists {
 			return fmt.Errorf("missing top-level field %q", key)
 		}

@@ -1032,39 +1032,72 @@ def _runtime_catalog(
         canonical_id = str(row.get("reused_checker_id") or invariant.invariant_id)
         grouped.setdefault(canonical_id, []).append((invariant, row))
 
-    checkers: list[dict[str, Any]] = []
     included_ids = set(grouped)
-    for canonical_id, members in grouped.items():
-        invariant, row = members[0]
-        runtime = by_id.get(canonical_id)
+    dependency_ids: set[str] = set()
+    visiting: set[str] = set()
+
+    def require_runtime(checker_id: str) -> Mapping[str, Any]:
+        runtime = by_id.get(checker_id)
         if runtime is None:
-            raise ValueError(
-                "dispatcher catalog is missing checker "
-                f"{canonical_id!r} for {invariant.invariant_id!r}"
-            )
-        entry = dict(runtime)
-        requires = entry.get("requires", [])
+            raise ValueError(f"dispatcher catalog is missing checker {checker_id!r}")
+        requires = runtime.get("requires", [])
         if not isinstance(requires, list) or not all(
             isinstance(item, str) and item for item in requires
         ):
             raise ValueError(
-                f"dispatcher catalog checker {canonical_id!r} has invalid requires"
+                f"dispatcher catalog checker {checker_id!r} has invalid requires"
             )
-        missing = sorted(set(requires) - included_ids)
-        if missing:
-            raise ValueError(
-                f"checker {canonical_id!r} is missing required "
-                f"bundle checkers: {', '.join(missing)}"
+        return runtime
+
+    def add_dependencies(checker_id: str) -> None:
+        if checker_id in visiting:
+            raise ValueError(f"dispatcher catalog dependency cycle includes {checker_id!r}")
+        visiting.add(checker_id)
+        runtime = require_runtime(checker_id)
+        for required in runtime.get("requires", []):
+            require_runtime(required)
+            if required not in included_ids:
+                dependency_ids.add(required)
+            add_dependencies(required)
+        visiting.remove(checker_id)
+
+    for canonical_id in included_ids:
+        add_dependencies(canonical_id)
+
+    checkers: list[dict[str, Any]] = []
+    for canonical_id in sorted(included_ids | dependency_ids):
+        runtime = require_runtime(canonical_id)
+        members = grouped.get(canonical_id)
+        entry = dict(runtime)
+        if members is None:
+            entry.update(
+                {
+                    "checker_id": canonical_id,
+                    "invariant_id": canonical_id,
+                    "bundle_role": "dependency",
+                    "generated_invariant_ids": [],
+                    "lineage": {"source": "source-baseline"},
+                    "lineages": [],
+                    "parent_tree_sha256": source_tree_sha256,
+                    "result_tree_sha256": final_tree_sha256,
+                    "files": [],
+                }
             )
-        entry.update(_diagnostic_catalog_entry(invariant, row, checker_id=canonical_id))
-        entry["generated_invariant_ids"] = [item.invariant_id for item, _ in members]
-        entry["lineages"] = [item.lineage for item, _ in members]
+        else:
+            invariant, row = members[0]
+            entry.update(_diagnostic_catalog_entry(invariant, row, checker_id=canonical_id))
+            entry["bundle_role"] = "reused" if row.get("reused") else "generated"
+            entry["generated_invariant_ids"] = [
+                item.invariant_id for item, _ in members
+            ]
+            entry["lineages"] = [item.lineage for item, _ in members]
         checkers.append(entry)
     return {
         "schema_version": 1,
         "kind": "defuzz-checker-catalog",
         "source_tree_sha256": source_tree_sha256,
         "result_tree_sha256": final_tree_sha256,
+        "dependency_checker_ids": sorted(dependency_ids),
         "checkers": checkers,
     }
 
@@ -1836,6 +1869,7 @@ class CheckerAuthoringRunner:
                 if row["included_in_bundle"]
             ]
             build_record: dict[str, Any] | None = None
+            catalog: dict[str, Any] | None = None
             catalog_ref: dict[str, Any] | None = None
             dispatcher_ref: dict[str, Any] | None = None
             integration_error: str | None = None
@@ -1923,6 +1957,11 @@ class CheckerAuthoringRunner:
                 canonical_id = str(row.get("reused_checker_id") or item.invariant_id)
                 included_groups.setdefault(canonical_id, []).append((item, row))
             included_ids = list(included_groups)
+            dependency_checker_ids = (
+                list(catalog.get("dependency_checker_ids", []))
+                if catalog is not None
+                else []
+            )
             failed_ids = [
                 invariant.invariant_id
                 for invariant, row in zip(invariants, rows, strict=True)
@@ -1958,6 +1997,7 @@ class CheckerAuthoringRunner:
                 "coverage_complete": not failed_ids and not unprocessed_any,
                 "budget_exhausted": budget_exhausted_any,
                 "included_invariant_ids": included_ids,
+                "dependency_checker_ids": dependency_checker_ids,
                 "failed_invariant_ids": failed_ids,
                 "invariants": [
                     {

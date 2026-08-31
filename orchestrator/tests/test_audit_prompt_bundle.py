@@ -12,9 +12,10 @@ from typing import Any, Literal
 
 import pytest
 
+import defuzz_loop.agent_audit as agent_audit
 from defuzz_loop.agent_audit import run
 from defuzz_loop.audit_schema import CANONICAL_AUDIT_FAMILIES, normalize_mechanism
-from defuzz_loop.checker_bundle import compute_bundle_id
+from defuzz_loop.checker_bundle import compute_bundle_id, load_checker_bundle
 from defuzz_loop.experiment_engine import AgentRequest, AgentResult, ExperimentPlan
 from defuzz_loop.prompt_bundle import audit_doctrine_parity, build_worker_prompt_bundle
 
@@ -263,6 +264,39 @@ if args.mode == 'verify':
     toolchains = tmp_path / "toolchains.yaml"
     toolchains.write_text("toolchains: {}\n", encoding="utf-8")
     return manifest_path, toolchains
+
+
+def test_bundle_dependencies_are_runtime_only_not_agent_selectable(
+    tmp_path: Path,
+) -> None:
+    manifest_path, _ = _checker_bundle(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    catalog_path = manifest_path.parent / manifest["artifacts"]["catalog"]["path"]
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    dependency = {
+        **catalog["checkers"][0],
+        "invariant_id": "INV-BASE",
+        "checker_id": "INV-BASE",
+        "bundle_role": "dependency",
+        "generated_invariant_ids": [],
+    }
+    catalog["checkers"].append(dependency)
+    catalog["dependency_checker_ids"] = ["INV-BASE"]
+    catalog_content = json.dumps(catalog).encode("utf-8")
+    catalog_path.write_bytes(catalog_content)
+    manifest["dependency_checker_ids"] = ["INV-BASE"]
+    manifest["artifacts"]["catalog"] = {
+        "path": "checker-catalog.json",
+        "sha256": _sha256_bytes(catalog_content),
+        "size_bytes": len(catalog_content),
+        "kind": "checker-catalog",
+    }
+    manifest["bundle_id"] = compute_bundle_id(manifest)
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    bundle = load_checker_bundle(manifest_path)
+
+    assert agent_audit._catalog_checker_ids(bundle) == frozenset({"INV-ONE"})
 
 
 def test_canonical_five_family_mapping_is_frozen() -> None:

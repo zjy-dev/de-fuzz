@@ -164,6 +164,54 @@ func TestLoadBundleCatalogValidatesCompleteBundle(t *testing.T) {
 	assert.Equal(t, map[string]bool{"INV-IBT-B01": true}, allowlist)
 }
 
+func TestLoadBundleCatalogAcceptsExplicitDependencyClosure(t *testing.T) {
+	fixture := newBundleTestFixture(t)
+	var l01, l02 map[string]any
+	for _, candidate := range RuntimeCheckerCatalog().Checkers {
+		if candidate.ID != "INV-SP-L01" && candidate.ID != "INV-SP-L02" {
+			continue
+		}
+		data, err := json.Marshal(candidate)
+		require.NoError(t, err)
+		entry := map[string]any{}
+		require.NoError(t, json.Unmarshal(data, &entry))
+		entry["checker_id"] = candidate.ID
+		entry["invariant_id"] = candidate.ID
+		entry["files"] = []any{}
+		if candidate.ID == "INV-SP-L01" {
+			l01 = entry
+		} else {
+			l02 = entry
+		}
+	}
+	require.NotNil(t, l01)
+	require.NotNil(t, l02)
+	catalog := map[string]any{
+		"schema_version": 1, "kind": "defuzz-checker-catalog",
+		"source_tree_sha256":     strings.Repeat("1", 64),
+		"result_tree_sha256":     strings.Repeat("2", 64),
+		"dependency_checker_ids": []any{"INV-SP-L01"},
+		"checkers":               []any{l01, l02},
+	}
+	catalogBytes, err := json.Marshal(catalog)
+	require.NoError(t, err)
+	catalogBytes = append(catalogBytes, '\n')
+	require.NoError(t, os.WriteFile(fixture.catalogPath, catalogBytes, 0o644))
+	fixture.payload["artifacts"].(map[string]any)["catalog"] = artifactTestRecord(
+		"artifacts/catalog.json", catalogBytes, "checker-catalog",
+	)
+	fixture.payload["included_invariant_ids"] = []any{"INV-SP-L02"}
+	fixture.payload["dependency_checker_ids"] = []any{"INV-SP-L01"}
+	fixture.payload["invariants"].([]any)[0].(map[string]any)["invariant_id"] = "INV-SP-L02"
+	fixture.writeManifest(t, true)
+
+	allowlist, err := loadBundleCatalog(
+		fixture.manifestPath, fixture.catalogPath, fixture.dispatcherPath,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]bool{"INV-SP-L02": true}, allowlist)
+}
+
 func TestLoadBundleCatalogRejectsBundleIDTampering(t *testing.T) {
 	fixture := newBundleTestFixture(t)
 	fixture.payload["bundle_id"] = strings.Repeat("f", 64)

@@ -149,6 +149,7 @@ class CheckerBundleManifest(_StrictModel):
     coverage_complete: bool
     budget_exhausted: bool
     included_invariant_ids: list[NonEmptyString]
+    dependency_checker_ids: list[NonEmptyString] = Field(default_factory=list)
     failed_invariant_ids: list[NonEmptyString]
     invariants: list[CheckerBundleInvariant]
     artifacts: CheckerBundleArtifacts
@@ -174,12 +175,24 @@ class CheckerBundleManifest(_StrictModel):
             raise ValueError("checker-bundle included_invariant_ids must be unique")
         if len(set(self.failed_invariant_ids)) != len(self.failed_invariant_ids):
             raise ValueError("checker-bundle failed_invariant_ids must be unique")
+        if len(set(self.dependency_checker_ids)) != len(self.dependency_checker_ids):
+            raise ValueError("checker-bundle dependency_checker_ids must be unique")
 
         included_ids = set(self.included_invariant_ids)
+        dependency_ids = set(self.dependency_checker_ids)
         failed_ids = set(self.failed_invariant_ids)
         if included_ids & failed_ids:
             raise ValueError(
                 "checker-bundle included_invariant_ids and failed_invariant_ids must be disjoint"
+            )
+        if dependency_ids & (included_ids | failed_ids):
+            raise ValueError(
+                "checker-bundle dependency_checker_ids must be disjoint from "
+                "included and failed invariant IDs"
+            )
+        if dependency_ids & set(invariant_ids):
+            raise ValueError(
+                "checker-bundle dependency_checker_ids must not have generated invariant rows"
             )
 
         expected_included = {
