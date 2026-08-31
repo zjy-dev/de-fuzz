@@ -988,8 +988,9 @@ async def test_tool_limits_truncate_search_with_pagination_and_bound_read_output
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("retry_status", [503, 515])
 async def test_retry_redacts_key_and_honors_request_timeout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, retry_status: int
 ) -> None:
     key = "error-secret-key"
     monkeypatch.setenv("DEFUZZ_TEST_API_KEY", key)
@@ -997,7 +998,7 @@ async def test_retry_redacts_key_and_honors_request_timeout(
     workspace.mkdir()
     with _response_server(
         [
-            (503, {"error": {"message": f"temporary failure {key}"}}),
+            (retry_status, {"error": {"message": f"temporary failure {key}"}}),
             (200, _finish_response("ok")),
         ]
     ) as server:

@@ -50,7 +50,7 @@ from .agent_backend import AgentRequest, AgentResult, ExecAgentBackend
 ReasoningEffort = Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 ContinuationMode = Literal["full_input"]
 
-_RETRYABLE_STATUS_CODES = frozenset({408, 409, 429, 500, 502, 503, 504})
+_RETRYABLE_STATUS_CODES = frozenset({408, 409, 429, 500, 502, 503, 504, 515})
 _USAGE_FIELDS = (
     "input_tokens",
     "output_tokens",
