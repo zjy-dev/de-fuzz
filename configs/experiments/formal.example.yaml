@@ -29,13 +29,13 @@ backend:
 
 budgets:
   part_i:
-    token_budget: 2000000
+    token_budget: 5000000
     time_budget_minutes: 480
   part_ii:
-    token_budget: 2000000
+    token_budget: 20000000
     time_budget_minutes: 720
   part_iii:
-    token_budget: 1000000
+    token_budget: 8000000
     time_budget_minutes: 480
 
 generation:

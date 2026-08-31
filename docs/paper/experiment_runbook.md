@@ -126,6 +126,15 @@ tokens. These are safety ceilings, not expected consumption; review the actual
 per-call JSONL before scaling from the first complete Full repetition to the
 three-repetition four-variant comparison.
 
+Calibrate those ceilings before freezing the paper campaign, and apply the same
+per-Part limits to every variant and repetition. If a limit proves too small,
+mark that entire campaign as calibration evidence and restart under a new
+`run_id`; do not splice a resumed or enlarged-budget lane into the three formal
+repetitions. For the 2026-08-31 GCC 17 four-ISA campaign, 18 in-scope Part II
+inputs reached 10,007,640 tokens before the last model call, while an earlier
+complete five-family Part III pass consumed 5,037,455 tokens. The resulting
+pre-registered ceilings are 5M for Part I, 20M for Part II, and 8M for Part III.
+
 ## Compiler-specific drivers
 
 The formal GCC baseline is `17.0.0 experimental 20260531`, source commit
