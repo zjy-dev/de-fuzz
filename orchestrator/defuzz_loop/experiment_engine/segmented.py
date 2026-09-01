@@ -50,7 +50,7 @@ _EXCLUDED_PARTS = {
     "reports",
     "target",
 }
-_TARGET_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+ -]{0,63}$")
+_TARGET_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+ /-]{0,63}$")
 _VERSION_TEXT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+() /-]{0,255}$")
 _COMPILER_ALIASES = {
     "gcc": "GCC",
@@ -138,7 +138,7 @@ def _normalize_target_value(value: str) -> str:
         raise ValueError("must be explicit or omitted; do not use generic")
     if not _TARGET_LABEL.fullmatch(stripped):
         raise ValueError("must be a single-line target label of at most 64 characters or empty")
-    return re.sub(r" +", "-", stripped)
+    return re.sub(r"[ /]+", "-", stripped)
 
 
 def _normalize_version_value(value: str) -> str:
@@ -582,8 +582,9 @@ periods, copied sentences, or impact prose. Aliases like `stack-canary` or
 `ssp` are allowed because they normalize to canonical slugs. `compiler` may be
 omitted only when the segment does not name it; if present it must be `GCC` or
 `LLVM`. `target` and `version` are optional. A target may be an ISA slug or a
-short, explicit platform label such as `LEON VxWorks`; the runner canonicalizes
-spaces to hyphens. When unknown, omit it as an empty string rather than guessing;
+short, explicit platform label such as `LEON VxWorks` or `GNU/Linux`; the runner
+canonicalizes spaces and slashes to hyphens. When unknown, omit it as an empty
+string rather than guessing;
 do not emit placeholders such as `generic`, `unknown`, or descriptive prose.
 If this segment does not entail a fully
 specified candidate, return an empty candidates list instead of guessing or

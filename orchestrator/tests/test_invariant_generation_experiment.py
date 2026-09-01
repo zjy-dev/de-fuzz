@@ -611,8 +611,13 @@ def test_accepted_invariant_allows_empty_target_and_version() -> None:
     assert record.mechanism == "stack-protector"
 
 
-def test_part_i_normalizes_explicit_platform_target_from_formal_run() -> None:
-    target = "LEON VxWorks"
+@pytest.mark.parametrize(
+    ("target", "normalized"),
+    [("LEON VxWorks", "LEON-VxWorks"), ("GNU/Linux", "GNU-Linux")],
+)
+def test_part_i_normalizes_explicit_platform_target_from_formal_run(
+    target: str, normalized: str
+) -> None:
     record = AcceptedInvariant(
         invariant_id="INVGEN-TEST",
         statement=_STATEMENT,
@@ -658,8 +663,8 @@ def test_part_i_normalizes_explicit_platform_target_from_formal_run() -> None:
         }
     )
 
-    assert record.target == "LEON-VxWorks"
-    assert review.candidates[0].target == "LEON-VxWorks"
+    assert record.target == normalized
+    assert review.candidates[0].target == normalized
 
 
 @pytest.mark.parametrize("target", ["LEON\nVxWorks", "x" * 65])

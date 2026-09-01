@@ -43,7 +43,7 @@ GenerationPath = Literal["rag", "segmented-cot", "combined"]
 T = TypeVar("T", bound=BaseModel)
 _DEFAULT_REFERENCE_ROOT = Path("/Users/bytedance/projects/research/defend-reviewer/main")
 _SPACE = re.compile(r"\s+")
-_TARGET_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+ -]{0,63}$")
+_TARGET_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+ /-]{0,63}$")
 _VERSION_TEXT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+() /-]{0,255}$")
 _RAW_MECHANISM_SLUG = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
 _COMPILER_ALIASES = {
@@ -261,7 +261,7 @@ def _normalize_target_value(value: str) -> str:
         raise ValueError("target must be explicit or empty; do not use generic")
     if not _TARGET_LABEL.fullmatch(stripped):
         raise ValueError("target must be a single-line label of at most 64 characters or empty")
-    return re.sub(r" +", "-", stripped)
+    return re.sub(r"[ /]+", "-", stripped)
 
 
 def _normalize_version_value(value: str) -> str:
