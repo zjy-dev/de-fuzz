@@ -1039,6 +1039,47 @@ async def test_retry_redacts_key_and_honors_request_timeout(
 
 
 @pytest.mark.asyncio
+async def test_retryable_failure_persists_past_max_retries_within_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A transient upstream capacity 502 must keep retrying beyond max_retries
+    # while the per-request deadline still allows attempts, so a heavy call can
+    # ride out a multi-minute capacity flap instead of quitting early.
+    monkeypatch.setenv("DEFUZZ_TEST_API_KEY", "test-key")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    with _response_server(
+        [
+            (502, {"error": {"message": "no_capacity"}}),
+            (502, {"error": {"message": "no_capacity"}}),
+            (502, {"error": {"message": "no_capacity"}}),
+            (502, {"error": {"message": "no_capacity"}}),
+            (200, _finish_response("recovered")),
+        ]
+    ) as server:
+        result = await HTTPResponsesAgentBackend(
+            _config(
+                server,
+                max_retries=1,
+                retry_backoff_seconds=0,
+                retry_backoff_cap_seconds=0,
+                timeout=10,
+            )
+        ).run(
+            AgentRequest(
+                prompt="capacity",
+                cwd=workspace,
+                output_dir=tmp_path / "capacity",
+            )
+        )
+    assert result.success
+    # Five upstream calls: four retryable 502s past the max_retries=1 floor,
+    # then the recovery, all sharing one idempotency key.
+    assert len(server.requests) == 5
+    assert len(set(server.idempotency_keys)) == 1
+
+
+@pytest.mark.asyncio
 async def test_request_deadline_covers_tool_execution(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

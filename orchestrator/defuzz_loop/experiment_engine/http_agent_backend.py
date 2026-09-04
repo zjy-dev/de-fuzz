@@ -107,6 +107,7 @@ class HTTPAgentConfig(BaseModel):
     max_output_tokens: PositiveInt | None = None
     max_retries: NonNegativeInt = 3
     retry_backoff_seconds: NonNegativeFloat = 0.5
+    retry_backoff_cap_seconds: NonNegativeFloat = 60.0
     max_tool_rounds: PositiveInt = 64
     max_schema_retries: NonNegativeInt = 2
     max_tool_output_chars: PositiveInt = _DEFAULT_MAX_TOOL_OUTPUT_CHARS
@@ -1289,9 +1290,17 @@ class HTTPResponsesAgentBackend:
         self, payload: Mapping[str, Any], *, api_key: str, deadline: float
     ) -> tuple[Mapping[str, Any], str]:
         last_error: _HTTPAgentError | None = None
-        attempts = int(self.config.max_retries) + 1
+        # ``max_retries`` sets the minimum guaranteed retries; a retryable
+        # failure (e.g. a transient upstream capacity 502) additionally keeps
+        # retrying until the per-request deadline is spent, so a single heavy
+        # Part III worker can ride out a multi-minute capacity flap instead of
+        # quitting with the deadline still mostly unused. A hard ceiling guards
+        # against a zero-backoff tight loop.
         idempotency_key = f"defuzz-{uuid.uuid4().hex}"
-        for attempt in range(attempts):
+        min_attempts = int(self.config.max_retries) + 1
+        hard_attempt_ceiling = max(min_attempts, 1000)
+        attempt = 0
+        while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise _HTTPAgentError("HTTP agent timed out", timed_out=True)
@@ -1310,14 +1319,23 @@ class HTTPResponsesAgentBackend:
                 ) from exc
             except _HTTPAgentError as exc:
                 last_error = exc
-                if not exc.retryable or attempt + 1 >= attempts:
-                    raise
-                delay = float(self.config.retry_backoff_seconds) * (2**attempt)
+                attempt += 1
+                delay = float(self.config.retry_backoff_seconds) * (2 ** min(attempt - 1, 16))
+                delay = min(delay, float(self.config.retry_backoff_cap_seconds))
                 remaining = deadline - time.monotonic()
-                if remaining <= delay:
-                    raise _HTTPAgentError(
-                        "HTTP agent timed out during retry", timed_out=True
-                    ) from exc
+                exhausted_deadline = remaining <= delay
+                # Stop once the failure is non-retryable, the deadline can no
+                # longer fit another attempt, or the tight-loop ceiling is hit.
+                if (
+                    not exc.retryable
+                    or exhausted_deadline
+                    or attempt >= hard_attempt_ceiling
+                ):
+                    if exc.retryable and exhausted_deadline:
+                        raise _HTTPAgentError(
+                            "HTTP agent timed out during retry", timed_out=True
+                        ) from exc
+                    raise
                 await asyncio.sleep(delay)
         assert last_error is not None
         raise last_error
