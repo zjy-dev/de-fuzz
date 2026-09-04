@@ -553,18 +553,21 @@ async def test_segmented_invariant_generation_rejects_noncanonical_mechanism(
         )
 
 
-def test_accepted_invariant_rejects_generic_target_placeholder() -> None:
-    with pytest.raises(ValidationError, match="generic"):
-        AcceptedInvariant(
+def test_accepted_invariant_normalizes_targetless_labels_to_empty() -> None:
+    # The RAG corpus tags shared middle-end defect sites as "generic" (and
+    # similar target-less labels). These are faithful classifications, not
+    # placeholders, so they normalize to an empty scope instead of raising.
+    for label in ("generic", "all", "any", "linux", "android", "config-smoke"):
+        record = AcceptedInvariant(
             invariant_id="INVGEN-TEST",
             statement=_STATEMENT,
             observation="The return path lacks a guard comparison.",
-            generation_path="segmented-cot",
-            generation_paths=["segmented-cot"],
+            generation_path="rag",
+            generation_paths=["rag"],
             provenance=[],
             compiler="GCC",
             version="",
-            target="generic",
+            target=label,
             mechanism="stack-protector",
             source_kind="source",
             source_url_or_path="gcc/guard.cc:10",
@@ -578,6 +581,7 @@ def test_accepted_invariant_rejects_generic_target_placeholder() -> None:
                 "static_or_dynamic": "static",
             },
         )
+        assert record.target == "", label
 
 
 def test_accepted_invariant_allows_empty_target_and_version() -> None:

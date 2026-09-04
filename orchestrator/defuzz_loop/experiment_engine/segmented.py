@@ -52,6 +52,10 @@ _EXCLUDED_PARTS = {
 }
 _TARGET_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+ /-]{0,63}$")
 _VERSION_TEXT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+() /-]{0,255}$")
+# Target labels that carry no ISA scope. A segmented review may faithfully
+# report a shared middle-end site as "generic" (and similar). Normalize these
+# to an empty scope instead of rejecting the candidate.
+_TARGETLESS_LABELS = frozenset({"all", "any", "generic", "linux", "android", "config-smoke"})
 _COMPILER_ALIASES = {
     "gcc": "GCC",
     "gnu-compiler-collection": "GCC",
@@ -134,8 +138,9 @@ def _normalize_target_value(value: str) -> str:
     stripped = value.strip()
     if not stripped:
         return ""
-    if stripped.casefold() == "generic":
-        raise ValueError("must be explicit or omitted; do not use generic")
+    if stripped.casefold() in _TARGETLESS_LABELS:
+        # Faithful middle-end / target-less classification, normalized to empty.
+        return ""
     if not _TARGET_LABEL.fullmatch(stripped):
         raise ValueError("must be a single-line target label of at most 64 characters or empty")
     return re.sub(r"[ /]+", "-", stripped)

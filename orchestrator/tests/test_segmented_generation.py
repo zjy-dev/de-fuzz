@@ -514,7 +514,7 @@ async def test_segmented_generation_rejects_noncanonical_mechanism_text(
         )
 
 
-async def test_segmented_generation_rejects_generic_target_placeholder(
+async def test_segmented_generation_normalizes_targetless_placeholder(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "compiler"
@@ -522,14 +522,18 @@ async def test_segmented_generation_rejects_generic_target_placeholder(
     (source / "guard.c").write_text("guard check\n", encoding="utf-8")
     manifest = build_segment_manifest(source, segment_chars=1000)
 
-    with pytest.raises(ValidationError, match="generic"):
-        await run_segmented_generation(
-            manifest,
-            backend=cast(Any, GenericTargetBackend()),
-            judge=cast(Any, FakeJudge()),
-            output_dir=tmp_path / "out",
-            cwd=tmp_path,
-        )
+    # A "generic" (target-less) classification is faithful corpus metadata for a
+    # shared middle-end site, so it normalizes to an empty scope instead of
+    # aborting the segment review.
+    result = await run_segmented_generation(
+        manifest,
+        backend=cast(Any, GenericTargetBackend()),
+        judge=cast(Any, FakeJudge()),
+        output_dir=tmp_path / "out",
+        cwd=tmp_path,
+    )
+    assert result.candidates
+    assert all(candidate.target == "" for candidate in result.candidates)
 
 
 async def test_segmented_generation_allows_empty_candidate_list(

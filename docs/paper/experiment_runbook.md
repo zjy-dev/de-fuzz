@@ -132,8 +132,12 @@ mark that entire campaign as calibration evidence and restart under a new
 `run_id`; do not splice a resumed or enlarged-budget lane into the three formal
 repetitions. For the 2026-08-31 GCC 17 four-ISA campaign, 18 in-scope Part II
 inputs reached 10,007,640 tokens before the last model call, while an earlier
-complete five-family Part III pass consumed 5,037,455 tokens. The resulting
-pre-registered ceilings are 5M for Part I, 20M for Part II, and 8M for Part III.
+complete five-family Part III pass consumed 5,037,455 tokens. A later four-ISA
+campaign (2026-09-04) observed `without-rag` Part III lanes overshooting the
+initial 8M ceiling at 8,106,096 and 8,196,418 tokens once the checker bundle
+drove deeper multi-worker auditing, so the Part III ceiling is raised to 12M.
+The resulting pre-registered ceilings are 5M for Part I, 20M for Part II, and
+12M for Part III.
 
 ## Compiler-specific drivers
 

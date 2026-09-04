@@ -46,6 +46,12 @@ _SPACE = re.compile(r"\s+")
 _TARGET_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+ /-]{0,63}$")
 _VERSION_TEXT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:+() /-]{0,255}$")
 _RAW_MECHANISM_SLUG = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+# Target labels that carry no ISA scope. The RAG corpus tags shared middle-end
+# defect sites as "generic" (see specgen/corpus.py and retriever.py), and the
+# audit-time ISA scoping already treats these as target-less. Normalizing them
+# to the empty string keeps a legitimate middle-end invariant instead of hard
+# failing the whole Part I batch on a faithful corpus classification.
+_TARGETLESS_LABELS = frozenset({"all", "any", "generic", "linux", "android", "config-smoke"})
 _COMPILER_ALIASES = {
     "gcc": "GCC",
     "gnu-compiler-collection": "GCC",
@@ -257,8 +263,10 @@ def _normalize_target_value(value: str) -> str:
     stripped = value.strip()
     if not stripped:
         return ""
-    if stripped.casefold() == "generic":
-        raise ValueError("target must be explicit or empty; do not use generic")
+    if stripped.casefold() in _TARGETLESS_LABELS:
+        # A middle-end / target-less classification is faithful corpus metadata,
+        # not a placeholder to reject. Drop the scope to empty rather than fail.
+        return ""
     if not _TARGET_LABEL.fullmatch(stripped):
         raise ValueError("target must be a single-line label of at most 64 characters or empty")
     return re.sub(r"[ /]+", "-", stripped)
@@ -307,6 +315,33 @@ def _provenance(candidate: Candidate, path: Literal["rag", "segmented-cot"]) -> 
         seed_id=candidate.seed_id,
         origin_mechanism=candidate.origin_mechanism,
     )
+
+
+def _normalize_candidates(
+    candidates: Sequence[Candidate], path: Literal["rag", "segmented-cot"]
+) -> tuple[list[AcceptedInvariant], list[dict[str, str]]]:
+    """Normalize a candidate batch, isolating per-candidate contract failures.
+
+    A single producer candidate that fails semantic normalization (an invalid
+    target, version, or mechanism) is dropped and recorded rather than aborting
+    the whole Part I batch. This keeps one faithful outlier from discarding every
+    other valid invariant a producer found in the same run.
+    """
+
+    accepted: list[AcceptedInvariant] = []
+    dropped: list[dict[str, str]] = []
+    for candidate in candidates:
+        try:
+            accepted.append(_normalize_candidate(candidate, path))
+        except (ValueError, TypeError) as exc:
+            dropped.append(
+                {
+                    "generation_path": path,
+                    "statement": _SPACE.sub(" ", candidate.statement).strip()[:200],
+                    "reason": str(exc).splitlines()[0][:200],
+                }
+            )
+    return accepted, dropped
 
 
 def _normalize_candidate(
@@ -513,6 +548,7 @@ async def _run_invariant_generation(
         )
 
     records: list[AcceptedInvariant] = []
+    dropped_candidates: list[dict[str, str]] = []
     rag_count = 0
     segmented_count = 0
     segment_manifest: SegmentManifest | None = None
@@ -555,7 +591,9 @@ async def _run_invariant_generation(
             config, judge=judge, rag_runner=rag_runner or run_pipeline
         )
         rag_count = len(rag_candidates)
-        records.extend(_normalize_candidate(candidate, "rag") for candidate in rag_candidates)
+        rag_accepted, rag_dropped = _normalize_candidates(rag_candidates, "rag")
+        records.extend(rag_accepted)
+        dropped_candidates.extend(rag_dropped)
 
     if config.generation_path in {"segmented-cot", "combined"}:
         assert backend is not None
@@ -588,10 +626,11 @@ async def _run_invariant_generation(
             if candidate.novelty is None or candidate.novelty.is_novel
         ]
         segmented_count = len(segmented_candidates)
-        records.extend(
-            _normalize_candidate(candidate, "segmented-cot")
-            for candidate in segmented_candidates
+        segmented_accepted, segmented_dropped = _normalize_candidates(
+            segmented_candidates, "segmented-cot"
         )
+        records.extend(segmented_accepted)
+        dropped_candidates.extend(segmented_dropped)
 
     accepted = merge_accepted_invariants(records)
     for invariant in accepted:
@@ -609,7 +648,16 @@ async def _run_invariant_generation(
         encoding="utf-8",
     )
     artifacts.append(reuse_report_path)
-
+    if dropped_candidates:
+        dropped_path = config.output_dir / "dropped-candidates.jsonl"
+        dropped_path.write_text(
+            "".join(
+                json.dumps(entry, ensure_ascii=False, sort_keys=True) + "\n"
+                for entry in dropped_candidates
+            ),
+            encoding="utf-8",
+        )
+        artifacts.append(dropped_path)
     manifest_path = config.output_dir / "invariant-generation-manifest.json"
     preflight = segment_manifest.preflight if segment_manifest is not None else None
     selection = (
@@ -634,6 +682,7 @@ async def _run_invariant_generation(
                     "rag_candidates": rag_count,
                     "segmented_candidates": segmented_count,
                     "accepted_invariants": len(accepted),
+                    "dropped_candidates": len(dropped_candidates),
                     "overlap": overlap,
                     "segment_count": preflight.segment_count if preflight else 0,
                     "selected_segment_count": (

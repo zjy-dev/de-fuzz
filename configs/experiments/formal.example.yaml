@@ -35,7 +35,7 @@ budgets:
     token_budget: 20000000
     time_budget_minutes: 720
   part_iii:
-    token_budget: 8000000
+    token_budget: 12000000
     time_budget_minutes: 480
 
 generation:
