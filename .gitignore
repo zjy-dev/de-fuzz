@@ -69,6 +69,7 @@ Thumbs.db
 
 # Planning and draft documents
 *plan*.md
+!docs/tech-docs/architecture/opencode-migration-plan.md
 GEMINI.md
 **/unpacked_docx/
 **/_archieve/unpacked_docx/
@@ -86,6 +87,10 @@ ollama/
 .agents/
 .gemini/
 .opencode/
+# but DO version-control our first-class OpenCode subagent definitions:
+!.opencode/
+!.opencode/agent/
+!.opencode/agent/*.md
 .claude/
 .trae/
 
