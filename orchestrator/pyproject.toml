@@ -1,12 +1,9 @@
 [project]
 name = "defuzz-loop"
 version = "0.1.0"
-description = "Agentic loop orchestrator for de-fuzz: explicit LangGraph pipeline + three agents over a blackboard."
+description = "Rev 3 orchestrator for de-fuzz: explicit IterationLoop + OpenCode markdown subagents over a blackboard."
 requires-python = ">=3.12"
 dependencies = [
-    "langgraph>=0.2.0",
-    "langchain-core>=0.3.0",
-    "langgraph-checkpoint-sqlite>=2.0.0",
     "grpcio>=1.60.0",
     "grpcio-tools>=1.60.0",
     "jsonschema>=4.0",
@@ -18,9 +15,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# LLM providers — pick what the configured provider needs.
-openai = ["langchain-openai>=0.2.0"]
-anthropic = ["langchain-anthropic>=0.2.0"]
+# Rev 3: LLM providers are reached through the OpenCode CLI subprocess.
+# No provider SDK is a hard dependency of the orchestrator itself.
 
 [dependency-groups]
 dev = [

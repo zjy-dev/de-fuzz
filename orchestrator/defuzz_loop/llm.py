@@ -1,13 +1,22 @@
-"""LLM provider config module — single factory for the three agents to share.
+"""LLM config module (Rev 3 shim).
 
-Replaces the deleted Go internal/llm: all LLM access now lives in Python via
-langchain chat models, wired into langgraph (analyze C2/C3). Configuration is loaded
-from configs/llm.yaml; the API key resolves from the env var named by `api_key_env`.
+Rev 3 removed the LangGraph / LangChain runtime entirely. The Python-side
+LLM path for the online loop now goes through OpenCode markdown subagents
+(see :mod:`defuzz_loop.opencode`), so ``build_chat_model`` is no longer a
+functional path — it raises :class:`NotImplementedError` and is kept only
+so protected modules (``audit.py``, ``specgen/*.py``) that still import
+``LLMConfig`` for metadata purposes continue to work.
+
+``LLMConfig`` itself is a pure pydantic model over ``configs/llm.yaml``;
+it depends on no third-party LLM SDK. ``ainvoke_structured`` remains a
+provider-agnostic helper: it uses only duck-typed
+``model.with_structured_output(...)`` calls, so tests that supply their
+own fake ``model`` keep working (see
+``tests/test_token_usage_integration.py``).
 """
 
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import Mapping
 from enum import StrEnum
@@ -28,14 +37,18 @@ class Provider(StrEnum):
 
 
 class LLMConfig(BaseModel):
+    """Provider/model metadata read from ``configs/llm.yaml``.
+
+    Preserved intentionally so run manifests, token accounting, and
+    specgen configuration continue to work without importing LangChain.
+    """
+
     provider: Provider = Provider.OPENAI
     model: str = "gpt-4o"
     temperature: float = 0.7
     max_tokens: int | None = None
     base_url: str | None = None
     api_key_env: str = "OPENAI_API_KEY"
-    # Reasoning depth for OpenAI reasoning models (GPT-5 family): low|medium|high|xhigh.
-    # None leaves the gateway default; only forwarded when the provider supports it.
     reasoning_effort: str | None = None
     timeout: int = 120
 
@@ -43,54 +56,26 @@ class LLMConfig(BaseModel):
     def load(cls, path: str | Path | None = None) -> LLMConfig:
         cfg_path = Path(path) if path else _DEFAULT_CONFIG_PATH
         if not cfg_path.exists():
-            raise FileNotFoundError(f"LLM config not found: {cfg_path}")
+            # Rev 3: return defaults rather than hard-failing, so protected
+            # code paths that expect an LLMConfig object still function
+            # (e.g. specgen replay from a transcript).
+            return cls()
         data: dict[str, Any] = yaml.safe_load(cfg_path.read_text()) or {}
         return cls.model_validate(data.get("llm", data))
 
 
 def build_chat_model(config: LLMConfig | None = None) -> Any:
-    """Return a langchain chat model the three agents reuse.
+    """Rev 3 stub — the live LLM path has moved to OpenCode subagents.
 
-    Provider packages are optional extras; import lazily so an unused provider
-    is never required.
+    Kept as a stub so protected modules that import the name still resolve;
+    calling it explicitly is a bug in Rev 3 code and surfaces as
+    :class:`NotImplementedError`.
     """
-    cfg = config or LLMConfig.load()
-    api_key = os.environ.get(cfg.api_key_env)
 
-    if cfg.provider is Provider.OPENAI:
-        from langchain_openai import ChatOpenAI
-
-        kwargs: dict[str, Any] = dict(
-            model=cfg.model,
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens,
-            base_url=cfg.base_url,
-            api_key=api_key,
-            timeout=cfg.timeout,
-        )
-        # Reasoning models take effort via the request body; the OpenAI-compatible
-        # gateway reads it from extra_body so it survives langchain's param filtering.
-        if cfg.reasoning_effort:
-            kwargs["extra_body"] = {"reasoning_effort": cfg.reasoning_effort}
-        return ChatOpenAI(**kwargs)
-    if cfg.provider is Provider.ANTHROPIC:
-        from langchain_anthropic import ChatAnthropic
-
-        # Build through an untyped mapping because supported langchain-anthropic
-        # releases expose these canonical fields under different constructor
-        # aliases in their generated type signatures.
-        anthropic_kwargs: dict[str, Any] = {
-            "model_name": cfg.model,
-            "temperature": cfg.temperature,
-            "max_tokens_to_sample": cfg.max_tokens or 4096,
-            "timeout": cfg.timeout,
-        }
-        if cfg.base_url is not None:
-            anthropic_kwargs["base_url"] = cfg.base_url
-        if api_key is not None:
-            anthropic_kwargs["api_key"] = api_key
-        return ChatAnthropic(**anthropic_kwargs)
-    raise ValueError(f"unsupported provider: {cfg.provider}")
+    raise NotImplementedError(
+        "build_chat_model was removed in Rev 3; use "
+        "defuzz_loop.opencode.SubagentRunner instead."
+    )
 
 
 async def ainvoke_structured[T: BaseModel](
@@ -102,12 +87,13 @@ async def ainvoke_structured[T: BaseModel](
     agent: str | None = None,
     method: str = "function_calling",
 ) -> T:
-    """Invoke one structured completion, recording usage when a sink is active.
+    """Provider-agnostic structured completion.
 
-    With no ambient sink this deliberately follows the pre-integration call
-    shape: ``include_raw`` is not supplied and LangChain returns the parsed
-    Pydantic model directly. With a sink, the provider's raw AI message is kept
-    long enough to record usage, then only ``parsed`` is returned to callers.
+    Uses only duck-typed ``model.with_structured_output(...)``. Callers
+    supply the model instance; Rev 3 does not build one for them. Records
+    token usage when a sink is active (the same behaviour as the
+    pre-Rev-3 helper). Tests can pass a fake model that mimics the
+    LangChain-style API without pulling LangChain in as a dependency.
     """
 
     sink = current_token_usage_sink()
@@ -158,3 +144,6 @@ async def ainvoke_structured[T: BaseModel](
         latency_ms=(time.perf_counter() - started) * 1000,
     )
     return parsed
+
+
+__all__ = ["LLMConfig", "Provider", "build_chat_model", "ainvoke_structured"]

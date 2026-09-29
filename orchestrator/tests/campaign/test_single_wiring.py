@@ -1,7 +1,9 @@
-"""Single-campaign wiring test: does :func:`run_single_invariant_campaign`
-correctly wire ``target_queue = [phi_id]`` and forward the budget?
+"""Single-campaign wiring test (Rev 3 flavour).
 
-No real LangGraph — we substitute fakes for every dependency.
+The dependency-injection surface changed from ``build_graph`` +
+``blackboard_factory`` to ``loop_builder`` + ``blackboard_factory``.
+This test drives :func:`run_single_invariant_campaign` with a fake
+IterationLoop stand-in to verify the target_queue and budget wiring.
 """
 
 from __future__ import annotations
@@ -10,42 +12,42 @@ from typing import Any
 
 import pytest
 
-from defuzz_loop.campaign.single import CampaignConfig, run_single_invariant_campaign
+from defuzz_loop.campaign.single import (
+    CampaignConfig,
+    run_single_invariant_campaign,
+)
+from defuzz_loop.state import Blackboard
 
 
-class _FakeApp:
-    def __init__(self, out: dict) -> None:
-        self._out = out
-        self.invocations: list[tuple[Any, dict]] = []
+class _FakeLoop:
+    def __init__(self) -> None:
+        self.calls: list[tuple[Blackboard, dict[str, Any]]] = []
 
-    async def ainvoke(self, initial: Any, config: dict) -> dict:
-        self.invocations.append((initial, config))
-        return {**self._out, "initial": initial, "config": config}
-
-
-class _FakeGraph:
-    def __init__(self, out: dict) -> None:
-        self._out = out
-        self.compile_kwargs: dict = {}
-
-    def compile(self, **kwargs: Any) -> _FakeApp:
-        self.compile_kwargs = kwargs
-        self.app = _FakeApp(self._out)
-        return self.app
+    async def run(
+        self,
+        bb: Blackboard,
+        *,
+        budget_rounds: int,
+        budget_secs: float,
+    ) -> Blackboard:
+        self.calls.append(
+            (bb, {"budget_rounds": budget_rounds, "budget_secs": budget_secs})
+        )
+        bb.round = 42
+        return bb
 
 
 @pytest.mark.asyncio
-async def test_single_campaign_builds_graph_with_expected_target_queue() -> None:
-    build_calls: list[dict] = []
+async def test_loop_receives_single_target_and_budget() -> None:
+    loop = _FakeLoop()
+    build_calls = {"n": 0}
 
-    fake_graph = _FakeGraph(out={"final": True})
+    def _loop_builder() -> _FakeLoop:
+        build_calls["n"] += 1
+        return loop
 
-    def _build_graph(**kwargs: Any) -> _FakeGraph:
-        build_calls.append(kwargs)
-        return fake_graph
-
-    def _bb_factory(**kwargs: Any) -> dict:
-        return {"blackboard_kwargs": kwargs}
+    def _bb_factory(**kwargs: Any) -> Blackboard:
+        return Blackboard(**kwargs)
 
     cfg = CampaignConfig(
         phi_id="SP-001",
@@ -56,76 +58,42 @@ async def test_single_campaign_builds_graph_with_expected_target_queue() -> None
 
     result = await run_single_invariant_campaign(
         cfg,
-        build_graph=_build_graph,
-        generator="fake-gen",
-        catalog="fake-cat",
-        client="fake-client",
+        loop_builder=_loop_builder,  # type: ignore[arg-type]
         blackboard_factory=_bb_factory,
-        feedback=None,
-        minimizer=None,
-        llm_oracle=None,
-        checkpointer=None,
     )
 
-    # build_graph got exactly the campaign's budget.
-    assert len(build_calls) == 1
-    assert build_calls[0]["budget_rounds"] == 4
-    assert build_calls[0]["budget_secs"] == 60.0
-    assert build_calls[0]["generator"] == "fake-gen"
+    assert build_calls["n"] == 1
+    assert result.ok is True
+    assert result.phi_id == "SP-001"
+    assert result.final_blackboard.round == 42
 
-    # Blackboard was seeded with the single phi_id in target_queue.
-    initial, invoke_cfg = fake_graph.app.invocations[0]
-    assert initial == {"blackboard_kwargs": {"target_queue": ["SP-001"]}}
-
-    # Thread id + recursion limit are derived from the campaign config.
-    assert invoke_cfg["configurable"]["thread_id"] == "campaign::stack_canary::SP-001"
-    assert invoke_cfg["recursion_limit"] == cfg.resolved_recursion_limit()
-
-    # Result is the fake graph's response, decorated with what we saw.
-    assert result["final"] is True
+    initial_bb, kwargs = loop.calls[0]
+    assert initial_bb.target_queue == ["SP-001"]
+    assert kwargs == {"budget_rounds": 4, "budget_secs": 60.0}
 
 
 @pytest.mark.asyncio
-async def test_single_campaign_forwards_checkpointer_when_supplied() -> None:
-    fake_graph = _FakeGraph(out={})
+async def test_campaign_records_failure_without_crashing() -> None:
+    class _Boom:
+        async def run(self, bb: Blackboard, **_: Any) -> Blackboard:
+            raise RuntimeError("oracle exploded")
 
-    def _build_graph(**kwargs: Any) -> _FakeGraph:
-        return fake_graph
+    def _loop_builder() -> _Boom:
+        return _Boom()
 
-    def _bb_factory(**kwargs: Any) -> dict:
-        return {}
+    def _bb_factory(**kwargs: Any) -> Blackboard:
+        return Blackboard(**kwargs)
 
-    sentinel = object()
-
-    await run_single_invariant_campaign(
+    result = await run_single_invariant_campaign(
         CampaignConfig(phi_id="X", mechanism="m", budget_rounds=1),
-        build_graph=_build_graph,
-        generator=None,
-        catalog=None,
-        client=None,
+        loop_builder=_loop_builder,  # type: ignore[arg-type]
         blackboard_factory=_bb_factory,
-        checkpointer=sentinel,
     )
-    assert fake_graph.compile_kwargs.get("checkpointer") is sentinel
+    assert result.ok is False
+    assert isinstance(result.error, RuntimeError)
 
 
-@pytest.mark.asyncio
-async def test_single_campaign_omits_checkpointer_when_none() -> None:
-    fake_graph = _FakeGraph(out={})
-
-    def _build_graph(**kwargs: Any) -> _FakeGraph:
-        return fake_graph
-
-    def _bb_factory(**kwargs: Any) -> dict:
-        return {}
-
-    await run_single_invariant_campaign(
-        CampaignConfig(phi_id="X", mechanism="m", budget_rounds=1),
-        build_graph=_build_graph,
-        generator=None,
-        catalog=None,
-        client=None,
-        blackboard_factory=_bb_factory,
-        checkpointer=None,
-    )
-    assert "checkpointer" not in fake_graph.compile_kwargs
+def test_campaign_config_defaults() -> None:
+    cfg = CampaignConfig(phi_id="SP-001", mechanism="stack_canary", budget_rounds=8)
+    assert cfg.resolved_thread_id() == "campaign::stack_canary::SP-001"
+    assert cfg.resolved_recursion_limit() == 8 * 8 + 10

@@ -1,62 +1,37 @@
-"""Generator agent: produces a Seed (C source) for an ASSIGNED invariant.
+"""Rev 3 seed-generator agent: OpenCode-backed, thin Python wrapper.
 
-Grounds itself on the SSOT checker catalog via the MCP query_invariants tool
-(restricted to the run's single mechanism, per the single-mechanism principle),
-optionally inspects the defense source via search_source, then asks the configured
-LLM for the seed source. The agent does NOT choose which invariant to attack: the
-orchestrator enumerates the catalog deterministically and hands the agent one
-`current_target()` per round. ISA expansion is the deterministic routing layer's
-job (FR-012/013).
+The heavy lifting (constructing the seed C source) happens inside the
+``seed-generator`` markdown subagent (see
+``.opencode/agents/seed-generator.md``); this Python class pre-fetches the
+invariant metadata via MCP (still deterministic, no LLM), assembles the
+per-round user-turn prompt, invokes the subagent through the shared
+:class:`SubagentRunner`, and wraps the parsed output into a
+:class:`Seed`.
+
+Removed vs. earlier revisions: no more direct LangChain / LangGraph
+imports. The old ``_SYSTEM_PROMPT`` has moved into the markdown subagent.
+The prompt built here is only the *user turn* carrying per-invocation
+state.
 """
 
 from __future__ import annotations
 
 import uuid
 
-from pydantic import BaseModel, Field
-
 from ..clients.mcp_client import MCPClient
-from ..llm import LLMConfig, ainvoke_structured, build_chat_model
-from ..state import Blackboard, Seed, SeedOrigin, ToolCall
-
-_SYSTEM_PROMPT = """You are a compiler-hardening fuzzing seed generator.
-You target ONE defense mechanism: {mechanism}.
-The orchestrator has assigned you ONE invariant to stress this round; your job is
-to produce a single self-contained C translation unit that maximizes the chance
-of triggering that invariant's checker.
-
-Hard rules:
-- Write C that specifically exercises the assigned invariant below. Do NOT try to
-  cover other checkers; a separate round is dedicated to each one.
-- NEVER choose an ISA / architecture. ISA is derived later by routing.
-- The C source must compile as a freestanding-ish test (a main() is fine).
-- Prefer constructs that stress the mechanism (e.g. for stack canary: char arrays,
-  VLAs/alloca, mixed locals, address-taken vars).
-
-Assigned invariant this round:
-{target_meta}
-"""
-
-_USER_PROMPT = """Round {round}. Assigned invariant: {target}.
-{guidance_block}
-Generate one seed that stresses {target} now."""
-
-
-class GeneratorOutput(BaseModel):
-    """Structured seed the LLM must return (source only; target is assigned)."""
-
-    source: str = Field(description="complete C source for the seed")
-    rationale: str = Field(
-        default="", description="brief why this source stresses the assigned invariant"
-    )
+from ..opencode.output_schemas import GeneratorOutput
+from ..opencode.runner import SubagentRunner
+from ..state import Blackboard, Seed, SeedOrigin
 
 
 def guidance_block(bb: Blackboard) -> str:
     """Render last round's feedback for the prompt — the "feedback → Generator" edge.
 
-    Gated by ablation_flags.feedback_to_generator (FR-010 / SC-004): when off, the
-    Generator ignores any guidance so the edge's contribution can be measured.
+    Gated by ``ablation_flags.feedback_to_generator`` (FR-010 / SC-004):
+    when off, the Generator ignores any guidance so the edge's
+    contribution can be measured.
     """
+
     if (
         bb.ablation_flags.feedback_to_generator
         and bb.guidance is not None
@@ -67,73 +42,96 @@ def guidance_block(bb: Blackboard) -> str:
 
 
 class GeneratorAgent:
+    """Rev 3 OpenCode-backed generator agent."""
+
     def __init__(
         self,
         mechanism: str,
         mcp: MCPClient,
-        llm_config: LLMConfig | None = None,
+        runner: SubagentRunner,
     ) -> None:
         self._mechanism = mechanism
         self._mcp = mcp
-        self._model = build_chat_model(llm_config)
-
-    async def _catalog(self, round: int, tool_log: list[ToolCall]) -> list[dict]:
-        resp = await self._mcp.call_tool(
-            "query_invariants",
-            {"mechanism": self._mechanism},
-            agent="generator",
-            round=round,
-            tool_log=tool_log,
-        )
-        return resp.get("checkers", [])
+        self._runner = runner
 
     async def generate(self, bb: Blackboard) -> Seed:
-        catalog = await self._catalog(bb.round, bb.tool_call_log)
-        by_id = {c["id"]: c for c in catalog}
+        """Produce one seed for the orchestrator-assigned invariant."""
+
         target = bb.current_target()
-
+        catalog = await self._catalog(bb)
+        by_id = {c["id"]: c for c in catalog}
         meta = by_id.get(target) if target else None
-        if meta is not None:
-            target_meta = (
-                f"- {meta['id']} (mode={meta.get('mode')}, cost={meta.get('cost')}, "
-                f"category={meta.get('category')})"
-            )
-        else:
-            target_meta = f"- {target}" if target else "- (none assigned)"
 
-        guidance = guidance_block(bb)
-
-        messages = [
-            (
-                "system",
-                _SYSTEM_PROMPT.format(mechanism=self._mechanism, target_meta=target_meta),
-            ),
-            (
-                "user",
-                _USER_PROMPT.format(
-                    round=bb.round,
-                    target=target or "(none)",
-                    guidance_block=guidance,
-                ),
-            ),
-        ]
-
-        result = await ainvoke_structured(
-            self._model,
-            GeneratorOutput,
-            messages,
-            stage="generate",
-            agent="generator",
+        prompt = self._render_prompt(bb, target, meta)
+        out: GeneratorOutput = await self._runner.run(
+            "seed-generator", prompt, GeneratorOutput
         )
 
-        # The seed's target is the orchestrator-assigned invariant, not an LLM
-        # choice (kept only when it is a real catalog ID).
         selected = [target] if target is not None and target in by_id else []
-
         return Seed(
             id=uuid.uuid4().hex[:12],
-            source=result.source,
+            source=out.source,
             parent_id=None,
             selected_checkers=selected,
             origin=SeedOrigin.GENERATOR,
         )
+
+    async def _catalog(self, bb: Blackboard) -> list[dict]:
+        resp = await self._mcp.call_tool(
+            "query_invariants",
+            {"mechanism": self._mechanism},
+            agent="generator",
+            round=bb.round,
+            tool_log=bb.tool_call_log,
+        )
+        return resp.get("checkers", [])
+
+    def _render_prompt(
+        self,
+        bb: Blackboard,
+        target: str | None,
+        meta: dict | None,
+    ) -> str:
+        """Assemble the user-turn prompt (system prompt lives in the .md)."""
+
+        if meta is not None:
+            target_meta = (
+                f"- id: {meta['id']}\n"
+                f"  mode: {meta.get('mode')}\n"
+                f"  cost: {meta.get('cost')}\n"
+                f"  category: {meta.get('category')}"
+            )
+        else:
+            target_meta = f"- id: {target or '(none)'}"
+
+        prior = _prior_seed_snippets(bb, keep=2)
+        guidance = guidance_block(bb)
+
+        return (
+            f"Mechanism: {self._mechanism}\n"
+            f"Round: {bb.round}\n"
+            f"Assigned invariant this round:\n{target_meta}\n"
+            "\n"
+            f"{guidance}"
+            f"{prior}"
+            "\n"
+            "Generate ONE self-contained C seed that stresses the assigned "
+            "invariant. Reply with exactly one fenced ```json ...``` block "
+            "matching the GeneratorOutput schema — no prose outside."
+        )
+
+
+def _prior_seed_snippets(bb: Blackboard, *, keep: int) -> str:
+    """A short reminder of the last few seeds so the LLM doesn't repeat itself."""
+
+    if not bb.corpus:
+        return ""
+    tail = bb.corpus[-keep:]
+    parts: list[str] = ["Previous seed IDs and rationales (for de-duplication only):"]
+    for s in tail:
+        first_line = s.source.splitlines()[0] if s.source else ""
+        parts.append(f"- {s.id}: {first_line[:80]}")
+    return "\n".join(parts) + "\n"
+
+
+__all__ = ["GeneratorAgent", "GeneratorOutput", "guidance_block"]

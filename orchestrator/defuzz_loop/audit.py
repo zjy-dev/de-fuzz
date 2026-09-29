@@ -1,10 +1,12 @@
 """Per-run audit directory: isolation + self-describing manifest (FR-009 / SC-003).
 
-Each run gets its own directory under orchestrator/runs/ holding its own
-checkpoints.sqlite (full blackboard history) and a manifest.json capturing the
-environment a checkpoint alone cannot (git sha, toolchains snapshot, checker
-catalog, LLM + ablation config). Two runs never share a directory or sqlite
-file, so replay/inspect of one can never be contaminated by another.
+Rev 3: the LangGraph SQLite checkpointer path is gone. The run directory
+and manifest.json are still produced (they capture git sha, toolchains,
+checker catalog, LLM + ablation config — all environment metadata that a
+LangGraph checkpoint alone could not carry). The ``checkpointer`` /
+``async_checkpointer`` factories now raise :class:`NotImplementedError`
+because there is no drop-in replacement in this PR; a future revision
+will add per-round manifests as the Rev 3 replay substrate.
 """
 
 from __future__ import annotations
@@ -13,9 +15,6 @@ import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-
-from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from .llm import LLMConfig
 from .state import Blackboard
@@ -27,12 +26,12 @@ _MANIFEST_NAME = "manifest.json"
 
 
 def thread_id(experiment: str, mechanism: str) -> str:
-    """Stable thread_id convention: <experiment>:<mechanism>.
+    """Stable thread_id convention: ``<experiment>:<mechanism>``.
 
-    A run is pinned by (thread_id, checkpoint_id); replay locks a checkpoint_id.
-    Cross-run isolation comes from the per-run audit directory (its own sqlite),
-    so two runs of the same mechanism never share a checkpoint chain.
+    Kept as a stable identifier used in run manifests; no longer paired
+    with a LangGraph thread.
     """
+
     return f"{experiment}:{mechanism}"
 
 
@@ -42,13 +41,8 @@ def _run_slug(experiment: str, mechanism: str) -> str:
 
 
 def make_run_dir(base: str | Path | None, experiment: str, mechanism: str) -> Path:
-    """Create a fresh, self-contained audit directory for one run.
+    """Create a fresh, self-contained audit directory for one run."""
 
-    Layout: <base>/<experiment>_<mechanism>_<UTC-timestamp>/ holding the run's own
-    checkpoints.sqlite (full blackboard history) and manifest.json (environment).
-    Each run is isolated: a distinct directory and sqlite file, so replay/inspect
-    of one run can never be contaminated by another.
-    """
     root = Path(base) if base else _DEFAULT_RUNS_DIR
     run_dir = root / _run_slug(experiment, mechanism)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -86,13 +80,8 @@ def build_manifest(
     disabled_agents: list[str],
     checker_ids: list[str],
 ) -> dict:
-    """Assemble the environment manifest that makes a run dir self-auditable.
+    """Assemble the environment manifest that makes a run dir self-auditable."""
 
-    Captures everything a checkpoint alone cannot: the code/toolchain version under
-    test (git sha + toolchains.yaml), the SSOT checker catalog actually pulled, the
-    LLM provider/model, and the ablation configuration. Combined with the corpus
-    seeds stored in the checkpoint, this lets the run be re-derived deterministically.
-    """
     return {
         "created_at": datetime.now(UTC).isoformat(),
         "experiment": experiment,
@@ -125,7 +114,8 @@ def read_manifest(run_dir: Path) -> dict:
 
 
 def thread_from_run_dir(run_dir: str | Path) -> str:
-    """Resolve a run dir's thread_id from its manifest (the dir is self-describing)."""
+    """Resolve a run dir's thread_id from its manifest."""
+
     manifest = read_manifest(Path(run_dir))
     thread = manifest.get("thread_id")
     if not thread:
@@ -138,10 +128,23 @@ def _db_path(run_dir: str | Path) -> str:
 
 
 def checkpointer(run_dir: str | Path):
-    """Sync SQLite checkpointer over a run dir's own db (inspect/replay CLI paths)."""
-    return SqliteSaver.from_conn_string(_db_path(run_dir))
+    """Rev 3 stub — LangGraph SqliteSaver was removed.
+
+    A future replacement will emit per-round manifests as the replay
+    substrate; until then, this factory raises immediately so callers
+    fail loudly rather than silently continuing with a broken chain.
+    """
+
+    raise NotImplementedError(
+        "LangGraph SqliteSaver was removed in Rev 3; see "
+        "docs/tech-docs/architecture/opencode-migration-plan.md."
+    )
 
 
 def async_checkpointer(run_dir: str | Path):
-    """Async SQLite checkpointer over a run dir's own db (the async loop `run`)."""
-    return AsyncSqliteSaver.from_conn_string(_db_path(run_dir))
+    """Rev 3 stub — LangGraph AsyncSqliteSaver was removed. See above."""
+
+    raise NotImplementedError(
+        "LangGraph AsyncSqliteSaver was removed in Rev 3; see "
+        "docs/tech-docs/architecture/opencode-migration-plan.md."
+    )

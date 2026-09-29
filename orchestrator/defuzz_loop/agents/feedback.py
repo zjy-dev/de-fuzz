@@ -1,102 +1,92 @@
-"""Feedback agent: turns a not_violated round into Guidance for the next seed.
+"""Rev 3 feedback agent: OpenCode-backed, thin Python wrapper.
 
-Runs only on the not_violated branch (FR-023/024). It is a context-isolated
-subagent: it reads the coverage delta (strictly read-only, via the MCP
-coverage_diff tool — R6/FR-022) plus the latest verdict, and writes a single
-Guidance object. It never writes coverage and never adjudicates; its only output
-field is `guidance`, consumed by the next round's Generator.
+Runs only on the not-violated branch. Pre-fetches the coverage delta via
+MCP (unchanged, deterministic), renders a per-round prompt, and invokes
+the ``feedback-analyzer`` markdown subagent. The subagent's structured
+output is wrapped into :class:`Guidance` for the next round's Generator.
+
+The ``coverage_signal`` helper is preserved verbatim: it gates the
+coverage delta on ``ablation_flags.coverage_feedback`` so the linkage
+edge's contribution can be measured (FR-010 / SC-004).
 """
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
-
 from ..clients.mcp_client import MCPClient
-from ..llm import LLMConfig, ainvoke_structured, build_chat_model
+from ..opencode.output_schemas import FeedbackOutput
+from ..opencode.runner import SubagentRunner
 from ..state import Blackboard, Guidance
-
-_SYSTEM_PROMPT = """You are a fuzzing feedback strategist for ONE defense mechanism.
-The last round did NOT trigger a violation. Given the coverage delta and the
-oracle verdict, propose the single most promising direction for the next seed:
-which code paths look under-explored, which checker structures to stress next.
-
-Hard rules:
-- Output ONE concise actionable summary (a few sentences), not code.
-- You only advise; you never select ISAs and never adjudicate bugs.
-"""
-
-_USER_PROMPT = """Round {round}.
-Coverage delta (read-only): {delta}
-Latest verdict aggregate: {aggregate}
-Checkers exercised last round: {checkers}
-Give next-round guidance now."""
-
-
-class FeedbackOutput(BaseModel):
-    summary: str = Field(description="next-round direction, a few sentences, no code")
 
 
 def coverage_signal(bb: Blackboard, diff: dict) -> str:
-    """The coverage delta fed into the next-round guidance — the "coverage feedback" edge.
+    """The coverage delta fed into the next-round guidance.
 
-    Gated by ablation_flags.coverage_feedback (FR-010 / SC-004): when off, the
-    feedback agent advises without any coverage signal, so the edge's contribution
-    can be measured independently.
+    Gated by ``ablation_flags.coverage_feedback`` (FR-010 / SC-004): when
+    off, the feedback agent advises without any coverage signal.
     """
+
     if not bb.ablation_flags.coverage_feedback:
         return "(coverage feedback disabled)"
     return diff.get("delta", bb.coverage.last_delta)
 
 
 class FeedbackAgent:
+    """Rev 3 OpenCode-backed feedback agent."""
+
     def __init__(
         self,
         mechanism: str,
         mcp: MCPClient,
-        llm_config: LLMConfig | None = None,
+        runner: SubagentRunner,
     ) -> None:
         self._mechanism = mechanism
         self._mcp = mcp
-        self._model = build_chat_model(llm_config)
-
-    async def _coverage_diff(self, round: int, tool_log: list) -> dict:
-        return await self._mcp.call_tool(
-            "coverage_diff",
-            {},
-            agent="feedback",
-            round=round,
-            tool_log=tool_log,
-        )
+        self._runner = runner
 
     async def summarize(self, bb: Blackboard) -> Guidance:
-        diff = await self._coverage_diff(bb.round, bb.tool_call_log)
+        diff = await self._coverage_diff(bb)
         last = bb.last_verdict
         aggregate = last.aggregate if last is not None else "none"
         checkers = sorted({r.id for r in last.results}) if last is not None else []
 
-        messages = [
-            ("system", _SYSTEM_PROMPT),
-            (
-                "user",
-                _USER_PROMPT.format(
-                    round=bb.round,
-                    delta=coverage_signal(bb, diff),
-                    aggregate=aggregate,
-                    checkers=", ".join(checkers) or "(none)",
-                ),
-            ),
-        ]
-
-        result = await ainvoke_structured(
-            self._model,
-            FeedbackOutput,
-            messages,
-            stage="summarize",
-            agent="feedback",
+        prompt = self._render_prompt(bb, diff, aggregate, checkers)
+        out: FeedbackOutput = await self._runner.run(
+            "feedback-analyzer", prompt, FeedbackOutput
         )
-
         return Guidance(
             round=bb.round,
-            summary=result.summary,
+            summary=out.summary,
             coverage_delta_ref="coverage.last_delta",
         )
+
+    async def _coverage_diff(self, bb: Blackboard) -> dict:
+        return await self._mcp.call_tool(
+            "coverage_diff",
+            {},
+            agent="feedback",
+            round=bb.round,
+            tool_log=bb.tool_call_log,
+        )
+
+    def _render_prompt(
+        self,
+        bb: Blackboard,
+        diff: dict,
+        aggregate: object,
+        checkers: list[str],
+    ) -> str:
+        signal = coverage_signal(bb, diff)
+        return (
+            f"Mechanism: {self._mechanism}\n"
+            f"Round: {bb.round}\n"
+            f"Aggregate verdict: {aggregate}\n"
+            f"Checkers exercised: {', '.join(checkers) or '(none)'}\n"
+            f"Coverage delta (read-only): {signal}\n"
+            "\n"
+            "Give ONE next-round direction (1–3 sentences). Reply with exactly "
+            "one fenced ```json ...``` block matching FeedbackOutput — no prose "
+            "outside."
+        )
+
+
+__all__ = ["FeedbackAgent", "coverage_signal"]

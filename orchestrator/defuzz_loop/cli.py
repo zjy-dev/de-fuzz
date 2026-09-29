@@ -1,8 +1,14 @@
-"""Command-line entry point for the agentic loop.
+"""Command-line entry point for the online loop (Rev 3).
 
-Four subcommands over a per-run audit directory: `run` drives the LangGraph
-pipeline; `inspect`/`replay`/`trace-bug` are read-only views over a run's
-checkpoint chain (FR-009 / SC-003 / SC-005).
+LangGraph has been removed; the online loop now runs through
+:class:`defuzz_loop.loop.IterationLoop`. The ``run`` subcommand still
+enumerates the mechanism's checker catalog and sweeps each invariant with
+its per-invariant budget, but the pipeline is now explicit Python.
+
+The historical ``inspect`` / ``replay`` / ``trace-bug`` subcommands relied
+on the LangGraph SqliteSaver checkpoint chain, which is gone in Rev 3.
+They now emit a friendly message pointing at the per-round manifests
+until we choose a Rev 3 replacement.
 """
 
 from __future__ import annotations
@@ -10,32 +16,21 @@ from __future__ import annotations
 import argparse
 import asyncio
 
-from langchain_core.runnables import RunnableConfig
-
-from .agents.feedback import FeedbackAgent
-from .agents.generator import GeneratorAgent
-from .agents.llm_oracle import LLMOracleAgent
-from .agents.minimizer import MinimizerAgent
-from .audit import (
-    async_checkpointer,
-    build_manifest,
-    checkpointer,
-    make_run_dir,
-    thread_from_run_dir,
-    thread_id,
-    write_manifest,
-)
+from .audit import build_manifest, make_run_dir, write_manifest
 from .clients.grpc_client import CoreClient
 from .clients.mcp_client import MCPClient
-from .graph import build_graph
 from .llm import LLMConfig
+from .loop import IterationLoop
+from .opencode.client import OpenCodeClient
+from .opencode.runner import SubagentRunner
 from .routing import CheckerCatalog
 from .specgen import cli as specgen_cli
 from .state import Blackboard
 
 
 def _parse_ablation(items: list[str]) -> dict[str, bool]:
-    """Parse repeated --ablation edge=off|on into an override dict (SC-004)."""
+    """Parse repeated ``--ablation edge=off|on`` into an override dict (SC-004)."""
+
     overrides: dict[str, bool] = {}
     for item in items:
         edge, _, val = item.partition("=")
@@ -47,7 +42,7 @@ def _parse_ablation(items: list[str]) -> dict[str, bool]:
     return overrides
 
 
-# Mechanism → checker-ID prefix, mirroring the Go core's mechanismOf (mcp_server.go).
+# Mechanism → checker-ID prefix, mirroring the Go core's mechanismOf.
 _MECHANISM_PREFIX = {
     "canary": "INV-SP-",
     "ibt": "INV-IBT-",
@@ -56,12 +51,6 @@ _MECHANISM_PREFIX = {
 
 
 def _scoped_target_queue(mechanism: str, all_ids: list[str]) -> list[str]:
-    """Restrict the enumeration sweep to the run's single mechanism.
-
-    The oracle serves one mechanism per process, so spending rounds on other
-    mechanisms' checkers only wastes budget. An unknown mechanism falls back to
-    the full catalog.
-    """
     prefix = _MECHANISM_PREFIX.get(mechanism)
     if prefix is None:
         return list(all_ids)
@@ -83,7 +72,14 @@ def _initial_blackboard(args: argparse.Namespace, target_queue: list[str]) -> Bl
 
 
 async def _run(args: argparse.Namespace) -> None:
-    llm_config = LLMConfig.load(args.llm_config) if args.llm_config else LLMConfig.load()
+    from .agents.feedback import FeedbackAgent
+    from .agents.generator import GeneratorAgent
+    from .agents.llm_oracle import LLMOracleAgent
+    from .agents.minimizer import MinimizerAgent
+
+    llm_config = (
+        LLMConfig.load(args.llm_config) if args.llm_config else LLMConfig.load()
+    )
     disabled = set(args.disable_agent)
     run_dir = make_run_dir(args.run_dir, args.experiment, args.mechanism)
     print(f"run dir: {run_dir}")
@@ -91,28 +87,26 @@ async def _run(args: argparse.Namespace) -> None:
     with CoreClient(args.grpc) as client:
         catalog = CheckerCatalog(client)
         mcp = MCPClient(args.mcp)
-        generator = GeneratorAgent(args.mechanism, mcp, llm_config)
+        oc_client = OpenCodeClient()
+        runner = SubagentRunner(oc_client, cwd=args.opencode_cwd)
+
+        generator = GeneratorAgent(args.mechanism, mcp, runner)
         feedback = (
-            None if "feedback" in disabled else FeedbackAgent(args.mechanism, mcp, llm_config)
+            None
+            if "feedback" in disabled
+            else FeedbackAgent(args.mechanism, mcp, runner)
         )
-        minimizer = None if "minimizer" in disabled else MinimizerAgent(args.mechanism, mcp)
+        minimizer = (
+            None
+            if "minimizer" in disabled
+            else MinimizerAgent(args.mechanism, mcp, runner)
+        )
         llm_oracle = (
             None
             if "llm_oracle" in disabled
-            else LLMOracleAgent(args.mechanism, llm_config)
-        )
-        graph = build_graph(
-            generator=generator,
-            catalog=catalog,
-            client=client,
-            budget_rounds=args.budget_rounds,
-            budget_secs=args.budget_secs,
-            feedback=feedback,
-            minimizer=minimizer,
-            llm_oracle=llm_oracle,
+            else LLMOracleAgent(args.mechanism, runner)
         )
 
-        # Deterministic enumeration: sweep the run mechanism's checkers in order.
         target_queue = _scoped_target_queue(args.mechanism, catalog.all_ids)
         initial = _initial_blackboard(args, target_queue)
         write_manifest(
@@ -131,27 +125,30 @@ async def _run(args: argparse.Namespace) -> None:
             ),
         )
 
-        async with async_checkpointer(run_dir) as saver:
-            app = graph.compile(checkpointer=saver)
-            # Worst case: every target runs its full round budget; ~8 nodes/round.
-            max_iters = max(1, len(target_queue)) * max(1, args.budget_rounds)
-            config: RunnableConfig = {
-                "configurable": {"thread_id": thread_id(args.experiment, args.mechanism)},
-                "recursion_limit": 8 * max_iters + 10,
-            }
-            final = await app.ainvoke(initial, config=config)
+        loop = IterationLoop(
+            generator=generator,
+            feedback=feedback,
+            llm_oracle=llm_oracle,
+            minimizer=minimizer,
+            client=client,
+            catalog=catalog,
+        )
+        final = await loop.run(
+            initial,
+            budget_rounds=args.budget_rounds,
+            budget_secs=args.budget_secs,
+        )
 
-    bb = Blackboard.model_validate(final)
+    bb = final
     print(f"rounds run: {bb.round + 1}")
-    print(f"targets swept: {min(bb.target_idx, len(bb.target_queue))}/{len(bb.target_queue)}")
     print(f"corpus size: {len(bb.corpus)}")
     print(f"verdicts: {[v.aggregate for v in bb.verdict_history]}")
     if bb.guidance is not None:
         print(f"guidance: {bb.guidance.summary}")
     if bb.pending_bug is not None:
         print(
-            f"BUG: seed={bb.pending_bug.seed_id} checker={bb.pending_bug.failing_checker} "
-            f"isa={bb.pending_bug.isa}"
+            f"BUG: seed={bb.pending_bug.seed_id} "
+            f"checker={bb.pending_bug.failing_checker} isa={bb.pending_bug.isa}"
         )
         if bb.minimized_poc is not None:
             print(
@@ -162,136 +159,56 @@ async def _run(args: argparse.Namespace) -> None:
         print("no violation found")
 
 
-def _inspect(args: argparse.Namespace) -> None:
-    """List the checkpoint chain for a run dir (FR-009)."""
-    thread = thread_from_run_dir(args.run_dir)
-    config = {"configurable": {"thread_id": thread}}
-    with checkpointer(args.run_dir) as saver:
-        states = list(saver.list(config))
-    if not states:
-        print(f"no checkpoints for thread '{thread}'")
-        return
-    for st in reversed(states):
-        cid = st.config["configurable"].get("checkpoint_id", "?")
-        step = st.metadata.get("step", "?") if st.metadata else "?"
-        writes = st.metadata.get("writes") if st.metadata else None
-        node = next(iter(writes), "?") if isinstance(writes, dict) and writes else "-"
-        print(f"step={step} checkpoint_id={cid} node={node}")
-
-
-def _replay(args: argparse.Namespace) -> None:
-    """Pin a checkpoint and print its (deterministic) input state (SC-003).
-
-    Replay locks a checkpoint_id and reports the recorded blackboard plus the
-    tool_call_log; downstream re-execution reuses those records rather than
-    re-running the LLM token-by-token (R7).
-    """
-    thread = thread_from_run_dir(args.run_dir)
-    config = {
-        "configurable": {"thread_id": thread, "checkpoint_id": args.checkpoint}
-    }
-    with checkpointer(args.run_dir) as saver:
-        tup = saver.get_tuple(config)
-    if tup is None:
-        print(f"no checkpoint {args.checkpoint} on thread '{thread}'")
-        return
-    bb = Blackboard.model_validate(tup.checkpoint["channel_values"])
-    print(f"thread={thread} checkpoint={args.checkpoint}")
-    print(f"round={bb.round} corpus={len(bb.corpus)} verdicts={len(bb.verdict_history)}")
-    print(f"tool_call_log ({len(bb.tool_call_log)} calls):")
-    for tc in bb.tool_call_log:
-        print(f"  r{tc.round} {tc.agent}:{tc.tool} digest={tc.result_digest}")
-
-
-def _trace_bug(args: argparse.Namespace) -> None:
-    """Walk the checkpoint chain back to the deterministic bug evidence (SC-005)."""
-    thread = thread_from_run_dir(args.run_dir)
-    config = {"configurable": {"thread_id": thread}}
-    with checkpointer(args.run_dir) as saver:
-        states = list(saver.list(config))
-    for st in states:
-        bb = Blackboard.model_validate(st.checkpoint["channel_values"])
-        if bb.pending_bug is not None and bb.pending_bug.seed_id == args.bug:
-            cid = st.config["configurable"].get("checkpoint_id", "?")
-            bug = bb.pending_bug
-            print(f"bug seed={bug.seed_id} found at checkpoint={cid}")
-            print(f"  failing_checker={bug.failing_checker} isa={bug.isa}")
-            print(f"  evidence={bug.evidence}")
-            seed = next((s for s in bb.corpus if s.id == bug.seed_id), None)
-            if seed is not None:
-                print(f"  source ({len(seed.source)} chars):\n{seed.source}")
-            return
-    print(f"no pending_bug with seed_id '{args.bug}' on thread '{thread}'")
+def _rev3_notice(command: str) -> None:
+    print(
+        f"'{command}' relied on LangGraph checkpoint chains removed in Rev 3.\n"
+        "See docs/tech-docs/architecture/opencode-migration-plan.md for the "
+        "replacement plan (per-round manifest + audit directory)."
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="defuzz-loop")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    run = sub.add_parser("run", help="run the agentic loop")
-    run.add_argument(
-        "--mechanism", default="canary", help="single defense mechanism (canary|ibt|fortify)"
-    )
-    run.add_argument("--experiment", default="exp", help="experiment label for the thread_id")
-    run.add_argument(
-        "--budget-rounds",
-        type=int,
-        default=1,
-        help="loop iterations per invariant before advancing to the next (round-robin)",
-    )
-    run.add_argument(
-        "--budget-secs",
-        type=float,
-        default=0.0,
-        help="wall-clock cap per invariant (0 = no time cap, pure reproducible rounds)",
-    )
-    run.add_argument("--grpc", default="localhost:50051", help="Go core gRPC address")
-    run.add_argument("--mcp", default="http://127.0.0.1:50052/mcp", help="Go core MCP url")
-    run.add_argument(
-        "--llm-config", default=None, help="path to llm.yaml (default: configs/llm.yaml)"
-    )
-    run.add_argument(
-        "--run-dir",
-        default=None,
-        help="base dir for the per-run audit directory (default: orchestrator/runs)",
-    )
+    run = sub.add_parser("run", help="run the online loop")
+    run.add_argument("--mechanism", default="canary")
+    run.add_argument("--experiment", default="exp")
+    run.add_argument("--budget-rounds", type=int, default=1)
+    run.add_argument("--budget-secs", type=float, default=0.0)
+    run.add_argument("--grpc", default="localhost:50051")
+    run.add_argument("--mcp", default="http://127.0.0.1:50052/mcp")
+    run.add_argument("--llm-config", default=None)
+    run.add_argument("--run-dir", default=None)
     run.add_argument(
         "--disable-agent",
         action="append",
         default=[],
         choices=["feedback", "minimizer", "llm_oracle"],
-        help="disable an optional agent (MVP disables feedback+minimizer)",
     )
     run.add_argument(
         "--ablation",
         action="append",
         default=[],
         metavar="EDGE=on|off",
-        help="toggle a linkage edge, e.g. --ablation checker_routing=off (SC-004)",
+    )
+    run.add_argument(
+        "--opencode-cwd",
+        default=".",
+        help="Working directory containing .opencode/agents/*.md",
     )
 
-    insp = sub.add_parser("inspect", help="list a run's checkpoint chain")
-    insp.add_argument("--run-dir", required=True, help="the run's audit directory")
-
-    rep = sub.add_parser("replay", help="lock a checkpoint and show its input state")
-    rep.add_argument("--run-dir", required=True, help="the run's audit directory")
-    rep.add_argument("--checkpoint", required=True, help="checkpoint_id to pin")
-
-    tb = sub.add_parser("trace-bug", help="trace a bug back to deterministic evidence")
-    tb.add_argument("--run-dir", required=True, help="the run's audit directory")
-    tb.add_argument("--bug", required=True, help="failing seed_id")
+    for stub_name in ("inspect", "replay", "trace-bug"):
+        stub = sub.add_parser(stub_name, help=f"{stub_name} (Rev 3: retired)")
+        stub.set_defaults(_rev3_notice=stub_name)
 
     specgen_cli.add_parser(sub)
 
     args = parser.parse_args()
     if args.command == "run":
         asyncio.run(_run(args))
-    elif args.command == "inspect":
-        _inspect(args)
-    elif args.command == "replay":
-        _replay(args)
-    elif args.command == "trace-bug":
-        _trace_bug(args)
+    elif args.command in {"inspect", "replay", "trace-bug"}:
+        _rev3_notice(args.command)
     elif args.command == "specgen":
         asyncio.run(specgen_cli.run(args))
 

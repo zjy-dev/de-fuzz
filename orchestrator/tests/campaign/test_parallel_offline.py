@@ -1,4 +1,10 @@
-"""Parallel campaign launcher tests. No LangGraph, no gRPC — pure asyncio."""
+"""Parallel campaign launcher tests (Rev 3).
+
+The per-campaign runner now returns :class:`CampaignResult` directly
+(no more raw ``ainvoke`` output). Failures inside the runner are
+recorded via ``ok=False`` + ``error=...`` rather than being raised out
+of the semaphore. Order and semaphore-cap guarantees are unchanged.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +13,17 @@ import asyncio
 import pytest
 
 from defuzz_loop.campaign.parallel import run_parallel_campaigns
-from defuzz_loop.campaign.single import CampaignConfig
+from defuzz_loop.campaign.single import CampaignConfig, CampaignResult
+from defuzz_loop.state import Blackboard
+
+
+def _ok_result(phi_id: str) -> CampaignResult:
+    return CampaignResult(
+        phi_id=phi_id,
+        final_blackboard=Blackboard(),
+        ok=True,
+        duration_secs=0.01,
+    )
 
 
 @pytest.mark.asyncio
@@ -17,26 +33,23 @@ async def test_parallel_gathers_all_results_in_order() -> None:
         for i in range(5)
     ]
 
-    async def _fake(cfg: CampaignConfig) -> dict:
-        await asyncio.sleep(0.01)
-        return {"phi_id": cfg.phi_id, "rounds": 1}
+    async def _fake(cfg: CampaignConfig) -> CampaignResult:
+        await asyncio.sleep(0.005)
+        return _ok_result(cfg.phi_id)
 
     results = await run_parallel_campaigns(configs, _fake, max_parallel=3)
     assert [r.phi_id for r in results] == [c.phi_id for c in configs]
     assert all(r.ok for r in results)
-    assert results[2].final_state == {"phi_id": "SP-002", "rounds": 1}
 
 
 @pytest.mark.asyncio
 async def test_parallel_respects_semaphore_cap() -> None:
-    """Verify that no more than ``max_parallel`` fake runners are in-flight."""
-
     max_parallel = 2
     live = 0
     peak = 0
     lock = asyncio.Lock()
 
-    async def _fake(cfg: CampaignConfig) -> dict:
+    async def _fake(cfg: CampaignConfig) -> CampaignResult:
         nonlocal live, peak
         async with lock:
             live += 1
@@ -44,7 +57,7 @@ async def test_parallel_respects_semaphore_cap() -> None:
         await asyncio.sleep(0.02)
         async with lock:
             live -= 1
-        return {"phi_id": cfg.phi_id}
+        return _ok_result(cfg.phi_id)
 
     configs = [
         CampaignConfig(phi_id=f"P{i}", mechanism="canary", budget_rounds=1)
@@ -56,13 +69,11 @@ async def test_parallel_respects_semaphore_cap() -> None:
 
 
 @pytest.mark.asyncio
-async def test_parallel_isolates_failures() -> None:
-    """One failing campaign must NOT cancel siblings; result list still fully populated."""
-
-    async def _fake(cfg: CampaignConfig) -> dict:
+async def test_parallel_isolates_failures_when_runner_raises() -> None:
+    async def _fake(cfg: CampaignConfig) -> CampaignResult:
         if cfg.phi_id == "BAD":
             raise RuntimeError("boom")
-        return {"phi_id": cfg.phi_id}
+        return _ok_result(cfg.phi_id)
 
     configs = [
         CampaignConfig(phi_id="OK1", mechanism="canary", budget_rounds=1),
@@ -71,46 +82,20 @@ async def test_parallel_isolates_failures() -> None:
     ]
     results = await run_parallel_campaigns(configs, _fake, max_parallel=4)
     assert [r.phi_id for r in results] == ["OK1", "BAD", "OK2"]
-    assert results[0].ok
-    assert not results[1].ok
+    assert results[0].ok is True
+    assert results[1].ok is False
     assert isinstance(results[1].error, RuntimeError)
-    assert results[2].ok
-
-
-@pytest.mark.asyncio
-async def test_parallel_records_duration() -> None:
-    async def _fake(cfg: CampaignConfig) -> dict:
-        await asyncio.sleep(0.05)
-        return {}
-
-    configs = [CampaignConfig(phi_id="X", mechanism="cfi", budget_rounds=1)]
-    results = await run_parallel_campaigns(configs, _fake, max_parallel=1)
-    assert results[0].duration_secs >= 0.04
+    assert results[2].ok is True
 
 
 @pytest.mark.asyncio
 async def test_parallel_rejects_bad_max_parallel() -> None:
+    async def _noop(_: CampaignConfig) -> CampaignResult:
+        return _ok_result("x")
+
     with pytest.raises(ValueError):
         await run_parallel_campaigns(
             [CampaignConfig(phi_id="X", mechanism="m", budget_rounds=1)],
-            lambda cfg: asyncio.sleep(0),  # type: ignore[arg-type]
+            _noop,
             max_parallel=0,
         )
-
-
-def test_campaign_config_defaults() -> None:
-    """Deterministic thread_id / recursion_limit derivations."""
-
-    cfg = CampaignConfig(phi_id="SP-001", mechanism="stack_canary", budget_rounds=8)
-    assert cfg.resolved_thread_id() == "campaign::stack_canary::SP-001"
-    assert cfg.resolved_recursion_limit() == 8 * 8 + 10
-
-    cfg2 = CampaignConfig(
-        phi_id="X",
-        mechanism="m",
-        budget_rounds=4,
-        thread_id="custom-tid",
-        recursion_limit=999,
-    )
-    assert cfg2.resolved_thread_id() == "custom-tid"
-    assert cfg2.resolved_recursion_limit() == 999
