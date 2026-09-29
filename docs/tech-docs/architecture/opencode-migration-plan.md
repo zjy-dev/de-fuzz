@@ -35,6 +35,49 @@ Rev 2 决定"手写 `LLMBackend` + `IterationLoop`，agent 只做结构化 JSON 
 
 ---
 
+## Rev 3 落地状态（2026-09-29 21:xx CST，commit `8057647`）
+
+Rev 3 已经**一次性**落地在同一分支 `feat/opencode-migration-20260928` 上，
+未拆 PR（按用户指示）。落地要点：
+
+- 4 个 markdown subagent：`.opencode/agents/{seed-generator,feedback-analyzer,llm-oracle,minimizer}.md`（新增）
+- `.opencode/opencode.jsonc`（骨架，MCP wiring 留 TODO）
+- `orchestrator/defuzz_loop/loop.py::IterationLoop`（新增；替代 LangGraph `build_graph`）
+- `orchestrator/defuzz_loop/opencode/{runner,output_schemas}.py`（3 层防护实现：Prompt 提示 + Pydantic 校验 + Retry）
+- `agents/{generator,feedback,llm_oracle,minimizer}.py` 全部改写为 OpenCode SubAgent 后端
+- `campaign/{single,parallel,cli}.py`、根级 `cli.py`、`audit.py` 更新到 IterationLoop
+- 删除：`defuzz_loop/graph.py`、`tests/test_graph_loop.py`
+- `pyproject.toml`：移除 `langgraph`、`langgraph-checkpoint-sqlite`、`langchain-*`；`uv.lock` 已同步
+- 新增测试：`tests/loop/test_iteration_loop_offline.py`、`tests/opencode/test_subagent_runner.py`
+
+变更规模：**28 files changed, +2004 / −2381**（净减 377 行 & 拿掉 5 个 LangGraph/LangChain 依赖）。
+
+### 验证结果
+
+- `uv sync --group dev`：✅
+- `uv run pytest -q --ignore=tests/specgen`：**619 passed / 1 skipped / 1 failed**
+  - 唯一失败：`tests/test_demo_parity.py::test_real_demo_corpus_parser_smoke_is_read_only`
+    （真实 demo corpus 从 30 项漂到 44 项）——**Rev 3 之前就已存在**，已用
+    `git checkout HEAD~1 -- tests/test_demo_parity.py` 复现，与本次重构无关。
+- `uv run ruff check defuzz_loop tests`：✅ All checks passed
+- 冒烟 import（`defuzz_loop.loop / opencode.runner / output_schemas / agents / campaign / cli / audit`）：✅
+
+### 已知偏离
+
+- `defuzz_loop/llm.py` **未物理删除**，仅缩减为 Rev 3 shim（保留 `LLMConfig`
+  数据类 + 一个 duck-typed `ainvoke_structured` 的 fake-model 走线）。
+  原因：`audit.py`、根 `cli.py`（Rev 3 notice stub 的类型标注）、
+  `specgen/*`（本次不在范围）仍需 `LLMConfig` 类型。清理路径：后续独立小
+  PR 把 `LLMConfig` 挪去 `config.py` 后再删 `llm.py`。
+- `GeneratorOutput.rationale` 目前是 `default=""`，为兼容既有
+  `test_checker_routing` 里 `GeneratorOutput(source=...)` 的直接构造。
+  subagent markdown 仍在 prompt 层要求模型输出该字段。若想收紧成必填，
+  同步改动 fixture 即可。
+- 全仓 `ruff check .` 会在未触及的 `scripts/author_inv_transcript.py` 报
+  27 处 E501，本次不修改（不在范围）。
+
+---
+
 ## 0. 背景与本文范围
 
 （Rev 1 内容保留在下面，Rev 2 附录见 §5–§7，Rev 3 追加见 §8–§10。）
