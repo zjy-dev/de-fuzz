@@ -97,6 +97,8 @@ async def test_mapper_retries_then_succeeds(tmp_path: Path) -> None:
     result = await runner.run(_SAMPLE_INV)
     assert result.phi_id == "SP-001"
     assert len(client.calls) == 2
+    assert "failed validation" in client.calls[1].message
+    assert "Original task" in client.calls[1].message
 
 
 @pytest.mark.asyncio

@@ -29,6 +29,7 @@ dev = [
 [project.scripts]
 defuzz-loop = "defuzz_loop.cli:main"
 defuzz-experiment = "defuzz_loop.experiments_cli:main"
+defuzz-full-experiment = "defuzz_loop.full_experiment:main"
 
 [tool.ruff]
 line-length = 100

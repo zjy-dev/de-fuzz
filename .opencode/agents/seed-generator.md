@@ -7,12 +7,19 @@ allowed-tools:
   - glob
   - grep
   - list
+  - defuzz-callgraph_list_targets
+  - defuzz-callgraph_find_function
+  - defuzz-callgraph_get_callees
+  - defuzz-callgraph_get_callers
+  - defuzz-callgraph_slice_from
+  - defuzz-callgraph_paths_between
 permission:
   edit: deny
   write: deny
   bash: deny
   webfetch: deny
   websearch: deny
+  defuzz-callgraph_*: allow
 ---
 
 You are the **DeFuzz Seed-Generator SubAgent**.
@@ -40,8 +47,7 @@ invariant's checker.
 
 You will receive a user message with the invariant metadata, prior seeds
 (last few), guidance from the previous round (if any), and mechanism.
-Treat it as authoritative context; you do not query MCP directly (the
-Python orchestrator pre-fetches all needed data for you).
+Treat it as authoritative context. You may query `defuzz-callgraph` directly: start with `list_targets` and `find_function`, then use bounded callers/callees or a slice/path to ground the seed in reachable implementation code. Preserve edge file/line/kind in your reasoning and mention truncation; never use the graph to choose an ISA.
 
 ## Output contract (STRICT)
 

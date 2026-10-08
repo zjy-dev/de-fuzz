@@ -133,3 +133,6 @@ docs/paper/*.lot
 fuzz_out*/
 compiler-audit/
 temp_unpacked/
+
+# Reproducible experiment outputs (manifests/logs may contain machine-local paths)
+/runs/

@@ -86,9 +86,10 @@ class SourceMappingRunner:
         """
 
         last_err: Exception | None = None
+        prompt = invariant.as_prompt_payload()
         for attempt in range(1, self._max_retries + 2):
             try:
-                assistant_text = await self._invoke_agent(invariant)
+                assistant_text = await self._invoke_agent(invariant, prompt)
                 json_str = extract_json_block(assistant_text)
                 result = SourceMappingResult.model_validate_json(json_str)
                 if result.phi_id != invariant.phi_id:
@@ -99,6 +100,12 @@ class SourceMappingRunner:
                 return result
             except (OpenCodeInvocationError, ValidationError, ValueError) as e:
                 last_err = e
+                prompt = (
+                    "The previous reply failed validation. Repair it using the error below, "
+                    "then return exactly one fenced JSON block.\n"
+                    f"Error: {type(e).__name__}: {e}\n"
+                    f"Original task:\n{invariant.as_prompt_payload()}"
+                )
                 log.warning(
                     "source-mapper attempt %d/%d failed for %s: %s",
                     attempt,
@@ -112,10 +119,10 @@ class SourceMappingRunner:
             f"for {invariant.phi_id!r}: {last_err}"
         ) from last_err
 
-    async def _invoke_agent(self, invariant: Invariant) -> str:
+    async def _invoke_agent(self, invariant: Invariant, prompt: str | None = None) -> str:
         invocation = OpenCodeInvocation(
             agent=self._AGENT_NAME,
-            message=invariant.as_prompt_payload(),
+            message=prompt or invariant.as_prompt_payload(),
             cwd=self._project_root,
             model=self._model,
             timeout_secs=self._timeout_secs,

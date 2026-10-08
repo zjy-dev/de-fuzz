@@ -4,6 +4,14 @@
   // source-mapper is currently under `.opencode/agent/source-mapper.md`
   // (singular) and is picked up automatically.
   //
+  "mcp": {
+    "defuzz-callgraph": {
+      "type": "local",
+      "command": ["./scripts/run_callgraph_mcp_ssh.sh"],
+      "enabled": true
+    }
+  },
+
   // TODO(mcp): once the Go core MCP server exposes tool endpoints,
   // wire it in here so the seed-generator / feedback-analyzer / llm-oracle
   // subagents can call `defuzz-core_query_invariants`, `_coverage_diff`,
