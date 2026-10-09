@@ -1,31 +1,39 @@
 # DeFuzz CallGraph MCP
 
 面向 GCC/LLVM 大型 CSV 调用图的只读 SQLite MCP。导入采用 10,000 行批次和事务，不把 CSV 全量读入内存；同一 target 再导入会原子替换。
+项目内置了完整的静态数据集与预构建数据库（`callgraph_mcp/data/callgraph.sqlite`），支持本地 stdio 直接交互。
 
-## 安装与导入
+## 本地与标准 stdio 运行
+
+项目内置预构建数据库，直接通过 local stdio 运行：
+
+```bash
+# 本地运行脚本（默认读取 callgraph_mcp/data/callgraph.sqlite）
+./scripts/run_callgraph_mcp.sh
+```
+
+重新构建/生成内置数据集：
+
+```bash
+cd callgraph_mcp && uv run python build_dataset.py
+```
+
+或使用自定义 CSV 进行导入：
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install ./callgraph_mcp
-.venv/bin/defuzz-callgraph-ingest --out callgraph.sqlite \
-  --add llvm llvm-callgraph.csv \
-  --add gcc-x86_64 gcc-x86_64-callgraph.csv \
-  --add gcc-aarch64 gcc-aarch64-callgraph.csv
-.venv/bin/defuzz-callgraph-mcp --db callgraph.sqlite
+.venv/bin/defuzz-callgraph-ingest --out data/callgraph.sqlite \
+  --add llvm-23.1.2 data/csv/llvm-23.1.2.csv \
+  --add gcc-16.2.0-x86_64 data/csv/gcc-16.2.0-x86_64.csv \
+  --add gcc-16.2.0-aarch64 data/csv/gcc-16.2.0-aarch64.csv
+.venv/bin/defuzz-callgraph-mcp --db data/callgraph.sqlite
 ```
 
-仓库脚本远程部署：
-
-```bash
-scripts/deploy_callgraph_mcp.sh              # 已有 DB 时不覆盖
-scripts/deploy_callgraph_mcp.sh --code-only  # 仅同步/安装代码
-scripts/deploy_callgraph_mcp.sh --force-ingest
-```
-
-OpenCode 通过 `scripts/run_callgraph_mcp_ssh.sh` 建立 SSH stdio；脚本不向 stdout 打印诊断。配置示例：
+OpenCode 通过 `scripts/run_callgraph_mcp.sh` 建立本地 stdio 连接：
 
 ```json
-{"mcp":{"defuzz-callgraph":{"type":"local","command":["./scripts/run_callgraph_mcp_ssh.sh"],"enabled":true}}}
+{"mcp":{"defuzz-callgraph":{"type":"local","command":["./scripts/run_callgraph_mcp.sh"],"enabled":true}}}
 ```
 
 ## 六个工具

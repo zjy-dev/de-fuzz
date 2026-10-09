@@ -77,3 +77,13 @@ def test_limits_and_exact_tool_set(tmp_path: Path) -> None:
         "slice_from",
         "paths_between",
     }
+
+
+def test_bundled_static_database() -> None:
+    db_path = Path(__file__).resolve().parents[1] / "data" / "callgraph.sqlite"
+    assert db_path.is_file(), f"bundled static database missing at {db_path}"
+    con = db.connect(db_path, read_only=True)
+    targets = db.list_targets(con)
+    con.close()
+    target_names = {t["target"] for t in targets["targets"]}
+    assert {"gcc-16.2.0-x86_64", "gcc-16.2.0-aarch64", "llvm-23.1.2"} <= target_names

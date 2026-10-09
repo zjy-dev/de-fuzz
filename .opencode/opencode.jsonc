@@ -7,10 +7,10 @@
   "mcp": {
     "defuzz-callgraph": {
       "type": "local",
-      "command": ["./scripts/run_callgraph_mcp_ssh.sh"],
+      "command": ["./scripts/run_callgraph_mcp.sh"],
       "enabled": true
     }
-  },
+  }
 
   // TODO(mcp): once the Go core MCP server exposes tool endpoints,
   // wire it in here so the seed-generator / feedback-analyzer / llm-oracle

@@ -4,7 +4,7 @@ from pathlib import Path
 def test_callgraph_mcp_config_and_minimal_permissions() -> None:
     root = Path(__file__).resolve().parents[3]
     config = (root / ".opencode/opencode.jsonc").read_text()
-    assert '"command": ["./scripts/run_callgraph_mcp_ssh.sh"]' in config
+    assert '"command": ["./scripts/run_callgraph_mcp.sh"]' in config
     for path in (
         root / ".opencode/agent/source-mapper.md",
         root / ".opencode/agents/seed-generator.md",
