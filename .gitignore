@@ -48,6 +48,7 @@ experiments/
 # Orchestrator per-run audit dirs and checkpoints
 orchestrator/runs/
 *.sqlite
+!callgraph_mcp/data/callgraph.sqlite
 
 # Build artifacts and scratch workspaces
 /bin/
