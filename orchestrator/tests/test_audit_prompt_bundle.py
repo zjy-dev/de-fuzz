@@ -14,7 +14,7 @@ import pytest
 
 import defuzz_loop.agent_audit as agent_audit
 from defuzz_loop.agent_audit import run
-from defuzz_loop.audit_schema import AuditFamily, PerInvariantTask, normalize_mechanism
+from defuzz_loop.audit_schema import PerInvariantTask, normalize_mechanism
 from defuzz_loop.checker_bundle import compute_bundle_id, load_checker_bundle
 from defuzz_loop.experiment_engine import AgentRequest, AgentResult, ExperimentPlan
 from defuzz_loop.prompt_bundle import (

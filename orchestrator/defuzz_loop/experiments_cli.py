@@ -2401,12 +2401,12 @@ def _plan_for_repetition(plan: ExperimentPlan, repetition: int, stage: str) -> E
                 parameters["accepted_invariants_source"] = "explicit"
             if inputs:
                 parameters["checker_artifacts"] = inputs
-        mapping_path = _mapping_input(plan, repetition)
-        if mapping_path is not None:
-            parameters["source_mappings"] = str(mapping_path)
-            parameters["source_mappings_sha256"] = _sha256_file(mapping_path)
+        audit_mapping_path = _mapping_input(plan, repetition)
+        if audit_mapping_path is not None:
+            parameters["source_mappings"] = str(audit_mapping_path)
+            parameters["source_mappings_sha256"] = _sha256_file(audit_mapping_path)
             parameters["source_mapping_summary_sha256"] = _sha256_file(
-                mapping_path.with_name("source-mapping-summary.json")
+                audit_mapping_path.with_name("source-mapping-summary.json")
             )
     return plan.model_copy(update={"parameters": parameters})
 
@@ -2559,10 +2559,10 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
             })
             _validate_from_run(mapping_plan, "mapping-consumer")
         for repetition in range(1, plan.repetitions + 1):
-            mapping_path = _mapping_input(plan, repetition)
-            if mapping_path is not None:
+            audit_mapping_path = _mapping_input(plan, repetition)
+            if audit_mapping_path is not None:
                 from defuzz_loop.experiment_engine.source_mapping_stage import load_source_mappings
-                load_source_mappings(mapping_path, source_root=plan.source_root)
+                load_source_mappings(audit_mapping_path, source_root=plan.source_root)
             elif plan.parameters.get("backend") == "pi" and plan.variant != "bare-agent":
                 raise ValueError("Pi audit requires --source-mappings or --mapping-from-run")
         toolchains_config = plan.parameters.get("toolchains_config")

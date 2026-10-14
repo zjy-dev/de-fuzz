@@ -48,7 +48,7 @@ from .nodes.coverage import make_coverage_node
 from .nodes.oracle import bug_evidence, make_oracle_node
 from .permissions import _check as _check_permissions
 from .routing import CheckerCatalog, make_routing_node
-from .state import Aggregate, Blackboard
+from .state import Aggregate, Blackboard, Guidance
 
 if TYPE_CHECKING:  # pragma: no cover — typing only
     from .agents.feedback import FeedbackAgent
@@ -124,7 +124,9 @@ class IterationLoop:
         client: CoreClient,
         catalog: CheckerCatalog,
         feedback_stride: int = 1,
+        rewrite_threshold: int = 2,
         on_round_complete: Callable[[Blackboard], None] | None = None,
+        on_checker_rewrite: Callable[[Blackboard, str], Any] | None = None,
     ) -> None:
         self._generator = generator
         self._feedback = feedback
@@ -133,7 +135,10 @@ class IterationLoop:
         self._catalog = catalog
         self._client = client
         self._feedback_stride = max(1, int(feedback_stride))
+        self._rewrite_threshold = max(1, int(rewrite_threshold))
+        self._rewrite_votes = 0
         self._on_round_complete = on_round_complete
+        self._on_checker_rewrite = on_checker_rewrite
 
         # Node factories — capture references once so each round reuses them.
         self._routing_node = make_routing_node(catalog)
@@ -148,12 +153,12 @@ class IterationLoop:
         budget_rounds: int,
         budget_secs: float,
     ) -> Blackboard:
-        """Run the fixed-order loop until either budget cap is hit or the
-        aggregate verdict flips to ``violated``.
+        """Run the loop until the time or round budget is exhausted.
 
-        Budget semantics: ``budget_rounds`` is a hard iteration cap;
-        ``budget_secs`` (> 0) adds a wall-clock cap. The first cap reached
-        terminates.
+        Budget semantics: ``budget_rounds`` is an iteration cap;
+        ``budget_secs`` (> 0) adds a wall-clock cap. When bugs are found,
+        the loop does not terminate early; instead it injects lateral-thinking
+        guidance to explore more diverse postures and find more bugs.
         """
 
         start = time.monotonic()
@@ -193,28 +198,65 @@ class IterationLoop:
                 elapsed_ms,
             )
 
-            # 7) Violation branch — optional minimizer, then return.
+            # 7) Violation branch — optional minimizer, then lateral thinking to find MORE bugs
             if aggregate is Aggregate.VIOLATED:
                 if self._minimizer is not None:
                     await _run_phase("minimizer", self._minimizer_step, bb)
-                if self._on_round_complete is not None:
-                    self._on_round_complete(bb)
-                return bb
 
-            # 8) Not-violated branch — optional feedback for next round.
-            if self._feedback is not None and (
-                bb.round % self._feedback_stride == 0
-            ):
-                await _run_phase("feedback", self._feedback_step, bb)
+                target_str = bb.current_target() or "current invariant"
+                failing_chk = (
+                    bb.last_verdict.failing_checker if bb.last_verdict is not None else ""
+                )
+                evidence_snip = (
+                    bb.last_verdict.evidence[:200] if bb.last_verdict is not None else ""
+                )
+                lateral_summary = (
+                    f"Violation found on {target_str} (checker: {failing_chk})! "
+                    "Lateral thinking guidance: Explore DIVERGENT postures and "
+                    "alternative boundary conditions (e.g. alternate types, alignments, "
+                    "struct nestings, signed/unsigned bounds, VLAs, indirect calls) "
+                    "to violate this checker in more ways and surface more distinct compiler bugs. "
+                    f"Evidence: {evidence_snip}"
+                )
+                await _run_phase(
+                    "feedback",
+                    self._lateral_guidance_node(lateral_summary),
+                    bb,
+                )
+            else:
+                # 8) Not-violated branch — optional feedback for next round.
+                if self._feedback is not None and (
+                    bb.round % self._feedback_stride == 0
+                ):
+                    await _run_phase("feedback", self._feedback_step, bb)
+
+                    # Checker evolution: when rewrite votes exceed threshold, trigger update
+                    if (
+                        bb.guidance is not None
+                        and bb.guidance.rewrite_checker
+                    ):
+                        self._rewrite_votes += 1
+                        log.info(
+                            "checker_rewrite vote cast: current_votes=%d threshold=%d reason=%s",
+                            self._rewrite_votes,
+                            self._rewrite_threshold,
+                            bb.guidance.rewrite_reason,
+                        )
+                        if self._rewrite_votes >= self._rewrite_threshold:
+                            self._rewrite_votes = 0
+                            log.info(
+                                "checker_rewrite threshold reached; triggering checker evolution"
+                            )
+                            if self._on_checker_rewrite is not None:
+                                await self._on_checker_rewrite(bb, bb.guidance.rewrite_reason)
 
             if self._on_round_complete is not None:
                 self._on_round_complete(bb)
 
-            # 9) Bump: single-invariant campaigns never advance the cursor.
+            # 9) Bump round counter
             bb.round += 1
 
-            # 10) Wall-clock cap check — after the round so a violated
-            # round still gets its minimizer.
+            # 10) Wall-clock cap check — run for the full allocated budget duration
             if budget_secs > 0 and (time.monotonic() - start) >= budget_secs:
                 break
 
@@ -259,6 +301,19 @@ class IterationLoop:
             update["last_verdict"] = promoted
             update["pending_bug"] = bug_evidence(bb, promoted)
         return update
+
+    @staticmethod
+    def _lateral_guidance_node(summary: str) -> NodeFn:
+        def _node(bb: Blackboard) -> dict[str, Any]:
+            return {
+                "guidance": Guidance(
+                    round=bb.round,
+                    summary=summary,
+                    coverage_delta_ref="coverage.last_delta",
+                )
+            }
+
+        return _node
 
 
 __all__ = ["IterationLoop"]

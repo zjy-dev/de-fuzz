@@ -1064,7 +1064,9 @@ async def run(
                     key=str(item.get("invariant_id") if isinstance(item, dict) else item),
                     name=str(item.get("mechanism") if isinstance(item, dict) else item),
                     mechanisms=(
-                        normalize_mechanism(str(item.get("mechanism") if isinstance(item, dict) else item)),
+                        normalize_mechanism(
+                            str(item.get("mechanism") if isinstance(item, dict) else item)
+                        ),
                     ),
                 )
                 for item in invariants_param
@@ -1566,9 +1568,9 @@ async def run(
                             + "No candidate findings were submitted in the prior turn. "
                             "You have full command-line bash and compiler access in your sandbox. "
                             "Compile targeted C/C++ test cases against the configured compiler, "
-                            "observe runtime outputs or probe logs, verify if defense invariants are "
-                            "violated on boundary conditions, and output your findings. "
-                            "Preserve the worker_bundle_sha256 echo."
+                            "observe runtime outputs or probe logs, verify if defense "
+                            "invariants are violated on boundary conditions, and output your "
+                            "findings. Preserve the worker_bundle_sha256 echo."
                         )
                     _, report, error = await _run_worker(
                         active_backend,

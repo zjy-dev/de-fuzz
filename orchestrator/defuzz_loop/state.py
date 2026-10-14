@@ -111,6 +111,8 @@ class Guidance(BaseModel):
     round: int = 0
     summary: str = ""
     coverage_delta_ref: str = ""  # points at CoverageState.last_delta
+    rewrite_checker: bool = False
+    rewrite_reason: str = ""
 
 
 class BugEvidence(BaseModel):

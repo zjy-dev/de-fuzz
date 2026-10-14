@@ -57,6 +57,8 @@ class FeedbackAgent:
             round=bb.round,
             summary=out.summary,
             coverage_delta_ref="coverage.last_delta",
+            rewrite_checker=out.rewrite_checker,
+            rewrite_reason=out.rewrite_reason,
         )
 
     async def _coverage_diff(self, bb: Blackboard) -> dict:

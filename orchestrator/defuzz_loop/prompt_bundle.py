@@ -26,13 +26,38 @@ from .audit_schema import (
     normalize_mechanism,
 )
 
-
 _LEGACY_FAMILIES: dict[str, tuple[str, ...]] = {
     "A": ("stack-protector", "stack-clash-protection"),
-    "B": ("fortify-source", "strict-flex-arrays", "zero-init-padding", "source-annotations", "codegen"),
-    "C": ("cet", "ibt", "shstk", "bti", "pac", "return-address-signing", "cmse", "riscv-cfi", "cet-ibt", "ret-hardening"),
+    "B": (
+        "fortify-source",
+        "strict-flex-arrays",
+        "zero-init-padding",
+        "source-annotations",
+        "codegen",
+    ),
+    "C": (
+        "cet",
+        "ibt",
+        "shstk",
+        "bti",
+        "pac",
+        "return-address-signing",
+        "cmse",
+        "riscv-cfi",
+        "cet-ibt",
+        "ret-hardening",
+    ),
     "D": ("pie", "pic", "relro", "nx", "noexecstack", "nodlopen", "as-needed"),
-    "E": ("asan", "ubsan", "tsan", "lsan", "auto-var-init", "glibcxx-assertions", "fhardened", "zero-call-used-regs"),
+    "E": (
+        "asan",
+        "ubsan",
+        "tsan",
+        "lsan",
+        "auto-var-init",
+        "glibcxx-assertions",
+        "fhardened",
+        "zero-call-used-regs",
+    ),
 }
 LEGACY_FAMILY_MECHANISMS = _LEGACY_FAMILIES
 

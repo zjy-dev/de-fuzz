@@ -44,6 +44,17 @@ class FeedbackOutput(BaseModel):
         ...,
         description="One to three concise sentences describing the next-round direction.",
     )
+    rewrite_checker: bool = Field(
+        default=False,
+        description=(
+            "Whether this feedback suggests the current checker has a defect "
+            "or limitation and needs rewrite."
+        ),
+    )
+    rewrite_reason: str = Field(
+        default="",
+        description="Reason why the checker needs to be rewritten.",
+    )
 
 
 class LLMOracleOutput(BaseModel):

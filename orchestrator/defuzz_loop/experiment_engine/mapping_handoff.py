@@ -67,7 +67,12 @@ def bind_mapping_handoff(
             if m.phi_id in selected and (not compiler or m.compiler == compiler)
             and (not isas or m.isa in _mapping_isas(selected[m.phi_id].get("target"), isas))
             and (bundle_inv_id is None or m.phi_id == bundle_inv_id)
-            and (not bundle_mechs or normalize_mechanism(str(selected[m.phi_id].get("mechanism", ""))) in bundle_mechs or len(bundles) == 1)
+            and (
+                not bundle_mechs
+                or normalize_mechanism(str(selected[m.phi_id].get("mechanism", "")))
+                in bundle_mechs
+                or len(bundles) == 1
+            )
         ]
         prompt = (
             bundle.prompt + "\n\n# Validated invariant source mappings\n\n"

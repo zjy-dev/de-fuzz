@@ -55,8 +55,8 @@ class RoundArtifacts:
         destination = self.run_dir / "rounds" / f"{bb.round:06d}"
         destination.mkdir(parents=True, exist_ok=False)
         state = bb.model_dump()
-        archived = {}
-        cleanup = set()
+        archived: dict[str, dict[str, str]] = {}
+        cleanup: set[Path] = set()
         if bb.current_seed is not None:
             (destination / "seed.c").write_text(bb.current_seed.source)
         if bb.minimized_poc is not None:

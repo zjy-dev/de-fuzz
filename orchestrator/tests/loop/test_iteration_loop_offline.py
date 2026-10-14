@@ -157,21 +157,23 @@ async def test_multi_round_stays_on_same_target() -> None:
 
 
 @pytest.mark.asyncio
-async def test_r8_gate_triggers_minimizer_and_terminates() -> None:
+async def test_r8_gate_triggers_minimizer_and_lateral_guidance() -> None:
     minimizer = _StubMinimizer()
     loop, generator, client = _build_loop(violated=True, minimizer=minimizer)
     bb = Blackboard(target_queue=["INV-A"])
-    final = await loop.run(bb, budget_rounds=5, budget_secs=0.0)
+    final = await loop.run(bb, budget_rounds=3, budget_secs=0.0)
 
-    # Terminated after the first round despite budget_rounds=5.
-    assert generator.calls == 1
-    assert client.analyze_calls == 1
+    # Continues for the full budget duration (3 rounds) to find more bugs with lateral thinking
+    assert generator.calls == 3
+    assert client.analyze_calls == 3
     assert final.last_verdict is not None
     assert final.last_verdict.aggregate is Aggregate.VIOLATED
-    # Minimizer was invoked exactly once and its PoC is on the blackboard.
-    assert minimizer.calls == 1
+    # Minimizer was invoked for each violation round
+    assert minimizer.calls == 3
     assert final.minimized_poc is not None
     assert final.minimized_poc.still_triggers is True
+    assert final.guidance is not None
+    assert "Lateral thinking guidance" in final.guidance.summary
 
 
 @pytest.mark.asyncio
@@ -185,17 +187,43 @@ async def test_feedback_invoked_on_not_violated_branch() -> None:
 
 
 @pytest.mark.asyncio
-async def test_feedback_skipped_on_violated_branch() -> None:
-    feedback = _StubFeedback()
-    minimizer = _StubMinimizer()
-    loop, _, _ = _build_loop(
-        violated=True, feedback=feedback, minimizer=minimizer
+async def test_checker_rewrite_threshold_trigger() -> None:
+    class _RewriteFeedback:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def summarize(self, bb: Blackboard) -> Guidance:
+            self.calls += 1
+            return Guidance(
+                round=bb.round,
+                summary=f"guidance-{self.calls}",
+                rewrite_checker=True,
+                rewrite_reason="test defect",
+            )
+
+    rewrites: list[str] = []
+
+    async def _on_rewrite(bb: Blackboard, reason: str) -> None:
+        rewrites.append(reason)
+
+    generator = _StubGenerator()
+    client = _StubClient(violated=False)
+    catalog = CheckerCatalog(client)
+    loop = IterationLoop(
+        generator=generator,
+        feedback=_RewriteFeedback(),  # type: ignore[arg-type]
+        llm_oracle=None,
+        minimizer=None,
+        client=client,
+        catalog=catalog,
+        rewrite_threshold=2,
+        on_checker_rewrite=_on_rewrite,
     )
     bb = Blackboard(target_queue=["INV-A"])
-    await loop.run(bb, budget_rounds=5, budget_secs=0.0)
-    # Violated → return immediately → feedback never called.
-    assert feedback.calls == 0
-    assert minimizer.calls == 1
+    await loop.run(bb, budget_rounds=4, budget_secs=0.0)
+    # 4 rounds with rewrite_threshold=2 -> triggers rewrite twice
+    assert len(rewrites) == 2
+    assert rewrites == ["test defect", "test defect"]
 
 
 def _v(id: str, verdict: Verdict, isa: str = "aarch64") -> InvariantResult:

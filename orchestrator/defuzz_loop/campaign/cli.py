@@ -16,6 +16,7 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import Any
 
 log = logging.getLogger("defuzz-loop.campaign")
 
@@ -125,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
                     catalog=catalog,
                 )
 
-            def _bb_factory(**kwargs: object) -> Blackboard:
+            def _bb_factory(**kwargs: Any) -> Blackboard:
                 return Blackboard(**kwargs)
 
             async def _runner(cfg: CampaignConfig) -> CampaignResult:

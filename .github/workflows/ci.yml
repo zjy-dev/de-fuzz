@@ -23,10 +23,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v5
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
@@ -56,12 +56,12 @@ jobs:
         run: go test -short -race ./...
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: "24.15.0"
           cache: npm
@@ -75,9 +75,8 @@ jobs:
         run: npm ci --no-audit --no-fund && npm test
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v10.0.1
+        uses: astral-sh/setup-uv@v5
         with:
-          version: "0.11.14"
           enable-cache: true
           cache-dependency-glob: orchestrator/uv.lock
 
