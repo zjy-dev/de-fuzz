@@ -1,0 +1,1 @@
+{"type": "object", "additionalProperties": false, "required": ["target", "symbol", "caller_count", "compiler", "version", "isa"], "properties": {"target": {"const": "llvm-23.1.2"}, "compiler": {"const": "llvm"}, "version": {"const": "23.1.2"}, "isa": {"const": "aarch64"}, "symbol": {"type": "string", "minLength": 1}, "caller_count": {"type": "integer", "minimum": 0}}}

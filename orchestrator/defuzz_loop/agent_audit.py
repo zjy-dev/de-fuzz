@@ -11,19 +11,20 @@ import shutil
 import stat
 import tempfile
 import time
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
 from .admission import admit_report, candidate_leaks_findings
+from .agents.runner import repair_prompt, schema_repairable
 from .audit_schema import (
     AuditCandidate,
     AuditFamily,
     AuditReport,
     AuditVariant,
     audit_report_json_schema,
-    families_for_mechanisms,
     normalize_isa,
     normalize_mechanism,
     parse_audit_report,
@@ -39,6 +40,8 @@ from .experiment_engine import (
     StageResult,
     WorkspaceBuilder,
 )
+from .experiment_engine.checker_updates import update_checkers
+from .experiment_engine.mapping_handoff import bind_mapping_handoff
 from .experiment_engine.workspace import (
     validate_agent_path_isolation,
     validate_disjoint_input_roots,
@@ -59,10 +62,12 @@ from .parity import (
     parity_metrics,
 )
 from .prompt_bundle import (
+    LEGACY_FAMILY_MECHANISMS,
     WorkerPromptBundle,
     assert_no_findings_leak,
     assert_worker_safe_path,
     build_worker_prompt_bundle,
+    canonical_family,
     policy_for_variant,
 )
 from .token_usage import TokenUsageSink, current_token_usage_sink
@@ -192,21 +197,15 @@ def _catalog_checker_ids(bundle: ValidatedCheckerBundle) -> frozenset[str]:
         raise ValueError("trusted checker catalog checkers must be an array")
     dependency_ids = payload.get("dependency_checker_ids", [])
     if not isinstance(dependency_ids, list) or not all(
-        isinstance(item, str) and item and item == item.strip()
-        for item in dependency_ids
+        isinstance(item, str) and item and item == item.strip() for item in dependency_ids
     ):
         raise ValueError(
-            "trusted checker catalog dependency_checker_ids must be an array of "
-            "non-empty strings"
+            "trusted checker catalog dependency_checker_ids must be an array of non-empty strings"
         )
     if len(set(dependency_ids)) != len(dependency_ids):
-        raise ValueError(
-            "trusted checker catalog dependency_checker_ids must be unique"
-        )
+        raise ValueError("trusted checker catalog dependency_checker_ids must be unique")
     if set(dependency_ids) != set(bundle.manifest.dependency_checker_ids):
-        raise ValueError(
-            "trusted checker catalog dependency_checker_ids do not match manifest"
-        )
+        raise ValueError("trusted checker catalog dependency_checker_ids do not match manifest")
     checker_ids: list[str] = []
     invariant_ids: list[str] = []
     for index, entry in enumerate(entries):
@@ -336,22 +335,44 @@ def _materialize_workspace(source_roots: Sequence[Path], *, repetition: int) -> 
             aggregate.update(b"\0")
             aggregate.update(manifest.sha256.encode("ascii"))
             aggregate.update(b"\n")
-        for path in sorted(root.rglob("*"), reverse=True):
+        # Directory permissions stop creation and rename; existing files must
+        # also lose write bits to prevent in-place edits by injected backends.
+        directories: list[Path] = []
+        for current, child_dirs, files in os.walk(root):
+            directory = Path(current)
+            directories.extend(directory / name for name in child_dirs)
+            for name in files:
+                path = directory / name
+                path.chmod(path.stat().st_mode & ~0o222)
+        for path in sorted(directories, reverse=True):
             path.chmod(path.stat().st_mode & ~0o222)
         root.chmod(root.stat().st_mode & ~0o222)
     except Exception:
-        shutil.rmtree(root, ignore_errors=True)
+        _force_remove_tree(root)
         raise
 
     def cleanup() -> None:
-        if root.exists():
-            root.chmod(root.stat().st_mode | stat.S_IRWXU)
-            for path in root.rglob("*"):
-                if path.is_dir():
-                    path.chmod(path.stat().st_mode | stat.S_IRWXU)
-        shutil.rmtree(root, ignore_errors=True)
+        _force_remove_tree(root)
 
     return _WorkspaceLease(root=root, sha256=aggregate.hexdigest(), labels=labels, cleanup=cleanup)
+
+
+def _force_remove_tree(root: Path) -> None:
+    """Restore directory write bits top-down, then remove the tree.
+
+    Only directories need their write bit back for ``rmtree`` to unlink the
+    files they contain, which keeps teardown proportional to the directory
+    count rather than the (far larger) file count."""
+
+    if root.exists():
+        root.chmod(root.stat().st_mode | stat.S_IRWXU)
+        for path in root.rglob("*"):
+            if path.is_dir() and not path.is_symlink():
+                try:
+                    path.chmod(path.stat().st_mode | stat.S_IRWXU)
+                except OSError:
+                    pass
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def _bare_report_json_schema() -> dict[str, Any]:
@@ -431,7 +452,7 @@ def _parse_worker_report(bundle: WorkerPromptBundle, value: Any) -> AuditReport:
     )
 
 
-def _agent_result_leaks_findings(result: Any) -> bool:
+def _agent_result_leaks_findings(result: Any, evidence_root: Path | None = None) -> bool:
     """Inspect every provider-returned channel before publishing artifacts."""
 
     values = (
@@ -445,14 +466,36 @@ def _agent_result_leaks_findings(result: Any) -> bool:
         if value in (None, "", []):
             continue
         text = (
-            value
-            if isinstance(value, str)
-            else json.dumps(value, ensure_ascii=False, default=str)
+            value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
         )
         try:
             assert_no_findings_leak(text)
         except ValueError:
             return True
+    if evidence_root is not None:
+        paths = [
+            evidence_root / name
+            for name in (
+                "events.jsonl",
+                "provider-events.jsonl",
+                "final.raw.txt",
+                "mcp.log",
+                "stderr.log",
+            )
+        ]
+        paths.extend((evidence_root / "artifacts").rglob("*"))
+        for path in paths:
+            if path.is_symlink() or not path.is_file():
+                continue
+            carry = ""
+            with path.open(encoding="utf-8", errors="replace") as stream:
+                while chunk := stream.read(65536):
+                    value = carry + chunk
+                    try:
+                        assert_no_findings_leak(value)
+                    except ValueError:
+                        return True
+                    carry = value[-256:]
     return False
 
 
@@ -472,18 +515,24 @@ def _worker_invalid_reasons(
     elif report.worker_bundle_sha256 != bundle.sha256:
         reasons.append("worker_bundle_sha256 does not match the delivered bundle")
     if report.family != bundle.family.key:
-        reasons.append(f"worker family echo {report.family!r} does not match {bundle.family.key!r}")
+        legacy_for_report = LEGACY_FAMILY_MECHANISMS.get(report.family.upper(), ())
+        legacy_for_bundle = LEGACY_FAMILY_MECHANISMS.get(bundle.family.key.upper(), ())
+        matches_legacy = (
+            bundle.family.key in legacy_for_report
+            or report.family in legacy_for_bundle
+            or any(m in legacy_for_report for m in bundle.family.mechanisms)
+        )
+        if not matches_legacy:
+            reasons.append(
+                f"worker family echo {report.family!r} does not match {bundle.family.key!r}"
+            )
     if report.variant != bundle.variant.value:
         reasons.append(
             f"worker variant echo {report.variant!r} does not match {bundle.variant.value!r}"
         )
     plan_mechanisms = {normalize_mechanism(value) for value in expected_mechanisms}
     family_mechanisms = (
-        {
-            normalize_mechanism(value)
-            for family in families_for_mechanisms(None)
-            for value in family.mechanisms
-        }
+        set()
         if bundle.variant is AuditVariant.BARE_AGENT
         else {normalize_mechanism(value) for value in bundle.family.mechanisms}
     )
@@ -576,9 +625,7 @@ def _load_generated_invariants(
                 raise ValueError("accepted_invariants must be a JSONL filesystem path")
             explicit_path = Path(configured).expanduser().resolve(strict=True)
             if not explicit_path.is_file() or explicit_path.is_symlink():
-                raise ValueError(
-                    f"accepted_invariants is not a regular file: {explicit_path}"
-                )
+                raise ValueError(f"accepted_invariants is not a regular file: {explicit_path}")
             explicit_hash = _sha256_file(explicit_path)
             if not hmac.compare_digest(explicit_hash, scoped_artifact.sha256):
                 raise ValueError(
@@ -600,8 +647,7 @@ def _load_generated_invariants(
     expected_hash = parameters.get("accepted_invariants_sha256")
     if expected_hash is not None and expected_hash != actual_hash:
         raise ValueError(
-            "accepted_invariants SHA-256 mismatch: "
-            f"expected {expected_hash}, got {actual_hash}"
+            f"accepted_invariants SHA-256 mismatch: expected {expected_hash}, got {actual_hash}"
         )
     records: list[dict[str, Any]] = []
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
@@ -614,9 +660,7 @@ def _load_generated_invariants(
                 f"accepted_invariants contains invalid JSON at line {line_number}: {exc.msg}"
             ) from exc
         if not isinstance(value, dict):
-            raise ValueError(
-                f"accepted_invariants line {line_number} must be a JSON object"
-            )
+            raise ValueError(f"accepted_invariants line {line_number} must be a JSON object")
         records.append(value)
     if not records:
         raise ValueError("accepted_invariants contains no records")
@@ -690,6 +734,7 @@ async def _run_worker(
     expected_isas: Sequence[str] = (),
     prompt_suffix: str = "",
     invocation_label: str = "initial",
+    callgraph_binding: dict[str, Any] | None = None,
 ) -> tuple[WorkerPromptBundle, AuditReport, str | None]:
     worker_dir = output_dir / f"worker-{bundle.family.key.lower()}-{invocation_label}"
     worker_dir.mkdir(parents=True, exist_ok=True)
@@ -703,13 +748,14 @@ async def _run_worker(
     )
     (worker_dir / "prompt.txt").write_text(delivered_prompt, encoding="utf-8")
     assert_no_findings_leak(delivered_prompt)
+    evidence_root = output_dir.parent / ".evaluator-runtime"
     with tempfile.TemporaryDirectory(prefix="defuzz-audit-quarantine-") as temporary:
         quarantine_dir = Path(temporary).resolve() / worker_dir.name
         resolved_denials = validate_agent_path_isolation(
             cwd=cwd,
             output_dir=quarantine_dir,
             schema_path=schema_path,
-            deny_read_paths=deny_read_paths,
+            deny_read_paths=[*deny_read_paths, evidence_root],
         )
         request = AgentRequest(
             prompt=delivered_prompt,
@@ -729,11 +775,53 @@ async def _run_worker(
                 "worker_bundle_sha256": bundle.sha256,
                 "findings_access": "denied",
                 "isolation_level": _WORKSPACE_ISOLATION_LEVEL,
+                "compiler": expected_compiler,
+                "isas": list(expected_isas),
+                "callgraph_binding": callgraph_binding,
+                "use_callgraph": (
+                    bundle.variant is not AuditVariant.BARE_AGENT
+                    and getattr(backend, "provider", None) == "pi"
+                ),
             },
         )
         async with semaphore:
             try:
-                result = await backend.run(request)
+                if getattr(backend, "provider", None) == "pi":
+                    original = request.prompt
+                    deadline = time.monotonic() + timeout_seconds
+                    parent_attempt_id = None
+                    for attempt_number in range(3):
+                        attempt_id = uuid.uuid4().hex
+                        current = request.model_copy(
+                            update={
+                                "output_dir": quarantine_dir / f"attempt-{attempt_number + 1:03d}",
+                                "timeout_seconds": max(0.001, deadline - time.monotonic()),
+                                "metadata": {
+                                    **request.metadata,
+                                    "attempt_id": attempt_id,
+                                    "parent_attempt_id": parent_attempt_id,
+                                },
+                            }
+                        )
+                        result = await backend.run(current)
+                        if not schema_repairable(result):
+                            break
+                        if _agent_result_leaks_findings(result, current.output_dir):
+                            break
+                        candidate = result.final
+                        raw = current.output_dir / "final.raw.txt"
+                        if candidate is None and raw.is_file():
+                            candidate = raw.read_text(encoding="utf-8")
+                        request.prompt = repair_prompt(
+                            original=original,
+                            candidate=candidate,
+                            errors=result.error or "invalid audit schema",
+                        )
+                        parent_attempt_id = attempt_id
+                        if time.monotonic() >= deadline:
+                            break
+                else:
+                    result = await backend.run(request)
             except Exception as exc:
                 message = f"backend raised {type(exc).__name__}"
                 report = AuditReport(
@@ -742,7 +830,32 @@ async def _run_worker(
                     parse_issues=[message],
                 )
                 return bundle, report, message
-        leaked_output = _agent_result_leaks_findings(result)
+            finally:
+                # The runtime archive is evaluator-only evidence, including on
+                # cancellation or a tainted response. Never add it to prompts.
+                if quarantine_dir.exists():
+                    archive = evidence_root / output_dir.name / worker_dir.name / uuid.uuid4().hex
+                    shutil.copytree(
+                        quarantine_dir,
+                        archive,
+                        dirs_exist_ok=True,
+                        symlinks=True,
+                        ignore=shutil.ignore_patterns(".runtime"),
+                    )
+                    _write_json(
+                        worker_dir / "runtime-archive.json",
+                        {
+                            "path": os.path.relpath(archive, worker_dir),
+                            "original_path": str(quarantine_dir),
+                            "visibility": "evaluator-only",
+                        },
+                    )
+        leaked_output = _agent_result_leaks_findings(result, quarantine_dir)
+        if getattr(backend, "provider", None) == "pi":
+            leaked_output = leaked_output or any(
+                _agent_result_leaks_findings(result, attempt)
+                for attempt in quarantine_dir.glob("attempt-*")
+            )
         if leaked_output:
             report = AuditReport(
                 family=bundle.family.key,
@@ -761,12 +874,22 @@ async def _run_worker(
                     "deterministic_poc_validator_executed": False,
                 },
                 "worker_valid": False,
-                "worker_invalid_reasons": [
-                    "worker result is tainted by findings corpus content"
-                ],
+                "worker_invalid_reasons": ["worker result is tainted by findings corpus content"],
             }
             _write_json(worker_dir / "admission.json", admission_payload)
             return bundle, report, "worker output rejected by findings leak guard"
+        _write_json(
+            worker_dir / "execution.json",
+            {
+                "provider": getattr(backend, "provider", None),
+                "agent": request.metadata["agent"],
+                "callgraph_queries": getattr(result, "callgraph_queries", 0),
+                "callgraph_data_queries": getattr(result, "callgraph_data_queries", 0),
+                "success": result.success,
+            },
+        )
+        for path in quarantine_dir.glob("*.json*"):
+            shutil.copyfile(path, worker_dir / path.name)
     if not result.success:
         message = result.error or f"backend exited with status {result.exit_code}"
         report = AuditReport(
@@ -929,30 +1052,87 @@ async def run(
         normalize_mechanism(str(item))
         for item in _as_list(parameters.get("mechanisms", parameters.get("mechanism")))
     ]
-    try:
-        scoped_families = families_for_mechanisms(mechanisms)
-    except ValueError as exc:
-        return StageResult(stage="agent-audit", status="failed", error=str(exc))
     families: tuple[AuditFamily, ...]
     if variant is AuditVariant.BARE_AGENT:
-        # The baseline is intentionally one neutral worker.  Mechanism and A--E
-        # sharding are treatment information and must not reach this arm.
-        families = (families_for_mechanisms(None)[0],)
+        # The baseline is intentionally one neutral worker.
+        families = (AuditFamily(key="BARE", name="general", mechanisms=tuple(mechanisms)),)
     else:
-        families = scoped_families
-        requested = {str(item).upper() for item in _as_list(parameters.get("families"))}
-        if requested:
+        invariants_param = parameters.get("invariants") or parameters.get("tasks")
+        if invariants_param and isinstance(invariants_param, list):
             families = tuple(
-                family
-                for family in families
-                if family.key in requested or family.name.upper() in requested
+                AuditFamily(
+                    key=str(item.get("invariant_id") if isinstance(item, dict) else item),
+                    name=str(item.get("mechanism") if isinstance(item, dict) else item),
+                    mechanisms=(
+                        normalize_mechanism(str(item.get("mechanism") if isinstance(item, dict) else item)),
+                    ),
+                )
+                for item in invariants_param
             )
+        elif parameters.get("families"):
+            requested = _as_list(parameters.get("families"))
+            families = tuple(
+                item if isinstance(item, AuditFamily)
+                else canonical_family(str(item))
+                for item in requested
+            )
+        elif mechanisms:
+            resolved_families: list[AuditFamily] = []
+            for mech in mechanisms:
+                matched_letter = None
+                for letter, legacy_mechs in LEGACY_FAMILY_MECHANISMS.items():
+                    if mech in legacy_mechs:
+                        matched_letter = letter
+                        break
+                if matched_letter is not None:
+                    resolved_families.append(
+                        AuditFamily(
+                            key=matched_letter,
+                            name=mech,
+                            mechanisms=LEGACY_FAMILY_MECHANISMS[matched_letter],
+                        )
+                    )
+                else:
+                    resolved_families.append(AuditFamily(key=mech, name=mech, mechanisms=(mech,)))
+            seen_keys: set[str] = set()
+            deduped: list[AuditFamily] = []
+            for fam in resolved_families:
+                if fam.key not in seen_keys:
+                    seen_keys.add(fam.key)
+                    deduped.append(fam)
+            families = tuple(deduped)
+        else:
+            families = tuple(canonical_family(letter) for letter in "ABCDE")
+
     if not families:
         return StageResult(
             stage="agent-audit", status="failed", error="audit scope selected no families"
         )
 
     source_roots = _source_roots(resolved)
+    callgraph_binding = None
+    graph_config = getattr(backend, "config", {}).get("mcp", {}).get("defuzz_callgraph", {})
+    if variant is not AuditVariant.BARE_AGENT and graph_config.get("database_path"):
+        from .experiment_engine.callgraph_identity import bind_callgraph, verify_driver_versions
+
+        try:
+            if len(source_roots) != 1:
+                raise ValueError("CallGraph source binding requires one compiler source root")
+            callgraph_binding = bind_callgraph(
+                Path(graph_config["database_path"]),
+                source_roots[0],
+                compiler=configured_compiler or "gcc",
+                isas=[
+                    normalize_isa(str(item))
+                    for item in _as_list(parameters.get("isas", parameters.get("isa")))
+                ],
+            )
+            if parameters.get("toolchains_config"):
+                callgraph_binding["driver_versions"] = verify_driver_versions(
+                    callgraph_binding, Path(parameters["toolchains_config"])
+                )
+        except (OSError, ValueError) as exc:
+            return StageResult(stage="agent-audit", status="failed", error=str(exc))
     if not source_roots:
         return StageResult(
             stage="agent-audit",
@@ -969,10 +1149,7 @@ async def run(
     try:
         validate_disjoint_input_roots(
             [
-                *(
-                    (f"source_roots[{index}]", source)
-                    for index, source in enumerate(source_roots)
-                ),
+                *((f"source_roots[{index}]", source) for index, source in enumerate(source_roots)),
                 ("reference_root", reference_root),
             ]
         )
@@ -1086,6 +1263,13 @@ async def run(
                 )
                 for family in families
             ]
+            bundles, mapping_provenance = bind_mapping_handoff(
+                bundles,
+                parameters=parameters,
+                source_roots=source_roots,
+                workspace=lease.root,
+                invariants=generated_invariants,
+            )
         except (OSError, ValueError) as exc:
             return StageResult(stage="agent-audit", status="failed", error=str(exc))
 
@@ -1097,6 +1281,16 @@ async def run(
                 parameters.get("backend", "traex"),
             ),
         )
+        if (
+            getattr(active_backend, "provider", None) == "pi"
+            and variant is not AuditVariant.BARE_AGENT
+            and not mapping_provenance["enabled"]
+        ):
+            return StageResult(
+                stage="agent-audit",
+                status="failed",
+                error="Pi audit requires validated source mappings",
+            )
         host_isolation = bool(getattr(active_backend, "supports_host_read_isolation", False))
         require_host_isolation = bool(parameters.get("require_host_read_isolation", True))
         if require_host_isolation and not host_isolation:
@@ -1128,6 +1322,7 @@ async def run(
                         expected_compiler=configured_compiler,
                         expected_mechanisms=mechanisms,
                         expected_isas=isas,
+                        callgraph_binding=callgraph_binding,
                         prompt_suffix=checker_routing_prompt,
                     )
                     for bundle in bundles
@@ -1164,6 +1359,7 @@ async def run(
                         expected_compiler=configured_compiler,
                         expected_mechanisms=mechanisms,
                         expected_isas=isas,
+                        callgraph_binding=callgraph_binding,
                         prompt_suffix=checker_routing_prompt,
                     )
                 )
@@ -1207,6 +1403,21 @@ async def run(
 
         online_oracle_records: list[dict[str, Any]] = []
         online_oracle_errors: list[str] = []
+        checker_update_records: list[dict[str, Any]] = []
+        checker_update_errors: list[str] = []
+        update_limit = int(
+            parameters.get(
+                "checker_update_rounds",
+                1 if getattr(active_backend, "provider", None) == "pi" else 0,
+            )
+        )
+        if not 0 <= update_limit <= 3:
+            return StageResult(
+                stage="agent-audit",
+                status="failed",
+                error="checker_update_rounds must be between 0 and 3",
+            )
+        online_runtime = checker_runtime
         if resolved.policy.use_online_oracle:
             by_family = {bundle.family.key: bundle for bundle in bundles}
             for round_index in range(1, oracle_rounds + 1):
@@ -1248,14 +1459,117 @@ async def run(
                                     errors.append(message)
                                 continue
                             feedback_by_family.setdefault(report.family, []).append(result)
+                    elif (
+                        getattr(active_backend, "provider", None) == "pi"
+                        or bool(parameters.get("hypotheses"))
+                        or bool(parameters.get("dynamic_exploration"))
+                    ):
+                        feedback_by_family.setdefault(report.family, [])
                 if not feedback_by_family:
                     break
+                if (
+                    online_runtime is not None
+                    and round_index <= update_limit
+                    and any(r["round"] == round_index for r in online_oracle_records)
+                ):
+                    try:
+                        new_manifest, update_record = await update_checkers(
+                            plan=resolved,
+                            repetition=repetition,
+                            parent_manifest=online_runtime.bundle.manifest_path,
+                            feedback=[
+                                r for r in online_oracle_records if r["round"] == round_index
+                            ],
+                            reports=[r.model_dump(mode="json") for r in reports],
+                            workspace=lease.root,
+                            deny_read_paths=list(agent_deny_paths),
+                            output_dir=destination / "checker-updates" / f"round-{round_index:03d}",
+                            backend=active_backend,
+                        )
+                        checker_update_records.append({"round": round_index, **update_record})
+                        if new_manifest is not None:
+                            online_runtime = _load_checker_bundle_runtime(
+                                {
+                                    **parameters,
+                                    "checker_bundle_manifest": str(new_manifest),
+                                    "checker_bundle_sha256": _sha256_file(new_manifest),
+                                },
+                                required=True,
+                                compiler=configured_compiler,
+                            )
+                            assert online_runtime is not None
+                            online_oracles = [online_runtime.online_oracle]
+                            # Exercise the new executable immediately. The revised
+                            # report consumes this feedback even on the last round.
+                            feedback_by_family = {}
+                            for bundle, report in zip(bundles, reports, strict=True):
+                                if _worker_invalid_reasons(
+                                    bundle,
+                                    report,
+                                    expected_compiler=configured_compiler,
+                                    expected_mechanisms=mechanisms,
+                                    expected_isas=isas,
+                                ):
+                                    continue
+                                results = [
+                                    await online_runtime.online_oracle.evaluate(
+                                        candidate,
+                                        lease.root,
+                                    )
+                                    for candidate in report.candidates
+                                ]
+                                for result in results:
+                                    online_oracle_records.append(
+                                        {
+                                            "round": round_index,
+                                            "family": report.family,
+                                            "checker_update": update_record["bundle_id"],
+                                            **result.model_dump(mode="json"),
+                                        }
+                                    )
+                                    if result.verdict == "ERROR":
+                                        raise ValueError(
+                                            f"updated checker execution failed: {result.error}"
+                                        )
+                                if results:
+                                    feedback_by_family[report.family] = results
+                    except Exception as exc:
+                        message = f"checker update round {round_index}: {exc}"
+                        checker_update_errors.append(message)
+                        checker_update_records.append(
+                            {
+                                "round": round_index,
+                                "status": "failed",
+                                "error": message,
+                            }
+                        )
+                        errors.append(message)
+                        break
                 revised: dict[str, AuditReport] = {}
                 for family_key, oracle_results in feedback_by_family.items():
                     selected_bundle = by_family.get(family_key)
                     if selected_bundle is None:
                         continue
-                    feedback = render_oracle_feedback(oracle_results)
+                    if oracle_results:
+                        feedback = render_oracle_feedback(oracle_results)
+                        guidance = (
+                            checker_routing_prompt
+                            + "\n\n# Deterministic online checker feedback\n\n"
+                            + feedback
+                            + "\n\nRevise the report using this feedback. Preserve the "
+                            "worker_bundle_sha256 echo."
+                        )
+                    else:
+                        guidance = (
+                            checker_routing_prompt
+                            + "\n\n# Dynamic exploration guidance\n\n"
+                            + "No candidate findings were submitted in the prior turn. "
+                            "You have full command-line bash and compiler access in your sandbox. "
+                            "Compile targeted C/C++ test cases against the configured compiler, "
+                            "observe runtime outputs or probe logs, verify if defense invariants are "
+                            "violated on boundary conditions, and output your findings. "
+                            "Preserve the worker_bundle_sha256 echo."
+                        )
                     _, report, error = await _run_worker(
                         active_backend,
                         selected_bundle,
@@ -1270,13 +1584,8 @@ async def run(
                         expected_compiler=configured_compiler,
                         expected_mechanisms=mechanisms,
                         expected_isas=isas,
-                        prompt_suffix=(
-                            checker_routing_prompt
-                            + "\n\n# Deterministic online checker feedback\n\n"
-                            + feedback
-                            + "\n\nRevise the report using this feedback. Preserve the "
-                            "worker_bundle_sha256 echo."
-                        ),
+                        prompt_suffix=guidance,
+                        callgraph_binding=callgraph_binding,
                         invocation_label=f"oracle-{round_index:03d}",
                     )
                     revised[family_key] = report
@@ -1391,6 +1700,7 @@ async def run(
         result_valid = (
             invalid_workers == 0
             and not online_oracle_errors
+            and not checker_update_errors
             and (candidate_outcomes_valid or not require_verified_candidates)
         )
         formal_verification_error = None
@@ -1418,6 +1728,14 @@ async def run(
             "time_to_first_verified_ms": time_to_first_verified_ms,
             "family_order": [bundle.family.key for bundle in bundles],
             "candidate_lane_scope": lane_scope,
+            "source_mappings": mapping_provenance,
+            "callgraph_binding": callgraph_binding,
+            "checker_updates": {
+                "rounds_configured": update_limit,
+                "records": checker_update_records,
+                "errors": checker_update_errors,
+                "offline_verifier": "original-frozen-bundle",
+            },
             "generated_invariants": {
                 "visible_to_worker": variant is not AuditVariant.BARE_AGENT,
                 "records": (
@@ -1451,7 +1769,7 @@ async def run(
             },
             "online_oracle": {
                 "enabled": resolved.policy.use_online_oracle,
-                "rounds_configured": int(parameters.get("oracle_rounds", 0)),
+                "rounds_configured": oracle_rounds,
                 "records": online_oracle_records,
                 "error_count": len(online_oracle_errors),
                 "operational": not online_oracle_errors,
@@ -1516,6 +1834,13 @@ async def run(
             ArtifactRef.from_path(schema_path, base_dir=destination, kind="schema"),
             ArtifactRef.from_path(summary_path, base_dir=destination, kind="audit-summary"),
         ]
+        update_root = destination / "checker-updates"
+        if update_root.is_dir():
+            artifacts.extend(
+                ArtifactRef.from_path(path, base_dir=destination, kind="checker-update")
+                for path in sorted(update_root.rglob("*"))
+                if path.is_file()
+            )
         if parity_path is not None:
             artifacts.append(
                 ArtifactRef.from_path(parity_path, base_dir=destination, kind="demo-parity")
@@ -1525,6 +1850,9 @@ async def run(
             "campaign_variant": str(parameters.get("campaign_variant", variant.value)),
             "family_order": [bundle.family.key for bundle in bundles],
             "candidate_lane_scope": lane_scope,
+            "source_mappings": mapping_provenance,
+            "callgraph_binding": callgraph_binding,
+            "checker_updates": summary["checker_updates"],
             "generated_invariants": {
                 "visible_to_worker": variant is not AuditVariant.BARE_AGENT,
                 "records": (
@@ -1582,6 +1910,10 @@ async def run(
             "continuation_ready": result_valid,
             "online_oracle_calls": len(online_oracle_records),
             "online_oracle_errors": len(online_oracle_errors),
+            "checker_updates_adopted": sum(
+                record["status"] == "adopted" for record in checker_update_records
+            ),
+            "checker_update_errors": len(checker_update_errors),
             "candidate_unverified": candidate_unverified,
             "candidate_invalid": candidate_invalid,
             "candidate_invalid_evidence": candidate_invalid,
@@ -1594,7 +1926,11 @@ async def run(
             stage="agent-audit",
             status=(
                 "failed"
-                if online_oracle_errors or formal_verification_error is not None
+                if (
+                    online_oracle_errors
+                    or checker_update_errors
+                    or formal_verification_error is not None
+                )
                 else "completed"
                 if invalid_workers == 0
                 else "partial"

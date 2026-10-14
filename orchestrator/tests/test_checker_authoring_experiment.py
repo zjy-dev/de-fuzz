@@ -779,7 +779,11 @@ async def test_reused_checker_is_source_catalog_validated_without_agent_edits(
                 stdout=json.dumps({
                     "schema_version": 1,
                     "kind": "defuzz-checker-catalog",
-                    "checkers": [{"id": "INV-IBT-P01", "requires": []}],
+                    "checkers": [{
+                        "id": "INV-IBT-P01", "requires": [], "oracle": "ibt",
+                        "mechanism": "ibt", "applicable_isas": ["x86_64"],
+                        "mode": "single", "cost": "cheap", "category": "static",
+                    }],
                 }),
             )
         return await original_run(command, cwd=cwd, timeout_seconds=timeout_seconds)
@@ -852,7 +856,11 @@ async def test_multiple_generated_invariants_share_one_reused_runtime_checker(
                     {
                         "schema_version": 1,
                         "kind": "defuzz-checker-catalog",
-                        "checkers": [{"id": "INV-IBT-P01", "requires": []}],
+                        "checkers": [{
+                            "id": "INV-IBT-P01", "requires": [], "oracle": "ibt",
+                            "mechanism": "ibt", "applicable_isas": ["x86_64"],
+                            "mode": "single", "cost": "cheap", "category": "static",
+                        }],
                     }
                 ),
             )
@@ -978,6 +986,9 @@ def test_runtime_catalog_rejects_missing_dependency(tmp_path: Path) -> None:
             {
                 "id": "INV-GEN-A",
                 "requires": ["INV-MISSING"],
+                "oracle": "canary", "mechanism": "canary",
+                "applicable_isas": ["aarch64"], "mode": "single",
+                "cost": "cheap", "category": "static",
             }
         ],
     }

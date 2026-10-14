@@ -1,0 +1,12 @@
+Running pre-finalize script /home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh in /data00/home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src.
+Running command in /data00/home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src: [/home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh]
+Pre-finalize script /home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh completed in 225 ms.
+Running TRAP import for CodeQL database at /home/zhangjingyao.666/defuzz-codeql/dbs/llvm-db...
+Grouping TRAP files by link target
+Grouping unlinked TRAP files together
+Scanning TRAP files
+Importing TRAP files
+Merging relations
+Finished writing database (relations: 785.84 MiB; string pool: 389.03 MiB).
+TRAP import complete (75m42s).
+Finished zipping source archive (39.40 MiB).

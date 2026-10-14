@@ -7,6 +7,12 @@ It tests the *compiler*, not the program: agents generate C seeds, an instrument
 GCC compiles them across a (checker→ISA) matrix, and a zero-false-positive oracle runs
 invariant checkers to decide whether a defense mechanism *silently fails*.
 
+The research scope is invariant falsification, compiler defect diagnosis and
+remediation in project-controlled test environments. Outputs include minimal
+reproducers, checker evidence, fixes and regression tests for the open-source
+compiler community. See [research scope and agent task examples](docs/research-scope.md)
+and [agent context](AGENTS.md).
+
 ## Architecture
 
 DeFuzz is two pieces:
@@ -17,8 +23,8 @@ DeFuzz is two pieces:
     `OracleService` / `CheckerMetadataService`.
   - **MCP** (`:50052`): read-only agent tools — `search_source`, `query_invariants`,
     `coverage_diff`, `creduce_run`, `compile_exec`.
-- **Python orchestrator** (`orchestrator/`, package `defuzz_loop`) — a LangGraph pipeline
-  that drives the loop and three agents (Generator / Feedback / Minimizer).
+- **Python orchestrator** (`orchestrator/`, package `defuzz_loop`) — an explicit
+  `IterationLoop` that drives Generator / Feedback / Minimizer and optional LLM Oracle.
 
 The design principle: **ReAct belongs to the agents, determinism belongs to the
 orchestration.** Build/coverage/oracle are hard-wired into a fixed-order pipeline; agents
@@ -46,9 +52,12 @@ START → generator → routing → build → coverage → oracle → ⟨route�
 
 Invariant scheduling is deterministic: the whole checker catalog is enumerated into a queue
 at run init, and a cursor sweeps it, spending a fixed budget (N rounds OR T seconds) per
-invariant. The agent never chooses *which* invariant to attack.
+invariant. The agent never chooses *which* invariant to test.
 
 ## Running it
+
+For a rootless Pod with the frozen GCC17 four-ISA runtime, shared tmpfs and
+persistent evidence, see the [Podman runbook](docs/tech-docs/guides/podman.md).
 
 Build the Go core, then drive it from the orchestrator:
 
@@ -57,21 +66,20 @@ make build-core                       # → bin/defuzz-core (gRPC + MCP)
 bin/defuzz-core --mechanism canary    # start the deterministic core
 
 cd orchestrator
-uv run defuzz-loop run --mechanism canary --experiment demo
+uv run defuzz-loop run --mechanism canary --experiment demo \
+  --pi-config ../configs/agents/pi-runtime.example.json
 ```
 
-Each run lands in `orchestrator/runs/<experiment>_<mechanism>_<UTC>/` with its own
-`checkpoints.sqlite` + `manifest.json`. Three read-only subcommands inspect it:
-
-```sh
-uv run defuzz-loop inspect   --run-dir <dir>            # list the checkpoint chain
-uv run defuzz-loop replay    --run-dir <dir> --checkpoint <id>
-uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # back to deterministic evidence
-```
+Each run lands in `orchestrator/runs/<experiment>_<mechanism>_<UTC>/` with
+`manifest.json`, `events.jsonl`, `summary.json`, and per-round source, state and
+accessible binaries under `rounds/`. In the Pod, completed rounds are archived
+before their shared temporary build directories are removed. The old LangGraph
+`inspect` / `replay` / `trace-bug` commands are retired; the container runbook
+describes replaying the deterministic oracle on archived binaries.
 
 The paper experiments have a separate, stable command surface. The launcher is
-wired to the exact three-stage paper pipeline
-`Invariant Generation -> Checker Writing -> Agent Audit`, creates an isolated
+wired to the four-stage v2 pipeline
+`Invariant Generation -> Checker Writing -> Source Mapping -> Agent Audit`, creates an isolated
 artifact tree and token summary for every repetition, and writes a final run
 manifest. `--show-plan` remains side-effect free and validates the selected
 backend and its inputs:
@@ -81,27 +89,32 @@ cd orchestrator
 uv run defuzz-experiment --help
 uv run defuzz-experiment invariant-generation --help
 uv run defuzz-experiment checker-authoring --from-run <part-i-run> --show-plan
+uv run defuzz-experiment source-mapping --help
 uv run defuzz-experiment agent-audit --target-tree <compiler-tree> --show-plan
+uv run defuzz-experiment run-all --help
 uv run defuzz-experiment ablation --help
 ```
 
 The four campaign variants are `full`, `without-rag`, `without-oracle`, and
 `bare-agent`. `without-rag` changes Part I only; `without-oracle` and
 `bare-agent` still use the same frozen Part II verifier for offline admission.
-Formal runs use DeFuzz's direct HTTP backend: DeFuzz reads a local, secret-free
-YAML or JSON file and calls the configured OpenAI Responses API endpoint itself.
-It does not launch TraeX or OpenCode. OpenCode configuration may be consulted for
-the local gateway URL and model slug only. The checked-in example pins
-`coconut-gpt-5-6-terra-max` at `medium` reasoning:
+New formal runs use the locked Pi SDK worker with one isolated session per attempt.
+Source mapping and non-bare audit workers call the local CallGraph MCP;
+mapped source anchors are hash-bound into the audit. The checked-in provider
+example pins `coconut-gpt-5-6-terra-max` with explicit reasoning and sampling policy:
 
 ```yaml
+schema_version: 2
 backend:
-  kind: http
-  config_path: ./http-agent.example.yaml
+  kind: pi
+  config_path: ../agents/pi-runtime.example.json
 ```
 
-See [`configs/experiments/http-agent.example.yaml`](configs/experiments/http-agent.example.yaml).
-The file names the credential environment variable with `api_key_env`; the
+Build the worker with `cd agent-runtime && npm ci && npm run build`
+(Node >=22.19.0; container Node 24.15.0).
+See [`configs/agents/pi-runtime.example.json`](configs/agents/pi-runtime.example.json),
+which references the model and MCP configs.
+The model file references the credential with `${DEFUZZ_COCONUT_API_KEY}`; the
 credential value must remain in the process environment. A real run also needs
 the local Responses endpoint, source/reference trees, and compiler toolchain to
 be available. The formal GCC baseline is `17.0.0 experimental 20260531` at
@@ -117,7 +130,7 @@ boundaries:
   typed pipeline, hash chain, and resume behavior. It is engineering validation,
   not a paper result.
 - `configs/experiments/formal.example.yaml` is the formal campaign template.
-  It stays in `mode: formal`, requires `backend.kind: http` plus a valid
+  It uses schema v2, stays in `mode: formal`, requires `backend.kind: pi` plus a valid
   `config_path`, refuses dirty Git inputs, forbids `DEFUZZ_FAST_PLAN`, preflights
   compiler-specific drivers and QEMU execution paths from `toolchains.yaml`,
   rejects capped/sharded Part I selections, and fails closed instead of silently
@@ -127,17 +140,24 @@ Existing run IDs are refused unless `--resume` is given; upstream artifacts and
 input snapshots are hash-checked. Formal runs keep a clean-room boundary around
 evaluator-only findings: Part I, Part II, and Part III all deny reads of
 `<reference-root>/findings`, and Part III also audits a sanitized source copy.
-Full audit runs use the validated Part II bundle for candidate-bound online
-feedback and frozen offline verification; `--online-oracle-command` remains a
+Full audit runs can produce bounded, compiled checker updates for online
+feedback; final offline verification keeps the original frozen Part II bundle.
+Update decisions, patches, validation and bundle identities are recorded.
+`--online-oracle-command` remains a
 legacy standalone fallback. `without-oracle` removes only the online feedback loop. Structured-output
-failures retain provider-reported token usage. For the HTTP backend, usage is
-recorded for every Responses round and accumulated across tool rounds; missing
+failures retain provider-reported token usage. Pi records each actual model request,
+including tool and repair rounds; missing
 usage remains explicitly non-comparable and invalidates a formal repetition.
+Use `defuzz-inspect-attempt <attempt-directory>` for offline evidence inspection.
+It validates the event and artifact trail without contacting a model or running tools.
 `--demo-parity` writes an orchestrator-only engineering comparison
 after workers exit and is not itself a formal paper result. See
 [`docs/paper/experiment_status.md`](docs/paper/experiment_status.md) for the
-current contract and [`docs/paper/experiment_runbook.md`](docs/paper/experiment_runbook.md)
+historical experiment status and [`docs/paper/experiment_runbook.md`](docs/paper/experiment_runbook.md)
 for the execution procedure and exact commands.
+Schema v1 remains available for legacy three-stage replay. The bundled CallGraph
+has GCC 16.2.0 x86_64/aarch64 and LLVM 23.1.2 labels; querying it does not establish
+coverage of GCC 17 or all four ISAs.
 
 The instrumented GCC under test is built out-of-tree; see
 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md).

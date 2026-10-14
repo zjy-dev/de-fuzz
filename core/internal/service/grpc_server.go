@@ -116,6 +116,14 @@ func (s *BuildServer) compileForISA(sd *seed.Seed, isa string) (out struct {
 		out.errMsg = fmt.Sprintf("create work dir: %v", err)
 		return out
 	}
+	// Failed builds expose no path to the caller, so only this service can
+	// reclaim them. Successful builds live until the orchestrator has saved
+	// the round's evidence and finished all oracle/minimizer/feedback work.
+	defer func() {
+		if !out.success {
+			_ = os.RemoveAll(workDir)
+		}
+	}()
 
 	cc := compiler.NewGCCCompiler(compiler.GCCCompilerConfig{
 		GCCPath:          tc.GCCPath,

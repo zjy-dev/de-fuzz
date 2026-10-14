@@ -1,0 +1,10 @@
+...@theme.d2
+direction: right
+generate: "生成种子\nAgent" {class: main; shape: document; width: 190; height: 130}
+execute: "编译并检查\n执行流程" {class: focus; width: 210; height: 130}
+feedback: "改进下一轮\n覆盖与判定反馈" {class: yellow; width: 300; height: 130}
+poc: "最小化样例\n同一 checker 复检" {class: danger; shape: document; width: 270; height: 130}
+generate -> execute: {class: edge}
+execute -> feedback: "尚无违例" {class: edge}
+feedback -> generate: "保持同一目标" {class: edge; style.stroke-dash: 4}
+execute -> poc: "发现违例" {class: edge; style.stroke: "#C62828"}

@@ -30,7 +30,7 @@ CAMPAIGN_COMPARISON_CSV = "campaign-comparison.csv"
 CAMPAIGN_RESULTS_SCHEMA = "defuzz.campaign-stage-results.v1"
 CAMPAIGN_COMPARISON_SCHEMA = "defuzz.campaign-comparison.v1"
 
-_PARTS = ("part_i", "part_ii", "part_iii")
+_PARTS = ("part_i", "part_ii", "source_mapping", "part_iii")
 _STAGE_METRICS = (
     "accepted_invariants",
     "first_passed",
@@ -287,6 +287,8 @@ def build_campaign_rows(lanes: Sequence[Any]) -> list[dict[str, Any]]:
         stage_values = lane.get("stages", {})
         stages = stage_values if isinstance(stage_values, Mapping) else {}
         for part in _PARTS:
+            if part == "source_mapping" and part not in stages:
+                continue
             raw_record = stages.get(part, {})
             record = _as_mapping(raw_record) if raw_record else {}
             metadata_value = record.get("metadata", {})

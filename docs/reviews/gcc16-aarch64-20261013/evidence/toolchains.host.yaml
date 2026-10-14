@@ -1,0 +1,66 @@
+# Host-facing GCC 16.2.0 toolchains for a macOS launcher, backed by the podman
+# matched image localhost/defuzz-toolchains-matched:16.2.0-23.1.2 (pinned by
+# immutable image ID). GCC 16.2.0 matches the bundled CallGraph graph
+# (gcc-16.2.0 x86_64/aarch64). The podman wrappers answer version probes and
+# stage compiles/executions; aarch64 needs -B for its in-image binutils so the
+# driver does not fall back to the host assembler.
+toolchains:
+  x86_64:
+    gcc_path: /Users/bytedance/projects/research/de-fuzz/main/scripts/toolchains/podman-compiler-driver.sh
+    driver_args:
+      - --image
+      - "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7"
+      - --platform
+      - linux/amd64
+      - --compiler
+      - /opt/gcc16/bin/gcc
+      - --
+    cflags: [-O2, -fstack-protector-strong, -static-libgcc]
+    qemu_path: /Users/bytedance/projects/research/de-fuzz/main/scripts/toolchains/podman-qemu-user.sh
+    qemu_args:
+      - --image
+      - "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7"
+      - --platform
+      - linux/amd64
+      - --emulator
+      - /usr/bin/qemu-x86_64
+      - --
+      - -L
+      - /
+      - --binary
+    qemu_sysroot: ""
+    native: false
+
+  aarch64:
+    gcc_path: /Users/bytedance/projects/research/de-fuzz/main/scripts/toolchains/podman-compiler-driver.sh
+    driver_args:
+      - --image
+      - "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7"
+      - --platform
+      - linux/amd64
+      - --compiler
+      - /opt/gcc16/bin/aarch64-linux-gnu-gcc
+      - --
+      - -B/usr/aarch64-linux-gnu/bin/
+      - -B/usr/aarch64-linux-gnu/lib/
+      - -isystem
+      - /usr/aarch64-linux-gnu/include
+      - -L/usr/aarch64-linux-gnu/lib
+      - "-Wl,-rpath-link,/usr/aarch64-linux-gnu/lib"
+    cflags: [-O2, -fstack-protector-strong, -static-libgcc]
+    qemu_path: /Users/bytedance/projects/research/de-fuzz/main/scripts/toolchains/podman-qemu-user.sh
+    qemu_args:
+      - --image
+      - "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7"
+      - --platform
+      - linux/amd64
+      - --emulator
+      - /usr/bin/qemu-aarch64
+      - --
+      - -cpu
+      - max
+      - -L
+      - /usr/aarch64-linux-gnu
+      - --binary
+    qemu_sysroot: ""
+    native: false

@@ -14,10 +14,14 @@ import pytest
 
 import defuzz_loop.agent_audit as agent_audit
 from defuzz_loop.agent_audit import run
-from defuzz_loop.audit_schema import CANONICAL_AUDIT_FAMILIES, normalize_mechanism
+from defuzz_loop.audit_schema import AuditFamily, PerInvariantTask, normalize_mechanism
 from defuzz_loop.checker_bundle import compute_bundle_id, load_checker_bundle
 from defuzz_loop.experiment_engine import AgentRequest, AgentResult, ExperimentPlan
-from defuzz_loop.prompt_bundle import audit_doctrine_parity, build_worker_prompt_bundle
+from defuzz_loop.prompt_bundle import (
+    audit_doctrine_parity,
+    build_per_invariant_prompt_bundle,
+    build_worker_prompt_bundle,
+)
 
 _UNUSED_ONLINE_ORACLE_COMMAND = (
     "unused-online-oracle",
@@ -299,15 +303,27 @@ def test_bundle_dependencies_are_runtime_only_not_agent_selectable(
     assert agent_audit._catalog_checker_ids(bundle) == frozenset({"INV-ONE"})
 
 
-def test_canonical_five_family_mapping_is_frozen() -> None:
-    assert [family.key for family in CANONICAL_AUDIT_FAMILIES] == list("ABCDE")
-    assert CANONICAL_AUDIT_FAMILIES[0].mechanisms == (
-        "stack-protector",
-        "stack-clash-protection",
+def test_per_invariant_task_and_prompt_bundle(tmp_path: Path) -> None:
+    root = _reference(tmp_path)
+    inv = {
+        "invariant_id": "INV-AARCH64-PAC-001",
+        "mechanism": "pac",
+        "compiler": "gcc",
+        "applicable_isas": ["aarch64"],
+        "statement": "Every PAC-signed pointer authentication must authenticate before use.",
+    }
+    task = PerInvariantTask(
+        invariant_id=inv["invariant_id"],
+        mechanism=inv["mechanism"],
+        compiler=inv["compiler"],
+        applicable_isas=tuple(inv["applicable_isas"]),
+        statement=inv["statement"],
     )
-    assert "codegen" in CANONICAL_AUDIT_FAMILIES[1].mechanisms
-    assert {"riscv-cfi", "cet-ibt", "ret-hardening"} <= set(CANONICAL_AUDIT_FAMILIES[2].mechanisms)
-    assert "zero-call-used-regs" in CANONICAL_AUDIT_FAMILIES[4].mechanisms
+    assert task.invariant_id == "INV-AARCH64-PAC-001"
+    bundle = build_per_invariant_prompt_bundle(root, inv)
+    assert bundle.family.key == "INV-AARCH64-PAC-001"
+    assert bundle.metadata["invariant_id"] == "INV-AARCH64-PAC-001"
+    assert bundle.metadata["mechanisms"] == ["pac"]
 
 
 def test_doctrine_parity_reports_stale_wrapper_without_using_it(tmp_path: Path) -> None:
@@ -321,16 +337,6 @@ def test_doctrine_parity_reports_stale_wrapper_without_using_it(tmp_path: Path) 
     assert report["canonical"] == ".claude/agents/defend-reviewer.md"
     assert report["all_match"] is False
     assert report["mismatches"] == [".trae/agents/defend-reviewer.md"]
-    assert CANONICAL_AUDIT_FAMILIES[-1].mechanisms == (
-        "asan",
-        "ubsan",
-        "tsan",
-        "lsan",
-        "auto-var-init",
-        "glibcxx-assertions",
-        "fhardened",
-        "zero-call-used-regs",
-    )
 
 
 def test_prompt_variants_have_exact_visibility_and_never_read_findings(tmp_path: Path) -> None:
@@ -913,7 +919,9 @@ async def test_runner_uses_fake_backend_in_canonical_order_without_archive(tmp_p
     assert [request.metadata["family"] for request in backend.requests] == list("ABCDE")
     assert all(request.writable is False for request in backend.requests)
     assert all(
-        request.deny_read_paths == [source.resolve(), root.resolve()]
+        request.deny_read_paths == [
+            source.resolve(), root.resolve(), (output.parent / ".evaluator-runtime").resolve(),
+        ]
         for request in backend.requests
     )
     assert all(request.require_host_read_isolation for request in backend.requests)

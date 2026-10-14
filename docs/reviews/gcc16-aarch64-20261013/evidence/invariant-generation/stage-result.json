@@ -1,0 +1,71 @@
+{
+  "artifacts": [
+    {
+      "kind": "json",
+      "path": "segment-manifest.json",
+      "sha256": "f00cb5a9e5c21822d4dc88a5723551dfa01807dadd8cf43b1cd68a2324eb650e",
+      "size_bytes": 2040164
+    },
+    {
+      "kind": "json",
+      "path": "segment-preflight.json",
+      "sha256": "da38005b0b91b83331d6b01ad7abde8729a31db70859be8547cdef85196d1c7e",
+      "size_bytes": 497
+    },
+    {
+      "kind": "jsonl",
+      "path": "accepted-invariants.jsonl",
+      "sha256": "bfeb1979077f4f52e12c6c6efbb4c455bd72de6a0f221d1042e2bcea7477861c",
+      "size_bytes": 1067815
+    },
+    {
+      "kind": "json",
+      "path": "checker-reuse-report.json",
+      "sha256": "32c7b320ee7cb66493a37dc7220ac1e72cf6a3bd83b1794aaa9acfda38d4ef2e",
+      "size_bytes": 11128
+    },
+    {
+      "kind": "json",
+      "path": "invariant-generation-manifest.json",
+      "sha256": "562561292eba93d0015ee9cbd482fca6f0f0d36dcf4256e39cb41d4751dcb580",
+      "size_bytes": 3005
+    }
+  ],
+  "errors": [],
+  "messages": [],
+  "metadata": {
+    "accepted_invariants": "accepted-invariants.jsonl",
+    "checker_reuse_report": "checker-reuse-report.json",
+    "continuation_ready": true,
+    "execution_status": "completed",
+    "generation_path": "combined",
+    "minimum_warning": null,
+    "repetition": 1,
+    "result_valid": true,
+    "segment_selection": {
+      "max_segments": null,
+      "segment_end": null,
+      "segment_start": 0,
+      "selection_sha256": "52a089ee27d0e4777c92cbbe620b4586f103d11004ee1d10f4d0253705c7c96f",
+      "shard_count": 1,
+      "shard_index": 0
+    },
+    "selection_complete": true,
+    "selection_warning": null
+  },
+  "metrics": {
+    "accepted_invariants": 50,
+    "continuation_ready": true,
+    "input_chars": 1876588,
+    "max_concurrency": 1,
+    "overlap": 0,
+    "rag_candidates": 3,
+    "result_valid": true,
+    "segment_count": 173,
+    "segmented_candidates": 47,
+    "selected_segment_count": 173,
+    "selection_complete": true
+  },
+  "stage": "invariant-generation",
+  "status": "completed"
+}

@@ -22,16 +22,40 @@ from .audit_schema import (
     AuditFamily,
     AuditVariant,
     audit_report_json_schema,
-    canonical_family,
     normalize_isa,
     normalize_mechanism,
 )
+
+
+_LEGACY_FAMILIES: dict[str, tuple[str, ...]] = {
+    "A": ("stack-protector", "stack-clash-protection"),
+    "B": ("fortify-source", "strict-flex-arrays", "zero-init-padding", "source-annotations", "codegen"),
+    "C": ("cet", "ibt", "shstk", "bti", "pac", "return-address-signing", "cmse", "riscv-cfi", "cet-ibt", "ret-hardening"),
+    "D": ("pie", "pic", "relro", "nx", "noexecstack", "nodlopen", "as-needed"),
+    "E": ("asan", "ubsan", "tsan", "lsan", "auto-var-init", "glibcxx-assertions", "fhardened", "zero-call-used-regs"),
+}
+LEGACY_FAMILY_MECHANISMS = _LEGACY_FAMILIES
+
+
+def _resolve_family(value: str | AuditFamily) -> AuditFamily:
+    if isinstance(value, AuditFamily):
+        return value
+    key = str(value).strip()
+    upper = key.upper()
+    if upper in _LEGACY_FAMILIES:
+        return AuditFamily(key=key, name=key, mechanisms=_LEGACY_FAMILIES[upper])
+    norm = normalize_mechanism(key)
+    mechs = (norm,) if norm in _SURVEY_FILES or norm in _LEGACY_FAMILIES.get(upper, ()) else ()
+    return AuditFamily(key=key, name=key, mechanisms=mechs)
+
+
+canonical_family = _resolve_family
 
 _DOCTRINE_PATH = Path(".claude/agents/defend-reviewer.md")
 _DOCTRINE_MIRRORS = (
     Path(".claude/agents/defend-reviewer.md"),
     Path(".trae/agents/defend-reviewer.md"),
-    Path(".opencode/agents/defend-reviewer.md"),
+    Path("agents/policies/defend-reviewer.md"),
 )
 _FULL_REVIEW_PATH = Path("docs/prompts/full-review.md")
 _DREV_ID = re.compile(r"\bDREV-\d{4}-\d{3,}\b", re.IGNORECASE)
@@ -331,13 +355,14 @@ def _family_section(template: str, family: AuditFamily) -> str:
         r"(?=^### SUBAGENT [A-E]\b|^## Uniform subagent instructions)"
     )
     match = pattern.search(template)
-    if match is None:
-        raise ValueError(f"full-review template has no SUBAGENT {family.key} block")
     uniform = re.search(
         r"(?ms)^## Uniform subagent instructions.*?(?=^## Phase 2:|\Z)", template
     )
     suffix = uniform.group(0) if uniform else ""
-    return _redact_findings_references(match.group(0).strip() + "\n\n" + suffix.strip())
+    if match is not None:
+        return _redact_findings_references(match.group(0).strip() + "\n\n" + suffix.strip())
+    prefix = f"### SUBAGENT {family.key} — mechanism {family.name}\nScope: {family.key}"
+    return _redact_findings_references(prefix + "\n\n" + suffix.strip())
 
 
 def _scoped_documents(
@@ -543,19 +568,21 @@ def build_worker_prompt_bundle(
     selected_family = (
         _NEUTRAL_FAMILY
         if policy.variant is AuditVariant.BARE_AGENT
-        else canonical_family(family)
+        else _resolve_family(family)
     )
-    requested_mechanisms = {
-        normalize_mechanism(mechanism) for mechanism in mechanisms or ()
-    }
+    requested_mechanisms = tuple(
+        dict.fromkeys(normalize_mechanism(item) for item in mechanisms or ())
+    )
     family_mechanisms = tuple(
         dict.fromkeys(normalize_mechanism(item) for item in selected_family.mechanisms)
     )
     selected_mechanisms = tuple(
         mechanism
-        for mechanism in family_mechanisms
-        if not requested_mechanisms or mechanism in requested_mechanisms
+        for mechanism in (requested_mechanisms if requested_mechanisms else family_mechanisms)
+        if mechanism
     )
+    if not selected_mechanisms and selected_family.name:
+        selected_mechanisms = (normalize_mechanism(selected_family.name),)
     if policy.variant is not AuditVariant.BARE_AGENT and not selected_mechanisms:
         raise ValueError(f"family {selected_family.key} has no mechanisms in the requested scope")
 
@@ -711,13 +738,29 @@ def build_worker_prompt_bundles(
     families: Sequence[str | AuditFamily],
     **kwargs: Any,
 ) -> tuple[WorkerPromptBundle, ...]:
-    """Build bundles in canonical A--E order regardless of caller order."""
-
-    selected = {canonical_family(family).key for family in families}
-    from .audit_schema import CANONICAL_AUDIT_FAMILIES
-
+    """Build bundles for the requested families or per-invariant tasks."""
     return tuple(
         build_worker_prompt_bundle(reference_root, family, **kwargs)
-        for family in CANONICAL_AUDIT_FAMILIES
-        if family.key in selected
+        for family in families
     )
+
+
+def build_per_invariant_prompt_bundle(
+    reference_root: str | Path,
+    invariant: Mapping[str, Any],
+    variant: str | AuditVariant = AuditVariant.FULL,
+    **kwargs: Any,
+) -> WorkerPromptBundle:
+    """Build a compact (<2KB) capability card prompt bundle for a single invariant."""
+    inv_id = str(invariant.get("invariant_id") or "INV-UNKNOWN")
+    mechanism = str(invariant.get("mechanism") or "general")
+    family = AuditFamily(key=inv_id, name=mechanism, mechanisms=(normalize_mechanism(mechanism),))
+    kwargs["mechanisms"] = (mechanism,)
+    kwargs["generated_invariants"] = [invariant]
+    bundle = build_worker_prompt_bundle(
+        reference_root,
+        family,
+        variant=variant,
+        **kwargs,
+    )
+    return bundle.model_copy(update={"metadata": {**bundle.metadata, "invariant_id": inv_id}})

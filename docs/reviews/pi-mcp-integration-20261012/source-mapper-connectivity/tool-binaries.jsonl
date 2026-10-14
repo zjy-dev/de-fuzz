@@ -1,0 +1,2 @@
+{"tool": "fd", "source": "/opt/homebrew/Cellar/fd/10.4.2/bin/fd", "path": "/private/tmp/defuzz-pi-mcp-live-check/source-mapper-connectivity/.runtime/bin/fd", "sha256": "40d401809c19401e03cc819ee6d9db0f45da399928bfac70f3915133872265da"}
+{"tool": "rg", "source": "/Applications/Trae CN.app/Contents/Resources/app/node_modules/@vscode/ripgrep/bin/rg", "path": "/private/tmp/defuzz-pi-mcp-live-check/source-mapper-connectivity/.runtime/bin/rg", "sha256": "d091b6ccfeda41f7518cad07b56fb8469ae3d95c6257c3efea761a11dd400c14"}

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "run_dir": "/workspace/runs/container-smoke_canary_20261012-132302-320674",
+  "kind": "engineering-smoke",
+  "isas": [
+    "x86_64",
+    "aarch64"
+  ],
+  "completed_rounds": 2,
+  "shared_tmpfs": true,
+  "callgraph_read_only": true,
+  "round_cleanup": true,
+  "failed_build_cleanup": true
+}

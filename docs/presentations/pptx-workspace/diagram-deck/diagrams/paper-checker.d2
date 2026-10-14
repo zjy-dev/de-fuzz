@@ -1,0 +1,9 @@
+...@theme.d2
+direction: down
+invariant: "收下的一条规则\n生效条件 + 违规现象" {class: neutral; width: 470; height: 95}
+isa: "结合目标架构\n指令 · 寄存器 · 栈布局" {class: main; width: 470; height: 95}
+construct: "为这个架构写一个检查器\n静态分析 / 运行时探针" {class: focus; width: 470; height: 95}
+run: "跑检查器\n给四种结论之一 + 证据" {class: yellow; width: 470; height: 95}
+invariant -> isa: {class: edge}
+isa -> construct: {class: edge}
+construct -> run: {class: edge}

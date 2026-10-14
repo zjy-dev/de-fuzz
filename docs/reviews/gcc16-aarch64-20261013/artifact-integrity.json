@@ -1,0 +1,680 @@
+{
+  "observed_at": "2026-10-13T05:34:04.933257+00:00",
+  "checked": 96,
+  "passed": 96,
+  "errors": [],
+  "artifacts": [
+    {
+      "stage": "invariant-generation",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation/rep-001/artifacts/segment-manifest.json",
+      "sha256": "f00cb5a9e5c21822d4dc88a5723551dfa01807dadd8cf43b1cd68a2324eb650e",
+      "size_bytes": 2040164,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "invariant-generation",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation/rep-001/artifacts/segment-preflight.json",
+      "sha256": "da38005b0b91b83331d6b01ad7abde8729a31db70859be8547cdef85196d1c7e",
+      "size_bytes": 497,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "invariant-generation",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation/rep-001/artifacts/accepted-invariants.jsonl",
+      "sha256": "bfeb1979077f4f52e12c6c6efbb4c455bd72de6a0f221d1042e2bcea7477861c",
+      "size_bytes": 1067815,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "invariant-generation",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation/rep-001/artifacts/checker-reuse-report.json",
+      "sha256": "32c7b320ee7cb66493a37dc7220ac1e72cf6a3bd83b1794aaa9acfda38d4ef2e",
+      "size_bytes": 11128,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "invariant-generation",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation/rep-001/artifacts/invariant-generation-manifest.json",
+      "sha256": "562561292eba93d0015ee9cbd482fca6f0f0d36dcf4256e39cb41d4751dcb580",
+      "size_bytes": 3005,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/results.jsonl",
+      "sha256": "949fae94af1c4fd31ac22cb6ec766acdea8350e3941021235feb7c32eabe933d",
+      "size_bytes": 1542440,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-input-scope.json",
+      "sha256": "8aae374e3d5aeb9fb848b5fb957cabd2be54d71a114374912ca771d070ecf719",
+      "size_bytes": 4233,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/scoped-accepted-invariants.jsonl",
+      "sha256": "278214eebead510f684d00c0cc13872985dd60018b6e01751003bc0ad33177f6",
+      "size_bytes": 972605,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-bundle.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-bundle-manifest.json",
+      "sha256": "af06de8fc8de18338022382862bf7399797a9c1314d2659670316de16d0f1615",
+      "size_bytes": 960978,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-02c9e946ee52ca5d-71c0a44f/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-02c9e946ee52ca5d-71c0a44f/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-06f4783eb7b5a5ae-9bc86b60/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-06f4783eb7b5a5ae-9bc86b60/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-08afdf62248bdb87-b0ee8618/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-08afdf62248bdb87-b0ee8618/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-186da0b7d8a43da7-3c9b203d/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-186da0b7d8a43da7-3c9b203d/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-26090e63f9a9c936-f6dcdd55/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-26090e63f9a9c936-f6dcdd55/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-275fbd1d2ce6c352-96ad4f9d/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-275fbd1d2ce6c352-96ad4f9d/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-29367cca11487093-9395f55d/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-29367cca11487093-9395f55d/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-2beb3971e70676e4-74640fb3/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-2beb3971e70676e4-74640fb3/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-3cb04233158d3f9c-1e9652c6/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-3cb04233158d3f9c-1e9652c6/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-40a2fef4a5397359-d64c3261/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-40a2fef4a5397359-d64c3261/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-4310437e6e51f3c5-32b1ac53/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-4310437e6e51f3c5-32b1ac53/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-494f50357ab4a7dc-a720917a/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-494f50357ab4a7dc-a720917a/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-55e96bc64897db5b-d07620bc/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-55e96bc64897db5b-d07620bc/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-586f4b7e3e244e12-cbcac05e/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-586f4b7e3e244e12-cbcac05e/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-59cc8affec2ac5ae-861650e2/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-59cc8affec2ac5ae-861650e2/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6a698129cbf7e86d-34b3ca39/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6a698129cbf7e86d-34b3ca39/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6ca75cb7e4689b80-0b7cd327/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6ca75cb7e4689b80-0b7cd327/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7d3768cd2a1f74b5-6dc00b20/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7d3768cd2a1f74b5-6dc00b20/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7e21738bf7031b26-5f42ea73/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7e21738bf7031b26-5f42ea73/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7fb0d3a3ee9fade5-46aaff06/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7fb0d3a3ee9fade5-46aaff06/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-81590831b593f806-24364346/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-81590831b593f806-24364346/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-846c550ff213fc53-1aa766a1/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-846c550ff213fc53-1aa766a1/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-89f2bd7d25917e3e-58e65d25/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-89f2bd7d25917e3e-58e65d25/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8a57a19ed05e2ac7-b3495b29/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8a57a19ed05e2ac7-b3495b29/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8ef522ddf7ccd4a7-feaf656d/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8ef522ddf7ccd4a7-feaf656d/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-93fbc8f3f8842198-d992c54d/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-93fbc8f3f8842198-d992c54d/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-95776b046feff604-f0289274/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-95776b046feff604-f0289274/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-96069c966dd27f4d-8829e4d1/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-96069c966dd27f4d-8829e4d1/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9657317a4fc386a0-6f63f4dd/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9657317a4fc386a0-6f63f4dd/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9e52d6b7edaeb812-0fff7879/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9e52d6b7edaeb812-0fff7879/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a6929540be378105-bc30ac8c/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a6929540be378105-bc30ac8c/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a75a0495ac054c1d-d30f36ad/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a75a0495ac054c1d-d30f36ad/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-ad22824bc048c630-5ba0783b/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-ad22824bc048c630-5ba0783b/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-b3aa41472b6bb64b-c73a660b/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-b3aa41472b6bb64b-c73a660b/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c7b396082e8e5e01-bb6c03e3/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c7b396082e8e5e01-bb6c03e3/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c862e337607fe69d-7015b2e8/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c862e337607fe69d-7015b2e8/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-cbced39b1302435d-294770c7/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-cbced39b1302435d-294770c7/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d2e09b5e468f4bf3-8cee3221/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d2e09b5e468f4bf3-8cee3221/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d3753ecf716ec5f0-19ca8201/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d3753ecf716ec5f0-19ca8201/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e5664cd1dee20ce2-abb1fd05/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e5664cd1dee20ce2-abb1fd05/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e6d7a52ac192ddf3-aec16fcd/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e6d7a52ac192ddf3-aec16fcd/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e7b08fe075dcbcae-694ca767/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e7b08fe075dcbcae-694ca767/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-fc7d9f46c5bd01c2-79d26b60/first.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    },
+    {
+      "stage": "checker-authoring",
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-fc7d9f46c5bd01c2-79d26b60/final.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "artifact_ref_matches": true
+    }
+  ]
+}

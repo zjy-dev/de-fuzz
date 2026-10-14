@@ -27,85 +27,43 @@ class AuditVariant(StrEnum):
 
 
 class AuditFamily(BaseModel):
-    """One canonical worker shard from the reference full-review prompt."""
+    """Worker scope shard representation (per-invariant or per-mechanism)."""
 
     model_config = ConfigDict(frozen=True)
 
-    key: str
-    name: str
-    mechanisms: tuple[str, ...]
+    key: str = "A"
+    name: str = "general"
+    mechanisms: tuple[str, ...] = ()
 
 
-CANONICAL_AUDIT_FAMILIES: tuple[AuditFamily, ...] = (
-    AuditFamily(
-        key="A",
-        name="stack-protection",
-        mechanisms=("stack-protector", "stack-clash-protection"),
-    ),
-    AuditFamily(
-        key="B",
-        name="memory-bounds",
-        mechanisms=(
-            "fortify-source",
-            "strict-flex-arrays",
-            "zero-init-padding",
-            "source-annotations",
-            "codegen",
-        ),
-    ),
-    AuditFamily(
-        key="C",
-        name="control-flow-integrity",
-        mechanisms=(
-            "cet",
-            "ibt",
-            "shstk",
-            "bti",
-            "pac",
-            "return-address-signing",
-            "cmse",
-            "riscv-cfi",
-            "cet-ibt",
-            "ret-hardening",
-        ),
-    ),
-    AuditFamily(
-        key="D",
-        name="address-space-elf",
-        mechanisms=("pie", "pic", "relro", "nx", "noexecstack", "nodlopen", "as-needed"),
-    ),
-    AuditFamily(
-        key="E",
-        name="sanitizer-umbrella",
-        mechanisms=(
-            "asan",
-            "ubsan",
-            "tsan",
-            "lsan",
-            "auto-var-init",
-            "glibcxx-assertions",
-            "fhardened",
-            "zero-call-used-regs",
-        ),
-    ),
-)
+class PerInvariantTask(BaseModel):
+    """One self-contained audit task targeting exactly one invariant."""
 
-# Short aliases make the constant discoverable without weakening its immutability.
-AUDIT_FAMILIES = CANONICAL_AUDIT_FAMILIES
-FAMILY_BY_KEY = {family.key: family for family in CANONICAL_AUDIT_FAMILIES}
-FAMILY_BY_NAME = {family.name: family for family in CANONICAL_AUDIT_FAMILIES}
+    model_config = ConfigDict(frozen=True)
+
+    invariant_id: str
+    mechanism: str
+    compiler: str = "gcc"
+    target: str = ""
+    applicable_isas: tuple[str, ...] = ()
+    statement: str = ""
+    probes: tuple[str, ...] = ()
+    anchors: tuple[dict[str, Any], ...] = ()
 
 
-def canonical_family(value: str | AuditFamily) -> AuditFamily:
-    """Resolve a family key/name without allowing an ad-hoc sixth shard."""
-
-    if isinstance(value, AuditFamily):
-        return value
-    normalized = value.strip().lower().replace("_", "-")
-    for family in CANONICAL_AUDIT_FAMILIES:
-        if normalized in {family.key.lower(), family.name}:
-            return family
-    raise ValueError(f"unknown audit family: {value!r}")
+_ISA_ALIASES = {
+    "amd64": "x86_64",
+    "x64": "x86_64",
+    "x86-64": "x86_64",
+    "x8664": "x86_64",
+    "arm64": "aarch64",
+    "aarch-64": "aarch64",
+    "risc-v64": "riscv64",
+    "risc-v-64": "riscv64",
+    "riscv-64": "riscv64",
+    "risc-v32": "riscv32",
+    "riscv-32": "riscv32",
+}
 
 
 _MECHANISM_ALIASES = {
@@ -136,26 +94,13 @@ _MECHANISM_ALIASES = {
     "ret-hardening-return-thunks-lvi": "ret-hardening",
 }
 
-_ISA_ALIASES = {
-    "amd64": "x86_64",
-    "x64": "x86_64",
-    "x86-64": "x86_64",
-    "x8664": "x86_64",
-    "arm64": "aarch64",
-    "aarch-64": "aarch64",
-    "risc-v64": "riscv64",
-    "risc-v-64": "riscv64",
-}
-
 
 def normalize_mechanism(value: str) -> str:
-    """Normalize corpus, CLI, and prompt spellings to one canonical label.
+    """Normalize corpus, CLI, and prompt spellings to canonical slug.
 
-    Tokenization deliberately removes punctuation before alias lookup so raw
-    corpus labels such as ``ret-hardening (return thunks / LVI)`` resolve the
-    same way as their CLI-safe spelling.
+    Tokenization preserves mechanism names as canonical hyphen-delimited slugs
+    while mapping common flags and acronym synonyms.
     """
-
     normalized = "-".join(
         re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", value).casefold())
     )
@@ -169,33 +114,6 @@ def normalize_isa(value: str) -> str:
         re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKC", value).casefold())
     ).strip("-")
     return _ISA_ALIASES.get(normalized, normalized)
-
-
-def families_for_mechanisms(mechanisms: Sequence[str] | None) -> tuple[AuditFamily, ...]:
-    """Return intersecting canonical families in A--E order.
-
-    An empty mechanism list means the complete canonical review. Unknown
-    mechanisms are rejected instead of being silently left without an owner.
-    """
-
-    if not mechanisms:
-        return CANONICAL_AUDIT_FAMILIES
-    wanted = {normalize_mechanism(item) for item in mechanisms}
-    known = {
-        normalize_mechanism(mechanism)
-        for family in CANONICAL_AUDIT_FAMILIES
-        for mechanism in family.mechanisms
-    }
-    unknown = wanted - known
-    if unknown:
-        raise ValueError(f"mechanisms have no canonical audit family: {sorted(unknown)!r}")
-    return tuple(
-        family
-        for family in CANONICAL_AUDIT_FAMILIES
-        if wanted.intersection(
-            normalize_mechanism(mechanism) for mechanism in family.mechanisms
-        )
-    )
 
 
 class EvidenceSite(BaseModel):

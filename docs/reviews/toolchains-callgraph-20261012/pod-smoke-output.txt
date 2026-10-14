@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "run_dir": "/workspace/runs/container-smoke_canary_20261012-132302-320674",
+  "kind": "engineering-smoke",
+  "isas": [
+    "x86_64",
+    "aarch64"
+  ],
+  "completed_rounds": 2,
+  "shared_tmpfs": true,
+  "callgraph_read_only": true,
+  "round_cleanup": true,
+  "failed_build_cleanup": true,
+  "callgraph_targets": [
+    {
+      "type": "text",
+      "text": "{\n  \"query\": {},\n  \"targets\": [\n    {\n      \"target\": \"gcc-16.2.0-aarch64\",\n      \"source_csv\": \"/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/gcc-16.2.0-aarch64.csv\",\n      \"edge_count\": 582555,\n      \"ingested_at\": \"2026-10-12T12:11:50.200856+00:00\",\n      \"provenance\": {\n        \"compiler\": \"gcc\",\n        \"coverage\": \"observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted\",\n        \"csv_sha256\": \"c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4\",\n        \"extractor\": \"CodeQL\",\n        \"isas\": [\n          \"aarch64\"\n        ],\n        \"query_sha256\": \"fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247\",\n        \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\",\n        \"source_archive_sha256\": \"e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e\",\n        \"source_revision\": \"78d4ac73dd391005b895a6148cd9831e28e1208b\",\n        \"version\": \"16.2.0\"\n      },\n      \"identity_status\": \"release-log-and-source-anchors\"\n    },\n    {\n      \"target\": \"gcc-16.2.0-x86_64\",\n      \"source_csv\": \"/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/gcc-16.2.0-x86_64.csv\",\n      \"edge_count\": 579916,\n      \"ingested_at\": \"2026-10-12T12:11:42.488709+00:00\",\n      \"provenance\": {\n        \"compiler\": \"gcc\",\n        \"coverage\": \"observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted\",\n        \"csv_sha256\": \"6476d573e23a73d4f56895b01e398a1db3c37ae92768d7f59a817625cc0cb410\",\n        \"extractor\": \"CodeQL\",\n        \"isas\": [\n          \"x86_64\"\n        ],\n        \"query_sha256\": \"fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247\",\n        \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\",\n        \"source_archive_sha256\": \"e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e\",\n        \"source_revision\": \"78d4ac73dd391005b895a6148cd9831e28e1208b\",\n        \"version\": \"16.2.0\"\n      },\n      \"identity_status\": \"release-log-and-source-anchors\"\n    },\n    {\n      \"target\": \"llvm-23.1.2\",\n      \"source_csv\": \"/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/llvm-23.1.2.csv\",\n      \"edge_count\": 2025915,\n      \"ingested_at\": \"2026-10-12T12:12:20.524522+00:00\",\n      \"provenance\": {\n        \"compiler\": \"llvm\",\n        \"coverage\": \"observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted\",\n        \"csv_sha256\": \"a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b\",\n        \"extractor\": \"CodeQL\",\n        \"isas\": [\n          \"x86_64\",\n          \"aarch64\"\n        ],\n        \"query_sha256\": \"fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247\",\n        \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\",\n        \"source_archive_sha256\": \"c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a\",\n        \"source_revision\": \"85ac560262434c9ccfc0c183ec22d4138ed647fb\",\n        \"version\": \"23.1.2\"\n      },\n      \"identity_status\": \"release-log-and-source-anchors\"\n    }\n  ],\n  \"counters\": {\n    \"targets\": 3,\n    \"edges\": 3188386\n  },\n  \"truncated\": false\n}",
+      "annotations": null,
+      "meta": null
+    }
+  ]
+}

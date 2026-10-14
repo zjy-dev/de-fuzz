@@ -1,0 +1,15 @@
+{
+  "runtime_ok": false,
+  "evidence_ok": true,
+  "artifact_ok": true,
+  "schema_ok": null,
+  "error_category": "budget",
+  "error": "insufficient remaining token budget",
+  "final_text": "",
+  "model_calls": 7,
+  "total_tokens": 37174,
+  "usage_complete": true,
+  "callgraph_queries": 3,
+  "callgraph_data_queries": 2,
+  "latency_ms": 26015.5235
+}

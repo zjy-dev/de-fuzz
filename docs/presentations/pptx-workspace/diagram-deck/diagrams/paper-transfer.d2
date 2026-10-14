@@ -1,0 +1,9 @@
+...@theme.d2
+direction: down
+bug: "已知漏洞 + 修复补丁\n归纳成通用的出错模式" {class: neutral; width: 410; height: 85}
+query: "两路查询\n抽象说法 + 专属标识符" {class: main; width: 450; height: 95; style.font-size: 26}
+retrieve: "关键词检索 + 语义检索\n找相关的编译器代码" {class: main; width: 430; height: 95}
+specialize: "只留真同类 → 套到代码上\n核对出处 → 去重收下" {class: focus; width: 440; height: 95}
+bug -> query: {class: edge}
+query -> retrieve: {class: edge}
+retrieve -> specialize: {class: edge}

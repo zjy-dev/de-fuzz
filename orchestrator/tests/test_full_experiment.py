@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from defuzz_loop.full_experiment import execute
 
@@ -52,18 +53,23 @@ def test_resume_and_force_stage(tmp_path: Path) -> None:
 
 def test_live_core_blocker_is_persisted(tmp_path: Path, monkeypatch) -> None:
     from defuzz_loop import full_experiment
+    from defuzz_loop.experiment_engine import pi_backend
 
     repo = Path(__file__).resolve().parents[2]
+    monkeypatch.setattr(pi_backend, "PiAgentBackend", lambda *_a, **_k: SimpleNamespace(
+        config_sha256="fixture", config={"input_hashes": {}}, model="fixture/model",
+        validate_credentials=lambda: None,
+    ))
     monkeypatch.setattr(
         full_experiment,
-        "_invoke_opencode",
+        "_invoke_agent",
         lambda *a, **k: (
             {"invariants": full_experiment.STACK}
-            if a[1] == "source-mapper" and "Generate" in a[2]
+            if a[2] == "invariant-reviewer" and "Generate" in a[3]
             else {"phi_id": "SP-001"}
         ),
     )
-    code, root = execute(args(tmp_path, mode="live"), repo)
+    code, root = execute(args(tmp_path, mode="live", pi_config=tmp_path / "runtime.json"), repo)
     assert code == 1
     manifest = json.loads((root / "manifest.json").read_text())
     assert manifest["stages"]["fuzz"]["status"] == "failed"

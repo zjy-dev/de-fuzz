@@ -1,0 +1,21 @@
+{
+  "backend_available": true,
+  "created_at": "2026-10-13T03:48:00.893+00:00",
+  "experiment": "checker-authoring",
+  "failed_repetitions": [
+    1
+  ],
+  "plan_hash": "2c0cb3fd432f57f87b2b9d3b06115a43990f9619798a0d074c4b228652271a1b",
+  "repetitions": {
+    "1": {
+      "path": "rep-001",
+      "status": "failed"
+    }
+  },
+  "run_id": "gcc16-aarch64-full-20261013-checker-authoring",
+  "schema_version": 1,
+  "status": "failed",
+  "successful_repetitions": [],
+  "updated_at": "2026-10-13T03:48:15.259+00:00",
+  "variant": "full"
+}

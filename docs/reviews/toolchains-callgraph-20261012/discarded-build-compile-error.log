@@ -1,0 +1,10 @@
+/tmp/smoke.c:1:5: internal compiler error: Segmentation fault
+    1 | int f(int x){return x+1;}
+      |     ^
+0x29ff36f internal_error(char const*, ...)
+	/build/gcc//src/gcc/diagnostic-global-context.cc:787
+0x2462fc9 crash_signal(int)
+	/build/gcc//src/gcc/toplev.cc:325
+qemu: uncaught target signal 11 (Segmentation fault) - core dumped
+xgcc: internal compiler error: Segmentation fault signal terminated program cc1
+qemu: uncaught target signal 11 (Segmentation fault) - core dumped

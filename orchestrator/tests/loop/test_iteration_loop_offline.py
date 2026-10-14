@@ -2,7 +2,7 @@
 
 Exercises the *real* :class:`IterationLoop` wiring (routing, permissions,
 node factories) against stub agents and a stub :class:`CoreClient`. No
-LangGraph, no OpenCode subprocess.
+LangGraph, no model subprocess.
 
 Assertions:
 

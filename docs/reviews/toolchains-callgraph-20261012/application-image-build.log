@@ -1,0 +1,276 @@
+Trying to pull public.ecr.aws/docker/library/golang:1.26.3-bookworm...
+Getting image source signatures
+Copying blob sha256:e656f0ec91f616a9a2f0a85000096d599a23ca20a3f0b5516b8d6de40a4cd477
+Copying blob sha256:4887723d153cfd7fd9e356c8730311c36a64e4f9329f9d3ae1929e05715f2e73
+Copying blob sha256:a234579dfb0d2a4c7e869bc6c39c06f306aa019f90ec3e79f682671badaeb4f3
+Copying blob sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1
+Copying blob sha256:2e51c50554dce9c9549d76c40bfea45780a8342aea81ba8b270ba1bf46a2aec5
+Copying blob sha256:9191994766e58d63c3a0e7465376906ff88518fcb38b47ba057ad97406e8d13f
+Copying blob sha256:1a70bdedd442d430ea119cf8db8c0031b4eedeb5bde886892773876ded7629e8
+Copying config sha256:eafdda676c2e68f1d9a6574d33f89db1d6933e24f5be8e2cbe003b864fc865c9
+Writing manifest to image destination
+eafdda676c2e68f1d9a6574d33f89db1d6933e24f5be8e2cbe003b864fc865c9
+Trying to pull public.ecr.aws/docker/library/python:3.12.14-slim-bookworm...
+Getting image source signatures
+Copying blob sha256:7c6fab1667eb7d9029684d783e4c127f11dd7ed5120829f875b799a0b9431558
+Copying blob sha256:1c5e03f304918f89aed0c098c8f4b6f163f7bf9d2702991696bf0132a2853e30
+Copying blob sha256:774043ccc8ccd0d0833a9ee0792142ab7ad93df971e59dd248fbf82db16d0150
+Copying blob sha256:a2e58067964fcd8f46a6b5992975e9c8ab34e7620d96204e08e99bf0fdf4dab8
+Copying config sha256:febd0be41adb897a0ab8f1f1c693d8912669ea60c4940e076e9946b60e210ef0
+Writing manifest to image destination
+febd0be41adb897a0ab8f1f1c693d8912669ea60c4940e076e9946b60e210ef0
+Trying to pull ghcr.io/astral-sh/uv:0.11.14...
+Getting image source signatures
+Copying blob sha256:1fa81b2f7c2f7cb61d1b753fdc35efd0459725e8829ee503c84304067de01300
+Copying blob sha256:1e03d5401ad7742105ff6487c2485d65f3bb9da257d9130dc87372eeabd3425a
+Copying config sha256:8d73439cf1b406500272cf358313da4de7e16554bf8dc76fc4a3a659ad6ab90e
+Writing manifest to image destination
+8d73439cf1b406500272cf358313da4de7e16554bf8dc76fc4a3a659ad6ab90e
+Trying to pull public.ecr.aws/docker/library/node:24.15.0-bookworm-slim...
+Getting image source signatures
+Copying blob sha256:57549c358e5b195528c8d6389e1c6d2205498d35d8a8a302059258e9b4455838
+Copying blob sha256:068fedd6b0f109b8186d00d49327b6fc6747c428fd3c9a8739424ff5f38d7531
+Copying blob sha256:37b6eb746f79394ccadf666bd8cae1f2a1d69f6b50df9c52af7dc7aae065b1a9
+Copying blob sha256:be6d2dd2599a8023f198d6770dc2733997bcb533cd8b4ac654244586032d1131
+Copying blob sha256:2ef05dcd22f2d7562470826b6b9dc1faf9fda10320238b812a2946f94d8918b5
+Copying config sha256:3880cf501a3b54bacc5e53dc327478ba723084863fa252cceb43f75aadcab12b
+Writing manifest to image destination
+3880cf501a3b54bacc5e53dc327478ba723084863fa252cceb43f75aadcab12b
+[1/2] STEP 1/8: FROM eafdda676c2e68f1d9a6574d33f89db1d6933e24f5be8e2cbe003b864fc865c9 AS builder
+[1/2] STEP 2/8: ARG GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
+--> Using cache c26cdf46013f75c6e3cf29fbb5463f5efa2aadd089aaea574ff94ffa268605c8
+--> c26cdf46013f
+[1/2] STEP 3/8: ENV GOPROXY=${GOPROXY}
+--> Using cache 38cf7d8defb59ccb311e3402dd15dc15daf4d2b113399411dec47a0e96c30a8f
+--> 38cf7d8defb5
+[1/2] STEP 4/8: WORKDIR /src
+--> Using cache 17bfe010d8eecf1235d324d940df25324eafa800a7c5b5f7db60ebf14a50981e
+--> 17bfe010d8ee
+[1/2] STEP 5/8: COPY core/go.mod core/go.sum ./
+--> Using cache 07d3baa35b8ff943d153ec43eedd29ac2fc4888a2d31f4ed066972935860a961
+--> 07d3baa35b8f
+[1/2] STEP 6/8: RUN go mod download
+--> Using cache 7ae18b67be1b8f37b540e80c007404b0a0fc66292a888d621cf5030dcb5e2d49
+--> 7ae18b67be1b
+[1/2] STEP 7/8: COPY core/ ./
+--> Using cache dc435fdf9ede1c9a797064a9e4bd16462268b0abd41a0d5d5cf19fbdb4d60894
+--> dc435fdf9ede
+[1/2] STEP 8/8: RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -o /out/defuzz-core ./cmd/defuzz-core     && CGO_ENABLED=0 go build -trimpath -buildvcs=false -o /out/defuzz-candidate-dispatcher ./cmd/defuzz-candidate-dispatcher
+--> Using cache e3ce715b922b49ee36de91ffcce0d6c9a242e522197322b40e60440b578dba35
+--> e3ce715b922b
+[2/2] STEP 1/11: FROM 693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7
+[2/2] STEP 2/11: ARG DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
+--> 1ca815a6bafa
+[2/2] STEP 3/11: RUN sed -i "s|http://deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources     && apt-get update && apt-get install -y --no-install-recommends     creduce ripgrep fd-find ca-certificates git bubblewrap     && rm -rf /var/lib/apt/lists/*
+Get:1 https://mirrors.tuna.tsinghua.edu.cn/debian bookworm InRelease [151 kB]
+Get:2 https://mirrors.tuna.tsinghua.edu.cn/debian bookworm-updates InRelease [55.4 kB]
+Get:3 https://mirrors.tuna.tsinghua.edu.cn/debian-security bookworm-security InRelease [34.8 kB]
+Get:4 https://mirrors.tuna.tsinghua.edu.cn/debian bookworm/main amd64 Packages [8790 kB]
+Get:5 https://mirrors.tuna.tsinghua.edu.cn/debian bookworm-updates/main amd64 Packages [6924 B]
+Get:6 https://mirrors.tuna.tsinghua.edu.cn/debian-security bookworm-security/main amd64 Packages [349 kB]
+Fetched 9388 kB in 6s (1573 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+creduce is already the newest version (2.10.0+20220116-1).
+ripgrep is already the newest version (13.0.0-4+b2).
+fd-find is already the newest version (8.6.0-3).
+ca-certificates is already the newest version (20250419~deb12u1).
+git is already the newest version (1:2.39.5-0+deb12u3).
+bubblewrap is already the newest version (0.8.0-2+deb12u1).
+0 upgraded, 0 newly installed, 0 to remove and 39 not upgraded.
+--> e9c5746da918
+[2/2] STEP 4/11: COPY --from=builder /out/ /usr/local/bin/
+--> 93f0dcbd3246
+[2/2] STEP 5/11: COPY configs/toolchains.matched.container.yaml /workspace/configs/toolchains.yaml
+--> 4139d8c47b92
+[2/2] STEP 6/11: COPY configs/toolchains.container.yaml /workspace/configs/toolchains.gcc17-legacy.yaml
+--> e8905b0447a4
+[2/2] STEP 7/11: COPY docker/build-provenance.json /usr/local/share/defuzz/build-provenance.json
+--> 37fb1d46d06b
+[2/2] STEP 8/11: WORKDIR /workspace
+--> 135529f764df
+[2/2] STEP 9/11: ENV TMPDIR=/tmp/defuzz-work
+--> 1dc976816803
+[2/2] STEP 10/11: ENTRYPOINT ["/usr/local/bin/defuzz-core"]
+--> 06387bbd3f91
+[2/2] STEP 11/11: CMD ["--grpc-addr=127.0.0.1:50051", "--mcp-addr=127.0.0.1:50052", "--toolchains=/workspace/configs/toolchains.yaml", "--mechanism=canary"]
+[2/2] COMMIT localhost/defuzz-core:dev
+--> 2360fb60ec01
+Successfully tagged localhost/defuzz-core:dev
+2360fb60ec0142fb6ad695ed2fe28e79be0b002f59720a850b123585880b3aee
+[1/5] STEP 1/1: FROM eafdda676c2e68f1d9a6574d33f89db1d6933e24f5be8e2cbe003b864fc865c9 AS go
+--> eafdda676c2e
+[2/5] STEP 1/1: FROM febd0be41adb897a0ab8f1f1c693d8912669ea60c4940e076e9946b60e210ef0 AS python
+--> febd0be41adb
+[3/5] STEP 1/1: FROM 8d73439cf1b406500272cf358313da4de7e16554bf8dc76fc4a3a659ad6ab90e AS uv
+--> 8d73439cf1b4
+[4/5] STEP 1/7: FROM 3880cf501a3b54bacc5e53dc327478ba723084863fa252cceb43f75aadcab12b AS pi-runtime
+[4/5] STEP 2/7: WORKDIR /build/agent-runtime
+--> Using cache 0b7575b8eb95a6e76f49c85694f8deb5229b11a02240adab8f70ceb812b68c5c
+--> 0b7575b8eb95
+[4/5] STEP 3/7: COPY agent-runtime/package.json agent-runtime/package-lock.json ./
+--> Using cache 7844d65ba9e855e00de3cf21a30884272d4f64f680dee124cd8f66d604f7d5f7
+--> 7844d65ba9e8
+[4/5] STEP 4/7: RUN npm ci --no-audit --no-fund
+--> Using cache 8415c5beb5a4c59cff1f7c07b9491629331430f3cd3008abad9d52eec3639b1d
+--> 8415c5beb5a4
+[4/5] STEP 5/7: COPY agent-runtime/tsconfig.json ./
+--> Using cache 96d233fa307118af7342c5c4cea446c144e47a1c73cb6174174ee1d9af3c4788
+--> 96d233fa3071
+[4/5] STEP 6/7: COPY agent-runtime/src/ ./src/
+--> c2bac6c55e38
+[4/5] STEP 7/7: RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+
+> defuzz-agent-runtime@1.0.0 build
+> tsc
+
+
+removed 1 package in 2s
+--> d78094175917
+[5/5] STEP 1/24: FROM 2360fb60ec0142fb6ad695ed2fe28e79be0b002f59720a850b123585880b3aee
+[5/5] STEP 2/24: ARG GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
+--> efd213cd7d07
+[5/5] STEP 3/24: COPY --from=go /usr/local/go/ /opt/go/
+--> 88e99fd948f3
+[5/5] STEP 4/24: COPY --from=python /usr/local/ /usr/local/
+--> 282184a83bbe
+[5/5] STEP 5/24: COPY --from=uv /uv /uvx /usr/local/bin/
+--> 65fd1a9c492a
+[5/5] STEP 6/24: COPY --from=pi-runtime /usr/local/bin/node /usr/local/bin/node
+--> c1eea90d8a46
+[5/5] STEP 7/24: COPY --from=pi-runtime /build/agent-runtime/ /workspace/agent-runtime/
+--> adfb2c9707a3
+[5/5] STEP 8/24: ENV PATH=/workspace/orchestrator/.venv/bin:/opt/go/bin:/usr/local/bin:/usr/bin:/bin     GOROOT=/opt/go     UV_PYTHON_DOWNLOADS=never     UV_LINK_MODE=copy     GOPROXY=${GOPROXY}     GOTOOLCHAIN=local     DEFUZZ_WORK_ROOT=/tmp/defuzz-work     DEFUZZ_CALLGRAPH_DB=/workspace/callgraph_mcp/data/callgraph.sqlite
+--> 38b93057da36
+[5/5] STEP 9/24: ENV PATH=/opt/gcc16/bin:/opt/llvm23/bin:${PATH}     LD_LIBRARY_PATH=/opt/llvm23/lib
+--> d45f19e8b997
+[5/5] STEP 10/24: COPY core/ /workspace/core/
+--> b6818ddbed28
+[5/5] STEP 11/24: COPY orchestrator/ /workspace/orchestrator/
+--> e271d34cdfc3
+[5/5] STEP 12/24: COPY callgraph_mcp/ /workspace/callgraph_mcp/
+--> 906b615f0a6c
+[5/5] STEP 13/24: COPY agents/ /workspace/agents/
+--> f51d1bf341ae
+[5/5] STEP 14/24: COPY configs/agents/ /workspace/configs/agents/
+--> fffc1e8ac09b
+[5/5] STEP 15/24: COPY configs/experiments/ /workspace/configs/experiments/
+--> b833059b07c8
+[5/5] STEP 16/24: COPY scripts/run_callgraph_mcp.sh /workspace/scripts/run_callgraph_mcp.sh
+--> 08763cfe5d3f
+[5/5] STEP 17/24: COPY docker/smoke.py docker/pi-smoke.py docker/replay.py docker/toolchain-smoke.py /workspace/docker/
+--> b0142e32ba69
+[5/5] STEP 18/24: RUN /sbin/ldconfig
+--> f97169a78bf5
+[5/5] STEP 19/24: RUN uv sync --project /workspace/orchestrator --frozen --no-dev --python /usr/local/bin/python3.12
+Using CPython 3.12.14 interpreter at: /usr/local/bin/python3.12
+Creating virtual environment at: orchestrator/.venv
+   Building defuzz-loop @ file:///workspace/orchestrator
+Downloading pydantic-core (2.0MiB)
+Downloading grpcio-tools (2.6MiB)
+Downloading grpcio (6.5MiB)
+Downloading numpy (15.9MiB)
+Downloading cryptography (4.5MiB)
+ Downloaded pydantic-core
+ Downloaded grpcio-tools
+ Downloaded cryptography
+ Downloaded grpcio
+ Downloaded numpy
+      Built defuzz-loop @ file:///workspace/orchestrator
+Prepared 37 packages in 1m 21s
+Installed 37 packages in 131ms
+ + annotated-types==0.7.0
+ + anyio==4.13.0
+ + attrs==26.1.0
+ + certifi==2026.5.20
+ + cffi==2.0.0
+ + click==8.4.1
+ + cryptography==49.0.0
+ + defuzz-loop==0.1.0 (from file:///workspace/orchestrator)
+ + grpcio==1.81.1
+ + grpcio-tools==1.81.1
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + httpx-sse==0.4.3
+ + idna==3.18
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + mcp==1.27.2
+ + numpy==2.5.0
+ + protobuf==6.33.6
+ + pycparser==3.0
+ + pydantic==2.13.4
+ + pydantic-core==2.46.4
+ + pydantic-settings==2.14.1
+ + pyjwt==2.13.0
+ + python-dotenv==1.2.2
+ + python-multipart==0.0.32
+ + pyyaml==6.0.3
+ + rank-bm25==0.2.2
+ + referencing==0.37.0
+ + rpds-py==2026.5.1
+ + setuptools==82.0.1
+ + sse-starlette==3.4.4
+ + starlette==1.3.1
+ + typing-extensions==4.15.0
+ + typing-inspection==0.4.2
+ + uvicorn==0.49.0
+--> 72bcbe1fac6e
+[5/5] STEP 20/24: RUN uv sync --project /workspace/callgraph_mcp --frozen --no-dev --python /usr/local/bin/python3.12
+Using CPython 3.12.14 interpreter at: /usr/local/bin/python3.12
+Creating virtual environment at: callgraph_mcp/.venv
+   Building defuzz-callgraph-mcp @ file:///workspace/callgraph_mcp
+Downloading cryptography (4.5MiB)
+Downloading pydantic-core (2.1MiB)
+ Downloaded pydantic-core
+ Downloaded cryptography
+      Built defuzz-callgraph-mcp @ file:///workspace/callgraph_mcp
+Prepared 21 packages in 2.79s
+Installed 30 packages in 67ms
+ + annotated-types==0.8.0
+ + anyio==4.15.1
+ + attrs==26.1.0
+ + certifi==2026.7.22
+ + cffi==2.1.1
+ + click==8.5.0
+ + cryptography==50.0.2
+ + defuzz-callgraph-mcp==0.1.0 (from file:///workspace/callgraph_mcp)
+ + h11==0.16.0
+ + httpcore==1.0.9
+ + httpx==0.28.1
+ + httpx-sse==0.4.3
+ + idna==3.20
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + mcp==1.30.0
+ + pycparser==3.1
+ + pydantic==2.14.0
+ + pydantic-core==2.50.0
+ + pydantic-settings==2.15.0
+ + pyjwt==2.15.1
+ + python-dotenv==1.2.4
+ + python-multipart==0.0.32
+ + referencing==0.37.0
+ + rpds-py==2026.9.1
+ + sse-starlette==3.5.0
+ + starlette==1.7.0
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + uvicorn==0.54.0
+--> 7246915279c1
+[5/5] STEP 21/24: RUN cd /workspace/core && go mod download     && mkdir -p /workspace/runs /workspace/callgraph_mcp/data /tmp/defuzz-work
+--> 52592cb1907e
+[5/5] STEP 22/24: WORKDIR /workspace
+--> 5edfbb9d8f52
+[5/5] STEP 23/24: ENTRYPOINT []
+--> f0365313d9e7
+[5/5] STEP 24/24: CMD ["sleep", "infinity"]
+[5/5] COMMIT localhost/defuzz-orchestrator:dev
+--> bddef890b9ab
+[Warning] one or more build args were not consumed: [MATCHED_TOOLCHAINS_IMAGE]
+Successfully tagged localhost/defuzz-orchestrator:dev
+bddef890b9ab25e14131cae271432094b7b5fa3528ac3f234883fc343d3e297f
+Image provenance: /Users/bytedance/projects/research/de-fuzz/main/.work/podman/images.json

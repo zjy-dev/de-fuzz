@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise initialize/tools/list and all six callgraph MCP tools."""
+"""Exercise initialize/tools/list and the bundled callgraph MCP tools."""
 
 from __future__ import annotations
 
@@ -31,17 +31,19 @@ async def smoke(command: str) -> dict[str, Any]:
         init = await session.initialize()
         listed = await session.list_tools()
         calls = {}
+        target = "gcc-16.2.0-x86_64"
+        entry = "expand_used_vars"
         specs = [
             ("list_targets", {}),
             (
                 "find_function",
-                {"target": "gcc-x86_64", "pattern": "main", "limit": 5},
+                {"target": target, "pattern": entry, "limit": 5},
             ),
             (
                 "get_callees",
                 {
-                    "target": "gcc-x86_64",
-                    "function": "main",
+                    "target": target,
+                    "function": entry,
                     "depth": 1,
                     "limit": 20,
                 },
@@ -49,8 +51,8 @@ async def smoke(command: str) -> dict[str, Any]:
             (
                 "get_callers",
                 {
-                    "target": "gcc-x86_64",
-                    "function": "fputs_unlocked",
+                    "target": target,
+                    "function": entry,
                     "depth": 1,
                     "limit": 20,
                 },
@@ -58,20 +60,10 @@ async def smoke(command: str) -> dict[str, Any]:
             (
                 "slice_from",
                 {
-                    "target": "gcc-x86_64",
-                    "entry": "main",
+                    "target": target,
+                    "entry": entry,
                     "depth": 2,
                     "max_nodes": 50,
-                },
-            ),
-            (
-                "paths_between",
-                {
-                    "target": "gcc-x86_64",
-                    "src": "main",
-                    "dst": "fputs_unlocked",
-                    "max_depth": 4,
-                    "max_paths": 10,
                 },
             ),
         ]
@@ -91,7 +83,7 @@ async def smoke(command: str) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--command", default="./scripts/run_callgraph_mcp_ssh.sh")
+    parser.add_argument("--command", default="./scripts/run_callgraph_mcp.sh")
     args = parser.parse_args()
     result = asyncio.run(smoke(args.command))
     args.out.parent.mkdir(parents=True, exist_ok=True)

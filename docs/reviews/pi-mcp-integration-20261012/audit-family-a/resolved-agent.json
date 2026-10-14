@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "agent_id": "audit-family-a",
+  "description": "Compiler defense audit worker, instantiated separately for families A\u2013E.",
+  "tools": [
+    "find",
+    "grep",
+    "ls",
+    "mcp__defuzz_callgraph__find_function",
+    "mcp__defuzz_callgraph__get_callees",
+    "mcp__defuzz_callgraph__get_callers",
+    "mcp__defuzz_callgraph__list_targets",
+    "mcp__defuzz_callgraph__paths_between",
+    "mcp__defuzz_callgraph__slice_from",
+    "read"
+  ],
+  "deny_tools": [
+    "write",
+    "edit"
+  ],
+  "required_tools": [
+    "mcp__defuzz_callgraph__find_function",
+    "mcp__defuzz_callgraph__get_callees",
+    "mcp__defuzz_callgraph__get_callers",
+    "mcp__defuzz_callgraph__list_targets",
+    "mcp__defuzz_callgraph__paths_between",
+    "mcp__defuzz_callgraph__slice_from"
+  ],
+  "source_path": "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/audit-family.md",
+  "source_sha256": "fd3c90f918b23357998789d2314d17aa63f19da32def191b2597a2e85c64c10f",
+  "body_sha256": "9ba4d94f9c11842c42d7cc62f5ab6eb74c7fcab9b9972d936d25b7a6bfe97aef",
+  "system_prompt": "Audit only the family and scope in the task. Use the supplied source workspace,\ninvariants, mapped anchors and feedback as evidence, following the task's report\nschema and admission policy. Re-open mapped files and inspect the conditions\nbefore proposing candidates. Preserve stable candidate IDs when revising.\n\nWhen the task requires CallGraph, call list_targets, select an available target\nmatching the compiler/version/ISA, and query relevant symbols with find_function\nand bounded caller/callee/path queries. State missing targets and truncated\nresults explicitly. Never substitute another ISA or version without recording\nthe limitation. A successful empty query is evidence of missing coverage, not\nevidence that a compiler has no relevant path.\n\nRead only the workspace and permitted MCP data. Do not edit the compiler, execute\nshell commands, consult findings corpora, or claim that a candidate was verified\nwithout supplied checker evidence. Return exactly the requested JSON report.\n\nThis instance is restricted to audit family A.\n\nSource-bound CallGraph targets (other versions are unavailable):\n[{\"compiler\": \"llvm\", \"csv_sha256\": \"a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b\", \"isas\": [\"aarch64\"], \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\", \"source_revision\": \"85ac560262434c9ccfc0c183ec22d4138ed647fb\", \"target\": \"llvm-23.1.2\", \"verified_source_files\": 4234, \"version\": \"23.1.2\"}]",
+  "model": "defuzz/coconut-gpt-5-6-terra-max",
+  "thinking_level": "minimal",
+  "temperature_policy": "omit",
+  "temperature_note": "The selected reasoning model uses provider-controlled sampling; preserve the requested definition temperature in provenance, omit it from requests.",
+  "instance_parameters": {
+    "family": "A"
+  }
+}

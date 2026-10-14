@@ -1,0 +1,25 @@
+...@theme.d2
+grid-columns: 2
+grid-gap: 85
+safe: "保护有效时（简化示意）" {
+  grid-columns: 1
+  grid-gap: 12
+  style: {fill: transparent; stroke: "#1B5E20"; font-size: 30; font-color: "#1B5E20"; bold: true}
+  hi: "高地址" {class: quiet; width: 330; height: 30}
+  ret: "返回地址" {class: neutral; width: 330; height: 70}
+  guard: "金丝雀：先被碰到" {class: main; width: 330; height: 70}
+  arrow: "↑  连续溢出" {class: quiet; width: 330; height: 44; style.font-color: "#1B5E20"}
+  buffer: "缓冲区" {class: neutral; width: 330; height: 70}
+  lo: "低地址" {class: quiet; width: 330; height: 30}
+}
+broken: "出问题的 AArch64" {
+  grid-columns: 1
+  grid-gap: 12
+  style: {fill: transparent; stroke: "#C62828"; font-size: 30; font-color: "#C62828"; bold: true}
+  hi: "高地址" {class: quiet; width: 330; height: 30}
+  guard: "金丝雀：还是原值" {class: main; width: 330; height: 70}
+  ret: "返回地址：先被改写" {class: danger; width: 330; height: 70}
+  arrow: "↑  连续溢出" {class: quiet; width: 330; height: 44; style.font-color: "#C62828"}
+  buffer: "动态数组缓冲区" {class: neutral; width: 330; height: 70}
+  lo: "低地址" {class: quiet; width: 330; height: 30}
+}

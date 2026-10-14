@@ -2,11 +2,11 @@
 #
 # This file is intentionally non-runnable until you replace every placeholder
 # path with a frozen environment-specific value and populate the credential
-# environment variable named by the local HTTP config.
+# environment variables named by the local Pi runtime config.
 # It stays in mode=formal, so the launcher will fail closed instead of falling
 # back to the fixture runners used by configs/experiments/example.yaml.
-# The companion http-agent.example.yaml pins Terra Max at medium reasoning; copy
-# or replace its path as needed, but never put an API key value in either YAML.
+# The Pi runtime references explicit model and MCP files; copy or replace its
+# path as needed, but never put an API key value in these files.
 #
 # Validate without writes:
 #   cd orchestrator
@@ -15,7 +15,7 @@
 # Execute after replacing placeholders:
 #   cd orchestrator
 #   uv run defuzz-experiment pipeline --config ../configs/experiments/formal.example.yaml
-schema_version: 1
+schema_version: 2
 run_id: formal-gcc17-20260531-canary-campaign
 mode: formal
 output_root: ../../orchestrator/runs/pipelines
@@ -23,9 +23,9 @@ repetitions: 3
 variants: [full, without-rag, without-oracle, bare-agent]
 
 backend:
-  kind: http
+  kind: pi
   # Replace this path if the copied local config lives elsewhere.
-  config_path: ./http-agent.example.yaml
+  config_path: ../agents/pi-runtime.example.json
 
 budgets:
   part_i:
@@ -34,6 +34,9 @@ budgets:
   part_ii:
     token_budget: 20000000
     time_budget_minutes: 720
+  source_mapping:
+    token_budget: 5000000
+    time_budget_minutes: 480
   part_iii:
     token_budget: 12000000
     time_budget_minutes: 480
@@ -70,6 +73,7 @@ checker:
 audit:
   max_concurrency: 1
   oracle_rounds: 1
+  checker_update_rounds: 1
   demo_parity: false
   parity_profile: demo-workset
   parity_threshold: null

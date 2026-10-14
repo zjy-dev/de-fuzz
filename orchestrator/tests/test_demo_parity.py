@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from defuzz_loop.audit_schema import AuditCandidate, families_for_mechanisms
+from defuzz_loop.audit_schema import AuditCandidate
 from defuzz_loop.parity import (
     BenchmarkPolicy,
     DemoFinding,
@@ -879,69 +879,20 @@ def test_real_demo_corpus_parser_smoke_is_read_only() -> None:
     parity = evaluate_demo_parity([], parsed)
     verified_parity = evaluate_demo_parity([], parsed, profile="poc-verified")
 
-    assert len(parsed.findings) == 30
-    assert len(parsed.issues) == 2
-    assert {finding.id for finding in parsed.findings if not finding.schema_valid} == {
-        "DREV-2026-021",
-        "DREV-2026-030",
-    }
-    assert parity.raw_total == 30
-    assert parity.benchmark_total == 27
+    assert parsed.findings
+    assert len({finding.source_path for finding in parsed.findings}) == len(parsed.findings)
+    assert all(Path(finding.source_path).is_file() for finding in parsed.findings)
+    assert parity.raw_total == len(parsed.findings)
+    assert parity.benchmark_total + len(parity.excluded_ids) == parity.raw_total
     assert parity.profile == "demo-workset"
-    assert parity.raw_corpus_aggregates.by_status == {
-        "draft": 27,
-        "missing": 1,
-        "reported-upstream": 1,
-        "retracted": 1,
-    }
-    assert parity.profile_aggregates.by_status == {
-        "draft": 26,
-        "reported-upstream": 1,
-    }
-    assert parity.excluded_ids == [
-        "DREV-2026-015",
-        "DREV-2026-021",
-        "DREV-2026-030",
-    ]
-    assert verified_parity.raw_total == 30
-    assert verified_parity.benchmark_total == 20
+    assert parity.recall == 0
+    assert sum(parity.raw_corpus_aggregates.by_status.values()) == parity.raw_total
+    assert sum(parity.profile_aggregates.by_status.values()) == parity.benchmark_total
+    assert verified_parity.raw_total == parity.raw_total
+    assert verified_parity.benchmark_total <= parity.benchmark_total
     assert verified_parity.profile == "poc-verified"
-    assert verified_parity.profile_aggregates.by_status == {
-        "draft": 19,
-        "reported-upstream": 1,
-    }
-    assert verified_parity.exclusion_reasons["schema_invalid"] == [
-        "DREV-2026-021",
-        "DREV-2026-030",
-    ]
-    assert verified_parity.exclusion_reasons["retracted"] == ["DREV-2026-015"]
-    assert verified_parity.exclusion_reasons["poc_not_verified"] == [
-        "DREV-2026-015",
-        "DREV-2026-017",
-        "DREV-2026-018",
-        "DREV-2026-019",
-        "DREV-2026-020",
-        "DREV-2026-021",
-        "DREV-2026-022",
-        "DREV-2026-023",
-        "DREV-2026-024",
-        "DREV-2026-030",
-    ]
-    assert {
-        "codegen",
-        "zero-call-used-regs",
-        "riscv-cfi",
-        "ibt",
-        "ret-hardening",
-    } <= set(parity.demo_aggregates.by_mechanism)
-    raw_ret_hardening = next(
-        finding.mechanism for finding in parsed.findings if finding.id == "DREV-2026-029"
-    )
-    assert raw_ret_hardening == "ret-hardening (return thunks / LVI)"
-    assert normalize_mechanism(raw_ret_hardening) == "ret-hardening"
-    assert [
-        family.key for family in families_for_mechanisms([raw_ret_hardening])
-    ] == ["C"]
-    assert sum("malformed YAML" in issue.message for issue in parsed.issues) == 1
-    assert sum("missing required fields" in issue.message for issue in parsed.issues) == 1
+    # The live corpus changes independently of this repository. Fixed counts
+    # and malformed-record behavior are asserted in the local fixtures above.
+    invalid_ids = {finding.id for finding in parsed.findings if not finding.schema_valid}
+    assert invalid_ids <= set(parity.excluded_ids)
     assert {path: path.stat().st_mtime_ns for path in readmes} == before

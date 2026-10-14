@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 渲染开题报告全部配图：assets/ch*/*.{zh,en}.d2 → 同目录下 *.svg + *.png
+# 渲染开题报告配图：D2 → SVG + PNG；research-map 使用定版 SVG → PNG
 # 用法：bash scripts/render_figures.sh [d2-binary]
 #       默认使用 PATH 中的 d2，找不到则尝试 ~/go/bin/d2
 set -euo pipefail
@@ -57,6 +57,11 @@ for spec in "${FIGURES[@]}"; do
     echo "    -> $png"
   done
 done
+
+# 研究对应关系图采用手工对齐的 SVG，保留节点和连线的固定位置。
+rsvg-convert -w 3200 \
+  -o "$ASSETS_DIR/ch3-objective/research-map.zh.png" \
+  "$ASSETS_DIR/ch3-objective/research-map.zh.svg"
 
 echo
 echo "all figures rendered to $ASSETS_DIR/ch*/*.{zh,en}.{svg,png}"

@@ -21,16 +21,17 @@ CONTENT_W_EMU = 9638 * 635          # 6_120_130 EMU  ≈ 170 mm
 # Page height = 16838, top+bottom+footer margins = 1134+1134+992 = 3260 twips
 CONTENT_H_EMU = (16838 - 3260) * 635  # 8_621_730 EMU  ≈ 239 mm
 
-# 7 figures keyed by stem; values: (relative png path under ASSETS, rId, caption, docPr id)
+# 8 figures keyed by stem; values: (relative png path under ASSETS, rId, caption, docPr id)
 # 编号按章节出现顺序，同步 chapters/*.txt 中的 [[FIG:stem]] 占位。
 FIGURES = {
     "stack-layout":   ("ch1-background/stack-layout.zh.png",   "rId21", "图 1  CVE-2023-4039 buggy 栈帧布局",                        21),
     "defense-matrix": ("ch1-background/defense-matrix.zh.png", "rId22", "图 2  防御机制 × ISA 二维研究空间",                       22),
-    "pipeline":       ("ch3-objective/pipeline.zh.png",        "rId23", "图 3  研究内容工作链条",                                   23),
-    "architecture":   ("ch4-route/architecture.zh.png",        "rId24", "图 4  DeFuzz 总体架构",                                  24),
-    "oracle-flow":    ("ch4-route/oracle-flow.zh.png",         "rId25", "图 5  防御机制不变量预言机判定流程",                  25),
-    "main-loop":      ("ch4-route/main-loop.zh.png",           "rId26", "图 6  大语言模型驱动的种子变异主循环",                26),
-    "fortify-path":   ("ch5-experiment/fortify-path.zh.png",   "rId27", "图 7  _FORTIFY_SOURCE 优化路径与 size 静默放宽",         27),
+    "research-map":   ("ch3-objective/research-map.zh.png",    "rId28", "图 3  研究挑战、研究内容与研究目标的对应关系",              28),
+    "pipeline":       ("ch3-objective/pipeline.zh.png",        "rId23", "图 4  技术路线工作链条",                                   23),
+    "architecture":   ("ch4-route/architecture.zh.png",        "rId24", "图 5  系统总体架构",                                     24),
+    "oracle-flow":    ("ch4-route/oracle-flow.zh.png",         "rId25", "图 6  防御机制不变量预言机判定流程",                  25),
+    "main-loop":      ("ch4-route/main-loop.zh.png",           "rId26", "图 7  大语言模型驱动的种子变异主循环",                26),
+    "fortify-path":   ("ch5-experiment/fortify-path.zh.png",   "rId27", "图 8  _FORTIFY_SOURCE 优化路径与 size 静默放宽",         27),
 }
 
 FIG_PLACEHOLDER_RE = re.compile(r"^\[\[FIG:([a-z0-9-]+)\]\]$")
@@ -55,6 +56,10 @@ def figure_emu(png_path: Path) -> tuple[int, int]:
     """Return (cx, cy) in EMU that fit the image within the content area."""
     pw, ph = read_png_dims(png_path)
     aspect = pw / ph
+    if png_path.name == "research-map.zh.png":
+        # Three columns need nearly the full text width to retain 9.5 pt labels.
+        cx = int(CONTENT_W_EMU * 0.97)
+        return cx, int(cx / aspect)
     if aspect >= 1.0:           # landscape / square: fill 88 % of content width
         cx = int(CONTENT_W_EMU * 0.88)
         cy = int(cx / aspect)
@@ -142,7 +147,7 @@ def p_image(rid: str, img_name: str, fig_id: int, cx: int, cy: int) -> str:
     ns_r   = "xmlns:r='http://schemas.openxmlformats.org/officeDocument/2006/relationships'"
     return (
         '<w:p>'
-        '<w:pPr><w:pStyle w:val="Normal"/>'
+        '<w:pPr><w:pStyle w:val="Normal"/><w:keepNext/>'
         '<w:spacing w:lineRule="auto" w:line="360"/>'
         '<w:jc w:val="center"/></w:pPr>'
         '<w:r><w:rPr/>'
@@ -275,11 +280,11 @@ def build_body_xml() -> str:
     parts.append(p_blank())
     parts += render_chapter((CHAPTERS / "02-related-work.txt").read_text(encoding="utf-8"))
 
-    # Chapter 3 — inline [[FIG:pipeline]]
+    # Chapter 3 — research questions and methods
     parts.append(p_blank())
     parts += render_chapter((CHAPTERS / "03-objective-content.txt").read_text(encoding="utf-8"))
 
-    # Chapter 4 — inline [[FIG:architecture]] / [[FIG:oracle-flow]] / [[FIG:main-loop]]
+    # Chapter 4 — inline [[FIG:pipeline]] / [[FIG:architecture]] / [[FIG:oracle-flow]] / [[FIG:main-loop]]
     parts.append(p_blank())
     parts += render_chapter((CHAPTERS / "04-technical-route.txt").read_text(encoding="utf-8"))
 
@@ -316,8 +321,9 @@ SCHEDULE = [
 # Main injection
 # ---------------------------------------------------------------------------
 
-THESIS_TITLE = "基于大语言模型的编译器防御机制脆弱性分析方法研究"
+THESIS_TITLE = "大语言模型辅助的编译器插桩防御机制脆弱性分析方法研究"
 LEGACY_TITLES = (
+    "基于大语言模型的编译器防御机制脆弱性分析方法研究",
     "基于 LLM 约束求解的编译器防御机制模糊测试方法研究",
 )
 

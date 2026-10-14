@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "path": "effective-session.json",
+      "sha256": "679f143834d892399b3556e769161372084c9d4e64b893253b1bf4b4a9acf306",
+      "bytes": 8629
+    },
+    {
+      "path": "events.jsonl",
+      "sha256": "210d2fec0e59d27bdae3e0970c5021aafaac9e48550a3140dc5168c3c82d054a",
+      "bytes": 196853
+    },
+    {
+      "path": "final.raw.txt",
+      "sha256": "e3e85ce1fb4de390d3146c6c049a04cfed6785f906661b3207d9cc2df085470a",
+      "bytes": 164
+    },
+    {
+      "path": "mcp-processes.jsonl",
+      "sha256": "f344351e9a3d8a38c67cb0e4289de4da451bda7ef10a6e65c1c2d550395d8ab6",
+      "bytes": 110
+    },
+    {
+      "path": "mcp.log",
+      "sha256": "b034385df0277097592065b6fa9cc9a27aebdcfb3e0b7086d03e2ac444918212",
+      "bytes": 853
+    },
+    {
+      "path": "outcome.json",
+      "sha256": "b655e22c42256d4109f484e63ace4b85ebe0a669a9ef17ef464377dc1afac9c5",
+      "bytes": 454
+    },
+    {
+      "path": "output-schema.json",
+      "sha256": "bc5611b2cf55ea037b21488e2baedebf168addc6c4e576efbc3b01e57df2673c",
+      "bytes": 370
+    },
+    {
+      "path": "provider-events.jsonl",
+      "sha256": "305cd52819a5f9da4621a25047358d3bc75f2c17dbf043c201f911b5f7505d99",
+      "bytes": 178686
+    },
+    {
+      "path": "request.json",
+      "sha256": "41c9e060fed189589e66535ab34d441a037f9b84263828df5d6cdccedf15afaf",
+      "bytes": 12945
+    },
+    {
+      "path": "resolved-agent.json",
+      "sha256": "161a3bc29e90b246ef7871af11a6d539434f5f5432b3c4d6085ad06acf12041d",
+      "bytes": 2971
+    },
+    {
+      "path": "resolved-config.json",
+      "sha256": "2f6aee8092835cfa57c061247f68e9b855f275cd8041ccf7addf9d03f73ce738",
+      "bytes": 7721
+    },
+    {
+      "path": "session.jsonl",
+      "sha256": "56745978dd94db341ffdb3ae82f9e8d49f08a355dea61c3bf7e6e96dce088f5e",
+      "bytes": 15886
+    },
+    {
+      "path": "system-prompt.txt",
+      "sha256": "ec9a90822c3844bb56dd91a811132428da9c3479ca502c7ea2b1b155b8872ab5",
+      "bytes": 1586
+    },
+    {
+      "path": "tool-binaries.jsonl",
+      "sha256": "14c712a8e10a5b7485080936a3d89a0bfed273afef7c3cfd79664520bba495e4",
+      "bytes": 495
+    },
+    {
+      "path": "tools.json",
+      "sha256": "a08554f23759aa7b0d4a22f4c0bd49998f74f8f81eaf271a8bb3aeacddbcdef9",
+      "bytes": 10048
+    },
+    {
+      "path": "usage.jsonl",
+      "sha256": "4d7cf3e139564c49561bbc90d16904f459667d3c1bac4b95ac9f702b619439ce",
+      "bytes": 4164
+    }
+  ]
+}

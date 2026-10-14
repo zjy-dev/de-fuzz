@@ -1,7 +1,7 @@
 [project]
 name = "defuzz-loop"
 version = "0.1.0"
-description = "Rev 3 orchestrator for de-fuzz: explicit IterationLoop + OpenCode markdown subagents over a blackboard."
+description = "DeFuzz Python orchestration with isolated Pi SDK agents over a blackboard."
 requires-python = ">=3.12"
 dependencies = [
     "grpcio>=1.60.0",
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Rev 3: LLM providers are reached through the OpenCode CLI subprocess.
+# LLM providers are reached through the locked Node Pi SDK worker.
 # No provider SDK is a hard dependency of the orchestrator itself.
 
 [dependency-groups]
@@ -30,6 +30,7 @@ dev = [
 defuzz-loop = "defuzz_loop.cli:main"
 defuzz-experiment = "defuzz_loop.experiments_cli:main"
 defuzz-full-experiment = "defuzz_loop.full_experiment:main"
+defuzz-inspect-attempt = "defuzz_loop.agents.trace:main"
 
 [tool.ruff]
 line-length = 100

@@ -1,0 +1,9 @@
+...@theme.d2
+direction: right
+bug: "应用漏洞\n被触发" {class: neutral; width: 170; height: 130}
+guard: "编译器防御\nCanary / CFI" {class: focus; shape: hexagon; width: 245; height: 180}
+stop: "攻击被阻断" {class: main; width: 225; height: 95}
+bypass: "防御失效\n攻击继续" {class: danger; width: 225; height: 110}
+bug -> guard: {class: edge}
+guard -> stop: "正常保护" {class: edge}
+guard -> bypass: "我们寻找的情况" {class: edge; style.stroke: "#C62828"}

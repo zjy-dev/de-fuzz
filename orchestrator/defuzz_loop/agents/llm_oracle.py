@@ -1,12 +1,12 @@
-"""Rev 3 LLM-oracle agent: OpenCode-backed, per-invariant fallback judge.
+"""LLM-oracle agent: Pi-backed, per-invariant fallback judge.
 
 The whole R8 zero-false-positives contract from earlier revisions is
 preserved. Only two things change vs. the removed LangChain code path:
 
-- Structured output goes through the ``llm-oracle`` OpenCode markdown
+- Structured output goes through the ``llm-oracle`` markdown
   subagent + :class:`SubagentRunner`, not ``ainvoke_structured``.
 - The verbose historical system prompt has moved into
-  ``.opencode/agents/llm-oracle.md``. The Python side only builds the
+  ``agents/definitions/llm-oracle.md``. The Python side only builds the
   per-invariant *user turn* (invariant brief + seed + binary evidence).
 
 The per-invariant iteration logic (finding NA/Error verdicts, collecting
@@ -17,8 +17,6 @@ from __future__ import annotations
 
 from .. import binary_evidence
 from ..invariants_kb import brief_for, llm_oracle_target_ids
-from ..opencode.output_schemas import LLMOracleOutput
-from ..opencode.runner import SubagentRunner
 from ..state import (
     Aggregate,
     Blackboard,
@@ -26,6 +24,8 @@ from ..state import (
     OracleVerdict,
     Verdict,
 )
+from .contracts.output_schemas import LLMOracleOutput
+from .runner import SubagentRunner
 
 # Only a FAIL at or above this confidence flips the aggregate to violated.
 # Kept high on purpose: a false bug is worse than a missed one (R8).

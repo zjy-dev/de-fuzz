@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GCC/AArch64 全量实验报告 — DeFuzz 2026-10-12</title>
+<style>
+  :root{--bg:#0f1217;--card:#171c24;--ink:#e8edf4;--muted:#9aa7b8;--line:#273040;--ok:#43c59e;--warn:#e0b341;--bad:#e5736a;--accent:#5aa9ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:26px;margin:0 0 6px}
+  h2{font-size:19px;margin:36px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--accent)}
+  .sub{color:var(--muted);margin:0 0 24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  code{background:#0b0e13;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px;font-family:"SF Mono",Menlo,Consolas,monospace}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .p-ok{background:rgba(67,197,158,.15);color:var(--ok)}
+  .p-warn{background:rgba(224,179,65,.15);color:var(--warn)}
+  .p-bad{background:rgba(229,115,106,.15);color:var(--bad)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:14px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .kpi .n{font-size:24px;font-weight:700}
+  .kpi .l{color:var(--muted);font-size:12.5px;margin-top:2px}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:4px 0}
+  .muted{color:var(--muted)}
+  .foot{margin-top:40px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>GCC/AArch64 全量实验报告</h1>
+  <p class="sub">DeFuzz 编译器防御不变量研究 · run_id <code>gcc-aarch64-full-20261012</code> · 2026-10-12 · 工程连续实验（非正式论文 campaign）</p>
+
+  <div class="card">
+    <strong>一句话结论：</strong>完整四阶段流程（不变量生成 → Checker 编写 → 源码映射 → 审计）在 GCC/AArch64、full 变体、1 个 repetition、完整 172 段语料上执行。
+    Part I 完成（42 条不变量）；Part II 低产出（1/42 checker 通过真实 Go 验证，bundle 不完整）；源码映射 1/35 命中；
+    Part III 审计因 Part II bundle 不完整而<strong>受阻（未运行，记录为中断，非编译器判定）</strong>。全程 token 完整计量（<code>usage_missing=0</code>）。
+  </div>
+
+  <div class="grid">
+    <div class="kpi"><div class="n">172 / 172</div><div class="l">Part I 语料分段（完整，无截断）</div></div>
+    <div class="kpi"><div class="n">42</div><div class="l">接受的不变量</div></div>
+    <div class="kpi"><div class="n">1 / 42</div><div class="l">Part II 验证通过的 checker</div></div>
+    <div class="kpi"><div class="n">1 / 35</div><div class="l">源码映射命中</div></div>
+    <div class="kpi"><div class="n">4,676,834</div><div class="l">总 token（3 个已执行阶段）</div></div>
+    <div class="kpi"><div class="n">0</div><div class="l">usage_missing</div></div>
+  </div>
+
+  <h2>1. 实验配置（冻结）</h2>
+  <table>
+    <tr><th>项目</th><th>值</th></tr>
+    <tr><td>compiler / isa / variant / repetitions</td><td><code>gcc</code> / <code>aarch64</code> / <code>full</code> / 1</td></tr>
+    <tr><td>生成路径</td><td><code>combined</code>（segmented-CoT + 历史缺陷 RAG）</td></tr>
+    <tr><td>后端</td><td>OpenCode 1.18.31 原生子代理；本机网关 <code>127.0.0.1:8787</code>（Responses API）；模型 <code>defuzz/coconut-gpt-5-6-terra-max</code>；sandbox-exec host read 隔离</td></tr>
+    <tr><td>入口</td><td>Part I 经 <code>run-all</code>；Part II / 源码映射 / 审计用独立命令，经 <code>--from-run</code> / <code>--mapping-from-run</code> 衔接（工程连续实验）</td></tr>
+    <tr><td>GCC 源码</td><td>commit <code>f20bc4c2fe00928013c533e241b89ae3a6724ca1</code></td></tr>
+    <tr><td>Reference</td><td>commit <code>b83e2ee05ec8595a0da271dd1a01a90a8ec67fe5</code>（clean）</td></tr>
+    <tr><td>分段语料</td><td><code>.work/gcc17-security-corpus.rebuilt</code>（25 文件精选）</td></tr>
+    <tr><td>RAG 语料</td><td><code>.work/gcc17-env/src/gcc</code>（4482 chunks，16 白名单文件）</td></tr>
+    <tr><td>工具链 / 运行镜像</td><td><code>toolchains.formal.yaml</code> / <code>local/defuzz-gcc17-four-isa@sha256:3030327836aa…</code>（QEMU-aarch64 冒烟 <span class="pill p-ok">PASS</span>）</td></tr>
+    <tr><td>预算（每阶段）</td><td>20,000,000 token / 480–720 min（上限，非实际消耗）</td></tr>
+  </table>
+
+  <h2>2. 分阶段统计</h2>
+  <table>
+    <tr><th>阶段</th><th>状态</th><th>耗时</th><th>模型调用</th><th>token</th><th>usage_missing</th><th>关键结果</th></tr>
+    <tr>
+      <td>Part I 不变量生成</td><td><span class="pill p-ok">completed</span></td><td>80.5 min</td><td>1,036</td><td>3,616,564</td><td>0</td>
+      <td>172/172 段；42 条接受（40 segmented-CoT + 2 RAG）；overlap 0；result_valid</td>
+    </tr>
+    <tr>
+      <td>Part II Checker 编写</td><td><span class="pill p-warn">partial</span> / bundle <span class="pill p-bad">incomplete</span></td><td>315.5 min</td><td>127</td><td>508,896</td><td>0</td>
+      <td>42/42 处理；1 条通过真实 Go 编译/测试/vet；41 失败；final_pass_rate 2.38%</td>
+    </tr>
+    <tr>
+      <td>源码映射</td><td><span class="pill p-bad">failed</span></td><td>143.2 min</td><td>109</td><td>551,374</td><td>0</td>
+      <td>35 范围内；1 命中；34 失败（模型 JSON 输出被 32K 输出上限截断 → 解析错误）；9 次 CallGraph 查询</td>
+    </tr>
+    <tr>
+      <td>Part III 审计</td><td><span class="pill p-bad">blocked</span></td><td>—</td><td>—</td><td>—</td><td>—</td>
+      <td>审计强制要求 ready bundle（<code>load_checker_bundle(require_ready=True)</code>）；Part II 产出 incomplete，故生成-checker 审计未运行</td>
+    </tr>
+    <tr>
+      <td><strong>合计（已执行 3 阶段）</strong></td><td>—</td><td><strong>~539 min（~9 小时）</strong></td><td><strong>1,272</strong></td><td><strong>4,676,834</strong></td><td><strong>0</strong></td><td>—</td>
+    </tr>
+  </table>
+
+  <h2>3. 结果判定（区分缺陷类型）</h2>
+  <div class="card">
+    <ul>
+      <li><strong>编译器缺陷</strong>：本次未产生已验证的编译器不变量证伪。Part II 几乎无可执行 checker 落地、Part III 未运行，不足以给出任何 GCC/AArch64 防御实现的 verdict。</li>
+      <li><strong>Checker 问题（主要瓶颈）</strong>：Part II 中模型生成的 checker 大多未通过真实 Go 编译/测试/vet；唯一"通过"的 checker 未写入累积 patch，导致 dispatcher catalog 缺失该 ID、bundle 判为 <code>incomplete</code>。属 checker 生成质量问题，非编译器问题。</li>
+      <li><strong>环境/后端限制</strong>：源码映射 34/35 失败均为模型输出 JSON 被 32K 输出上限截断（<code>Unterminated string</code> / <code>Expecting ',' delimiter</code>）。属模型输出容量限制，非编译器问题。</li>
+      <li><strong>平台中断</strong>：Part III 受阻是上游 bundle 不完整导致的流程门禁，记录为中断，<strong>不</strong>作为编译器通过/失败证据。</li>
+    </ul>
+  </div>
+
+  <h2>4. 过程中修复的工程缺陷</h2>
+  <table>
+    <tr><th>#</th><th>现象</th><th>根因</th><th>修复</th></tr>
+    <tr><td>1</td><td>Part I 首跑 <code>empty gcc retrieval corpus</code></td><td><code>combined</code> 的 RAG 子路径按白名单在 corpus 根解析（<code>gcc/calls.cc</code>），精选语料实际在 <code>sources/</code> 下 → 0 chunk。<code>run-all</code> 无法分设 RAG 语料。</td><td>给 <code>invariant-generation</code>/<code>run-all</code> 新增 <code>--rag-corpus-root</code>，RAG 指向完整 GCC <code>gcc/</code> 树（4482 chunks）；写入 provenance 快照</td></tr>
+    <tr><td>2</td><td>Part II <code>WorkspaceSecurityError: original input roots overlap</code></td><td>reference 快照位于主仓内部，与 <code>--source-root</code>（主仓）重叠，违反工作区隔离</td><td>把冻结 reference（<code>b83e2ee</code>，内容/修订不变）复制到主仓外 <code>defuzz-experiment-inputs/reference-b83e2ee</code></td></tr>
+    <tr><td>3</td><td>源码映射 <code>ValidationError: Invariant.compiler 'GCC'</code></td><td>Part I 输出的全部 42 条不变量 <code>compiler="GCC"</code>（大写），源码映射 <code>Invariant</code> 模型要求小写字面量</td><td><a href="file:///Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/experiment_engine/source_mapping_stage.py">source_mapping_stage.py</a> 在构造前 <code>compiler.strip().lower()</code> 归一化</td></tr>
+  </table>
+
+  <h2>5. 范围与边界声明</h2>
+  <div class="card">
+    <ul>
+      <li>这是一次<strong>工程连续实验</strong>（<code>run-all</code> + 独立命令），<strong>不是</strong>冻结 <code>mode: formal</code> YAML 驱动的论文正式 campaign。不构成四 ISA × 四变体 × 三重复的论文比较。</li>
+      <li>未选用正式 <code>pipeline</code> 的原因（如实记录）：① formal 模式要求所有输入 clean worktree，而主仓有大量未提交对齐改动（保留，不 reset/commit）；② 正式 campaign 引用的独立 checker 检出已不存在。</li>
+      <li>图数据库仅覆盖 GCC 16.2.0 x86_64/aarch64 与 LLVM 23.1.2；<code>list_targets</code> 不证明对本次 GCC 17 源码的目标覆盖。</li>
+      <li>所有阶段 <code>usage_missing=0</code>，token 可比；预算为安全上限，远未触顶。</li>
+    </ul>
+  </div>
+
+  <h2>6. 产物目录</h2>
+  <div class="card">
+    输出根：<code>.work/aarch64-full-20261012/</code>
+    <ul>
+      <li><code>gcc-aarch64-full-20261012-invariant-generation/</code> — Part I（plan/manifest/accepted-invariants.jsonl/token_usage）</li>
+      <li><code>gcc-aarch64-full-20261012-checker-authoring/</code> — Part II（checker-bundle-manifest.json/results.jsonl/per-invariant patches）</li>
+      <li><code>gcc-aarch64-full-20261012-source-mapping/</code> — 源码映射（source-mappings.jsonl/summary/snapshot）</li>
+      <li><code>statistics.json</code> / <code>statistics.csv</code> — 机器可读统计</li>
+      <li><code>RUN-NOTES.md</code> — 冻结配置与执行日志；<code>run-all.log</code> / <code>resume-stages*.log</code> / <code>source-mapping.log</code> — 原始日志</li>
+    </ul>
+  </div>
+
+  <p class="foot">
+    DeFuzz 研究范围为不变量证伪与缺陷修复。本次为可复现工程证据与实验记录（含未成功环节），不将中断或部分运行报告为完整正式实验。
+    未运行真实上游模型以外的任何越界操作；研究对象限于冻结的 GCC 源码、工具链与独立 C 测试程序。
+  </p>
+</div>
+</body>
+</html>

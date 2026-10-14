@@ -573,6 +573,18 @@ class TokenUsageSink:
             self._records.append(record)
         return record
 
+    def record(self, record: TokenUsageRecord) -> TokenUsageRecord:
+        """Append an externally identified model call once, rejecting conflicting evidence."""
+        with self._guard:
+            for existing in self._records:
+                if existing.call_id == record.call_id:
+                    if existing != record:
+                        raise ValueError(f"conflicting usage for model call {record.call_id}")
+                    return existing
+            append_jsonl(self.path, record)
+            self._records.append(record)
+        return record
+
     def record_response(
         self,
         response: Any,

@@ -1,8 +1,8 @@
-"""Rev 3 seed-generator agent: OpenCode-backed, thin Python wrapper.
+"""Seed-generator agent: Pi-backed, thin Python wrapper.
 
 The heavy lifting (constructing the seed C source) happens inside the
 ``seed-generator`` markdown subagent (see
-``.opencode/agents/seed-generator.md``); this Python class pre-fetches the
+``agents/definitions/seed-generator.md``); this Python class pre-fetches the
 invariant metadata via MCP (still deterministic, no LLM), assembles the
 per-round user-turn prompt, invokes the subagent through the shared
 :class:`SubagentRunner`, and wraps the parsed output into a
@@ -19,9 +19,9 @@ from __future__ import annotations
 import uuid
 
 from ..clients.mcp_client import MCPClient
-from ..opencode.output_schemas import GeneratorOutput
-from ..opencode.runner import SubagentRunner
 from ..state import Blackboard, Seed, SeedOrigin
+from .contracts.output_schemas import GeneratorOutput
+from .runner import SubagentRunner
 
 
 def guidance_block(bb: Blackboard) -> str:
@@ -42,7 +42,7 @@ def guidance_block(bb: Blackboard) -> str:
 
 
 class GeneratorAgent:
-    """Rev 3 OpenCode-backed generator agent."""
+    """Pi-backed generator agent."""
 
     def __init__(
         self,

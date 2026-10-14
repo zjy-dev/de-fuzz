@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "model_provider": "defuzz",
+  "model_id": "coconut-gpt-5-6-terra-max",
+  "models_path": "/private/tmp/defuzz-pi-mcp-live-check/audit-family-a/.runtime/models.json",
+  "mcp_path": "/Users/bytedance/projects/research/de-fuzz/main/configs/agents/mcp.example.json",
+  "definitions_root": "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions",
+  "worker_path": "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/dist/worker.js",
+  "thinking_level": "minimal",
+  "temperature_policy": "omit",
+  "temperature_note": "The selected reasoning model uses provider-controlled sampling; preserve the requested definition temperature in provenance, omit it from requests.",
+  "max_model_calls": 10,
+  "max_output_tokens": 2500,
+  "token_budget": 50000,
+  "strict_usage": true,
+  "attempt_timeout_seconds": 240,
+  "request_timeout_ms": 90000,
+  "mcp_startup_timeout_ms": 60000,
+  "mcp_call_timeout_ms": 60000,
+  "cleanup_timeout_ms": 5000,
+  "credential_env": [
+    "DEFUZZ_COCONUT_API_KEY"
+  ],
+  "models": {
+    "providers": {
+      "defuzz": {
+        "baseUrl": "http://127.0.0.1:8787/v1",
+        "api": "openai-responses",
+        "apiKey": "${DEFUZZ_COCONUT_API_KEY}",
+        "models": [
+          {
+            "id": "coconut-gpt-5-6-terra-max",
+            "name": "DeFuzz Terra Max",
+            "reasoning": true,
+            "input": [
+              "text"
+            ],
+            "contextWindow": 200000,
+            "maxTokens": 16384
+          }
+        ]
+      }
+    }
+  },
+  "mcp": {
+    "defuzz_callgraph": {
+      "command": "/Users/bytedance/projects/research/de-fuzz/main/scripts/run_callgraph_mcp.sh",
+      "args": [
+        "--allow-target",
+        "llvm-23.1.2"
+      ],
+      "cwd": "/Users/bytedance/projects/research/de-fuzz/main",
+      "database_path": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/callgraph.sqlite",
+      "provenance_path": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/provenance.json",
+      "env": {
+        "DEFUZZ_CALLGRAPH_DB": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/callgraph.sqlite"
+      }
+    }
+  },
+  "input_hashes": {
+    "/private/tmp/defuzz-pi-mcp-live-check/runtime.json": "a9f7bb51e80734921b9b59ee7a4d54302755495f83140fa5b798774616e77664",
+    "/Users/bytedance/projects/research/de-fuzz/main/configs/agents/models.example.json": "31e95e6f2873538a1c30ad98662adfc0b980f5c8187f61ac7c77099b23af3bdd",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/dist/worker.js": "3277102a9545ca75e8c7fc4fd754353906b8e9db520b052c0ff3cf707df462d8",
+    "/Users/bytedance/projects/research/de-fuzz/main/configs/agents/mcp.example.json": "256e763cbaa6613f816ad4406c3940ac86dec5fcea9d49690b7159cef1216e42",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/audit-family.md": "fd3c90f918b23357998789d2314d17aa63f19da32def191b2597a2e85c64c10f",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/audit-neutral.md": "cfe279d67cb3bdc4d38800d88a8ae96de01cc287ec5a479fe8ae91bfde938250",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/checker-author.md": "2b24bb698bdfb86cd5727ea40fc671628dd35dbc21b783fc5e77973202131036",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/checker-update-planner.md": "de5aee4caa94ea48eaf1ba3861b2d93f99b2bc546e2f6cea5684acc24ac5d784",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/feedback-analyzer.md": "81c7a39dc28572fd3f6093f568454fa66440455f7489b4ad595067f1c025383f",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/invariant-reviewer.md": "026289bdc1973a54060424bb1c9343b1f161439a94907338ab8b35703573d796",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/llm-oracle.md": "6dd0e154161c844245a4dcc733094cf92431f71200c90d37d62ea85762b4ad4a",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/minimizer.md": "81367d1a60ef220287957bfe4e43dbbaabe7cbf612298c805b07f7da75257789",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/seed-generator.md": "6edb018269a4a8c00aaf4f8eaa4b16d585fe24044cb69888686e1d3b2089e16c",
+    "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/source-mapper.md": "ba7b531c040073c459d3c766e0d915b6a9d28950e2caae5bfee3201fc24723c7",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/src/mcp.ts": "e350ac6399199d976eccf83cfd2e5c5dbf20984c5ca2b28e8f1373790566d6ad",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/src/policy.ts": "81bc1b61b17a22388d71c067f3c685d8f31cf96c707782f43063419ecee76e3b",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/src/protocol.ts": "c96b070d361f3efd9f2e5b2b9726ea39f8e9dff3b272e3e01e904e0119cea05e",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/src/session.ts": "1d04853bdd4bda58e870aa8886c68becf5ec80cd2837da1401ecde0400b64ce8",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/src/usage.ts": "78907fd3663b8d700a75f69238b3a27b43fdfa1a792b3b8aa6b4f4e534b91206",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/src/worker.ts": "0aca776727395664a447ff9de329fa8d8c3fb6e3e6b878ec94a5e1963ec066ce",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/dist/mcp.js": "c9543315b80b419f3920f59d21965cfc4d7b3f436072906c486ef5fdecad4005",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/dist/policy.js": "7f5123da7667e88341bea997080a7c0e72304f9389fec23ddf97e89bf5110cc9",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/dist/protocol.js": "1cee2036d3e2821622cbd7a5095c40027aec11ff41716e0100796b5fcfc4efb2",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/dist/session.js": "f6800590e9f7ce150da498458846b916580e272f6a0519af4d2fe5fcc20766ae",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/dist/usage.js": "61c8ce62c1e240232b33eea044189a3623f59c8229d4da33838ecc9f31bc177c",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/package.json": "1726e25efdd04d5d9ef94ba7dc93ddc4e9e35934af58eefc37bea72e6fddbeaa",
+    "/Users/bytedance/projects/research/de-fuzz/main/agent-runtime/package-lock.json": "e4f5e9d3d4d2cc8a94736036d7ee40c3c27a22378deaa25b01a1c6b0634e8fc1",
+    "/Users/bytedance/projects/research/de-fuzz/main/scripts/run_callgraph_mcp.sh": "185ae62c415b201529b0a464ed8f06a81c9a977f171d236309d22f0645b4a938",
+    "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/provenance.json": "38f55834776c70387e97ca5ff511e9bde20cbc12b70b3cc0dfb3816ddd447fb8",
+    "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/callgraph.sqlite": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+    "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/src/defuzz_callgraph/__init__.py": "b5b2ee7f0ba2eac824a51ebc0116154c4015ad0e0fb68a44ab64f0b77626081f",
+    "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/src/defuzz_callgraph/db.py": "18bcff670bc870b76084474c30de79b648d6f2e0fa2909925a2f1695976c273c",
+    "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/src/defuzz_callgraph/ingest.py": "bb6f13574ae8995317755d42b57b140fb727f74db29881208a3d5c5dee8fd1f8",
+    "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/src/defuzz_callgraph/provenance.py": "49dd93f7167cbcb097d85f24b861797f47517f590aec8339e22bc10fe31b5acb",
+    "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/src/defuzz_callgraph/server.py": "68476238b932400381dc1a78f7c941dd3562f41da59472f791964fdb381a6dcb"
+  },
+  "model": "defuzz/coconut-gpt-5-6-terra-max"
+}

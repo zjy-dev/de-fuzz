@@ -1,0 +1,1 @@
+{"target":"llvm-23.1.2","symbol":"(unnamed namespace)::MachineVerifier::verifyStackProtector","caller_count":1,"compiler":"llvm","version":"23.1.2","isa":"aarch64"}

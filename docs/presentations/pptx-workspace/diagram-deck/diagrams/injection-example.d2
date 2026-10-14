@@ -1,0 +1,11 @@
+...@theme.d2
+direction: right
+seed: "同一个测试\n栈上 int[4]" {class: neutral; shape: document; width: 190; height: 150}
+baseline: "原始编译器\nstrong 栈保护" {class: main; width: 235; height: 125}
+mutant: "植入一处遗漏\n跳过 int 数组分类" {class: danger; width: 320; height: 125}
+protected: "保护成立" {class: main; shape: hexagon; width: 215; height: 120}
+weak: "预期保护减弱\n需要独立验收" {class: danger; width: 245; height: 120}
+seed -> baseline: {class: edge}
+seed -> mutant: {class: edge; style.stroke: "#C62828"}
+baseline -> protected: {class: edge}
+mutant -> weak: {class: edge; style.stroke: "#C62828"}

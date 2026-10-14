@@ -1,0 +1,7 @@
+16.2.0
+clang version 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22d4138ed647fb)
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /opt/llvm23/bin
+23.1.2
+aarch64-unknown-linux-gnu

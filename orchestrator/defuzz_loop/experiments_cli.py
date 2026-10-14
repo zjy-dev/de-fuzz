@@ -31,6 +31,8 @@ from defuzz_loop.experiment_engine import (
     TokenUsageSink,
     load_http_agent_config_snapshot,
 )
+from defuzz_loop.experiment_engine.pi_backend import PiAgentBackend
+from defuzz_loop.experiment_engine.pi_config import load_pi_config
 from defuzz_loop.token_usage import TokenUsageContext, use_token_usage
 
 EXIT_RUNTIME_FAILURE = 1
@@ -76,6 +78,8 @@ class _LazyStageModule:
 
 invariant_generation = _LazyStageModule("defuzz_loop.experiment_engine.invariant_generation")
 checker_authoring = _LazyStageModule("defuzz_loop.experiment_engine.checker_authoring")
+source_mapping = _LazyStageModule("defuzz_loop.experiment_engine.source_mapping_stage")
+log_instrumentation = _LazyStageModule("defuzz_loop.experiment_engine.log_instrumentation_stage")
 agent_audit = _LazyStageModule("defuzz_loop.agent_audit")
 
 
@@ -125,6 +129,29 @@ class _CombinedTokenSink:
         self._run_sink.record_external_usage(payload, **kwargs)
         return record
 
+    def record(self, record: Any) -> None:
+        self._stage_sink.record(record)
+        self._run_sink.record(record)
+
+    def check_budget(self) -> None:
+        self._stage_sink.check_budget()
+        self._run_sink.check_budget()
+
+    @property
+    def records(self) -> Any:
+        return self._run_sink.records
+
+    @property
+    def context(self) -> Any:
+        return self._run_sink.context
+
+    @property
+    def remaining_tokens(self) -> int | None:
+        values = [getattr(sink, "remaining_tokens", None)
+                  for sink in (self._stage_sink, self._run_sink)]
+        known = [value for value in values if value is not None]
+        return min(known) if known else None
+
 
 def _positive_int(value: str) -> int:
     parsed = int(value)
@@ -167,9 +194,9 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     backend = parser.add_argument_group("agent backend")
     backend.add_argument(
         "--backend",
-        choices=("traex", "codex", "http"),
+        choices=("traex", "codex", "http", "pi", "none"),
         default="traex",
-        help="non-interactive agent adapter (default: traex)",
+        help="non-interactive agent adapter (default: traex; 'none' for deterministic stages)",
     )
     backend.add_argument(
         "--http-config",
@@ -183,9 +210,13 @@ def _add_common_arguments(parser: argparse.ArgumentParser) -> None:
     backend.add_argument(
         "--agent-binary",
         metavar="PATH",
-        help="agent executable (default: selected backend name)",
+        help="agent executable (Pi: node; otherwise selected backend name)",
     )
     backend.add_argument("--model", help="optional model override passed to the agent")
+    backend.add_argument(
+        "--pi-config", type=Path, metavar="JSON",
+        help="Pi runtime JSON with explicit model, MCP and agent definition paths",
+    )
 
     group = parser.add_argument_group("shared run controls")
     group.add_argument(
@@ -248,6 +279,17 @@ def _add_invariant_arguments(
         default=None,
         metavar="PATH",
         help="compiler or document corpus to segment (required to execute)",
+    )
+    specific.add_argument(
+        "--rag-corpus-root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "compiler source tree for the historical-bug RAG path "
+            "(default: --corpus-root); use the full compiler checkout when the "
+            "segmented corpus is a curated subset"
+        ),
     )
     specific.add_argument(
         "--reference-root",
@@ -448,6 +490,140 @@ def _add_checker_authoring_parser(subparsers: Any) -> None:
     _add_checker_arguments(parser)
 
 
+def _add_source_mapping_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_pipeline_input_arguments(
+        parser, inputs_help="accepted-invariants JSONL file or containing directory"
+    )
+    specific = parser.add_argument_group("source mapping")
+    specific.add_argument(
+        "--source-root",
+        "--src-root",
+        dest="source_root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="compiler source tree the source-mapper agent traverses (required to execute)",
+    )
+    specific.add_argument(
+        "--compiler",
+        choices=("gcc", "llvm"),
+        default="gcc",
+        help="default compiler for invariants that omit one (default: gcc)",
+    )
+    scope = parser.add_argument_group(
+        "source mapping input scope",
+        description=(
+            "Project accepted Part I invariants to the requested target before any "
+            "source-mapper agent runs. Empty scope selects all accepted invariants."
+        ),
+    )
+    scope.add_argument(
+        "--mechanism",
+        dest="mechanisms",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help=(
+            "accepted-invariant mechanism allowlist (repeatable; aliases are "
+            "normalized; default: all mechanisms)"
+        ),
+    )
+    scope.add_argument(
+        "--isa",
+        dest="isas",
+        action="append",
+        default=[],
+        metavar="ISA",
+        help=(
+            "accepted-invariant target ISA allowlist (repeatable; aliases and "
+            "architecture families are compatible; default: all targets)"
+        ),
+    )
+
+
+def _add_source_mapping_parser(subparsers: Any) -> None:
+    parser = subparsers.add_parser(
+        "source-mapping",
+        help="Part I.5: anchor accepted invariants onto compiler source",
+        description=(
+            "Source mapping\n\n"
+            "Drive the source-mapper SubAgent to anchor each accepted invariant onto "
+            "the pass, target functions, and critical structs/conditions of a "
+            "compiler source tree."
+        ),
+        epilog=(
+            "example: defuzz-experiment source-mapping --from-run runs/invariants-r1 "
+            "--source-root /opt/gcc-src --show-plan"
+        ),
+        formatter_class=_HelpFormatter,
+    )
+    _add_common_arguments(parser)
+    _add_source_mapping_arguments(parser)
+    parser.set_defaults(backend="pi")
+
+
+def _add_log_instrumentation_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_pipeline_input_arguments(
+        parser,
+        inputs_help="validated source-mappings.jsonl file or containing directory",
+    )
+    specific = parser.add_argument_group("log instrumentation")
+    specific.add_argument(
+        "--source-root",
+        "--src-root",
+        dest="source_root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="compiler source tree whose mapped anchors are instrumented (required to execute)",
+    )
+    specific.add_argument(
+        "--source-mappings",
+        type=Path,
+        default=None,
+        metavar="JSONL",
+        help="validated source-mappings.jsonl with its adjacent summary and snapshot",
+    )
+    specific.add_argument(
+        "--accepted-invariants",
+        type=Path,
+        default=None,
+        metavar="JSONL",
+        help="accepted invariants carrying the defense mechanism for each mapped phi_id",
+    )
+    specific.add_argument(
+        "--compiler",
+        choices=("gcc", "llvm"),
+        default="gcc",
+        help="compiler family recorded in the log-id catalog (default: gcc)",
+    )
+
+
+def _add_log_instrumentation_parser(subparsers: Any) -> None:
+    parser = subparsers.add_parser(
+        "log-instrumentation",
+        help="Part I.6: insert unique-ID DEFUZZ_LOG markers at mapped anchors",
+        description=(
+            "Log instrumentation\n\n"
+            "Deterministically insert unique-ID DEFUZZ_HIT runtime probes and "
+            "annotation markers at the pass/function/condition anchors produced by "
+            "source mapping, emitting a rebuild-ready diff, a log-id catalog, and an "
+            "instrumentation plan. No model is called."
+        ),
+        epilog=(
+            "example: defuzz-experiment log-instrumentation "
+            "--from-run runs/source-mapping-r1 --source-root /opt/gcc-src "
+            "--accepted-invariants runs/invariants-r1/rep-001/artifacts/accepted-invariants.jsonl "
+            "--show-plan"
+        ),
+        formatter_class=_HelpFormatter,
+    )
+    _add_common_arguments(parser)
+    _add_log_instrumentation_arguments(parser)
+    # The stage is deterministic; keep the default backend but never call it.
+    parser.set_defaults(backend="none")
+
+
 def _add_audit_arguments(
     parser: argparse.ArgumentParser,
     *,
@@ -455,6 +631,15 @@ def _add_audit_arguments(
     allow_online_oracle: bool = True,
     allow_checker_bundle: bool = True,
 ) -> None:
+    mapping = parser.add_mutually_exclusive_group()
+    mapping.add_argument(
+        "--source-mappings", type=Path,
+        help="validated source-mappings.jsonl with its adjacent summary and source snapshot",
+    )
+    mapping.add_argument(
+        "--mapping-from-run", type=Path,
+        help="completed source-mapping run; select the matching repetition",
+    )
     if allow_pipeline_inputs:
         _add_pipeline_input_arguments(
             parser,
@@ -544,6 +729,14 @@ def _add_audit_arguments(
     )
     if allow_online_oracle:
         oracle = parser.add_argument_group("online oracle")
+        oracle.add_argument(
+            "--checker-update-rounds", type=int, choices=range(4), default=None,
+            help="bounded checker updates (Pi default: 1; other backends: 0)",
+        )
+        oracle.add_argument(
+            "--checker-source-root", type=Path,
+            help="original DeFuzz source for checker updates (default: bundle source_root)",
+        )
         oracle.add_argument(
             "--online-oracle-command",
             action="append",
@@ -744,6 +937,207 @@ def _add_pipeline_parser(subparsers: Any) -> None:
     _configure_pipeline_parser(parser)
 
 
+def _configure_run_all_parser(parser: argparse.ArgumentParser) -> None:
+    """Add the union of controls needed to chain all four experiments.
+
+    ``run-all`` is an engineering convenience that runs the four standalone
+    experiments back to back under one shared backend, budget, and repetition
+    count. It is *not* the paper's formal three-part campaign (that stays in the
+    ``pipeline`` command); the sequence here is Part I invariant generation,
+    then checker authoring and source mapping off those invariants, then the
+    invariant/checker-guided agent audit.
+    """
+
+    _add_common_arguments(parser)
+    parser.set_defaults(backend="pi")
+    run = parser.add_argument_group("sequential run controls")
+    run.add_argument(
+        "--run-prefix",
+        default=None,
+        metavar="PREFIX",
+        help=(
+            "prefix for every sub-experiment run id (default: the bare experiment "
+            "name, e.g. invariant-generation); use --run-id on a single command instead"
+        ),
+    )
+
+    inv = parser.add_argument_group("invariant generation (Part I)")
+    inv.add_argument(
+        "--generation-path",
+        choices=("combined", "segmented-cot", "rag"),
+        default="combined",
+        help="Part I candidate-generation path (default: combined)",
+    )
+    inv.add_argument(
+        "--corpus-root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="compiler or document corpus to segment for Part I (required to execute)",
+    )
+    inv.add_argument(
+        "--rag-corpus-root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "compiler source tree for the Part I historical-bug RAG path "
+            "(default: --corpus-root); use the full compiler checkout when the "
+            "segmented corpus is a curated subset"
+        ),
+    )
+
+    shared = parser.add_argument_group("shared source and target")
+    shared.add_argument(
+        "--reference-root",
+        type=Path,
+        default=_default_reference_root(),
+        metavar="PATH",
+        help=(
+            "DeFuzz reviewer reference root shared by Parts I/II/III "
+            "(default: DEFUZZ_REFERENCE_ROOT or defend-reviewer checkout)"
+        ),
+    )
+    shared.add_argument(
+        "--compiler",
+        choices=("gcc", "llvm"),
+        default="gcc",
+        help="compiler studied by Part I, source mapping, and the audit (default: gcc)",
+    )
+    shared.add_argument(
+        "--source-root",
+        "--src-root",
+        dest="source_root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="compiler source tree used by source mapping and audit",
+    )
+    shared.add_argument(
+        "--target-tree",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="compiler source tree exposed read-only to audit workers (required to execute)",
+    )
+    shared.add_argument(
+        "--max-concurrency",
+        type=_positive_int,
+        default=1,
+        metavar="N",
+        help="maximum concurrent Part I and audit workers (default: 1)",
+    )
+
+    checker = parser.add_argument_group("checker authoring (Part II)")
+    checker.add_argument(
+        "--checker-source-root", type=Path, default=None, metavar="PATH",
+        help="DeFuzz source tree containing core/go.mod and the checker implementation",
+    )
+    checker.add_argument(
+        "--checker-root",
+        type=Path,
+        default=Path("core/internal/oracle"),
+        metavar="PATH",
+        help="checker path relative to source root (default: core/internal/oracle)",
+    )
+    checker.add_argument(
+        "--checker-kind",
+        choices=("auto", "static", "dynamic"),
+        default="auto",
+        help="checker implementation strategy recorded in the plan (default: auto)",
+    )
+
+    scope = parser.add_argument_group("checker/source-mapping/audit scope")
+    scope.add_argument(
+        "--mechanism",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="defense mechanism allowlist shared downstream (repeatable; default: all)",
+    )
+    scope.add_argument(
+        "--isa",
+        action="append",
+        default=[],
+        metavar="ISA",
+        help="target ISA allowlist shared downstream (repeatable; default: all)",
+    )
+
+    audit = parser.add_argument_group("agent audit (Part III)")
+    audit.add_argument(
+        "--toolchains-config",
+        type=Path,
+        default=None,
+        metavar="YAML",
+        help="toolchain configuration used by the checker-bundle dispatcher (required to execute)",
+    )
+    audit.add_argument(
+        "--toolchain-version",
+        dest="toolchain_version",
+        default=None,
+        metavar="VERSION",
+        help="frozen compiler release label recorded in worker context",
+    )
+    audit.add_argument(
+        "--demo-parity",
+        action="store_true",
+        help="compare verified candidates with the evaluator-only demo profile after workers exit",
+    )
+    audit.add_argument(
+        "--parity-profile",
+        choices=("demo-workset", "poc-verified"),
+        default="demo-workset",
+        help="demo corpus profile for --demo-parity (default: demo-workset)",
+    )
+    audit.add_argument(
+        "--online-oracle-command",
+        action="append",
+        type=_argv,
+        default=[],
+        metavar="ARGV",
+        help="candidate-bound checker command used during Full audit feedback (repeatable)",
+    )
+    audit.add_argument(
+        "--oracle-rounds",
+        type=_positive_int,
+        default=1,
+        metavar="N",
+        help="maximum candidate-checker-feedback review rounds (default: 1)",
+    )
+    audit.add_argument(
+        "--checker-update-rounds", type=int, choices=range(4), default=1,
+        help="maximum validated checker updates during online feedback (default: 1)",
+    )
+    audit.add_argument(
+        "--verification-command",
+        action="append",
+        type=_argv,
+        default=[],
+        metavar="ARGV",
+        help="trusted shell-free checker/PoC command for offline verification (repeatable)",
+    )
+
+
+def _add_run_all_parser(subparsers: Any) -> None:
+    parser = subparsers.add_parser(
+        "run-all",
+        help="run all four experiments in dependency order under shared controls",
+        description=(
+            "Run every experiment in order\n\n"
+            "Chain invariant generation, checker authoring, source mapping, and the "
+            "agent audit as four linked standalone runs. This is engineering "
+            "orchestration, not the paper's formal pipeline campaign."
+        ),
+        epilog=(
+            "example: defuzz-experiment run-all --corpus-root CORPUS "
+            "--source-root GCC_TREE --target-tree GCC_TREE "
+            "--toolchains-config TOOLCHAINS --show-plan"
+        ),
+        formatter_class=_HelpFormatter,
+    )
+    _configure_run_all_parser(parser)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _parser(
         prog="defuzz-experiment",
@@ -756,8 +1150,12 @@ def build_parser() -> argparse.ArgumentParser:
             "examples:\n"
             "  defuzz-experiment pipeline --config "
             "configs/experiments/example.yaml --show-plan\n"
+            "  defuzz-experiment run-all --corpus-root CORPUS --source-root GCC_TREE "
+            "--target-tree GCC_TREE --toolchains-config TOOLCHAINS --show-plan\n"
             "  defuzz-experiment invariant-generation --show-plan\n"
             "  defuzz-experiment checker-authoring --from-run RUN_DIR --show-plan\n"
+            "  defuzz-experiment source-mapping --from-run RUN_DIR "
+            "--source-root GCC_TREE --show-plan\n"
             "  defuzz-experiment agent-audit --target-tree GCC_TREE --show-plan\n"
             "  defuzz-experiment ablation without-oracle --baseline-run FULL_RUN "
             "--target-tree TARGET_TREE --reference-root REFERENCE_ROOT "
@@ -772,8 +1170,11 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
     )
     _add_pipeline_parser(subparsers)
+    _add_run_all_parser(subparsers)
     _add_invariant_generation_parser(subparsers)
     _add_checker_authoring_parser(subparsers)
+    _add_source_mapping_parser(subparsers)
+    _add_log_instrumentation_parser(subparsers)
     _add_agent_audit_parser(subparsers)
     _add_ablation_parser(subparsers)
     return parser
@@ -822,6 +1223,273 @@ def _pipeline_main(argv: Sequence[str]) -> int:
     except (OSError, RuntimeError) as exc:
         print(f"defuzz-experiment: runtime failure: {exc}", file=sys.stderr)
         return EXIT_RUNTIME_FAILURE
+
+
+def _run_all_main(argv: Sequence[str]) -> int:
+    """Chain the four standalone experiments in dependency order.
+
+    This reuses each experiment's own entry point by constructing a trimmed
+    ``argv`` per sub-experiment and recursing into :func:`main`. It never
+    reimplements plan resolution, validation, or execution, and it never routes
+    through the formal ``pipeline`` command. Execution stops at the first
+    sub-experiment that returns a non-zero exit code.
+    """
+
+    parser = _parser(
+        prog="defuzz-experiment run-all",
+        description=(
+            "Run every experiment in order\n\n"
+            "Chain invariant generation, checker authoring, source mapping, and the "
+            "agent audit as four linked standalone runs. This is engineering "
+            "orchestration, not the paper's formal pipeline campaign."
+        ),
+        epilog=(
+            "example: defuzz-experiment run-all --corpus-root CORPUS "
+            "--source-root GCC_TREE --target-tree GCC_TREE "
+            "--toolchains-config TOOLCHAINS --show-plan"
+        ),
+    )
+    _configure_run_all_parser(parser)
+    args = parser.parse_args(argv)
+
+    if args.run_id is not None:
+        print(
+            "defuzz-experiment: configuration error: run-all names each sub-run with "
+            "--run-prefix, not --run-id",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIGURATION_ERROR
+
+    prefix = args.run_prefix
+    output_root = Path(args.output_root).expanduser().resolve(strict=False)
+
+    def _run_id(name: str) -> str:
+        return f"{prefix}-{name}" if prefix else name
+
+    inv_id = _run_id("invariant-generation")
+    checker_id = _run_id("checker-authoring")
+    mapping_id = _run_id("source-mapping")
+    audit_id = _run_id("agent-audit")
+    inv_run_dir = output_root / inv_id
+    checker_run_dir = output_root / checker_id
+    mapping_run_dir = output_root / mapping_id
+
+    def _resume_flag(run_id: str) -> list[str]:
+        # Resume only sub-runs that already exist; freshly reached stages start
+        # clean so a partially completed run-all can be continued safely.
+        if not args.resume:
+            return []
+        run_root = output_root / run_id
+        if run_root.is_dir() and all(
+            (run_root / name).is_file() for name in ("plan.json", "manifest.json")
+        ):
+            return ["--resume"]
+        return []
+
+    def _common(run_id: str) -> list[str]:
+        shared = [
+            "--backend",
+            str(args.backend),
+            "--run-id",
+            run_id,
+            "--output-root",
+            str(output_root),
+            "--token-budget",
+            str(args.token_budget),
+            "--time-budget-minutes",
+            str(args.time_budget_minutes),
+            "--repetitions",
+            str(args.repetitions),
+        ]
+        if args.http_config is not None:
+            shared += ["--http-config", str(args.http_config)]
+        if args.pi_config is not None:
+            shared += ["--pi-config", str(args.pi_config)]
+        if args.agent_binary is not None:
+            shared += ["--agent-binary", str(args.agent_binary)]
+        if args.model is not None:
+            shared += ["--model", str(args.model)]
+        if args.show_plan:
+            shared.append("--show-plan")
+        shared += _resume_flag(run_id)
+        return shared
+
+    def _scope() -> list[str]:
+        scope: list[str] = []
+        for item in args.mechanism:
+            scope += ["--mechanism", str(item)]
+        for item in args.isa:
+            scope += ["--isa", str(item)]
+        return scope
+
+    # Experiment 1 — Part I invariant generation.
+    inv_argv = [
+        "invariant-generation",
+        *_common(inv_id),
+        "--generation-path",
+        str(args.generation_path),
+        "--compiler",
+        str(args.compiler),
+        "--reference-root",
+        str(args.reference_root),
+        "--max-concurrency",
+        str(args.max_concurrency),
+    ]
+    if args.corpus_root is not None:
+        inv_argv += ["--corpus-root", str(args.corpus_root)]
+    if args.rag_corpus_root is not None:
+        inv_argv += ["--rag-corpus-root", str(args.rag_corpus_root)]
+
+    # Experiment 2 — Part II checker authoring off the accepted invariants.
+    checker_argv = [
+        "checker-authoring",
+        *_common(checker_id),
+        "--from-run",
+        str(inv_run_dir),
+        "--reference-root",
+        str(args.reference_root),
+        "--checker-root",
+        str(args.checker_root),
+        "--checker-kind",
+        str(args.checker_kind),
+    ]
+    if args.checker_source_root is not None:
+        checker_argv += ["--source-root", str(args.checker_source_root)]
+    checker_argv += _scope()
+
+    # Experiment 3 — source mapping off the same accepted invariants.
+    mapping_argv = [
+        "source-mapping",
+        *_common(mapping_id),
+        "--from-run",
+        str(inv_run_dir),
+        "--compiler",
+        str(args.compiler),
+    ]
+    if args.source_root is not None:
+        mapping_argv += ["--source-root", str(args.source_root)]
+    mapping_argv += _scope()
+
+    # Experiment 3.5 — deterministic log instrumentation off the source mapping.
+    # It calls no model, so it uses --backend none and only the shared run
+    # controls, not the Pi/agent flags in _common().
+    instrument_id = _run_id("log-instrumentation")
+    instrument_argv = [
+        "log-instrumentation",
+        "--backend", "none",
+        "--run-id", instrument_id,
+        "--output-root", str(output_root),
+        "--token-budget", str(args.token_budget),
+        "--time-budget-minutes", str(args.time_budget_minutes),
+        "--repetitions", str(args.repetitions),
+        "--from-run", str(mapping_run_dir),
+        "--compiler", str(args.compiler),
+    ]
+    if args.show_plan:
+        instrument_argv.append("--show-plan")
+    instrument_argv += _resume_flag(instrument_id)
+    if args.source_root is not None:
+        instrument_argv += ["--source-root", str(args.source_root)]
+    # The mechanism per phi_id lives on the accepted invariants artifact.
+    instrument_argv += [
+        "--accepted-invariants",
+        str(_from_run_artifact(inv_run_dir, 1, "accepted-invariants.jsonl")),
+    ]
+
+    # Experiment 4 — Part III agent audit off the checker bundle.
+    audit_argv = [
+        "agent-audit",
+        *_common(audit_id),
+        "--from-run",
+        str(checker_run_dir),
+        "--mapping-from-run",
+        str(mapping_run_dir),
+        "--reference-root",
+        str(args.reference_root),
+        "--compiler",
+        str(args.compiler),
+        "--max-concurrency",
+        str(args.max_concurrency),
+        "--oracle-rounds",
+        str(args.oracle_rounds),
+        "--checker-update-rounds",
+        str(args.checker_update_rounds),
+    ]
+    if args.checker_source_root is not None:
+        audit_argv += ["--checker-source-root", str(args.checker_source_root)]
+    if args.target_tree is not None or args.source_root is not None:
+        audit_argv += ["--target-tree", str(args.target_tree or args.source_root)]
+    if args.toolchains_config is not None:
+        audit_argv += ["--toolchains-config", str(args.toolchains_config)]
+    if args.toolchain_version is not None:
+        audit_argv += ["--toolchain-version", str(args.toolchain_version)]
+    if args.demo_parity:
+        audit_argv += ["--demo-parity", "--parity-profile", str(args.parity_profile)]
+    for command in args.online_oracle_command:
+        audit_argv += ["--online-oracle-command", shlex.join(command)]
+    for command in args.verification_command:
+        audit_argv += ["--verification-command", shlex.join(command)]
+    audit_argv += _scope()
+
+    stages = (
+        ("invariant-generation", inv_argv),
+        ("checker-authoring", checker_argv),
+        ("source-mapping", mapping_argv),
+        ("log-instrumentation", instrument_argv),
+        ("agent-audit", audit_argv),
+    )
+    if not args.show_plan:
+        try:
+            if args.backend != "pi":
+                raise ValueError("run-all requires --backend pi for source mapping")
+            _require_directory(args.corpus_root, "corpus root")
+            _require_reference_documents(args.reference_root)
+            compiler_root = _require_directory(args.source_root, "compiler source root")
+            checker_root = _require_directory(args.checker_source_root, "checker source root")
+            if not (checker_root / "core/go.mod").is_file():
+                raise ValueError("--checker-source-root must contain core/go.mod")
+            if not (checker_root / args.checker_root).is_dir():
+                raise ValueError("checker directory is missing in --checker-source-root")
+            if args.target_tree and args.target_tree.resolve() != compiler_root:
+                raise ValueError("--target-tree must match --source-root for mapped audits")
+            if args.toolchains_config is None:
+                raise ValueError("run-all requires --toolchains-config")
+            from defuzz_loop.experiment_engine.pipeline import formal_toolchain_identities
+            formal_toolchain_identities(
+                str(args.toolchains_config), target_id=audit_id, compiler=args.compiler,
+                isas=[normalize_isa(isa) for isa in args.isa],
+            )
+            from .experiment_engine.callgraph_identity import bind_callgraph, verify_driver_versions
+
+            pi_config, _ = load_pi_config(args.pi_config)
+            graph = pi_config["mcp"].get("defuzz_callgraph", {})
+            if not graph.get("database_path"):
+                raise ValueError("run-all requires a source-bound CallGraph database")
+            binding = bind_callgraph(
+                Path(graph["database_path"]), compiler_root,
+                compiler=args.compiler, isas=[normalize_isa(isa) for isa in args.isa],
+            )
+            verify_driver_versions(binding, args.toolchains_config)
+            # Resolve every command before paying for generation. Upstream
+            # artifacts are intentionally checked later, after each producer.
+            for _, sub_argv in stages:
+                parsed = build_parser().parse_args(sub_argv)
+                resolved = ExperimentPlan.from_mapping(_resolved_plan(parsed))
+                _standalone_backend(resolved)
+        except (OSError, TypeError, ValueError) as exc:
+            print(f"defuzz-experiment: configuration error: {exc}", file=sys.stderr)
+            return EXIT_CONFIGURATION_ERROR
+    for index, (name, sub_argv) in enumerate(stages, start=1):
+        print(f"==> run-all [{index}/{len(stages)}]: {name}", file=sys.stderr)
+        code = main(sub_argv)
+        if code != 0:
+            print(
+                f"defuzz-experiment: run-all stopped at {name} (exit {code})",
+                file=sys.stderr,
+            )
+            return code
+    print("run-all: all four experiments completed", file=sys.stderr)
+    return 0
 
 
 def _resolved_path(path: Path) -> str:
@@ -1029,10 +1697,25 @@ def _input_snapshot(plan: ExperimentPlan) -> dict[str, Any]:
     toolchains_config = plan.parameters.get("toolchains_config")
     if toolchains_config:
         snapshot["toolchains_config"] = _snapshot_path(toolchains_config)
+    if plan.parameters.get("source_mappings") or plan.parameters.get("mapping_from_run"):
+        snapshot["source_mappings"] = []
+        for repetition in range(1, plan.repetitions + 1):
+            mapping_path = _mapping_input(plan, repetition)
+            if mapping_path is not None:
+                snapshot["source_mappings"].append([
+                    _snapshot_path(mapping_path.with_name(filename))
+                    for filename in (
+                        "source-mappings.jsonl", "source-mapping-summary.json",
+                        "source-snapshot.json",
+                    )
+                ])
 
     roots: dict[str, dict[str, Any]] = {}
     if stage == "invariant-generation" and plan.parameters.get("corpus_root"):
         roots["corpus_root"] = _snapshot_path(plan.parameters["corpus_root"], exclude=output_root)
+        rag_corpus_root = plan.parameters.get("rag_corpus_root")
+        if rag_corpus_root and rag_corpus_root != plan.parameters.get("corpus_root"):
+            roots["rag_corpus_root"] = _snapshot_path(rag_corpus_root, exclude=output_root)
     elif plan.source_root is not None:
         roots["source_root"] = _snapshot_path(plan.source_root, exclude=output_root)
     reference_root = plan.parameters.get("reference_root")
@@ -1084,7 +1767,18 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
     repetitions = int(values["repetitions"])
     backend_kind = str(values["backend"])
     http_config: HTTPAgentConfig | None = None
-    if backend_kind == "http":
+    pi_config: dict[str, Any] | None = None
+    if backend_kind != "pi" and values.get("pi_config") is not None:
+        raise ValueError("--pi-config requires --backend pi")
+    if experiment == "source-mapping" and backend_kind != "pi":
+        raise ValueError("source-mapping requires --backend pi")
+    if backend_kind == "none" and experiment != "log-instrumentation":
+        raise ValueError("--backend none is only valid for the log-instrumentation stage")
+    binary = None
+    binary_resolved, binary_available = None, True
+    if backend_kind == "none":
+        pass
+    elif backend_kind == "http":
         raw_config = values.get("http_config")
         if raw_config is None:
             raise ValueError("--http-config is required when --backend http")
@@ -1108,8 +1802,16 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
     else:
         if values.get("http_config") is not None:
             raise ValueError("--http-config is supported only when --backend http")
-        binary = str(values.get("agent_binary") or backend_kind)
+        binary = str(
+            values.get("agent_binary") or ("node" if backend_kind == "pi" else backend_kind)
+        )
         binary_resolved, binary_available = _resolve_agent_binary(binary)
+        if backend_kind == "pi":
+            if values.get("pi_config") is None:
+                raise ValueError("--pi-config is required when --backend pi")
+            pi_config, pi_hash = load_pi_config(Path(values["pi_config"]))
+            if values.get("model") not in (None, pi_config["model"]):
+                raise ValueError("--model must match the pinned Pi model")
 
     common_keys = {
         "experiment",
@@ -1141,14 +1843,19 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
         parameters["model"] = http_config.model
         parameters["http_config"] = _resolved_path(Path(values["http_config"]))
         parameters["http_config_sha256"] = http_config_sha256
-    else:
+    elif backend_kind != "none":
         assert binary is not None
         parameters["agent_binary"] = binary
+    if pi_config is not None:
+        parameters["model"] = pi_config["model"]
+        parameters["pi_config_sha256"] = pi_hash
+        parameters["pi_input_hashes"] = pi_config["input_hashes"]
     parameters["backend"] = backend_kind
     # Standalone stage commands are production experiment entry points. Keep
     # their host-read boundary fail closed; fixture semantics belong to the
-    # explicitly configured pipeline command.
-    parameters["require_host_read_isolation"] = True
+    # explicitly configured pipeline command. The deterministic
+    # log-instrumentation stage calls no model, so it needs no agent sandbox.
+    parameters["require_host_read_isolation"] = backend_kind != "none"
     if variant == "bare-agent" and (parameters.get("inputs") or parameters.get("from_run")):
         raise ValueError("bare-agent does not accept --inputs or --from-run")
     if experiment == "ablation" and variant == "without-rag":
@@ -1203,6 +1910,9 @@ def _resolved_plan(args: argparse.Namespace) -> dict[str, Any]:
                 "binary": binary,
                 "resolved_path": binary_resolved,
                 "available": binary_available,
+                **({"kind": "pi-sdk", "config_sha256": pi_hash,
+                    "model": pi_config["model"]}
+                   if pi_config is not None else {}),
             }
         ),
         "experiment": experiment,
@@ -1233,6 +1943,10 @@ def _stage_selection(plan: ExperimentPlan) -> tuple[str, str, _StageRunner]:
         return "I", "invariant-generation", invariant_generation.run
     if plan.experiment == "checker-authoring":
         return "II", "checker-authoring", checker_authoring.run
+    if plan.experiment == "source-mapping":
+        return "SM", "source-mapping", source_mapping.run
+    if plan.experiment == "log-instrumentation":
+        return "LI", "log-instrumentation", log_instrumentation.run
     return "III", "agent-audit", agent_audit.run
 
 
@@ -1270,8 +1984,14 @@ def _sha256_file(path: Path) -> str:
 def _expected_upstream(stage: str) -> tuple[str, str]:
     if stage == "checker-authoring":
         return "invariant-generation", "accepted-invariants.jsonl"
+    if stage == "source-mapping":
+        return "invariant-generation", "accepted-invariants.jsonl"
+    if stage == "log-instrumentation":
+        return "source-mapping", "source-mappings.jsonl"
     if stage == "agent-audit":
         return "checker-authoring", _CHECKER_BUNDLE_MANIFEST
+    if stage == "mapping-consumer":
+        return "source-mapping", "source-mappings.jsonl"
     raise ValueError(f"stage {stage!r} does not consume --from-run")
 
 
@@ -1347,6 +2067,12 @@ def _validate_from_run(plan: ExperimentPlan, stage: str) -> None:
                 f"upstream artifact size mismatch for {artifact}: "
                 f"expected {artifact_ref.size_bytes}, got {artifact.stat().st_size}"
             )
+        if stage == "mapping-consumer":
+            for name in ("source-mapping-summary.json", "source-snapshot.json"):
+                ref = next((r for r in result.artifacts if Path(r.path).name == name), None)
+                path = artifact.with_name(name)
+                if ref is None or not path.is_file() or _sha256_file(path) != ref.sha256:
+                    raise ValueError(f"upstream mapping artifact hash mismatch: {name}")
 
 
 def _baseline_plan(plan: ExperimentPlan) -> ExperimentPlan:
@@ -1608,7 +2334,7 @@ def _plan_for_repetition(plan: ExperimentPlan, repetition: int, stage: str) -> E
     parameters = dict(plan.parameters)
     from_run = parameters.get("from_run")
     inputs = parameters.get("inputs")
-    if stage == "checker-authoring":
+    if stage in {"checker-authoring", "source-mapping"}:
         if from_run:
             accepted_path = _from_run_artifact(
                 from_run, repetition, "accepted-invariants.jsonl"
@@ -1621,6 +2347,25 @@ def _plan_for_repetition(plan: ExperimentPlan, repetition: int, stage: str) -> E
                 accepted_path = (accepted_path / "accepted-invariants.jsonl").resolve(strict=True)
             parameters["accepted_invariants"] = str(accepted_path)
             parameters["accepted_invariants_sha256"] = _sha256_file(accepted_path)
+    elif stage == "log-instrumentation":
+        explicit = parameters.get("source_mappings")
+        if from_run and explicit:
+            raise ValueError("use only one of --from-run or --source-mappings")
+        if from_run:
+            mapping_path = _from_run_artifact(
+                from_run, repetition, "source-mappings.jsonl"
+            ).resolve(strict=True)
+        elif explicit:
+            mapping_path = Path(str(explicit)).expanduser().resolve(strict=True)
+            if mapping_path.is_dir():
+                mapping_path = (mapping_path / "source-mappings.jsonl").resolve(strict=True)
+        else:
+            raise ValueError("log-instrumentation requires --from-run or --source-mappings")
+        parameters["source_mappings"] = str(mapping_path)
+        parameters["source_mappings_sha256"] = _sha256_file(mapping_path)
+        parameters["source_mapping_summary_sha256"] = _sha256_file(
+            mapping_path.with_name("source-mapping-summary.json")
+        )
     elif stage == "agent-audit":
         checker_bundle = _validated_checker_bundle_inputs(plan, repetition)
         if checker_bundle is not None:
@@ -1656,7 +2401,28 @@ def _plan_for_repetition(plan: ExperimentPlan, repetition: int, stage: str) -> E
                 parameters["accepted_invariants_source"] = "explicit"
             if inputs:
                 parameters["checker_artifacts"] = inputs
+        mapping_path = _mapping_input(plan, repetition)
+        if mapping_path is not None:
+            parameters["source_mappings"] = str(mapping_path)
+            parameters["source_mappings_sha256"] = _sha256_file(mapping_path)
+            parameters["source_mapping_summary_sha256"] = _sha256_file(
+                mapping_path.with_name("source-mapping-summary.json")
+            )
     return plan.model_copy(update={"parameters": parameters})
+
+
+def _mapping_input(plan: ExperimentPlan, repetition: int) -> Path | None:
+    previous = plan.parameters.get("mapping_from_run")
+    explicit = plan.parameters.get("source_mappings")
+    if previous and explicit:
+        raise ValueError("use only one of --mapping-from-run or --source-mappings")
+    if previous:
+        return _from_run_artifact(
+            previous, repetition, "source-mappings.jsonl"
+        ).resolve(strict=True)
+    if explicit:
+        return Path(str(explicit)).expanduser().resolve(strict=True)
+    return None
 
 
 def _assert_frozen_bundle_inputs(plan: ExperimentPlan) -> None:
@@ -1672,6 +2438,11 @@ def _assert_frozen_bundle_inputs(plan: ExperimentPlan) -> None:
             plan.parameters.get("accepted_invariants_sha256"),
             "accepted invariants",
         ),
+        (
+            plan.parameters.get("source_mappings"),
+            plan.parameters.get("source_mappings_sha256"),
+            "source mappings",
+        ),
     )
     for raw_path, expected, label in pairs:
         if raw_path is None:
@@ -1685,6 +2456,8 @@ def _assert_frozen_bundle_inputs(plan: ExperimentPlan) -> None:
 
 
 def _require_directory(value: Any, label: str) -> Path:
+    if value is None:
+        raise ValueError(f"{label} is required")
     path = Path(value).expanduser().resolve(strict=False)
     if not path.is_dir():
         raise ValueError(f"{label} is not an existing directory: {path}")
@@ -1701,12 +2474,12 @@ def _require_reference_documents(value: Any) -> Path:
     return root
 
 
-def _require_checker_input(plan: ExperimentPlan) -> None:
+def _require_accepted_invariant_input(plan: ExperimentPlan, stage: str) -> None:
     parameters = plan.parameters
     direct = parameters.get("inputs")
     previous = parameters.get("from_run")
     if not direct and not previous:
-        raise ValueError("checker-authoring requires --inputs or --from-run")
+        raise ValueError(f"{stage} requires --inputs or --from-run")
     for repetition in range(1, plan.repetitions + 1):
         if previous:
             path = _from_run_artifact(previous, repetition, "accepted-invariants.jsonl")
@@ -1716,6 +2489,10 @@ def _require_checker_input(plan: ExperimentPlan) -> None:
                 path /= "accepted-invariants.jsonl"
         if not path.is_file():
             raise ValueError(f"accepted invariant input does not exist: {path}")
+
+
+def _require_checker_input(plan: ExperimentPlan) -> None:
+    _require_accepted_invariant_input(plan, "checker-authoring")
 
 
 def _validate_execution_inputs(plan: ExperimentPlan) -> None:
@@ -1730,6 +2507,24 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
         if checker_root.is_absolute() or ".." in checker_root.parts:
             raise ValueError("checker root must be relative to source root")
         _require_checker_input(plan)
+    elif stage == "source-mapping":
+        if plan.source_root is None:
+            raise ValueError("source-mapping requires --source-root")
+        _require_directory(plan.source_root, "source root")
+        _require_accepted_invariant_input(plan, "source-mapping")
+    elif stage == "log-instrumentation":
+        if plan.source_root is None:
+            raise ValueError("log-instrumentation requires --source-root")
+        _require_directory(plan.source_root, "source root")
+        if not plan.parameters.get("from_run") and not plan.parameters.get("source_mappings"):
+            raise ValueError("log-instrumentation requires --from-run or --source-mappings")
+        for repetition in range(1, plan.repetitions + 1):
+            stage_plan = _plan_for_repetition(plan, repetition, stage)
+            mapping_path = Path(str(stage_plan.parameters["source_mappings"]))
+            from defuzz_loop.experiment_engine.source_mapping_stage import load_source_mappings
+            load_source_mappings(mapping_path, source_root=plan.source_root)
+        _validate_from_run(plan, stage)
+        return
     else:
         if plan.source_root is None:
             raise ValueError("agent-audit requires --target-tree")
@@ -1757,6 +2552,19 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
             _validated_checker_bundle_inputs(plan, repetition)
             for repetition in range(1, plan.repetitions + 1)
         ]
+        mapping_run = plan.parameters.get("mapping_from_run")
+        if mapping_run:
+            mapping_plan = plan.model_copy(update={
+                "parameters": {**plan.parameters, "from_run": mapping_run}
+            })
+            _validate_from_run(mapping_plan, "mapping-consumer")
+        for repetition in range(1, plan.repetitions + 1):
+            mapping_path = _mapping_input(plan, repetition)
+            if mapping_path is not None:
+                from defuzz_loop.experiment_engine.source_mapping_stage import load_source_mappings
+                load_source_mappings(mapping_path, source_root=plan.source_root)
+            elif plan.parameters.get("backend") == "pi" and plan.variant != "bare-agent":
+                raise ValueError("Pi audit requires --source-mappings or --mapping-from-run")
         toolchains_config = plan.parameters.get("toolchains_config")
         if toolchains_config:
             from defuzz_loop.experiment_engine.pipeline import (
@@ -1793,6 +2601,43 @@ def _validate_execution_inputs(plan: ExperimentPlan) -> None:
     _validate_from_run(plan, stage)
     _validate_baseline_run(plan, stage)
 
+    if (
+        plan.parameters.get("backend") == "pi"
+        and stage in {"source-mapping", "agent-audit"}
+        and plan.variant != "bare-agent"
+    ):
+        from .experiment_engine.callgraph_identity import bind_callgraph, verify_driver_versions
+
+        pi_settings, _ = load_pi_config(Path(str(plan.parameters["pi_config"])))
+        graph = pi_settings["mcp"].get("defuzz_callgraph", {})
+        if not graph.get("database_path"):
+            raise ValueError("Pi mapping/audit requires a source-bound CallGraph database")
+        isas = [normalize_isa(str(item)) for item in _as_list(plan.parameters.get("isa"))]
+        if stage == "source-mapping":
+            from .experiment_engine.checker_authoring import (
+                _project_input_scope,
+                load_accepted_invariants,
+            )
+            from .experiment_engine.source_mapping_stage import _mapping_isas
+
+            mapping_plan = _plan_for_repetition(plan, 1, stage)
+            accepted = Path(str(mapping_plan.parameters["accepted_invariants"]))
+            records, scope = _project_input_scope(
+                load_accepted_invariants(accepted),
+                parameters=mapping_plan.parameters, source_path=accepted,
+            )
+            isas = sorted({
+                isa for record in records
+                for isa in _mapping_isas(record.value.get("target"), scope["requested"]["isas"])
+            })
+        assert plan.source_root is not None
+        binding = bind_callgraph(
+            Path(graph["database_path"]), plan.source_root,
+            compiler=str(plan.parameters.get("compiler", "gcc")), isas=isas,
+        )
+        if toolchains := plan.parameters.get("toolchains_config"):
+            verify_driver_versions(binding, Path(str(toolchains)))
+
     if plan.parameters.get("backend") == "http":
         config = _http_config_for_plan(plan)
         if not os.environ.get(config.api_key_env):
@@ -1823,6 +2668,18 @@ def _completed_repetition(store: RunStore, repetition: int, stage: str) -> bool:
     )
     if result.stage != stage or not result.success:
         raise ValueError(f"completed repetition {repetition} has an inconsistent stage result")
+    if stage in {"source-mapping", "agent-audit"}:
+        for ref in result.artifacts:
+            if stage == "agent-audit" and ref.kind != "checker-update":
+                continue
+            artifact = (store.rep_dir(repetition) / "artifacts" / ref.path).resolve(strict=True)
+            artifact.relative_to((store.rep_dir(repetition) / "artifacts").resolve())
+            if _sha256_file(artifact) != ref.sha256:
+                raise ValueError(f"completed {stage} artifact SHA-256 mismatch")
+    if stage == "source-mapping":
+        from .experiment_engine.source_mapping_stage import load_source_mappings
+
+        load_source_mappings(store.rep_dir(repetition) / "artifacts/source-mappings.jsonl")
     return True
 
 
@@ -1845,11 +2702,37 @@ def _http_config_for_plan(plan: ExperimentPlan) -> HTTPAgentConfig:
     return config
 
 
+class _NoAgentBackend:
+    """A backend sentinel for deterministic stages that never call a model."""
+
+    provider = "none"
+    supports_host_read_isolation = True
+
+    async def run(self, request: Any) -> Any:  # pragma: no cover - never invoked
+        raise RuntimeError("deterministic stage attempted an unexpected model call")
+
+
 def _standalone_backend(plan: ExperimentPlan) -> AgentBackend:
     """Build and capability-check the backend before entering asyncio."""
 
+    if plan.parameters.get("backend") == "none":
+        # Deterministic stages (log-instrumentation) call no model; the runner
+        # ignores the backend argument. Return a sentinel that fails loudly if a
+        # model call is ever attempted.
+        return _NoAgentBackend()
     if plan.parameters.get("backend") == "http":
         backend: AgentBackend = HTTPResponsesAgentBackend(_http_config_for_plan(plan))
+    elif plan.parameters.get("backend") == "pi":
+        backend = PiAgentBackend(
+            Path(str(plan.parameters["pi_config"])),
+            binary=str(plan.parameters.get("agent_binary") or "node"),
+            model=plan.parameters.get("model"),
+        )
+        if backend.config_sha256 != plan.parameters.get("pi_config_sha256"):
+            raise ValueError("Pi config no longer matches the frozen plan")
+        backend.preflight(
+            require_isolation=bool(plan.parameters.get("require_host_read_isolation"))
+        )
     else:
         backend = ExecAgentBackend(
             binary=str(plan.parameters.get("agent_binary", "traex")),
@@ -1943,7 +2826,12 @@ async def _execute(
         usage_missing = sum(int(row["usage_missing_count"]) for row in summary_rows)
         consumed_tokens = sink.consumed_total_tokens
         budget_overshot = consumed_tokens is not None and consumed_tokens > plan.budget.token_budget
-        token_comparable = bool(summary_rows) and usage_missing == 0 and not budget_overshot
+        # A deterministic stage makes no model calls, so an empty usage ledger is
+        # expected and must not be read as a broken token comparison.
+        deterministic_stage = plan.parameters.get("backend") == "none"
+        token_comparable = deterministic_stage or (
+            bool(summary_rows) and usage_missing == 0 and not budget_overshot
+        )
         if result.success and not token_comparable:
             reasons = []
             if not summary_rows:
@@ -2007,6 +2895,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     selected_argv = list(sys.argv[1:] if argv is None else argv)
     if selected_argv[:1] == ["pipeline"]:
         return _pipeline_main(selected_argv[1:])
+    if selected_argv[:1] == ["run-all"]:
+        return _run_all_main(selected_argv[1:])
     parser = build_parser()
     args = parser.parse_args(selected_argv)
     try:

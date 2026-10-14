@@ -1,0 +1,39 @@
+Archiving gcc-x86_64
+Archiving gcc-aarch64
+Archiving llvm
+STEP 1/13: FROM befd6583b00bb50d51e42cc4c83eecd97f9d543a03b8d206360a47c9d06db3e3
+STEP 2/13: ADD gcc-x86_64.tar /
+--> 2d9cbbd238fc
+STEP 3/13: ADD gcc-aarch64.tar /
+--> 640cf835cc7d
+STEP 4/13: ADD llvm.tar /opt/llvm23/
+--> 3875dd81a514
+STEP 5/13: ADD sources-gcc.tar.xz /opt/defuzz-sources/
+--> 83c9b8cba818
+STEP 6/13: ADD sources-llvm.tar.xz /opt/defuzz-sources/
+--> f818a624518c
+STEP 7/13: COPY clang-aarch64.sh /usr/local/bin/defuzz-clang-aarch64
+--> 3380e686f2a6
+STEP 8/13: COPY versions.json /usr/local/share/defuzz/toolchains-matched.json
+--> 14187bf4af37
+STEP 9/13: RUN chmod 755 /usr/local/bin/defuzz-clang-aarch64     && mv /opt/defuzz-sources/llvm-project-23.1.2.src /opt/defuzz-sources/llvm-project-23.1.2
+--> 7f8ed1fe811f
+STEP 10/13: ENV PATH=/opt/gcc16/bin:/opt/llvm23/bin:/usr/local/bin:/usr/bin:/bin     LD_LIBRARY_PATH=/opt/llvm23/lib
+--> 0c5b9e11375a
+STEP 11/13: RUN /opt/gcc16/bin/gcc -dumpfullversion     && /opt/gcc16/bin/aarch64-linux-gnu-gcc -dumpfullversion     && /opt/llvm23/bin/clang --version     && /opt/llvm23/bin/ld.lld --version
+16.2.0
+16.2.0
+clang version 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22d4138ed647fb)
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /opt/llvm23/bin
+LLD 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22d4138ed647fb) (compatible with GNU linkers)
+--> aaf9270858ad
+STEP 12/13: RUN find /opt/gcc16 /opt/llvm23 /opt/defuzz-sources -name '._*' -type f -delete
+--> 5f4f7bfd6ae4
+STEP 13/13: LABEL org.defuzz.gcc.version="16.2.0"       org.defuzz.gcc.revision="78d4ac73dd391005b895a6148cd9831e28e1208b"       org.defuzz.llvm.version="23.1.2"       org.defuzz.llvm.revision="85ac560262434c9ccfc0c183ec22d4138ed647fb"
+COMMIT localhost/defuzz-toolchains-matched:16.2.0-23.1.2
+--> 693d9c909471
+Successfully tagged localhost/defuzz-toolchains-matched:16.2.0-23.1.2
+693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7
+{"tag": "localhost/defuzz-toolchains-matched:16.2.0-23.1.2", "image_id": "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7"}

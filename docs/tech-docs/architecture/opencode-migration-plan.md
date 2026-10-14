@@ -1,5 +1,8 @@
 # OpenCode 迁移方案：markdown SubAgents + 自研显式编排
 
+> 历史设计记录。当前执行路径已迁往 Pi SDK；本文中的旧命令和配置不再适用。
+> 请使用 [Pi 迁移记录](pi-sdk-migration.md) 与 [当前实验规程](../../paper/experiment_runbook.md)。
+
 **作者**：张景耀
 **分支**：`feat/opencode-migration-20260928`
 **Rev 1 日期**：2026-09-28（Source Mapping + LangGraph 保留）

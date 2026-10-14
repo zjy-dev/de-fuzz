@@ -26,11 +26,13 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol, cast
 
+from defuzz_loop.agents.runner import schema_repairable
 from defuzz_loop.audit_schema import normalize_isa, normalize_mechanism
 from defuzz_loop.checker_bundle import (
     CHECKER_BUNDLE_MANIFEST_FILENAME,
     CheckerBundleManifest,
     compute_bundle_id,
+    load_checker_bundle,
 )
 from defuzz_loop.token_usage import (
     BudgetExceeded,
@@ -659,10 +661,13 @@ Implement and test the checker now. Do not edit the source checkout outside this
 
 
 def _repair_prompt(
-    invariant: NormalizedInvariant, attempt: int, failures: Sequence[Mapping[str, Any]]
+    invariant: NormalizedInvariant, attempt: int, failures: Sequence[Mapping[str, Any]],
+    *, original: str, candidate: str,
 ) -> str:
     details = json.dumps(list(failures), ensure_ascii=False, indent=2, sort_keys=True)
-    return f"""Repair the current implementation for invariant {invariant.invariant_id}.
+    return f"""{original}
+
+Repair the current implementation for invariant {invariant.invariant_id}.
 This is bounded repair attempt {attempt}. Keep the existing InvariantChecker, metadata SSOT,
 mechanism registration, and mandatory Pass/Fail/NotApplicable/Error/nil tests intact.
 Do not edit outside core/internal/oracle, do not alter earlier checker-owned files, and do not
@@ -672,6 +677,9 @@ Deterministic validation feedback from the previous attempt:
 ```json
 {details}
 ```
+
+Previous candidate output and implementation patch:
+{candidate}
 
 Apply the smallest correct fix, format the Go files, and stop.
 """
@@ -1040,6 +1048,18 @@ def _runtime_catalog(
         runtime = by_id.get(checker_id)
         if runtime is None:
             raise ValueError(f"dispatcher catalog is missing checker {checker_id!r}")
+        if (
+            not runtime.get("oracle") or not runtime.get("mechanism")
+            or runtime.get("mode") not in {"single", "differential"}
+            or runtime.get("cost") not in {"cheap", "expensive"}
+            or runtime.get("category") not in {"static", "dynamic"}
+            or not isinstance(runtime.get("applicable_isas"), list)
+            or not runtime["applicable_isas"]
+            or not all(isinstance(isa, str) and isa for isa in runtime["applicable_isas"])
+        ):
+            raise ValueError(
+                f"dispatcher catalog has incomplete registration/metadata: {checker_id}"
+            )
         requires = runtime.get("requires", [])
         if not isinstance(requires, list) or not all(
             isinstance(item, str) and item for item in requires
@@ -1107,10 +1127,12 @@ def _reused_row(
     repetition: int,
     invariant: NormalizedInvariant,
     snapshot: Mapping[str, _FileState],
+    *,
+    inherited_checker_id: str | None = None,
 ) -> dict[str, Any]:
     """Preserve generated lineage while recording a no-edit trusted reuse."""
 
-    checker_id = invariant.reused_checker_ids[0]
+    checker_id = inherited_checker_id or invariant.reused_checker_ids[0]
     tree_sha256 = _tree_sha256(snapshot)
     return {
         "schema_version": 1,
@@ -1139,8 +1161,9 @@ def _reused_row(
         "stopped_reason": None,
         "budget_exhausted": False,
         "infrastructure_error": False,
-        "reused": True,
-        "reused_checker_id": checker_id,
+        "inherited": inherited_checker_id is not None,
+        "reused": bool(invariant.reused_checker_ids),
+        "reused_checker_id": checker_id if invariant.reused_checker_ids else None,
         "reuse_validation": "fresh-runtime-catalog-required",
     }
 
@@ -1270,6 +1293,7 @@ class CheckerAuthoringRunner:
         workspace: Path,
         commands: Sequence[ValidationCommand],
         timeout_seconds: float,
+        evidence_dir: Path | None = None,
     ) -> tuple[bool, list[dict[str, Any]]]:
         results: list[dict[str, Any]] = []
         passed = True
@@ -1307,6 +1331,11 @@ class CheckerAuthoringRunner:
                 spec.require_empty_stdout and bool(outcome.stdout.strip())
             )
             passed = passed and success
+            if evidence_dir is not None:
+                evidence_dir.mkdir(parents=True, exist_ok=True)
+                prefix = evidence_dir / f"validation-{len(results) + 1:02d}"
+                _atomic_write(prefix.with_suffix(".stdout"), outcome.stdout)
+                _atomic_write(prefix.with_suffix(".stderr"), outcome.stderr)
             results.append(
                 {
                     "argv": list(outcome.argv),
@@ -1388,6 +1417,9 @@ class CheckerAuthoringRunner:
         previous_failures: list[Mapping[str, Any]] = []
         stopped_reason: str | None = None
         accepted_snapshot = dict(parent_snapshot)
+        original_prompt = render_checker_prompt(invariant, checker_root=checker_root)
+        parent_attempt_id = None
+        previous_candidate = ""
         try:
             for attempt_number in range(1, max_attempts + 1):
                 try:
@@ -1395,16 +1427,28 @@ class CheckerAuthoringRunner:
                 except BudgetExceeded as exc:
                     stopped_reason = str(exc)
                     break
-                agent_output = workspace / ".defuzz-agent" / slug / f"attempt-{attempt_number:03d}"
+                agent_output = artifact_dir / "agents" / f"attempt-{attempt_number:03d}"
+                attempt_id = uuid.uuid4().hex
                 attempt_context = token_sink.context.with_overrides(
                     stage=f"{invariant.invariant_id}:attempt-{attempt_number}"
                 )
                 existing_call_ids = {record.call_id for record in token_sink.records}
                 prompt = (
-                    render_checker_prompt(invariant, checker_root=checker_root)
+                    original_prompt
                     if attempt_number == 1
-                    else _repair_prompt(invariant, attempt_number, previous_failures)
+                    else _repair_prompt(
+                        invariant, attempt_number, previous_failures,
+                        original=original_prompt, candidate=previous_candidate,
+                    )
                 )
+                if plan.parameters.get("checker_update_context"):
+                    prompt += (
+                        "\n\n# Validated parent checker update\n"
+                        "The workspace already contains the parent bundle. Preserve its "
+                        "checker IDs and invariant semantics. Fix the checker implementation "
+                        "using this online feedback; do not weaken checks to make a PoC pass.\n"
+                        + json.dumps(plan.parameters["checker_update_context"], sort_keys=True)
+                    )
                 request = AgentRequest(
                     prompt=prompt,
                     cwd=workspace,
@@ -1423,6 +1467,9 @@ class CheckerAuthoringRunner:
                         "part": "checker-authoring",
                         "stage": f"{invariant.invariant_id}:attempt-{attempt_number}",
                         "invariant_id": invariant.invariant_id,
+                        "agent_id": "checker-author",
+                        "attempt_id": attempt_id,
+                        "parent_attempt_id": parent_attempt_id,
                         "parent_tree_sha256": _tree_sha256(parent_snapshot),
                     },
                 )
@@ -1461,7 +1508,7 @@ class CheckerAuthoringRunner:
                 validation: list[dict[str, Any]] = []
                 if agent_result.success:
                     validation_ok, validation = await self._validate(
-                        workspace, commands, timeout_seconds
+                        workspace, commands, timeout_seconds, agent_output / "commands"
                     )
                 else:
                     validation.append(
@@ -1492,6 +1539,19 @@ class CheckerAuthoringRunner:
                     for item in changed
                     if not _matches_any_path(str(item["path"]), allowed_paths)
                 ]
+                implementation_changes = [
+                    item for item in changed
+                    if str(item["path"]).endswith(".go")
+                    and not str(item["path"]).endswith("_test.go")
+                    and str(item["path"]) not in {
+                        "core/internal/oracle/metadata.go", "core/internal/oracle/registry.go",
+                    }
+                ]
+                if not implementation_changes:
+                    allowed_errors.append({
+                        "type": "missing-implementation",
+                        "message": "authoring produced no checker implementation change",
+                    })
                 for item in changed:
                     path = str(item["path"])
                     owner = owned_files.get(path)
@@ -1508,6 +1568,35 @@ class CheckerAuthoringRunner:
                             }
                         )
                 validation_ok = validation_ok and not allowed_errors
+                if validation_ok:
+                    # Test exit codes alone cannot prove that this invariant was
+                    # implemented. Require its ID in the freshly compiled catalog.
+                    spec = ValidationCommand(
+                        ("go", "run", "./cmd/defuzz-candidate-dispatcher", "--mode", "catalog"),
+                        cwd="core",
+                    )
+                    catalog_ok, catalog_record, catalog_outcome = await self._execute_command(
+                        workspace, spec, timeout_seconds,
+                    )
+                    _atomic_write(agent_output / "catalog.stdout", catalog_outcome.stdout)
+                    _atomic_write(agent_output / "catalog.stderr", catalog_outcome.stderr)
+                    if catalog_ok:
+                        try:
+                            _runtime_catalog(
+                                catalog_outcome.stdout, included=[(invariant, {
+                                    "reused_checker_id": (
+                                        invariant.reused_checker_ids[0]
+                                        if len(invariant.reused_checker_ids) == 1 else None
+                                    ),
+                                })],
+                                source_tree_sha256=_tree_sha256(baseline),
+                                final_tree_sha256=_tree_sha256(current),
+                            )
+                        except ValueError as exc:
+                            catalog_record.update(status="failed", error=str(exc))
+                            catalog_ok = False
+                    validation.append(catalog_record)
+                    validation_ok = catalog_ok
                 previous_failures = [
                     *allowed_errors,
                     *(item for item in validation if item.get("status") != "passed"),
@@ -1518,6 +1607,9 @@ class CheckerAuthoringRunner:
                 attempts.append(
                     {
                         "attempt": attempt_number,
+                        "attempt_id": attempt_id,
+                        "parent_attempt_id": parent_attempt_id,
+                        "evidence_dir": _reference_path(agent_output, output_dir),
                         "agent_status": "passed" if agent_result.success else "failed",
                         "agent_error": agent_result.error,
                         "validation_status": status,
@@ -1527,10 +1619,29 @@ class CheckerAuthoringRunner:
                         "token_refs": refs,
                     }
                 )
+                attempt_patch = _patch(baseline, current)
+                _atomic_write(agent_output / "candidate.patch", attempt_patch)
+                _atomic_write(
+                    agent_output / "validation.json",
+                    json.dumps(attempts[-1], ensure_ascii=False, indent=2) + "\n",
+                )
+                previous_candidate = (
+                    json.dumps(agent_result.final, ensure_ascii=False, default=str)
+                    + "\n" + attempt_patch
+                )
+                parent_attempt_id = attempt_id
                 final_snapshot = current
                 if validation_ok:
                     final_status = "passed"
                     accepted_snapshot = current
+                    break
+                if not agent_result.success and not schema_repairable(agent_result):
+                    if agent_result.error_category == "budget":
+                        stopped_reason = agent_result.error or "Pi model budget exhausted"
+                    break
+                if any(
+                    item.get("timed_out") or item.get("exit_code") == 127 for item in validation
+                ):
                     break
 
             if first_patch_ref is None:
@@ -1811,15 +1922,61 @@ class CheckerAuthoringRunner:
         accepted_snapshot = dict(source_snapshot)
         source_tree_sha256 = _tree_sha256(source_snapshot)
         try:
+            parent_rows: dict[str, Any] = {}
+            update_ids = set(parameters.get("checker_update_ids", []))
+            if parameters.get("parent_checker_bundle"):
+                parent = load_checker_bundle(parameters["parent_checker_bundle"])
+                if parent.manifest.source_tree_sha256 != source_tree_sha256:
+                    raise ValueError("checker update source differs from the frozen baseline")
+                if parent.scoped_invariants is None or parent.cumulative_patch is None:
+                    raise ValueError("checker update parent is missing required artifacts")
+                previous = load_accepted_invariants(parent.scoped_invariants)
+                if [item.value for item in previous] != [item.value for item in invariants]:
+                    raise ValueError("checker update may not change scoped invariant semantics")
+                for parent_row in parent.manifest.invariants:
+                    for generated_id in getattr(
+                        parent_row, "generated_invariant_ids", [parent_row.invariant_id]
+                    ):
+                        parent_rows[generated_id] = parent_row
+                if not update_ids or not update_ids <= set(parent_rows):
+                    raise ValueError("checker update IDs must belong to the parent bundle")
+                patch = parent.cumulative_patch
+                if patch.read_bytes().strip():
+                    applied = await SubprocessCommandExecutor().run(
+                        ("git", "apply", "--whitespace=nowarn", str(patch)),
+                        cwd=lease.root, timeout_seconds=timeout_seconds,
+                    )
+                    if not applied.success:
+                        raise ValueError(f"cannot replay parent checker patch: {applied.stderr}")
+                accepted_snapshot = _snapshot(lease.root)
+                if _tree_sha256(accepted_snapshot) != parent.manifest.final_tree_sha256:
+                    raise ValueError("replayed checker tree does not match the parent bundle")
+                # All checkers are revalidated together. Only unrelated generated
+                # checkers retain ownership; shared baseline implementations may
+                # be corrected for a selected reused checker.
+                owned_files = {
+                    path: item_id for item_id, row in parent_rows.items()
+                    if item_id not in update_ids
+                    for path in row.files
+                }
             for index, invariant in enumerate(invariants):
+                row: dict[str, Any]
+                paths: list[Path]
                 if invariant.declared_reused_checker_ids != invariant.reused_checker_ids:
                     raise ValueError(
                         "Part I checker reuse metadata does not match Part II semantic "
                         f"validation for {invariant.invariant_id}"
                     )
-                if len(invariant.reused_checker_ids) == 1:
+                if parent_rows and invariant.invariant_id not in update_ids:
+                    row = _reused_row(
+                        plan, repetition, invariant, accepted_snapshot,
+                        inherited_checker_id=parent_rows[invariant.invariant_id].invariant_id,
+                    )
+                    row["files"] = list(parent_rows[invariant.invariant_id].files)
+                    paths = []
+                elif len(invariant.reused_checker_ids) == 1 and not parent_rows:
                     row = _reused_row(plan, repetition, invariant, accepted_snapshot)
-                    paths: list[Path] = []
+                    paths = []
                 else:
                     row, paths, accepted_snapshot = await self._one(
                         plan=plan.model_copy(
@@ -1845,6 +2002,9 @@ class CheckerAuthoringRunner:
                         token_sink=token_sink,
                         timeout_seconds=timeout_seconds,
                     )
+                    if parent_rows and invariant.reused_checker_ids:
+                        row["reused"] = True
+                        row["reused_checker_id"] = invariant.reused_checker_ids[0]
                 row["bundle_index"] = index
                 rows.append(row)
                 patch_paths.extend(paths)
@@ -1970,7 +2130,8 @@ class CheckerAuthoringRunner:
             budget_exhausted_any = any(row["budget_exhausted"] for row in rows)
             infrastructure_error_any = any(row["infrastructure_error"] for row in rows)
             unprocessed_any = any(
-                row["attempt_count"] == 0 and not row.get("reused") for row in rows
+                row["attempt_count"] == 0 and not row.get("reused") and not row.get("inherited")
+                for row in rows
             )
             build_ok = bool(build_record and build_record.get("status") == "passed")
             ready = (
@@ -2166,7 +2327,10 @@ class CheckerAuthoringRunner:
                 "attempt_cap": max_attempts,
                 "checker_bundle_manifest": os.fspath(manifest_path),
                 "bundle_id": manifest.bundle_id,
-                "deterministic_only": bool(rows) and all(bool(row.get("reused")) for row in rows),
+                "deterministic_only": bool(rows) and all(
+                    bool(row.get("reused") or row.get("inherited")) and not row["attempt_count"]
+                    for row in rows
+                ),
                 "reused_checker_ids": [
                     row["reused_checker_id"] for row in rows if row.get("reused_checker_id")
                 ],

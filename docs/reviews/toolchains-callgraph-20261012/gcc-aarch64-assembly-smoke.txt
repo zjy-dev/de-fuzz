@@ -1,0 +1,10 @@
+	.arch armv8-a
+	.file	"smoke.c"
+	.text
+	.align	2
+	.p2align 5,,15
+	.global	f
+	.type	f, %function
+f:
+.LFB0:
+	.cfi_startproc

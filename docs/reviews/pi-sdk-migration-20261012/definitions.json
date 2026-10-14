@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "agents": [
+    {
+      "agent_id": "audit-family",
+      "source_path": "agents/audit-family.md",
+      "source_sha256": "600dfa5dfe2e7d76b9293c6452587f2842f7f6d7627961f49821addc72779fba",
+      "migrated_path": "agents/definitions/audit-family.md",
+      "migrated_sha256": "fd3c90f918b23357998789d2314d17aa63f19da32def191b2597a2e85c64c10f",
+      "body_diff": []
+    },
+    {
+      "agent_id": "audit-neutral",
+      "source_path": "agents/audit-neutral.md",
+      "source_sha256": "32c90f1d3cd23f82e758b77b67dd52b06ca39e0310ffb6a7c662433c2515e00e",
+      "migrated_path": "agents/definitions/audit-neutral.md",
+      "migrated_sha256": "cfe279d67cb3bdc4d38800d88a8ae96de01cc287ec5a479fe8ae91bfde938250",
+      "body_diff": []
+    },
+    {
+      "agent_id": "checker-author",
+      "source_path": "agents/checker-author.md",
+      "source_sha256": "6cc8318cb5ae09cdb35929f0a4e17a9a1239366d6e642edb04e11508962a3aea",
+      "migrated_path": "agents/definitions/checker-author.md",
+      "migrated_sha256": "2b24bb698bdfb86cd5727ea40fc671628dd35dbc21b783fc5e77973202131036",
+      "body_diff": []
+    },
+    {
+      "agent_id": "checker-update-planner",
+      "source_path": "agents/checker-update-planner.md",
+      "source_sha256": "b86f533d3b71e9c324b40de1923c0a28104892722a23ba398e4f839274d92740",
+      "migrated_path": "agents/definitions/checker-update-planner.md",
+      "migrated_sha256": "de5aee4caa94ea48eaf1ba3861b2d93f99b2bc546e2f6cea5684acc24ac5d784",
+      "body_diff": []
+    },
+    {
+      "agent_id": "feedback-analyzer",
+      "source_path": "agents/feedback-analyzer.md",
+      "source_sha256": "d45710ac8e49501f35ee5e0fec6c49ace6cee35d2d7b70dbcba5557ae4e424a6",
+      "migrated_path": "agents/definitions/feedback-analyzer.md",
+      "migrated_sha256": "81c7a39dc28572fd3f6093f568454fa66440455f7489b4ad595067f1c025383f",
+      "body_diff": [
+        "--- original",
+        "+++ pi",
+        "@@ -29,7 +29,7 @@",
+        " ",
+        " Your **final** assistant message MUST be exactly one fenced JSON block and",
+        " NOTHING outside it. The block MUST validate against",
+        "-`orchestrator/defuzz_loop/opencode/output_schemas.py::FeedbackOutput`:",
+        "+`orchestrator/defuzz_loop/agents/contracts/output_schemas.py::FeedbackOutput`:",
+        " ",
+        " - `summary` (string, required): 1–3 concise sentences describing the",
+        "   next-round direction. Under 500 chars. No code."
+      ]
+    },
+    {
+      "agent_id": "invariant-reviewer",
+      "source_path": "agents/invariant-reviewer.md",
+      "source_sha256": "3af04d32a37d01a690d6ad662bd2472930ae81a7479b2e2e6f2b3b08cb14cbdd",
+      "migrated_path": "agents/definitions/invariant-reviewer.md",
+      "migrated_sha256": "026289bdc1973a54060424bb1c9343b1f161439a94907338ab8b35703573d796",
+      "body_diff": []
+    },
+    {
+      "agent_id": "llm-oracle",
+      "source_path": "agents/llm-oracle.md",
+      "source_sha256": "e9373260edd4192f1cc9a9ac2dee3ee92f26ff753605eeb8029e8000dc73feec",
+      "migrated_path": "agents/definitions/llm-oracle.md",
+      "migrated_sha256": "6dd0e154161c844245a4dcc733094cf92431f71200c90d37d62ea85762b4ad4a",
+      "body_diff": [
+        "--- original",
+        "+++ pi",
+        "@@ -41,7 +41,7 @@",
+        " ",
+        " Your **final** assistant message MUST be exactly one fenced JSON block and",
+        " NOTHING outside it. The block MUST validate against",
+        "-`orchestrator/defuzz_loop/opencode/output_schemas.py::LLMOracleOutput`:",
+        "+`orchestrator/defuzz_loop/agents/contracts/output_schemas.py::LLMOracleOutput`:",
+        " ",
+        " - `verdict` (enum, required): `\"PASS\" | \"FAIL\" | \"NOT_APPLICABLE\" | \"ERROR\"`",
+        " - `confidence` (float, required, 0.0..1.0): how sure you are of a `FAIL`"
+      ]
+    },
+    {
+      "agent_id": "minimizer",
+      "source_path": "agents/minimizer.md",
+      "source_sha256": "653bfb3d582e85f06fbcb0c61ce117b836586ed02223d330c955581b273c4023",
+      "migrated_path": "agents/definitions/minimizer.md",
+      "migrated_sha256": "81367d1a60ef220287957bfe4e43dbbaabe7cbf612298c805b07f7da75257789",
+      "body_diff": [
+        "--- original",
+        "+++ pi",
+        "@@ -25,7 +25,7 @@",
+        " ",
+        " Your **final** assistant message MUST be exactly one fenced JSON block and",
+        " NOTHING outside it. The block MUST validate against",
+        "-`orchestrator/defuzz_loop/opencode/output_schemas.py::MinimizerOutput`:",
+        "+`orchestrator/defuzz_loop/agents/contracts/output_schemas.py::MinimizerOutput`:",
+        " ",
+        " - `interestingness_hints` (list[string], required): each entry is a short",
+        "   hint the interestingness script can check (e.g. \"reduced binary must"
+      ]
+    },
+    {
+      "agent_id": "seed-generator",
+      "source_path": "agents/seed-generator.md",
+      "source_sha256": "6baa292052e87bd5756f4ffec9ca49768fb386de4ba3eed0376cc73bf3308fb4",
+      "migrated_path": "agents/definitions/seed-generator.md",
+      "migrated_sha256": "6edb018269a4a8c00aaf4f8eaa4b16d585fe24044cb69888686e1d3b2089e16c",
+      "body_diff": [
+        "--- original",
+        "+++ pi",
+        "@@ -15,15 +15,15 @@",
+        "    for FORTIFY: `memcpy` / `__*_chk` sinks with runtime-variable offsets or",
+        "    interior pointers; for CFI/IBT: indirect calls through function pointers",
+        "    whose target changes on a runtime branch).",
+        "-5. Read-only exploration only. The `allowed-tools` frontmatter restricts you",
+        "-   to `read` / `glob` / `grep` / `list`. Any write / edit / bash attempt is",
+        "+5. Read-only exploration only. The `tools` frontmatter restricts filesystem access",
+        "+   to `read` / `find` / `grep` / `ls`. Any write / edit / bash attempt is",
+        "    a bug.",
+        " ",
+        " ## Input contract",
+        " ",
+        " You will receive a user message with the invariant metadata, prior seeds",
+        " (last few), guidance from the previous round (if any), and mechanism.",
+        "-Treat it as authoritative context. You may query `defuzz-callgraph` directly: start with `list_targets` and `find_function`, then use bounded callers/callees or a slice/path to ground the seed in reachable implementation code. Preserve edge file/line/kind in your reasoning and mention truncation; never use the graph to choose an ISA.",
+        "+Treat it as authoritative context. You may query `mcp__defuzz_callgraph__*` directly: start with `list_targets` and `find_function`, then use bounded callers/callees or a slice/path to ground the seed in reachable implementation code. Preserve edge file/line/kind in your reasoning and mention truncation; never use the graph to choose an ISA.",
+        " ",
+        " ## Output contract (STRICT)",
+        " ",
+        "@@ -32,7 +32,7 @@",
+        " character breaks the downstream pydantic gate and the round is retried.",
+        " ",
+        " The block MUST validate against this schema (matches",
+        "-`orchestrator/defuzz_loop/opencode/output_schemas.py::GeneratorOutput`):",
+        "+`orchestrator/defuzz_loop/agents/contracts/output_schemas.py::GeneratorOutput`):",
+        " ",
+        " - `source` (string, required): complete standalone C source (include",
+        "   `#include` directives if needed)."
+      ]
+    },
+    {
+      "agent_id": "source-mapper",
+      "source_path": "agent/source-mapper.md",
+      "source_sha256": "bde02e6c7782787f2f764db5d3efefa2412bf72a32565f2948616207efbdb919",
+      "migrated_path": "agents/definitions/source-mapper.md",
+      "migrated_sha256": "ba7b531c040073c459d3c766e0d915b6a9d28950e2caae5bfee3201fc24723c7",
+      "body_diff": [
+        "--- original",
+        "+++ pi",
+        "@@ -3,7 +3,7 @@",
+        " Your single job: given ONE security invariant `phi_i` for a compiler defense",
+        " mechanism (e.g. stack canary, FORTIFY, CFI, IBT), find the concrete places in",
+        " the compiler source tree that *implement* that defense. You never modify code;",
+        "-you only read, grep, glob, list.",
+        "+you only read, grep, find, ls.",
+        " ",
+        " ## Input contract",
+        " ",
+        "@@ -111,8 +111,9 @@",
+        " ",
+        " ## Behavior rules",
+        " ",
+        "-1. **Read-only, no side effects.** You may only invoke `read`, `glob`,",
+        "-   `grep`, `list`. Any attempt to write, edit, or run bash is a bug.",
+        "+1. **Read-only, no side effects.** You may only invoke `read`, `find`,",
+        "+   `grep`, `ls` and the approved `mcp__defuzz_callgraph__*` queries.",
+        "+   Any attempt to write, edit, or run bash is a bug.",
+        " 2. **Prefer `grep` + `read` over free-form exploration.** Start from",
+        "    mechanism-specific keywords (`stack_protect`, `SafeStack`, `FORTIFY`,",
+        "    `__cfi_check`, `IBT` etc.), narrow to the pass, then to functions, then"
+      ]
+    }
+  ]
+}

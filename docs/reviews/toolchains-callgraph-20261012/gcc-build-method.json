@@ -1,0 +1,16 @@
+{
+  "x86_64": {
+    "configured": "ac_cs_config=\"'--srcdir=/src/gcc' '--cache-file=./config.cache' '--prefix=/opt/gcc16' '--disable-bootstrap' '--disable-multilib' '--disable-nls' '--disable-werror' '--disable-shared' '--disable-threads' '--disable-libatomic' '--disable-libgomp' '--disable-libitm' '--disable-libquadmath' '--disable-libsanitizer' '--disable-libssp' '--disable-libstdcxx' '--without-headers' '--with-newlib' '--enable-languages=c,c++,lto' '--program-transform-name=s,y,y,' '--disable-option-checking' '--disable-year2038' '--build=x86_64-linux-gnu' '--host=x86_64-linux-gnu' '--target=x86_64-linux-gnu' 'build_alias=x86_64-linux-gnu' 'host_alias=x86_64-linux-gnu' 'target_alias=x86_64-linux-gnu' 'CC=/usr/bin/clang --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld -Wno-unused-command-line-argument -isystem /usr/include/x86_64-linux-gnu' 'CFLAGS=-g -O2  ' 'LDFLAGS= -static-libstdc++ -static-libgcc -L/usr/x86_64-linux-gnu/lib' 'CXX=/usr/bin/clang++ --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld -Wno-unused-command-line-argument -isystem /usr/include/x86_64-linux-gnu' 'CXXFLAGS=-g -O2  ' 'GMPLIBS=-lmpc -lmpfr -lgmp' 'GMPINC=' 'ISLLIBS=-lisl' 'ISLINC='\"",
+    "actual_host_compiler": "Debian ARM64 clang 14.0.6 targeting x86_64-linux-gnu",
+    "compiler_object_flags": "-g -O2",
+    "checking_p": 0,
+    "target_runtime_builder": "GCC16 built compiler in amd64 runtime"
+  },
+  "aarch64": {
+    "configured": "ac_cs_config=\"'--srcdir=/src/gcc' '--cache-file=./config.cache' '--prefix=/opt/gcc16' '--disable-bootstrap' '--disable-multilib' '--disable-nls' '--disable-werror' '--disable-shared' '--disable-threads' '--disable-libatomic' '--disable-libgomp' '--disable-libitm' '--disable-libquadmath' '--disable-libsanitizer' '--disable-libssp' '--disable-libstdcxx' '--without-headers' '--with-newlib' '--enable-languages=c,c++,lto' '--program-transform-name=s&^&aarch64-linux-gnu-&' '--disable-option-checking' '--disable-year2038' '--build=x86_64-linux-gnu' '--host=x86_64-linux-gnu' '--target=aarch64-linux-gnu' 'build_alias=x86_64-linux-gnu' 'host_alias=x86_64-linux-gnu' 'target_alias=aarch64-linux-gnu' 'CC=x86_64-linux-gnu-gcc' 'CFLAGS=-g -O2  ' 'LDFLAGS=-static-libstdc++ -static-libgcc ' 'CXX=x86_64-linux-gnu-g++' 'CXXFLAGS=-g -O2  ' 'GMPLIBS=-lmpc -lmpfr -lgmp' 'GMPINC=' 'ISLLIBS=-lisl' 'ISLINC='\"",
+    "actual_host_compiler": "Debian ARM64 clang 14.0.6 targeting x86_64-linux-gnu",
+    "compiler_object_flags": "-g -O1 -fno-strict-aliasing",
+    "checking_p": 0,
+    "target_runtime_builder": "GCC16 built compiler in amd64 runtime"
+  }
+}

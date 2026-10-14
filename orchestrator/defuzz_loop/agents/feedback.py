@@ -1,4 +1,4 @@
-"""Rev 3 feedback agent: OpenCode-backed, thin Python wrapper.
+"""Feedback agent: Pi-backed, thin Python wrapper.
 
 Runs only on the not-violated branch. Pre-fetches the coverage delta via
 MCP (unchanged, deterministic), renders a per-round prompt, and invokes
@@ -13,9 +13,9 @@ edge's contribution can be measured (FR-010 / SC-004).
 from __future__ import annotations
 
 from ..clients.mcp_client import MCPClient
-from ..opencode.output_schemas import FeedbackOutput
-from ..opencode.runner import SubagentRunner
 from ..state import Blackboard, Guidance
+from .contracts.output_schemas import FeedbackOutput
+from .runner import SubagentRunner
 
 
 def coverage_signal(bb: Blackboard, diff: dict) -> str:
@@ -31,7 +31,7 @@ def coverage_signal(bb: Blackboard, diff: dict) -> str:
 
 
 class FeedbackAgent:
-    """Rev 3 OpenCode-backed feedback agent."""
+    """Pi-backed feedback agent."""
 
     def __init__(
         self,

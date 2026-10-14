@@ -1,0 +1,207 @@
+{
+  "kind": "runtime-migration-acceptance",
+  "formal_experiment": false,
+  "live": {
+    "kind": "bounded-runtime-validation",
+    "formal_experiment": false,
+    "stages": {
+      "source-mapping-with-real-callgraph": {
+        "status": "failed",
+        "error": "SubagentRunError: source-mapper: insufficient remaining token budget",
+        "seconds": 40.909191041995655
+      },
+      "online-seed-generator": {
+        "status": "passed",
+        "result": {
+          "source_sha256": "1651e658dfb316f99c0d62df452b56c0f95f3fdb1f1ee4f00a0ff2ea39d43da1"
+        },
+        "seconds": 4.993270666003809
+      },
+      "checker-author-write-and-go-validation": {
+        "status": "passed",
+        "result": {
+          "commands": [
+            {
+              "argv": [
+                "gofmt",
+                "-w",
+                "/tmp/defuzz-pi-m5-20261012/checker-source/guard.go",
+                "/tmp/defuzz-pi-m5-20261012/checker-source/guard_test.go"
+              ],
+              "status": 0,
+              "stdout": "",
+              "stderr": ""
+            },
+            {
+              "argv": [
+                "go",
+                "test",
+                "-count=1",
+                "./..."
+              ],
+              "status": 0,
+              "stdout": "ok  \tfixture.local/pi-checker\t0.500s\n",
+              "stderr": ""
+            }
+          ],
+          "files": {
+            "guard.go": "e0b21074166b8a5e25c7255137685519a51d889704a543c4ca9e7b2388670609",
+            "guard_test.go": "eda43d9cad4424d4a448f277eb7c33528b290483af87ef8d4bd8307b363beb7f"
+          }
+        },
+        "seconds": 20.824035500001628
+      },
+      "schema-repair-with-original-task": {
+        "status": "passed",
+        "result": {
+          "summary": "Stress functions with local buffers or variable-length allocations that trigger stack-protector insertion, exercising normal returns and alternate control-flow exits. Vary frame size, address-taken locals, and nested calls to reach guard setup and epilogue-check structures. [validated]"
+        },
+        "seconds": 11.989972625000519
+      }
+    },
+    "reported_tokens": 91008,
+    "model_calls": 16,
+    "usage_missing": 0,
+    "pricing": "unknown",
+    "config_sha256": "a076a743c67cc035627046a0b152786967cda115ea1b0aec54d44d8674acb86a",
+    "source_scope": "Three actual GCC source files copied for bounded validation; graph coverage may differ",
+    "offline_traces": [
+      {
+        "attempt": "/tmp/defuzz-pi-m5-20261012/checker-attempt",
+        "integrity_errors": []
+      },
+      {
+        "attempt": "/tmp/defuzz-pi-m5-20261012/mapping/902bfbbe258f4fdb81eb7396b19ee5b3/83870d5c760547f18931a4fc4960971f",
+        "integrity_errors": []
+      },
+      {
+        "attempt": "/tmp/defuzz-pi-m5-20261012/recovery/64c1f516f05e4d679d337b23e224b52f/0e63d8c7a26b4d358afa538af97d646a",
+        "integrity_errors": []
+      },
+      {
+        "attempt": "/tmp/defuzz-pi-m5-20261012/recovery/64c1f516f05e4d679d337b23e224b52f/9ccd8d1c9ccb427fb5e12d0258a0d46a",
+        "integrity_errors": []
+      },
+      {
+        "attempt": "/tmp/defuzz-pi-m5-20261012/online/970e7ddd9cc1426f96c094a183cf9bb3/c230fd4f81a74386ae30bfb255147f99",
+        "integrity_errors": []
+      }
+    ]
+  },
+  "bounded_mapping": {
+    "kind": "bounded-source-mapping-validation",
+    "formal_experiment": false,
+    "status": "passed",
+    "mapping": {
+      "phi_id": "PI-M5-SP-EXIT",
+      "compiler": "gcc",
+      "isa": "aarch64",
+      "mapping_confidence": "low",
+      "level_1_pass": {
+        "name": "unavailable_in_bounded_input",
+        "file": "gcc/function.cc",
+        "line_start": 5062,
+        "line_end": 5114,
+        "evidence": "The bounded input contains the stack-protector exit implementation, not the compiler expansion-pass registration."
+      },
+      "level_2_functions": [
+        {
+          "name": "stack_protect_epilogue",
+          "file": "gcc/function.cc",
+          "line": 5063,
+          "role": "Emits the protected-function exit guard comparison, failure call, and success continuation label."
+        }
+      ],
+      "level_3_critical_structs": [
+        {
+          "name": "crtl->stack_protect_guard",
+          "file": "gcc/function.cc",
+          "line": 5065,
+          "role": "The current-function RTL guard value consumed by the epilogue; its absence prevents emission of the exit check."
+        },
+        {
+          "name": "crtl->stack_protect_guard_decl",
+          "file": "gcc/function.cc",
+          "line": 5065,
+          "role": "Optional declaration backing the guard, used by target-specific combined or ordinary guard-test generation."
+        }
+      ],
+      "level_3_critical_conditions": [
+        {
+          "expression": "crtl->stack_protect_guard && targetm.stack_protect_runtime_enabled_p () && naked_return_label == NULL_RTX",
+          "file": "gcc/function.cc",
+          "line": 5491,
+          "role": "A false-negative skips stack_protect_epilogue(), silently omitting the stack-protector check at the function exit."
+        },
+        {
+          "expression": "targetm.have_stack_protect_combined_test () && guard_decl",
+          "file": "gcc/function.cc",
+          "line": 5072,
+          "role": "Selects target-specific combined guard-address and comparison emission; a false-negative falls back to the generic comparison path rather than omitting the check."
+        },
+        {
+          "expression": "targetm.have_stack_protect_test ()",
+          "file": "gcc/function.cc",
+          "line": 5087,
+          "role": "Selects target-specific guard-test RTL; a false-negative falls back to emit_cmp_and_jump_insns rather than omitting the check."
+        }
+      ],
+      "evidence_paths": [
+        "gcc/function.cc"
+      ],
+      "unresolved_notes": [
+        "The compiler expansion-pass registration is outside the user-bounded input, so Level 1 cannot be anchored to an actual GCC pass definition.",
+        "MCP supporting lookup only: find_function(target=gcc-16.2.0-aarch64, pattern=stack_protect_epilogue, limit=3) returned stack_protect_epilogue with truncated=false, but that graph is GCC 16.2.0 while the inspected source is GCC 17 and supplied no file/line evidence.",
+        "No AArch64-specific target hook implementation was inspected because the request limited validation to gcc/function.cc."
+      ]
+    },
+    "reported_tokens": 10241,
+    "model_calls": 2,
+    "usage_missing": 0,
+    "source_sha256": "40a920fe50ec6f85bcb17211274525cd5f2c11138403a67b499501030f42564f"
+  },
+  "reported_tokens_total": 101249,
+  "model_calls_total": 18,
+  "native_container_smoke": {
+    "kind": "pi-sdk-container-smoke",
+    "success": true,
+    "model_calls": 1,
+    "reported_tokens": 60,
+    "definitions": 10,
+    "isolation": "bubblewrap",
+    "offline_trace": true
+  },
+  "images": {
+    "core": "befd6583b00bb50d51e42cc4c83eecd97f9d543a03b8d206360a47c9d06db3e3",
+    "orchestrator": "405072035b90167109cb94113b242bd52baf1934174f7405b3f45ec16f4ca78f",
+    "pi_final": "7b9475455a91c7917cb3782417b3d51df8024cdaffead8b04c6faf38e4a29fbd"
+  },
+  "mounted_source_sha256": {
+    "orchestrator/defuzz_loop/experiment_engine/pi_backend.py": "ce64cdd9d14e316bcca4231081ceea5d2efe23b6563d3c7f43533be03e67fa48",
+    "orchestrator/defuzz_loop/agents/runner.py": "a1cfbd150c0b5ca19d0ae8a0fba95556fd168d43bf66bfd6e92e1b779c5bbc89",
+    "docker/pi-smoke.py": "bb04e34f2cd2d4a5c4c32f1298ad71e699fdc27542dfb61c776962c493bdabb0"
+  },
+  "validation": {
+    "python_full": {
+      "passed": 670,
+      "seconds": 196.83
+    },
+    "post_refinement": {
+      "passed": 181,
+      "seconds": 136.92
+    },
+    "final_evidence": {
+      "passed": 77,
+      "seconds": 51.23
+    },
+    "node_tests": 4,
+    "ruff": "passed",
+    "mypy_migrated_files": "12 files passed; unrelated imports skipped",
+    "full_mypy": "pre-existing repository failures",
+    "uv_lock": "passed",
+    "legacy_full_runner": {
+      "passed": 3,
+      "seconds": 0.55
+    }
+  }
+}

@@ -1,0 +1,24 @@
+Audit only the family and scope in the task. Use the supplied source workspace,
+invariants, mapped anchors and feedback as evidence, following the task's report
+schema and admission policy. Re-open mapped files and inspect the conditions
+before proposing candidates. Preserve stable candidate IDs when revising.
+
+When the task requires CallGraph, call list_targets, select an available target
+matching the compiler/version/ISA, and query relevant symbols with find_function
+and bounded caller/callee/path queries. State missing targets and truncated
+results explicitly. Never substitute another ISA or version without recording
+the limitation. A successful empty query is evidence of missing coverage, not
+evidence that a compiler has no relevant path.
+
+Read only the workspace and permitted MCP data. Do not edit the compiler, execute
+shell commands, consult findings corpora, or claim that a candidate was verified
+without supplied checker evidence. Return exactly the requested JSON report.
+
+This instance is restricted to audit family A.
+
+Source-bound CallGraph targets (other versions are unavailable):
+[{"compiler": "llvm", "csv_sha256": "a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b", "isas": ["aarch64"], "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent", "source_revision": "85ac560262434c9ccfc0c183ec22d4138ed647fb", "target": "llvm-23.1.2", "verified_source_files": 4234, "version": "23.1.2"}]
+
+<cwd>
+/Users/bytedance/projects/research/de-fuzz/main/.work/toolchains-matched/llvm-source
+</cwd>

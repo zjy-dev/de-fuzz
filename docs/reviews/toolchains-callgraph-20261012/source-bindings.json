@@ -1,0 +1,62 @@
+[
+  {
+    "database": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/callgraph.sqlite",
+    "database_sha256": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+    "compiler": "gcc",
+    "version": "16.2.0",
+    "bindings": [
+      {
+        "target": "gcc-16.2.0-aarch64",
+        "compiler": "gcc",
+        "version": "16.2.0",
+        "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+        "isas": [
+          "aarch64"
+        ],
+        "csv_sha256": "c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4",
+        "verified_source_files": 1145,
+        "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+      },
+      {
+        "target": "gcc-16.2.0-x86_64",
+        "compiler": "gcc",
+        "version": "16.2.0",
+        "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+        "isas": [
+          "x86_64"
+        ],
+        "csv_sha256": "6476d573e23a73d4f56895b01e398a1db3c37ae92768d7f59a817625cc0cb410",
+        "verified_source_files": 1130,
+        "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+      }
+    ],
+    "targets": [
+      "gcc-16.2.0-aarch64",
+      "gcc-16.2.0-x86_64"
+    ]
+  },
+  {
+    "database": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/callgraph.sqlite",
+    "database_sha256": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+    "compiler": "llvm",
+    "version": "23.1.2",
+    "bindings": [
+      {
+        "target": "llvm-23.1.2",
+        "compiler": "llvm",
+        "version": "23.1.2",
+        "source_revision": "85ac560262434c9ccfc0c183ec22d4138ed647fb",
+        "isas": [
+          "aarch64",
+          "x86_64"
+        ],
+        "csv_sha256": "a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b",
+        "verified_source_files": 4234,
+        "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+      }
+    ],
+    "targets": [
+      "llvm-23.1.2"
+    ]
+  }
+]

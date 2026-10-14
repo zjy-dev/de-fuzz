@@ -1,7 +1,7 @@
 # Secret-free configuration for DeFuzz's direct HTTP Responses backend.
 #
 # The formal pipeline reads this YAML (JSON is also accepted) and calls
-# {base_url}/responses itself. It does not launch OpenCode or another agent CLI.
+# {base_url}/responses itself. It does not launch an agent CLI.
 # Keep the credential value out of this file: api_key_env names the process
 # environment variable that must be populated before preflight or execution.
 http_agent:

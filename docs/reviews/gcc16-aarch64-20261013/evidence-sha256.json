@@ -1,0 +1,129 @@
+{
+  "files": [
+    {
+      "path": "RUN-NOTES.md",
+      "size_bytes": 6517,
+      "sha256": "7f4fab242ee529cca67ba1a00a2c11459f20c9ab0defe88e4b795e55fa3732da"
+    },
+    {
+      "path": "artifact-integrity.json",
+      "size_bytes": 38892,
+      "sha256": "5a598575c1922c5b1991abf542af6870298581cdf6126f7a7cf02a1c4c11a555"
+    },
+    {
+      "path": "evidence/checker-authoring/plan.json",
+      "size_bytes": 8877,
+      "sha256": "7ac7e4b6627cbebc783f935ef7ad88ec61f64cbb542b186939a46871e7fd2dbb"
+    },
+    {
+      "path": "evidence/checker-authoring/repetition-manifest.json",
+      "size_bytes": 626,
+      "sha256": "1e60119d87a6f21cd3fcdf849752af0704647f62c92ff467f79ed7af8007ba07"
+    },
+    {
+      "path": "evidence/checker-authoring/run-manifest.json",
+      "size_bytes": 537,
+      "sha256": "a501297f9bde273eb95043c720179ca843b0512ad43b36b2d4e4c53cff709612"
+    },
+    {
+      "path": "evidence/checker-authoring/stage-result.json",
+      "size_bytes": 21830,
+      "sha256": "5a1eeab7608f1ab93abcc34a6b9649e924100e02d5b29ce57df0114a67fb2313"
+    },
+    {
+      "path": "evidence/checker-authoring/token-usage-summary.json",
+      "size_bytes": 24083,
+      "sha256": "1f1d9f5c298899c1d7a3a62aec24c1664f6ed2af83749ab9cd5362053bb52cd1"
+    },
+    {
+      "path": "evidence/corpus-manifest.json",
+      "size_bytes": 11073,
+      "sha256": "20f12c32447787970982e43c4b696deaa5007a7ae1ff8f5b35d322f7d9244fa9"
+    },
+    {
+      "path": "evidence/invariant-generation/plan.json",
+      "size_bytes": 8649,
+      "sha256": "2cd265cc7b6edb2a500be02942e6513f9e720b9d7f3d09a324df49c608b0f8f4"
+    },
+    {
+      "path": "evidence/invariant-generation/repetition-manifest.json",
+      "size_bytes": 639,
+      "sha256": "a2719d91ac16b5af28a095b50aedcc7de1522524fc5e5eabaa23715745a04342"
+    },
+    {
+      "path": "evidence/invariant-generation/run-manifest.json",
+      "size_bytes": 549,
+      "sha256": "6a32bef86f2f016ed88efed0bb858d61f63621898454c33a7caa1e786cd51438"
+    },
+    {
+      "path": "evidence/invariant-generation/stage-result.json",
+      "size_bytes": 2024,
+      "sha256": "631f285e2e456de08f1e48618533bf394ec0b21d7a5db713f71fec5907a6c41e"
+    },
+    {
+      "path": "evidence/invariant-generation/token-usage-summary.json",
+      "size_bytes": 2852,
+      "sha256": "70847f87054a14a33d7cfec297c7af5244b5786f83de61768c881a00989cf712"
+    },
+    {
+      "path": "evidence/mcp.json",
+      "size_bytes": 329,
+      "sha256": "256e763cbaa6613f816ad4406c3940ac86dec5fcea9d49690b7159cef1216e42"
+    },
+    {
+      "path": "evidence/models.json",
+      "size_bytes": 391,
+      "sha256": "31e95e6f2873538a1c30ad98662adfc0b980f5c8187f61ac7c77099b23af3bdd"
+    },
+    {
+      "path": "evidence/pi-runtime.json",
+      "size_bytes": 829,
+      "sha256": "4bc6711f4afacbb625401e6023645ec64cd0ec7115bfc8d4411d87007a352933"
+    },
+    {
+      "path": "evidence/run-all.log",
+      "size_bytes": 428,
+      "sha256": "dc1052b366b9bbbaa5c184cfc57695cb84ccf948d3a7f16d4238e6b6e31b0758"
+    },
+    {
+      "path": "evidence/toolchains-matched.lock.json",
+      "size_bytes": 1575,
+      "sha256": "521a13ee1ec9fe874930318777c50db43345872ed4d14fdbf3e7922e7f83c71f"
+    },
+    {
+      "path": "evidence/toolchains.host.yaml",
+      "size_bytes": 2262,
+      "sha256": "eaa729b17a728fd9b684319e11c67d4c0bd5e13d1046424bafac7be1a5d52557"
+    },
+    {
+      "path": "implementation-identities.json",
+      "size_bytes": 1007,
+      "sha256": "9d9639969d5b7986b21b99b190b3c5609979a62cf07eeb84337277b2ea62764c"
+    },
+    {
+      "path": "observations.jsonl",
+      "size_bytes": 515,
+      "sha256": "c2d429fd7127b398f5c13f01ead8b333cbc0fc0e178a8c693f08771a0d9abdc2"
+    },
+    {
+      "path": "stage-failures.json",
+      "size_bytes": 33500,
+      "sha256": "4018fd6aceb2cf8da0cfd9892a0eeac383075ce1a5597dd1507090b9661fd58a"
+    },
+    {
+      "path": "statistics.csv",
+      "size_bytes": 354,
+      "sha256": "a38b9dda150d472495172386dc46b07d926382fead6911e94dd6a5fbbdeecc06"
+    },
+    {
+      "path": "statistics.json",
+      "size_bytes": 24810,
+      "sha256": "976cae0f37a09204d74154f46551cc6f7f8e4db6046259f83507ef3113d7aab8"
+    },
+    {
+      "path": "token-usage-detail.csv",
+      "size_bytes": 75877,
+      "sha256": "618594612ee4c1e562fa61458a4303c607d0f24469aeab93dbbda70a7ae69ee2"
+    }
+  ]
+}

@@ -44,15 +44,19 @@ logs/
 experiments/
 !configs/experiments/
 !configs/experiments/*.yaml
+!configs/experiments/*.example.json
 
 # Orchestrator per-run audit dirs and checkpoints
 orchestrator/runs/
 *.sqlite
 !callgraph_mcp/data/callgraph.sqlite
+callgraph_mcp/data/provenance.json
+callgraph_mcp/src/defuzz_callgraph/provenance.py
 
 # Build artifacts and scratch workspaces
 /bin/
 .work/
+/agent-runtime/dist/
 
 # Target compilers and toolchains
 target_compilers/
@@ -70,6 +74,7 @@ Thumbs.db
 
 # Planning and draft documents
 *plan*.md
+!agents/definitions/*.md
 !docs/tech-docs/architecture/opencode-migration-plan.md
 GEMINI.md
 **/unpacked_docx/
@@ -87,11 +92,7 @@ copilot/
 ollama/
 .agents/
 .gemini/
-.opencode/
-# but DO version-control our first-class OpenCode subagent definitions:
-!.opencode/
-!.opencode/agent/
-!.opencode/agent/*.md
+.pi/
 .claude/
 .trae/
 
@@ -137,3 +138,9 @@ temp_unpacked/
 
 # Reproducible experiment outputs (manifests/logs may contain machine-local paths)
 /runs/
+
+# Temporary and unrelated local folders
+*.zip
+.trae-html-share-packages/
+/seu-lecture-design/
+/seu-lecture-review/

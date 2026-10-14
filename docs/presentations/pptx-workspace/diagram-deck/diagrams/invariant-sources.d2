@@ -1,0 +1,14 @@
+...@theme.d2
+direction: right
+sources: "要求从哪里来" {
+  style: {fill: "#F5F5F5"; stroke: "#E0E0E0"; font-size: 29; font-color: "#333333"}
+  grid-columns: 1
+  grid-gap: 20
+  code: "源码与文档" {class: main; shape: document; width: 240; height: 72}
+  spec: "ISA / ABI 规范" {class: main; shape: document; width: 240; height: 72}
+  history: "历史漏洞与补丁" {class: yellow; shape: document; width: 240; height: 72}
+}
+candidate: "提取候选\n证据校验 · 去重" {class: focus; width: 280; height: 155}
+catalog: "不变量目录\n条件 · 性质 · 来源" {class: main; shape: cylinder; width: 345; height: 170}
+sources -> candidate: {class: edge}
+candidate -> catalog: {class: edge}

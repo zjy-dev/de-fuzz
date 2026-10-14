@@ -1,0 +1,9 @@
+...@theme.d2
+direction: down
+input: "源码 / 规范 / 历史漏洞\n按机制和函数切成小块" {class: neutral; width: 400; height: 95}
+extract: "逐段读出候选规则\n保护什么 · 何时生效" {class: main; width: 400; height: 95}
+ground: "核对：这条规则\n是不是真有出处支持" {class: focus; width: 430; height: 100}
+output: "留下的规则\n带出处和适用条件" {class: yellow; width: 400; height: 95}
+input -> extract: {class: edge}
+extract -> ground: {class: edge}
+ground -> output: {class: edge}

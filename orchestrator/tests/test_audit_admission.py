@@ -9,7 +9,6 @@ from defuzz_loop.audit_schema import (
     AuditCandidate,
     AuditReport,
     audit_report_json_schema,
-    families_for_mechanisms,
     normalize_isa,
     normalize_mechanism,
 )
@@ -68,26 +67,13 @@ def test_checker_ids_and_new_mechanism_aliases_are_normalized() -> None:
     )
 
     assert candidate.checker_ids == ["INV-CFI-001"]
-    assert [family.key for family in families_for_mechanisms(["riscv_cfi"])] == [
-        "C"
-    ]
-    assert [family.key for family in families_for_mechanisms(["zicfilp"])] == [
-        "C"
-    ]
-    assert [family.key for family in families_for_mechanisms(["backend_codegen"])] == [
-        "B"
-    ]
-    assert [
-        family.key for family in families_for_mechanisms(["zero_call_used_regs"])
-    ] == ["E"]
+    assert normalize_mechanism("riscv_cfi") == "riscv-cfi"
+    assert normalize_mechanism("zicfilp") == "riscv-cfi"
+    assert normalize_mechanism("backend_codegen") == "codegen"
+    assert normalize_mechanism("zero_call_used_regs") == "zero-call-used-regs"
     raw_ret_hardening = "ret-hardening (return thunks / LVI)"
     assert normalize_mechanism(raw_ret_hardening) == "ret-hardening"
-    assert [family.key for family in families_for_mechanisms([raw_ret_hardening])] == [
-        "C"
-    ]
-    assert [family.key for family in families_for_mechanisms(["CET / IBT"])] == [
-        "C"
-    ]
+    assert normalize_mechanism("CET / IBT") == "ibt"
     assert normalize_isa("x86-64") == "x86_64"
     assert normalize_isa("amd64") == "x86_64"
     assert normalize_isa("arm64") == "aarch64"
@@ -105,9 +91,7 @@ def test_checker_ids_and_new_mechanism_aliases_are_normalized() -> None:
     assert aliased.mechanism == "stack-protector"
     assert aliased.isa == ["x86_64"]
     assert aliased.minimal_trigger.isa == "x86_64"
-    assert [
-        family.key for family in families_for_mechanisms(["pointer authentication"])
-    ] == ["C"]
+    assert normalize_mechanism("pointer authentication") == "pac"
 
 
 def test_static_candidate_requires_five_lines_and_one_verification_plan() -> None:

@@ -17,15 +17,26 @@ from defuzz_loop.token_usage import current_token_usage_sink, read_jsonl
 
 HELP_PATHS = [
     [],
+    ["run-all"],
     ["invariant-generation"],
     ["checker-authoring"],
+    ["source-mapping"],
+    ["log-instrumentation"],
     ["agent-audit"],
     ["ablation"],
     ["ablation", "without-rag"],
     ["ablation", "without-oracle"],
     ["ablation", "bare-agent"],
 ]
-LEAF_PATHS = [path for path in HELP_PATHS if path and path != ["ablation"]]
+# The strict "only relevant paths" leaf test asserts the audit-centric option
+# surface; run-all (a superset union), source-mapping, and the deterministic
+# log-instrumentation stage (its own surface) have dedicated tests below instead.
+LEAF_PATHS = [
+    path
+    for path in HELP_PATHS
+    if path
+    and path not in (["ablation"], ["run-all"], ["source-mapping"], ["log-instrumentation"])
+]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -44,7 +55,7 @@ def test_every_command_has_clear_help(path: list[str], capsys: pytest.CaptureFix
         assert "configs/experiments/run.yaml" not in help_text
     elif path[-1] != "ablation":
         assert "--show-plan" in help_text
-        assert "--backend {traex,codex,http}" in help_text
+        assert "--backend {traex,codex,http,pi,none}" in help_text
         assert "--http-config PATH" in help_text
         assert "--agent-binary" in help_text
         assert "--model" in help_text
@@ -250,8 +261,11 @@ def test_command_enumeration_is_exact() -> None:
     parser = cli.build_parser()
     assert _subcommand_names(parser) == {
         "pipeline",
+        "run-all",
         "invariant-generation",
         "checker-authoring",
+        "source-mapping",
+        "log-instrumentation",
         "agent-audit",
         "ablation",
     }
@@ -263,6 +277,189 @@ def test_command_enumeration_is_exact() -> None:
         "without-oracle",
         "bare-agent",
     }
+
+
+def _record_sub_runs(
+    monkeypatch: pytest.MonkeyPatch, *, exit_codes: dict[str, int] | None = None
+) -> list[list[str]]:
+    """Replace cli.main with a recorder so run-all dispatch can be inspected."""
+
+    recorded: list[list[str]] = []
+    codes = exit_codes or {}
+
+    def _recorder(sub_argv: list[str]) -> int:
+        recorded.append(list(sub_argv))
+        return codes.get(sub_argv[0], 0)
+
+    monkeypatch.setattr(cli, "main", _recorder)
+    return recorded
+
+
+def test_run_all_chains_four_experiments_in_dependency_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorded = _record_sub_runs(monkeypatch)
+    output_root = tmp_path / "runs"
+
+    code = cli._run_all_main(
+        [
+            "--show-plan",
+            "--agent-binary",
+            "/bin/sh",
+            "--output-root",
+            str(output_root),
+            "--corpus-root",
+            str(tmp_path / "corpus"),
+            "--source-root",
+            str(tmp_path / "gcc"),
+            "--checker-source-root",
+            str(tmp_path / "defuzz"),
+            "--target-tree",
+            str(tmp_path / "gcc"),
+            "--toolchains-config",
+            str(tmp_path / "toolchains.yaml"),
+            "--mechanism",
+            "canary",
+            "--isa",
+            "x86-64",
+            "--repetitions",
+            "3",
+        ]
+    )
+
+    assert code == 0
+    assert [argv[0] for argv in recorded] == [
+        "invariant-generation",
+        "checker-authoring",
+        "source-mapping",
+        "log-instrumentation",
+        "agent-audit",
+    ]
+    by_command = {argv[0]: argv for argv in recorded}
+
+    inv_dir = str(output_root / "invariant-generation")
+    checker_dir = str(output_root / "checker-authoring")
+
+    # Both Part II and source mapping consume the Part I accepted invariants.
+    assert "--from-run" in by_command["checker-authoring"]
+    assert by_command["checker-authoring"][
+        by_command["checker-authoring"].index("--from-run") + 1
+    ] == inv_dir
+    assert by_command["source-mapping"][
+        by_command["source-mapping"].index("--from-run") + 1
+    ] == inv_dir
+    # Log instrumentation consumes the source-mapping handoff and calls no model.
+    assert by_command["log-instrumentation"][
+        by_command["log-instrumentation"].index("--from-run") + 1
+    ] == str(output_root / "source-mapping")
+    assert by_command["log-instrumentation"][
+        by_command["log-instrumentation"].index("--backend") + 1
+    ] == "none"
+    # The audit consumes the checker bundle produced by Part II.
+    assert by_command["agent-audit"][
+        by_command["agent-audit"].index("--from-run") + 1
+    ] == checker_dir
+    assert by_command["agent-audit"][
+        by_command["agent-audit"].index("--mapping-from-run") + 1
+    ] == str(output_root / "source-mapping")
+    assert by_command["checker-authoring"][
+        by_command["checker-authoring"].index("--source-root") + 1
+    ] == str(tmp_path / "defuzz")
+    assert by_command["source-mapping"][
+        by_command["source-mapping"].index("--source-root") + 1
+    ] == str(tmp_path / "gcc")
+
+    # Shared controls are forwarded to every sub-experiment.
+    for argv in recorded:
+        assert argv[argv.index("--run-id") + 1] in {
+            "invariant-generation",
+            "checker-authoring",
+            "source-mapping",
+            "log-instrumentation",
+            "agent-audit",
+        }
+        assert argv[argv.index("--repetitions") + 1] == "3"
+        assert argv[argv.index("--output-root") + 1] == str(output_root)
+
+    # Scope is only forwarded to the experiments that accept it.
+    assert "--mechanism" not in by_command["invariant-generation"]
+    for command in ("checker-authoring", "source-mapping", "agent-audit"):
+        assert "--mechanism" in by_command[command]
+        assert "--isa" in by_command[command]
+
+
+def test_run_all_run_prefix_prefixes_every_sub_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorded = _record_sub_runs(monkeypatch)
+    output_root = tmp_path / "runs"
+
+    code = cli._run_all_main(
+        [
+            "--show-plan",
+            "--agent-binary",
+            "/bin/sh",
+            "--output-root",
+            str(output_root),
+            "--run-prefix",
+            "campaign",
+        ]
+    )
+
+    assert code == 0
+    run_ids = [argv[argv.index("--run-id") + 1] for argv in recorded]
+    assert run_ids == [
+        "campaign-invariant-generation",
+        "campaign-checker-authoring",
+        "campaign-source-mapping",
+        "campaign-log-instrumentation",
+        "campaign-agent-audit",
+    ]
+    checker = next(argv for argv in recorded if argv[0] == "agent-audit")
+    assert checker[checker.index("--from-run") + 1] == str(
+        output_root / "campaign-checker-authoring"
+    )
+    instrument = next(argv for argv in recorded if argv[0] == "log-instrumentation")
+    assert instrument[instrument.index("--from-run") + 1] == str(
+        output_root / "campaign-source-mapping"
+    )
+
+
+def test_run_all_stops_at_first_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorded = _record_sub_runs(monkeypatch, exit_codes={"checker-authoring": 2})
+
+    code = cli._run_all_main(
+        ["--show-plan", "--agent-binary", "/bin/sh", "--output-root", str(tmp_path / "runs")]
+    )
+
+    assert code == 2
+    # Execution halts before source mapping and the audit.
+    assert [argv[0] for argv in recorded] == [
+        "invariant-generation",
+        "checker-authoring",
+    ]
+
+
+def test_run_all_rejects_run_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    recorded = _record_sub_runs(monkeypatch)
+
+    code = cli._run_all_main(
+        [
+            "--agent-binary",
+            "/bin/sh",
+            "--output-root",
+            str(tmp_path / "runs"),
+            "--run-id",
+            "forbidden",
+        ]
+    )
+
+    assert code == cli.EXIT_CONFIGURATION_ERROR
+    assert recorded == []
 
 
 def test_show_plan_is_side_effect_free_and_reports_backend_availability(

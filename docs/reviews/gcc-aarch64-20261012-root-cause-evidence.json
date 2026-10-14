@@ -1,0 +1,67 @@
+{
+  "kind": "offline-root-cause-diagnostic",
+  "model_calls": 0,
+  "opencode_version": "1.18.31",
+  "binary_sha256": "16c960ba77421da11b53e785f359b73f328a86118b48feb4af143db5d9afb198",
+  "source_session": ".work/aarch64-full-20261012/gcc-aarch64-full-20261012-source-mapping/rep-001/artifacts/agents/mapping-00073/ses_ed1ef69a7ffeP0QEJ0BuyYmfwA.json",
+  "source_sha256": "cbcaccc22c34ae0736b5bd560fd250e62d08a1b23be0864b135ce18c5299540d",
+  "initial_probe_pipe_lengths": [
+    65536,
+    65536,
+    65536,
+    98304,
+    98304
+  ],
+  "initial_probe_pipe_valid_json": [
+    false,
+    false,
+    false,
+    false,
+    false
+  ],
+  "initial_probe_regular_file_bytes": 119601,
+  "initial_probe_regular_file_valid_json": true,
+  "asyncio_pipe": {
+    "returncode": 0,
+    "bytes": 65536,
+    "sha256": "89fa8eeaaec575b3dc6f305d421f775906fa2861e64640892589b7f860732e7f",
+    "stderr": "Exporting session: ses_ed1ef69a7ffeP0QEJ0BuyYmfwA\n",
+    "valid_json": false,
+    "error": "Expecting property name enclosed in double quotes: line 609 column 52 (char 65536)"
+  },
+  "asyncio_regular_file": {
+    "returncode": 0,
+    "bytes": 119605,
+    "sha256": "50e2fddcd01ddcf216b9260d09ebac895b358b85d95a9e9c5b2e000d066941e8",
+    "valid_json": true,
+    "session_identity_matches": true
+  },
+  "pipe_is_exact_prefix_of_file": true,
+  "checker": {
+    "invariants": 42,
+    "attempts": 124,
+    "infrastructure_failed_invariants": 41,
+    "agent_error_attempts": 123,
+    "attempts_with_changed_files": 0,
+    "error_classes": {
+      "OpenCode error: Unterminated string starting at": 118,
+      "OpenCode error: Expecting ',' delimiter": 3,
+      "OpenCode error: Expecting property name enclosed in double quotes": 2,
+      "none": 1
+    },
+    "nominal_pass_ids": [
+      "INVGEN-B90310C8136D589C"
+    ]
+  },
+  "mapping_offline_reparse": {
+    "task_results": 103,
+    "json_and_schema_valid": 103,
+    "existing_path_and_line_range_validation_passed": 103
+  },
+  "limits": [
+    "Mapping path/line-range checks do not prove semantic anchor correctness.",
+    "Historical failed raw exports and checker transcripts were not retained.",
+    "Offline diagnostic does not convert the interrupted experiment into a completed run.",
+    "Write contract test used localhost openai-compatible fixture, not the production Responses model."
+  ]
+}

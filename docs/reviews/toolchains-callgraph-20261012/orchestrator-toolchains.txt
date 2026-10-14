@@ -1,0 +1,13 @@
+v24.15.0
+23.1.2
+16.2.0
+go version go1.26.3 linux/amd64
+Python 3.12.14
+usage: defuzz-callgraph-mcp [-h] --db DB [--allow-target ALLOW_TARGET]
+
+Run the DeFuzz callgraph MCP over stdio
+
+options:
+  -h, --help            show this help message and exit
+  --db DB
+  --allow-target ALLOW_TARGET

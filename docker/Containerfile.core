@@ -1,0 +1,28 @@
+# Build via scripts/podman.py build (sanitized context, recorded image IDs).
+ARG GO_IMAGE=docker.io/library/golang:1.26.3-bookworm
+ARG RUNTIME_IMAGE=local/defuzz-gcc17-four-isa:20260531-qemu10.2
+ARG MATCHED_TOOLCHAINS_IMAGE=localhost/defuzz-toolchains-matched:16.2.0-23.1.2
+FROM ${GO_IMAGE} AS builder
+ARG GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
+WORKDIR /src
+COPY core/go.mod core/go.sum ./
+RUN go mod download
+COPY core/ ./
+RUN CGO_ENABLED=0 go build -trimpath -buildvcs=false -o /out/defuzz-core ./cmd/defuzz-core \
+    && CGO_ENABLED=0 go build -trimpath -buildvcs=false -o /out/defuzz-candidate-dispatcher ./cmd/defuzz-candidate-dispatcher
+
+FROM ${MATCHED_TOOLCHAINS_IMAGE}
+ARG DEBIAN_MIRROR=https://mirrors.tuna.tsinghua.edu.cn
+RUN sed -i "s|http://deb.debian.org|${DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    creduce ripgrep fd-find ca-certificates git bubblewrap \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /out/ /usr/local/bin/
+COPY configs/toolchains.matched.container.yaml /workspace/configs/toolchains.yaml
+COPY configs/toolchains.container.yaml /workspace/configs/toolchains.gcc17-legacy.yaml
+COPY docker/build-provenance.json /usr/local/share/defuzz/build-provenance.json
+WORKDIR /workspace
+ENV TMPDIR=/tmp/defuzz-work
+ENTRYPOINT ["/usr/local/bin/defuzz-core"]
+CMD ["--grpc-addr=127.0.0.1:50051", "--mcp-addr=127.0.0.1:50052", "--toolchains=/workspace/configs/toolchains.yaml", "--mechanism=canary"]

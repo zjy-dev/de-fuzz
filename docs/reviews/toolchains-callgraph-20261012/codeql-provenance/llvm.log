@@ -1,0 +1,58 @@
+[18:56:18] === LLVM 23.1.2  targets=X86;AArch64 ===
+[18:56:18] cmake configure
+-- Found Git: /usr/bin/git (found version "2.39.5") 
+-- Looking for logf128
+-- Looking for logf128 - found
+-- Targeting X86
+-- Targeting AArch64
+-- Not building llvm-mt because libxml2 is not available
+-- Configuring done
+-- Generating done
+CMake Warning:
+  Manually-specified variables were not used by the project:
+
+    LLVM_ENABLE_TERMINFO
+
+
+-- Build files have been written to: /home/zhangjingyao.666/defuzz-codeql/src/llvm-build
+[18:56:30] codeql database create  (ninja will honor job pools; -j is upper bound)
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/include/llvm/ADT/ArrayRef.h:12,
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/include/llvm/ADT/BitVector.h:17,
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/tools/llvm-exegesis/lib/AArch64/../RegisterAliasing.h:19,
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/tools/llvm-exegesis/lib/AArch64/../MCInstrDescView.h:24,
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/tools/llvm-exegesis/lib/AArch64/../LlvmState.h:17,
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/tools/llvm-exegesis/lib/AArch64/../BenchmarkResult.h:18,
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/tools/llvm-exegesis/lib/AArch64/../Target.h:19,
+[2026-09-28 22:19:50] [build-stdout]                  from /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/tools/llvm-exegesis/lib/AArch64/Target.cpp:8:
+[2026-09-28 22:19:50] [build-stdout] /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/include/llvm/Support/Compiler.h:660:65: warning: ‘cfi-icall’ attribute directive ignored [-Wattributes]
+[2026-09-28 22:19:50] [build-stdout]   660 | #define LLVM_NO_SANITIZE(KIND) __attribute__((no_sanitize(KIND)))
+[2026-09-28 22:19:50] [build-stdout]       |                                                                 ^
+[2026-09-28 22:19:50] [build-stdout] /home/zhangjingyao.666/defuzz-codeql/src/llvm-project-23.1.2.src/llvm/tools/llvm-exegesis/lib/AArch64/../Assembler.h:119:7: note: in expansion of macro ‘LLVM_NO_SANITIZE’
+[2026-09-28 22:19:50] [build-stdout]   119 |       LLVM_NO_SANITIZE("cfi-icall") /* Incompatible with JIT */ {
+[2026-09-28 22:19:50] [build-stdout]       |       ^~~~~~~~~~~~~~~~
+[2026-09-28 22:19:50] [build-stdout] [2410/2419] Linking CXX static library lib/libLLVMExegesisAArch64.a
+[2026-09-28 22:19:50] [build-stdout] [2411/2419] Creating export file for Remarks
+[2026-09-28 22:19:50] [build-stdout] [2412/2419] Building CXX object tools/remarks-shlib/CMakeFiles/Remarks.dir/libremarks.cpp.o
+[2026-09-28 22:19:50] [build-stdout] [2413/2419] Linking CXX shared library lib/libRemarks.so.23.1
+[2026-09-28 22:19:50] [build-stdout] [2414/2419] Creating library symlink lib/libRemarks.so
+[2026-09-28 22:20:19] [build-stdout] [2415/2419] Building CXX object tools/llvm-opt-fuzzer/CMakeFiles/llvm-opt-fuzzer.dir/llvm-opt-fuzzer.cpp.o
+[2026-09-28 22:20:21] [build-stdout] [2416/2419] Linking CXX executable bin/llvm-opt-fuzzer
+[2026-09-28 22:20:21] [build-stdout] /usr/bin/ld: lib/libLLVMSupport.a(DynamicLibrary.cpp.o): in function `llvm::sys::DynamicLibrary::HandleSet::DLOpen(char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*)':
+[2026-09-28 22:20:21] [build-stdout] DynamicLibrary.cpp:(.text._ZN4llvm3sys14DynamicLibrary9HandleSet6DLOpenEPKcPNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE+0xf): warning: Using 'dlopen' in statically linked applications requires at runtime the shared libraries from the glibc version used for linking
+[2026-09-28 22:20:21] [build-stdout] /usr/bin/ld: lib/libLLVMSupport.a(Path.cpp.o): in function `llvm::sys::fs::expandTildeExpr(llvm::SmallVectorImpl<char>&)':
+[2026-09-28 22:20:21] [build-stdout] Path.cpp:(.text._ZN4llvm3sys2fsL15expandTildeExprERNS_15SmallVectorImplIcEE+0x1cc): warning: Using 'getpwnam_r' in statically linked applications requires at runtime the shared libraries from the glibc version used for linking
+[2026-09-28 22:20:21] [build-stdout] /usr/bin/ld: lib/libLLVMSupport.a(Path.cpp.o): in function `llvm::sys::path::home_directory(llvm::SmallVectorImpl<char>&) [clone .localalias]':
+[2026-09-28 22:20:21] [build-stdout] Path.cpp:(.text._ZN4llvm3sys4path14home_directoryERNS_15SmallVectorImplIcEE+0xc5): warning: Using 'getpwuid_r' in statically linked applications requires at runtime the shared libraries from the glibc version used for linking
+[2026-09-28 22:20:36] [build-stdout] [2417/2419] Building CXX object tools/opt/CMakeFiles/LLVMOptDriver.dir/optdriver.cpp.o
+[2026-09-28 22:20:39] [build-stdout] [2418/2419] Building CXX object tools/opt/CMakeFiles/LLVMOptDriver.dir/NewPMDriver.cpp.o
+[2026-09-28 22:20:39] [build-stdout] [2419/2419] Linking CXX static library lib/libLLVMOptDriver.a
+Finalizing database at /home/zhangjingyao.666/defuzz-codeql/dbs/llvm-db.
+Running pre-finalize script /home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh in /home/zhangjingyao.666/defuzz-codeql/src/llvm-build.
+Running command in /home/zhangjingyao.666/defuzz-codeql/src/llvm-build: [/home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh]
+Pre-finalize script /home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh completed in 125 ms.
+Running TRAP import for CodeQL database at /home/zhangjingyao.666/defuzz-codeql/dbs/llvm-db...
+Grouping TRAP files by link target
+Grouping unlinked TRAP files together
+Scanning TRAP files
+Importing TRAP files
+CodeQL is out of memory. Try increasing the memory available to CodeQL using the --ram option.

@@ -2,9 +2,9 @@
 
 [1] CVE Program. CVE Metrics — published vulnerabilities trend[EB/OL]. (2026)[2026-05-12]. https://www.cve.org/about/Metrics.
 
-[2] Microsoft Security Response Center. Microsoft Security Response Center Blog[EB/OL]. (2023)[2026-05-13]. https://www.microsoft.com/en-us/msrc/blog.
+[2] Szekeres L, Payer M, Wei T, et al. SoK: Eternal War in Memory[C]//Proceedings of the 2013 IEEE Symposium on Security and Privacy. 2013: 48-62. DOI:10.1109/SP.2013.13.
 
-[3] Google Security Blog. Memory Safe Languages in Android 13[EB/OL]. (2022-12)[2026-05-13]. https://security.googleblog.com/2022/12/memory-safe-languages-in-android-13.html.
+[3] Jung R, Jourdan J H, Krebbers R, et al. RustBelt: Securing the Foundations of the Rust Programming Language[J]. Proceedings of the ACM on Programming Languages, 2018, 2(POPL): Article 66. DOI:10.1145/3158154.
 
 [4] Meta Security. CVE-2023-4039: GCC's -fstack-protector fails to guard dynamic stack allocations on AArch64[EB/OL]. (2023)[2026-02-15]. https://rtx.meta.security/mitigation/2023/09/12/CVE-2023-4039.html.
 

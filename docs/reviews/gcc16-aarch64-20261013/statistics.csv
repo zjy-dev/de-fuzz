@@ -1,0 +1,6 @@
+stage,status,elapsed_seconds,confirmed_model_requests,usage_ledger_records,reported_tokens,usage_missing_count,token_comparable
+invariant-generation,completed,2799.129,539,539,1576298,0,True
+checker-authoring,failed,14.364,0,43,,43,False
+source-mapping,not-started,,0,0,,0,
+log-instrumentation,not-started,,0,0,,0,
+agent-audit,not-started,,0,0,,0,

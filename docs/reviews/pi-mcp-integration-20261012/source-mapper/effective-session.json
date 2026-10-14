@@ -1,0 +1,297 @@
+{
+  "system_prompt_sha256": "a83805637528cb2528720fa36b5fac736079ec83d83482d4938a08f4bb13ff27",
+  "tools": [
+    {
+      "name": "find",
+      "description": "Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore. Output is truncated to 1000 results or 50KB (whichever is hit first).",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "pattern"
+        ],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'"
+          },
+          "path": {
+            "type": "string",
+            "description": "Directory to search in (default: current directory)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of results (default: 1000)"
+          }
+        }
+      }
+    },
+    {
+      "name": "grep",
+      "description": "Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore. Output is truncated to 100 matches or 50KB (whichever is hit first). Long lines are truncated to 500 chars.",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "pattern"
+        ],
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Search pattern (regex or literal string)"
+          },
+          "path": {
+            "type": "string",
+            "description": "Directory or file to search (default: current directory)"
+          },
+          "glob": {
+            "type": "string",
+            "description": "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'"
+          },
+          "ignoreCase": {
+            "type": "boolean",
+            "description": "Case-insensitive search (default: false)"
+          },
+          "literal": {
+            "type": "boolean",
+            "description": "Treat pattern as literal string instead of regex (default: false)"
+          },
+          "context": {
+            "type": "number",
+            "description": "Number of lines to show before and after each match (default: 0)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of matches to return (default: 100)"
+          }
+        }
+      }
+    },
+    {
+      "name": "ls",
+      "description": "List directory contents. Returns entries sorted alphabetically, with '/' suffix for directories. Includes dotfiles. Output is truncated to 500 entries or 50KB (whichever is hit first).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory to list (default: current directory)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of entries to return (default: 500)"
+          }
+        }
+      }
+    },
+    {
+      "name": "read",
+      "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+      "parameters": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to the file to read (relative or absolute)"
+          },
+          "offset": {
+            "type": "number",
+            "description": "Line number to start reading from (1-indexed)"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of lines to read"
+          }
+        }
+      }
+    },
+    {
+      "name": "mcp__defuzz_callgraph__list_targets",
+      "description": "List indexed compiler targets and edge counts.",
+      "parameters": {
+        "properties": {},
+        "title": "list_targetsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp__defuzz_callgraph__find_function",
+      "description": "Find symbols by literal substring; limit must be <=500.",
+      "parameters": {
+        "properties": {
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "limit": {
+            "default": 100,
+            "maximum": 500,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target",
+          "pattern"
+        ],
+        "title": "find_functionArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp__defuzz_callgraph__get_callees",
+      "description": "Bounded breadth-first outgoing traversal with edge evidence.",
+      "parameters": {
+        "properties": {
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "function": {
+            "title": "Function",
+            "type": "string"
+          },
+          "depth": {
+            "default": 1,
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 5000,
+            "maximum": 5000,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target",
+          "function"
+        ],
+        "title": "get_calleesArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp__defuzz_callgraph__get_callers",
+      "description": "Bounded breadth-first incoming traversal with edge evidence.",
+      "parameters": {
+        "properties": {
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "function": {
+            "title": "Function",
+            "type": "string"
+          },
+          "depth": {
+            "default": 1,
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 5000,
+            "maximum": 5000,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target",
+          "function"
+        ],
+        "title": "get_callersArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp__defuzz_callgraph__slice_from",
+      "description": "Produce a bounded forward slice from entry without revisiting nodes.",
+      "parameters": {
+        "properties": {
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "entry": {
+            "title": "Entry",
+            "type": "string"
+          },
+          "depth": {
+            "default": 3,
+            "maximum": 5,
+            "minimum": 1,
+            "title": "Depth",
+            "type": "integer"
+          },
+          "max_nodes": {
+            "default": 2000,
+            "maximum": 2000,
+            "minimum": 1,
+            "title": "Max Nodes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target",
+          "entry"
+        ],
+        "title": "slice_fromArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "mcp__defuzz_callgraph__paths_between",
+      "description": "Enumerate bounded simple paths using reverse-distance-pruned BFS.",
+      "parameters": {
+        "properties": {
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "src": {
+            "title": "Src",
+            "type": "string"
+          },
+          "dst": {
+            "title": "Dst",
+            "type": "string"
+          },
+          "max_depth": {
+            "default": 6,
+            "maximum": 8,
+            "minimum": 1,
+            "title": "Max Depth",
+            "type": "integer"
+          },
+          "max_paths": {
+            "default": 50,
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Max Paths",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target",
+          "src",
+          "dst"
+        ],
+        "title": "paths_betweenArguments",
+        "type": "object"
+      }
+    }
+  ]
+}

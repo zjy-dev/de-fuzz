@@ -1,4 +1,4 @@
-"""Typed, content-addressed orchestration for the three experiment parts.
+"""Typed, content-addressed orchestration for versioned experiment stages.
 
 The pipeline deliberately treats process completion, result validity, and the
 scientific outcome as separate facts.  A stage can complete successfully and
@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Literal, cast
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt, PrivateAttr, model_validator
 
 from defuzz_loop.audit_schema import normalize_isa, normalize_mechanism
 from defuzz_loop.checker_bundle import load_checker_bundle
@@ -49,6 +49,9 @@ from .models import (
     VariantName,
     canonical_variant_order,
 )
+from .pi_backend import PiAgentBackend
+from .pi_config import load_pi_config
+from .source_mapping_stage import load_source_mappings
 
 PipelineMode = Literal["formal", "fixture"]
 GenerationPath = Literal["combined", "segmented-cot", "rag"]
@@ -63,14 +66,18 @@ def _default_variants() -> list[VariantName]:
 
 _LANE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _STAGES = ("part_i", "part_ii", "part_iii")
+_STAGES_V2 = ("part_i", "part_ii", "source_mapping", "part_iii")
+_MAPPING_FILES = ("source-mappings.jsonl", "source-mapping-summary.json", "source-snapshot.json")
 _STAGE_NAMES = {
     "part_i": "invariant-generation",
     "part_ii": "checker-authoring",
+    "source_mapping": "source-mapping",
     "part_iii": "agent-audit",
 }
 _REQUIRED_OUTPUTS = {
     "part_i": "accepted-invariants.jsonl",
     "part_ii": "checker-bundle-manifest.json",
+    "source_mapping": "source-mappings.jsonl",
     "part_iii": "agent-audit-summary.json",
 }
 
@@ -80,7 +87,7 @@ class _StrictModel(BaseModel):
 
 
 class PipelineBackendConfig(_StrictModel):
-    kind: Literal["traex", "codex", "http"] = "traex"
+    kind: Literal["traex", "codex", "http", "pi"] = "traex"
     binary: str | None = None
     model: str | None = None
     config_path: Path | None = None
@@ -92,24 +99,27 @@ class PipelineBackendConfig(_StrictModel):
             raise ValueError("backend.binary must be non-empty when provided")
         if self.model is not None and not self.model.strip():
             raise ValueError("backend.model must be non-empty when provided")
-        if self.kind == "http" and self.config_path is None:
-            raise ValueError("backend.config_path is required when backend.kind=http")
-        if self.kind != "http" and self.config_path is not None:
-            raise ValueError("backend.config_path is supported only when backend.kind=http")
+        if self.kind in {"http", "pi"} and self.config_path is None:
+            raise ValueError("backend.config_path is required when backend.kind=http or pi")
+        if self.kind not in {"http", "pi"} and self.config_path is not None:
+            raise ValueError(
+                "backend.config_path is supported only when backend.kind=http or pi"
+            )
         if any(not value or "\x00" in value for value in self.extra_args):
             raise ValueError("backend.extra_args must contain non-empty, NUL-free arguments")
-        if self.kind == "http" and self.extra_args:
-            raise ValueError("backend.extra_args is unsupported when backend.kind=http")
+        if self.kind in {"http", "pi"} and self.extra_args:
+            raise ValueError("backend.extra_args is unsupported when backend.kind=http or pi")
         return self
 
     @property
     def selected_binary(self) -> str:
-        return self.binary or self.kind
+        return self.binary or ("node" if self.kind == "pi" else self.kind)
 
 
 class PipelineBudgets(_StrictModel):
     part_i: BudgetEnvelope = Field(default_factory=BudgetEnvelope)
     part_ii: BudgetEnvelope = Field(default_factory=BudgetEnvelope)
+    source_mapping: BudgetEnvelope = Field(default_factory=BudgetEnvelope)
     part_iii: BudgetEnvelope = Field(default_factory=BudgetEnvelope)
 
     def for_stage(self, stage: str) -> BudgetEnvelope:
@@ -208,6 +218,7 @@ class PipelineCheckerConfig(_StrictModel):
 class PipelineAuditConfig(_StrictModel):
     max_concurrency: PositiveInt = 1
     oracle_rounds: PositiveInt = 1
+    checker_update_rounds: int = Field(default=1, ge=0, le=3)
     demo_parity: bool = False
     parity_profile: ParityProfile = "demo-workset"
     parity_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -218,7 +229,7 @@ class PipelineAuditConfig(_StrictModel):
 class PipelineConfig(_StrictModel):
     """Versioned YAML contract for a complete experiment campaign."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 1
     run_id: str
     mode: PipelineMode = "formal"
     output_root: Path = Path("orchestrator/runs/pipelines")
@@ -231,6 +242,7 @@ class PipelineConfig(_StrictModel):
     toolchains_config: Path | None = None
     checker: PipelineCheckerConfig
     audit: PipelineAuditConfig = Field(default_factory=PipelineAuditConfig)
+    _pi_config_sha256: str | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
     def _validate_campaign(self) -> PipelineConfig:
@@ -264,7 +276,15 @@ class PipelineConfig(_StrictModel):
             )
         if self.mode == "formal" and not self.audit.require_verified_candidates:
             raise ValueError("formal mode requires audit.require_verified_candidates=true")
-        if self.mode == "formal" and self.backend.kind != "http" and self.backend.model is None:
+        if self.schema_version == 2:
+            if self.mode == "formal" and self.backend.kind != "pi":
+                raise ValueError("schema_version=2 formal campaigns require backend.kind=pi")
+            if any(len(target.audit_source_roots) != 1 for target in self.targets):
+                raise ValueError("schema_version=2 requires one compiler source root per target")
+        if (
+            self.mode == "formal" and self.backend.kind not in {"http", "pi"}
+            and self.backend.model is None
+        ):
             raise ValueError("formal mode requires backend.model to pin the exact model")
         if self.mode == "formal" and self.generation.max_segments is not None:
             raise ValueError(
@@ -282,11 +302,19 @@ class PipelineConfig(_StrictModel):
         return self
 
     def content_hash(self) -> str:
-        return _canonical_sha256(self.model_dump(mode="json"))
+        payload = self.model_dump(mode="json")
+        if self.schema_version == 1:
+            payload["budgets"].pop("source_mapping", None)
+            payload["audit"].pop("checker_update_rounds", None)
+        return _canonical_sha256(payload)
+
+    @property
+    def stages(self) -> tuple[str, ...]:
+        return _STAGES_V2 if self.schema_version == 2 else _STAGES
 
 
 class PipelineStageRecord(_StrictModel):
-    stage: Literal["part_i", "part_ii", "part_iii"]
+    stage: Literal["part_i", "part_ii", "source_mapping", "part_iii"]
     execution_status: ExecutionStatus
     result_valid: bool
     continuation_ready: bool
@@ -331,6 +359,7 @@ class _FrozenUpstream:
     bundle_integrity: dict[str, Any]
     toolchains_path: Path
     toolchains_sha256: str
+    mapping_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -339,6 +368,7 @@ class PipelineRunners:
     part_ii: StageRunner
     part_iii: StageRunner
     backend_factory: Callable[[PipelineBackendConfig], AgentBackend | None] | None = None
+    source_mapping: StageRunner | None = None
 
     @classmethod
     def default(cls) -> PipelineRunners:
@@ -379,7 +409,16 @@ class PipelineRunners:
         ) -> StageResult:
             return await invoke("defuzz_loop.agent_audit", plan, repetition, output_dir, backend)
 
-        return cls(part_i=part_i, part_ii=part_ii, part_iii=part_iii)
+        async def source_mapping(
+            plan: ExperimentPlan, repetition: int, output_dir: Path, backend: AgentBackend | None
+        ) -> StageResult:
+            return await invoke(
+                "defuzz_loop.experiment_engine.source_mapping_stage",
+                plan, repetition, output_dir, backend,
+            )
+
+        return cls(part_i=part_i, part_ii=part_ii, part_iii=part_iii,
+                   source_mapping=source_mapping)
 
     @classmethod
     def fixture_smoke(cls) -> PipelineRunners:
@@ -415,8 +454,8 @@ class PipelineRunners:
                         "generation_path": "fixture",
                         "compiler": plan.parameters["compiler"],
                         "version": plan.parameters["version"],
-                        "target": target_id,
-                        "mechanism": "fixture",
+                        "target": plan.parameters.get("mapping_fixture_isa", target_id),
+                        "mechanism": plan.parameters.get("mapping_fixture_mechanism", "fixture"),
                     }
                 )
                 + b"\n",
@@ -614,6 +653,10 @@ class PipelineRunners:
                         "toolchains_config_sha256": _sha256_file(toolchains),
                     },
                     "source_roots": source_roots,
+                    "source_mappings": {
+                        "enabled": bool(plan.parameters.get("source_mappings")),
+                        "sha256": plan.parameters.get("source_mappings_sha256"),
+                    },
                     "generated_invariants": {
                         "visible_to_worker": plan.variant != "bare-agent",
                         "sha256": _sha256_file(invariant_path),
@@ -633,7 +676,36 @@ class PipelineRunners:
                 metrics={"candidate_verified": 0},
             )
 
-        return cls(part_i=part_i, part_ii=part_ii, part_iii=part_iii)
+        async def source_mapping(
+            plan: ExperimentPlan, repetition: int, output_dir: Path, backend: AgentBackend | None
+        ) -> StageResult:
+            from .source_mapping_stage import run as map_sources
+
+            class FixtureMapper:
+                provider = "pi"
+
+                async def run(self, request: AgentRequest) -> AgentResult:
+                    data = json.loads(
+                        request.prompt.split("<invariant>")[1].split("</invariant>")[0]
+                    )
+                    path = next(
+                        p for p in sorted(request.cwd.rglob("*"))
+                        if p.is_file() and p.stat().st_size
+                    )
+                    return AgentResult(success=True, final={
+                        "phi_id": data["phi_id"], "compiler": data["compiler"],
+                        "isa": data["isa"], "mapping_confidence": "low",
+                        "level_1_pass": {
+                            "name": "fixture", "file": str(path.relative_to(request.cwd)),
+                            "line_start": 1, "line_end": 1,
+                            "evidence": "Offline fixture; no scientific claim",
+                        },
+                    })
+
+            return await map_sources(plan, repetition, output_dir, FixtureMapper())
+
+        return cls(part_i=part_i, part_ii=part_ii, part_iii=part_iii,
+                   source_mapping=source_mapping)
 
 
 class _TokenSinkBackend:
@@ -753,6 +825,10 @@ def load_pipeline_config(path: str | os.PathLike[str]) -> PipelineConfig:
     if backend.kind == "http":
         http_config = _http_backend_config(backend)
         backend = backend.model_copy(update={"model": http_config.model})
+    elif backend.kind == "pi":
+        assert backend.config_path is not None
+        adapter = PiAgentBackend(backend.config_path, model=backend.model)
+        backend = backend.model_copy(update={"model": adapter.model})
     return config.model_copy(
         update={
             "output_root": _resolve_path(config.output_root, base),
@@ -1293,6 +1369,9 @@ def _backend_model(config: PipelineBackendConfig) -> str | None:
 
     if config.model is not None:
         return config.model
+    if config.kind == "pi":
+        assert config.config_path is not None
+        return str(load_pi_config(config.config_path)[0]["model"])
     return _http_backend_config(config).model if config.kind == "http" else None
 
 
@@ -1353,8 +1432,42 @@ def build_pipeline_plan(
         raise ValueError(
             f"formal mode requires an available agent binary: {config.backend.selected_binary}"
         )
+    pi_identity = None
+    if config.backend.kind == "pi":
+        assert config.backend.config_path is not None
+        adapter = PiAgentBackend(config.backend.config_path, model=config.backend.model)
+        if config.mode == "formal":
+            adapter.preflight()
+        pi_identity = {
+            "kind": "pi-sdk", "model": adapter.model,
+            "config_sha256": adapter.config_sha256,
+            "input_hashes": adapter.config["input_hashes"],
+            "config_file": _content_snapshot(config.backend.config_path),
+        }
+        graph = adapter.config["mcp"].get("defuzz_callgraph", {})
+        if config.mode == "formal" and config.schema_version == 2:
+            if not graph.get("database_path"):
+                raise ValueError("formal Pi mapping requires a source-bound CallGraph database")
+            from .callgraph_identity import bind_callgraph, verify_driver_versions
+
+            bindings = {}
+            for target in config.targets:
+                if len(target.audit_source_roots) != 1:
+                    raise ValueError("CallGraph binding requires one compiler source root")
+                binding = bind_callgraph(
+                    Path(graph["database_path"]), target.audit_source_roots[0],
+                    compiler=target.compiler, isas=list(target.isas),
+                )
+                selected_toolchains = target.toolchains_config or config.toolchains_config
+                if selected_toolchains is None:
+                    raise ValueError("CallGraph binding requires a toolchains configuration")
+                binding["driver_versions"] = verify_driver_versions(binding, selected_toolchains)
+                bindings[target.id] = binding
+            pi_identity["callgraph_bindings"] = bindings
     if config.mode == "formal":
         clean_inputs = [*required_directories, *toolchain_paths]
+        if pi_identity is not None:
+            clean_inputs.extend(Path(path) for path in pi_identity["input_hashes"])
         if config_path is not None:
             clean_inputs.append(Path(config_path).expanduser().resolve(strict=True))
         if config.backend.config_path is not None:
@@ -1409,6 +1522,8 @@ def build_pipeline_plan(
                 config_size_bytes=http_config_size_bytes,
             )
         )
+    if pi_identity is not None:
+        backend_identity.update(pi_identity)
 
     semantic_hash = config.content_hash()
     lanes = [
@@ -1434,7 +1549,7 @@ def build_pipeline_plan(
         for repetition in range(1, config.repetitions + 1)
     ]
     identity = {
-        "schema_version": 1,
+        "schema_version": config.schema_version,
         "config_sha256": semantic_hash,
         "config_file": config_file,
         "backend_identity": backend_identity,
@@ -1456,7 +1571,9 @@ def build_pipeline_plan(
             "resolved_path": resolved_backend,
             "available": backend_available,
             "required": config.mode == "formal",
-            "model": http_config.model if http_config is not None else config.backend.model,
+            "model": (
+                http_config.model if http_config is not None else _backend_model(config.backend)
+            ),
         },
         "runner": "fixture-smoke" if config.mode == "fixture" else "production",
         "config": config.model_dump(mode="json"),
@@ -1727,7 +1844,7 @@ def _reset_incomplete_lane(lane_dir: Path) -> None:
 
     if not lane_dir.exists():
         return
-    for stage in _STAGES:
+    for stage in _STAGES_V2:
         stage_dir = lane_dir / stage
         if stage_dir.exists():
             shutil.rmtree(stage_dir)
@@ -1752,6 +1869,7 @@ def _stage_plan(
     *,
     accepted_invariants: Path | None = None,
     checker_bundle_manifest: Path | None = None,
+    source_mappings: Path | None = None,
 ) -> ExperimentPlan:
     budget = config.budgets.for_stage(stage)
     toolchains = _toolchains_for(config, target)
@@ -1767,6 +1885,7 @@ def _stage_plan(
         "pipeline_variant": variant,
         "pipeline_repetition": repetition,
         "findings_deny_path": str(findings_deny_path),
+        "reference_root": str(config.generation.reference_root),
         # Every formal agent stage must be unable to reach the evaluator-only
         # findings corpus through an absolute host path.
         "require_host_read_isolation": config.mode == "formal",
@@ -1786,6 +1905,13 @@ def _stage_plan(
         )
         experiment = "invariant-generation"
         source_root: Path | None = target.corpus_root
+        if config.mode == "fixture" and config.schema_version == 2:
+            common.update({
+                "mapping_fixture_isa": target.isas[0] if target.isas else "x86_64",
+                "mapping_fixture_mechanism": (
+                    target.mechanisms[0] if target.mechanisms else "canary"
+                ),
+            })
     elif stage == "part_ii":
         assert accepted_invariants is not None
         common.update(
@@ -1800,6 +1926,16 @@ def _stage_plan(
         )
         experiment = "checker-authoring"
         source_root = config.checker.source_root
+    elif stage == "source_mapping":
+        assert accepted_invariants is not None
+        source_root = target.audit_source_roots[0]
+        common.update({
+            "source_root": str(source_root),
+            "accepted_invariants": str(accepted_invariants),
+            "accepted_invariants_sha256": _sha256_file(accepted_invariants),
+            "mechanisms": target.mechanisms, "isas": target.isas,
+        })
+        experiment = "source-mapping"
     else:
         assert checker_bundle_manifest is not None
         assert accepted_invariants is not None
@@ -1821,6 +1957,10 @@ def _stage_plan(
                 "parity_scope": parity_scope.model_dump(mode="json", exclude_defaults=True),
                 "max_concurrency": config.audit.max_concurrency,
                 "oracle_rounds": config.audit.oracle_rounds,
+                "checker_update_rounds": (
+                    config.audit.checker_update_rounds if config.schema_version == 2 else 0
+                ),
+                "checker_source_root": str(config.checker.source_root),
                 "demo_parity": config.audit.demo_parity,
                 "parity_profile": config.audit.parity_profile,
                 "parity_threshold": config.audit.parity_threshold,
@@ -1832,6 +1972,14 @@ def _stage_plan(
         )
         experiment = "agent-audit"
         source_root = None
+        if source_mappings is not None:
+            common.update({
+                "source_mappings": str(source_mappings),
+                "source_mappings_sha256": _sha256_file(source_mappings),
+                "source_mapping_summary_sha256": _sha256_file(
+                    source_mappings.with_name("source-mapping-summary.json")
+                ),
+            })
     plan_variant = _audit_variant_for_campaign(variant) if stage == "part_iii" else variant
     return ExperimentPlan(
         schema_version=1,
@@ -1895,6 +2043,14 @@ async def _invoke_stage(
             raw_backend = HTTPResponsesAgentBackend(
                 frozen_http_config or _http_backend_config(config.backend)
             )
+        elif config.backend.kind == "pi":
+            assert config.backend.config_path is not None
+            raw_backend = PiAgentBackend(
+                config.backend.config_path, binary=config.backend.selected_binary,
+                model=_backend_model(config.backend),
+            )
+            if raw_backend.config_sha256 != config._pi_config_sha256:
+                raise ValueError("Pi config changed after pipeline planning")
         else:
             raw_backend = ExecAgentBackend(
                 binary=config.backend.selected_binary,
@@ -2033,7 +2189,9 @@ def _record_stage(
     _atomic_write_json(manifest_path, manifest)
 
 
-def _validate_resume_lane(path: Path, *, plan_hash: str) -> PipelineLaneResult | None:
+def _validate_resume_lane(
+    path: Path, *, plan_hash: str, stages_expected: Sequence[str] = _STAGES,
+) -> PipelineLaneResult | None:
     if not path.is_file():
         return None
     payload = _read_json(path, "pipeline lane manifest")
@@ -2047,7 +2205,7 @@ def _validate_resume_lane(path: Path, *, plan_hash: str) -> PipelineLaneResult |
     stages = payload.get("stages")
     if not isinstance(stages, Mapping):
         raise ValueError(f"pipeline lane stages are invalid: {path}")
-    for stage in _STAGES:
+    for stage in stages_expected:
         raw = stages.get(stage)
         if not isinstance(raw, Mapping):
             raise ValueError(f"pipeline lane is missing {stage}: {path}")
@@ -2073,6 +2231,20 @@ def _validate_resume_lane(path: Path, *, plan_hash: str) -> PipelineLaneResult |
             if not isinstance(expected_bundle, Mapping):
                 raise ValueError(f"pipeline lane Part II has no bundle integrity: {path}")
             _verify_bundle_integrity(artifact, expected_bundle)
+        if stage == "source_mapping":
+            stage_result = StageResult.model_validate(_read_json(result_path, "mapping result"))
+            for name in _MAPPING_FILES:
+                _artifact_from_result(stage_result, artifact.parent, name)
+            load_source_mappings(artifact)
+        if stage == "part_iii":
+            stage_result = StageResult.model_validate(_read_json(result_path, "audit result"))
+            for ref in stage_result.artifacts:
+                if ref.kind != "checker-update":
+                    continue
+                candidate = (artifact.parent / ref.path).resolve(strict=True)
+                candidate.relative_to(artifact.parent.resolve())
+                if _sha256_file(candidate) != ref.sha256:
+                    raise ValueError(f"checker update artifact hash mismatch: {candidate}")
         expected_chain = _chain_hash(chain, raw)
         if record.chain_sha256 != expected_chain:
             raise ValueError(f"pipeline lane hash chain mismatch at {stage}: {path}")
@@ -2088,7 +2260,7 @@ def _validate_resume_lane(path: Path, *, plan_hash: str) -> PipelineLaneResult |
         outcome=str(payload["outcome"]),
         lane_dir=path.parent,
         chain_sha256=chain,
-        stages={name: PipelineStageRecord.model_validate(stages[name]) for name in _STAGES},
+        stages={name: PipelineStageRecord.model_validate(stages[name]) for name in stages_expected},
     )
 
 
@@ -2109,7 +2281,9 @@ async def _run_lane(
     lane_dir = _lane_dir(run_root, target, variant, repetition)
     manifest_path = lane_dir / "manifest.json"
     if resume:
-        completed = _validate_resume_lane(manifest_path, plan_hash=plan_hash)
+        completed = _validate_resume_lane(
+            manifest_path, plan_hash=plan_hash, stages_expected=config.stages,
+        )
         if completed is not None:
             return completed
         _reset_incomplete_lane(lane_dir)
@@ -2123,13 +2297,14 @@ async def _run_lane(
         }
     )
     manifest = _initial_manifest(target, variant, repetition, plan_hash, genesis)
+    manifest["schema_version"] = config.schema_version
     _atomic_write_json(manifest_path, manifest)
     records: dict[str, PipelineStageRecord] = {}
     chain = genesis
 
     if require_full_upstream and frozen_upstream is None:
         blocker = "blocked by missing valid full upstream lane"
-        for stage in _STAGES:
+        for stage in config.stages:
             record = _skipped_record(stage, chain, blocker)
             records[stage] = record
             chain = record.chain_sha256
@@ -2204,7 +2379,7 @@ async def _run_lane(
         chain = record_i.chain_sha256
         _record_stage(manifest_path, manifest, record_i)
         if not valid_i:
-            for stage in ("part_ii", "part_iii"):
+            for stage in config.stages[1:]:
                 record = _skipped_record(stage, chain, "blocked by invalid Part I handoff")
                 records[stage] = record
                 chain = record.chain_sha256
@@ -2293,10 +2468,11 @@ async def _run_lane(
         chain = record_ii.chain_sha256
         _record_stage(manifest_path, manifest, record_ii)
         if not valid_ii:
-            record = _skipped_record("part_iii", chain, "blocked by invalid Part II handoff")
-            records["part_iii"] = record
-            chain = record.chain_sha256
-            _record_stage(manifest_path, manifest, record)
+            for stage in config.stages[2:]:
+                record = _skipped_record(stage, chain, "blocked by invalid Part II handoff")
+                records[stage] = record
+                chain = record.chain_sha256
+                _record_stage(manifest_path, manifest, record)
             return _finish_lane(manifest_path, manifest, lane_dir, records, chain, False, "blocked")
     else:
         part_i_artifacts = part_i_dir / "artifacts"
@@ -2411,6 +2587,82 @@ async def _run_lane(
     if validated_bundle.scoped_invariants is None:
         raise ValueError("ready checker bundle has no scoped_invariants artifact")
     scoped_invariant_path = validated_bundle.scoped_invariants
+    mapping_path: Path | None = None
+    mapping_ref: ArtifactRef | None = None
+    if config.schema_version == 2:
+        mapping_dir = lane_dir / "source_mapping"
+        mapping_artifacts = mapping_dir / "artifacts"
+        if frozen_upstream is not None and frozen_upstream.mapping_path is not None:
+            mapping_artifacts.mkdir(parents=True, exist_ok=True)
+            for name in _MAPPING_FILES:
+                shutil.copy2(frozen_upstream.mapping_path.with_name(name), mapping_artifacts / name)
+            mapping_result = StageResult(
+                stage="source-mapping", status="completed",
+                artifacts=[
+                    ArtifactRef.from_path(mapping_artifacts / name, base_dir=mapping_artifacts)
+                    for name in _MAPPING_FILES
+                ],
+                metadata={"reused_from_variant": "full"},
+            )
+            mapping_usage = {"reused": True, "records": 0, "consumed_total_tokens": 0}
+        else:
+            mapping_plan = _stage_plan(
+                config, target, variant, repetition, "source_mapping", lane_dir,
+                accepted_invariants=scoped_invariant_path,
+            )
+            mapping_runner = runners.source_mapping
+            if mapping_runner is None:
+                raise ValueError("schema_version=2 requires a source_mapping runner")
+            mapping_result, mapping_usage = await _invoke_stage(
+                config=config, plan=mapping_plan, repetition=repetition,
+                stage="source_mapping", output_dir=mapping_artifacts,
+                runner=mapping_runner, runners=runners,
+            )
+        try:
+            if _result_execution_status(mapping_result) != "completed":
+                raise ValueError(mapping_result.error or "source mapping execution failed")
+            if mapping_result.result_valid is False or mapping_result.continuation_ready is False:
+                raise ValueError("source mapping runner returned an invalid result")
+            usage_error = None if mapping_usage.get("reused") else _formal_usage_error(
+                config, mapping_usage,
+            )
+            if usage_error:
+                raise ValueError(usage_error)
+            for name in _MAPPING_FILES:
+                _artifact_from_result(mapping_result, mapping_artifacts, name)
+            mapping_path, mapping_ref = _artifact_from_result(
+                mapping_result, mapping_artifacts, "source-mappings.jsonl",
+            )
+            _, mapping_summary = load_source_mappings(
+                mapping_path, source_root=target.audit_source_roots[0],
+            )
+            if mapping_summary["accepted_invariants_sha256"] != _sha256_file(scoped_invariant_path):
+                raise ValueError("mapping consumed a different scoped invariant artifact")
+            _verify_bundle_integrity(bundle_path, frozen_bundle_integrity)
+            mapping_valid, mapping_error = True, None
+        except (OSError, ValueError) as exc:
+            mapping_valid, mapping_error = False, str(exc)
+        mapping_result = mapping_result.model_copy(update={
+            "result_valid": mapping_valid, "continuation_ready": mapping_valid,
+        })
+        mapping_result_ref = _write_stage_result(mapping_dir / "result.json", mapping_result)
+        mapping_record = _make_record(
+            stage="source_mapping", execution_status=_result_execution_status(mapping_result),
+            result_valid=mapping_valid, continuation_ready=mapping_valid,
+            outcome="source-mapped" if mapping_valid else "invalid-source-mapping",
+            previous_chain=chain, result_ref=mapping_result_ref, required_artifact=mapping_ref,
+            inputs=[cast(ArtifactRef, bundle_ref)], error=mapping_error,
+            metadata={"metrics": mapping_result.metrics, "token_usage": mapping_usage},
+        )
+        records["source_mapping"] = mapping_record
+        chain = mapping_record.chain_sha256
+        _record_stage(manifest_path, manifest, mapping_record)
+        if not mapping_valid:
+            record = _skipped_record("part_iii", chain, "blocked by invalid source mapping")
+            records["part_iii"] = record
+            chain = record.chain_sha256
+            _record_stage(manifest_path, manifest, record)
+            return _finish_lane(manifest_path, manifest, lane_dir, records, chain, False, "blocked")
     toolchains_path = (
         frozen_upstream.toolchains_path
         if frozen_upstream is not None
@@ -2430,6 +2682,7 @@ async def _run_lane(
         lane_dir,
         accepted_invariants=scoped_invariant_path,
         checker_bundle_manifest=bundle_path,
+        source_mappings=mapping_path,
     )
     result_iii, usage_iii = await _invoke_stage(
         config=config,
@@ -2468,6 +2721,15 @@ async def _run_lane(
             toolchains_path=toolchains_path,
             toolchains_sha256=frozen_toolchains_hash,
         )
+        if mapping_path is not None:
+            for name in _MAPPING_FILES:
+                _artifact_from_result(mapping_result, mapping_path.parent, name)
+            provenance = summary.get("source_mappings", {})
+            if (
+                not provenance.get("enabled")
+                or provenance.get("sha256") != _sha256_file(mapping_path)
+            ):
+                raise ValueError("Part III did not consume the frozen source mapping")
         valid_iii = bool(
             summary["result_valid"]
             and summary["continuation_ready"]
@@ -2504,7 +2766,7 @@ async def _run_lane(
         previous_chain=chain,
         result_ref=result_iii_ref,
         required_artifact=summary_ref,
-        inputs=[cast(ArtifactRef, bundle_ref)],
+        inputs=[cast(ArtifactRef, bundle_ref), *([mapping_ref] if mapping_ref else [])],
         error=error_iii,
         metadata={
             "campaign_variant": variant,
@@ -2574,6 +2836,10 @@ def _freeze_upstream(
         bundle_integrity=bundle_integrity,
         toolchains_path=toolchains_path,
         toolchains_sha256=_sha256_file(toolchains_path),
+        mapping_path=(
+            lane.lane_dir / "source_mapping/artifacts/source-mappings.jsonl"
+            if config.schema_version == 2 else None
+        ),
     )
 
 
@@ -2599,6 +2865,8 @@ async def run_pipeline(
     """Execute every ``(target, variant, repetition)`` lane through Parts I--III."""
 
     plan = build_pipeline_plan(config, config_path=config_path)
+    if config.backend.kind == "pi":
+        config._pi_config_sha256 = str(plan["backend_identity"]["config_sha256"])
     frozen_http_config: HTTPAgentConfig | None = None
     if config.backend.kind == "http":
         assert config.backend.config_path is not None
@@ -2652,7 +2920,7 @@ async def run_pipeline(
         _atomic_write_json(
             manifest_path,
             {
-                "schema_version": 1,
+                "schema_version": config.schema_version,
                 "run_id": config.run_id,
                 "plan_sha256": plan["plan_sha256"],
                 "execution_status": "running",

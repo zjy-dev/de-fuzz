@@ -13,7 +13,7 @@ related_docs:
 
 # Agentic Loop Redesign
 
-> **本文性质**：高层方案，讲结构和职责。落地实现就是代码本身：Python (LangGraph) 编排在 `orchestrator/defuzz_loop/`，Go core 双适配器（gRPC 确定性节点 + MCP agent tools）在 `core/internal/service/`，LLM 全经 Python provider（`orchestrator/defuzz_loop/llm.py`）。各环节的具体代码落点见 §7。
+> **本文性质**：高层方案，讲结构和职责。当前实现使用 `orchestrator/defuzz_loop/` 中的显式 Python 编排和 `agent-runtime/` 中的 Pi SDK worker；Go core 的 gRPC/MCP 适配器位于 `core/internal/service/`。早期 LangGraph/provider 描述作为设计背景保留，当前执行契约以 [实验规程](../../paper/experiment_runbook.md) 和 [Pi 迁移记录](pi-sdk-migration.md) 为准。
 
 ## 1. 动机
 

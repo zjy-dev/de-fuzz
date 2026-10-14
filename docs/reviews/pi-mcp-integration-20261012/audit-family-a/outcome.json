@@ -1,0 +1,13 @@
+{
+  "runtime_ok": true,
+  "evidence_ok": true,
+  "artifact_ok": true,
+  "schema_ok": null,
+  "final_text": "{\"target\":\"llvm-23.1.2\",\"symbol\":\"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\"caller_count\":1,\"compiler\":\"llvm\",\"version\":\"23.1.2\",\"isa\":\"aarch64\"}",
+  "model_calls": 4,
+  "total_tokens": 8665,
+  "usage_complete": true,
+  "callgraph_queries": 3,
+  "callgraph_data_queries": 2,
+  "latency_ms": 11735.78075
+}

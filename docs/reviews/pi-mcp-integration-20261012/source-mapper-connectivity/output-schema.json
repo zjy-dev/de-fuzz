@@ -1,0 +1,1 @@
+{"type": "object", "additionalProperties": false, "required": ["target", "symbol", "caller_count"], "properties": {"target": {"const": "gcc-16.2.0-aarch64"}, "symbol": {"type": "string", "minLength": 1}, "caller_count": {"type": "integer", "minimum": 0}}}

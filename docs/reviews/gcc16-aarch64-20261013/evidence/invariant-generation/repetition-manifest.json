@@ -1,0 +1,19 @@
+{
+  "consumed_total_tokens": 1576298,
+  "created_at": "2026-10-13T03:00:55.501+00:00",
+  "plan_hash": "ecb488602f31845ac672e7a53e6a26084a4a72a2e2bacbf2993a3ada604d5d84",
+  "repetition": 1,
+  "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+  "schema_version": 1,
+  "stage": "invariant-generation",
+  "stage_result": "invariant-generation-result.json",
+  "status": "completed",
+  "token_budget_overshot": false,
+  "token_comparable": true,
+  "token_usage_summary": {
+    "csv": "token_usage_summary.csv",
+    "json": "token_usage_summary.json"
+  },
+  "updated_at": "2026-10-13T03:47:34.630+00:00",
+  "usage_missing_count": 0
+}

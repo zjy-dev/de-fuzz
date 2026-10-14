@@ -16,7 +16,6 @@ from defuzz_loop.token_usage import (
     TokenUsageContext,
     TokenUsageRecord,
     TokenUsageSink,
-    append_jsonl,
     read_jsonl,
     write_aggregate_csv,
     write_aggregate_json,
@@ -76,7 +75,22 @@ class RunTokenSink:
         return TokenUsageRecord.from_dict(data)
 
     def record(self, record: TokenUsageRecord | Mapping[str, Any]) -> None:
-        append_jsonl(self.path, self._coerce(record))
+        self._sink.record(self._coerce(record))
+
+    @property
+    def records(self) -> tuple[TokenUsageRecord, ...]:
+        return tuple(read_jsonl(self.path))
+
+    @property
+    def remaining_tokens(self) -> int | None:
+        if self._sink.token_budget is None:
+            return None
+        consumed = sum(record.total_tokens or 0 for record in self.records)
+        return max(0, self._sink.token_budget - consumed)
+
+    @property
+    def token_budget(self) -> int | None:
+        return self._sink.token_budget
 
     def __call__(self, record: TokenUsageRecord | Mapping[str, Any]) -> None:
         self.record(record)

@@ -1,0 +1,12 @@
+...@theme.d2
+direction: down
+orch: "流程控制程序\n固定队列 · 派目标和预算" {class: neutral; width: 430; height: 130; style.font-size: 27}
+generate: "生成 Agent\n照着目标写 C 测试程序" {class: main; width: 420; height: 130; style.font-size: 27}
+execute: "选检查器 → 编译 → 覆盖率 → 判定\n（Agent 不参与判对错）" {class: focus; width: 500; height: 130; style.font-size: 27}
+feedback: "反馈 Agent\n覆盖率变化 + 判定结果" {class: yellow; width: 410; height: 130; style.font-size: 27}
+minimizer: "C-Reduce 精简\n同一检查器复检" {class: danger; width: 360; height: 130; style.font-size: 27}
+orch -> generate: "派目标（规则 + 架构）" {class: edge}
+generate -> execute: {class: edge}
+execute -> feedback: "通过 / 不适用 / 出错" {class: edge; style.fill: "#FFFFFF"}
+execute -> minimizer: "违规 + 证据" {class: edge; style.stroke: "#C62828"}
+feedback -> generate: "同一目标下一轮" {class: edge; style.stroke-dash: 4}

@@ -1,8 +1,8 @@
 """LLM config module (Rev 3 shim).
 
 Rev 3 removed the LangGraph / LangChain runtime entirely. The Python-side
-LLM path for the online loop now goes through OpenCode markdown subagents
-(see :mod:`defuzz_loop.opencode`), so ``build_chat_model`` is no longer a
+LLM path for the online loop now goes through Pi agents
+(see :mod:`defuzz_loop.agents.runner`), so ``build_chat_model`` is no longer a
 functional path — it raises :class:`NotImplementedError` and is kept only
 so protected modules (``audit.py``, ``specgen/*.py``) that still import
 ``LLMConfig`` for metadata purposes continue to work.
@@ -65,7 +65,7 @@ class LLMConfig(BaseModel):
 
 
 def build_chat_model(config: LLMConfig | None = None) -> Any:
-    """Rev 3 stub — the live LLM path has moved to OpenCode subagents.
+    """Rev 3 stub — the live LLM path uses the shared Pi backend.
 
     Kept as a stub so protected modules that import the name still resolve;
     calling it explicitly is a bug in Rev 3 code and surfaces as
@@ -74,7 +74,7 @@ def build_chat_model(config: LLMConfig | None = None) -> Any:
 
     raise NotImplementedError(
         "build_chat_model was removed in Rev 3; use "
-        "defuzz_loop.opencode.SubagentRunner instead."
+        "defuzz_loop.agents.runner.SubagentRunner instead."
     )
 
 

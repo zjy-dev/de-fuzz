@@ -1,0 +1,17 @@
+{
+  "providers": {
+    "defuzz": {
+      "baseUrl": "http://127.0.0.1:8787/v1",
+      "api": "openai-responses",
+      "apiKey": "${DEFUZZ_COCONUT_API_KEY}",
+      "models": [{
+        "id": "coconut-gpt-5-6-terra-max",
+        "name": "DeFuzz Terra Max",
+        "reasoning": true,
+        "input": ["text"],
+        "contextWindow": 200000,
+        "maxTokens": 16384
+      }]
+    }
+  }
+}

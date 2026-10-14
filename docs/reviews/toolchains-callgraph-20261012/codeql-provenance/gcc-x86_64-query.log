@@ -1,0 +1,20 @@
+[03:38:08] === query /home/zhangjingyao.666/defuzz-codeql/dbs/gcc-x86_64-db -> /home/zhangjingyao.666/defuzz-codeql/out/gcc-x86_64-callgraph.csv ===
+Resolving data extensions.
+Finished resolving data extensions.
+Loading data extensions.
+Finished loading data extensions.
+Compiling query plan for /data00/home/zhangjingyao.666/defuzz-codeql/queries/callgraph.ql.
+[1/1] Found in cache: /data00/home/zhangjingyao.666/defuzz-codeql/queries/callgraph.ql.
+Starting evaluation of defuzz/callgraph/callgraph.ql.
+[1/1 eval 36.6s] Evaluation done; writing results to /home/zhangjingyao.666/defuzz-codeql/out/gcc-x86_64-callgraph.csv.bqrs.
+Shutting down query evaluator.
+[03:38:52] decoding bqrs -> csv
+[03:38:54] DONE
+-rw-r--r-- 1 zhangjingyao.666 zhangjingyao.666 57M Sep 29 03:38 /home/zhangjingyao.666/defuzz-codeql/out/gcc-x86_64-callgraph.csv
+579917 /home/zhangjingyao.666/defuzz-codeql/out/gcc-x86_64-callgraph.csv
+--- head ---
+"caller_name","callee_name","edge_kind","file","line"
+"main","fputs_unlocked","direct","fixincludes/fixincl.c",118
+"main","fputs_unlocked","direct","gcc/genchecksum.cc",115
+"main","fputs_unlocked","direct","gcc/genmddeps.cc",59
+"main","putchar_unlocked","direct","gcc/genmddeps.cc",62

@@ -1,0 +1,15 @@
+{
+  "slide_count": 15,
+  "planned_seconds": 774,
+  "d2_diagrams": [
+    "defense-role",
+    "stack-comparison",
+    "paper-overview",
+    "paper-extraction",
+    "paper-transfer",
+    "paper-checker",
+    "paper-agent"
+  ],
+  "copied_opening_image": "assets/gcc-dev-severe.png",
+  "status": "Awaiting native PowerPoint render and independent visual QA"
+}

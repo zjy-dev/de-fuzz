@@ -1,0 +1,264 @@
+{
+  "agent": "source-mapper",
+  "compiler": "gcc",
+  "isa": "aarch64",
+  "success": false,
+  "error_category": "budget",
+  "error": "insufficient remaining token budget",
+  "elapsed_seconds": 31.68,
+  "attempt_directory": "/tmp/defuzz-pi-mcp-live-check/source-mapper",
+  "session_id": "01a13055-413c-72f1-bf55-620021a8fd37",
+  "callgraph_queries": 3,
+  "callgraph_data_queries": 2,
+  "graph_tools_exposed": [
+    "mcp__defuzz_callgraph__find_function",
+    "mcp__defuzz_callgraph__get_callees",
+    "mcp__defuzz_callgraph__get_callers",
+    "mcp__defuzz_callgraph__list_targets",
+    "mcp__defuzz_callgraph__paths_between",
+    "mcp__defuzz_callgraph__slice_from"
+  ],
+  "graph_calls": [
+    {
+      "tool": "mcp__defuzz_callgraph__list_targets",
+      "is_error": false,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"query\": {},\n  \"targets\": [\n    {\n      \"target\": \"gcc-16.2.0-aarch64\",\n      \"source_csv\": \"/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/gcc-16.2.0-aarch64.csv\",\n      \"edge_count\": 582555,\n      \"ingested_at\": \"2026-10-12T12:11:50.200856+00:00\",\n      \"provenance\": {\n        \"compiler\": \"gcc\",\n        \"coverage\": \"observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted\",\n        \"csv_sha256\": \"c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4\",\n        \"extractor\": \"CodeQL\",\n        \"isas\": [\n          \"aarch64\"\n        ],\n        \"query_sha256\": \"fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247\",\n        \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\",\n        \"source_archive_sha256\": \"e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e\",\n        \"source_revision\": \"78d4ac73dd391005b895a6148cd9831e28e1208b\",\n        \"version\": \"16.2.0\"\n      },\n      \"identity_status\": \"release-log-and-source-anchors\"\n    }\n  ],\n  \"counters\": {\n    \"targets\": 1,\n    \"edges\": 582555\n  },\n  \"truncated\": false\n}"
+          }
+        ],
+        "details": {
+          "server": "defuzz_callgraph",
+          "tool": "list_targets"
+        },
+        "structuredContent": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"query\": {},\n  \"targets\": [\n    {\n      \"target\": \"gcc-16.2.0-aarch64\",\n      \"source_csv\": \"/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/gcc-16.2.0-aarch64.csv\",\n      \"edge_count\": 582555,\n      \"ingested_at\": \"2026-10-12T12:11:50.200856+00:00\",\n      \"provenance\": {\n        \"compiler\": \"gcc\",\n        \"coverage\": \"observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted\",\n        \"csv_sha256\": \"c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4\",\n        \"extractor\": \"CodeQL\",\n        \"isas\": [\n          \"aarch64\"\n        ],\n        \"query_sha256\": \"fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247\",\n        \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\",\n        \"source_archive_sha256\": \"e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e\",\n        \"source_revision\": \"78d4ac73dd391005b895a6148cd9831e28e1208b\",\n        \"version\": \"16.2.0\"\n      },\n      \"identity_status\": \"release-log-and-source-anchors\"\n    }\n  ],\n  \"counters\": {\n    \"targets\": 1,\n    \"edges\": 582555\n  },\n  \"truncated\": false\n}"
+            }
+          ],
+          "structuredContent": {
+            "query": {},
+            "targets": [
+              {
+                "target": "gcc-16.2.0-aarch64",
+                "source_csv": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/gcc-16.2.0-aarch64.csv",
+                "edge_count": 582555,
+                "ingested_at": "2026-10-12T12:11:50.200856+00:00",
+                "provenance": {
+                  "compiler": "gcc",
+                  "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
+                  "csv_sha256": "c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4",
+                  "extractor": "CodeQL",
+                  "isas": [
+                    "aarch64"
+                  ],
+                  "query_sha256": "fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247",
+                  "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent",
+                  "source_archive_sha256": "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e",
+                  "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+                  "version": "16.2.0"
+                },
+                "identity_status": "release-log-and-source-anchors"
+              }
+            ],
+            "counters": {
+              "targets": 1,
+              "edges": 582555
+            },
+            "truncated": false
+          },
+          "isError": false
+        }
+      }
+    },
+    {
+      "tool": "mcp__defuzz_callgraph__find_function",
+      "is_error": false,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"query\": {\n    \"target\": \"gcc-16.2.0-aarch64\",\n    \"pattern\": \"stack_protect\",\n    \"limit\": 5\n  },\n  \"functions\": [\n    \"aarch64_stack_protect_canary_mem\",\n    \"aarch64_stack_protect_guard\",\n    \"add_stack_protection_conflicts\",\n    \"asan_emit_stack_protection\",\n    \"default_external_stack_protect_fail\"\n  ],\n  \"counters\": {\n    \"matches_returned\": 5\n  },\n  \"truncated\": true\n}"
+          }
+        ],
+        "details": {
+          "server": "defuzz_callgraph",
+          "tool": "find_function"
+        },
+        "structuredContent": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"query\": {\n    \"target\": \"gcc-16.2.0-aarch64\",\n    \"pattern\": \"stack_protect\",\n    \"limit\": 5\n  },\n  \"functions\": [\n    \"aarch64_stack_protect_canary_mem\",\n    \"aarch64_stack_protect_guard\",\n    \"add_stack_protection_conflicts\",\n    \"asan_emit_stack_protection\",\n    \"default_external_stack_protect_fail\"\n  ],\n  \"counters\": {\n    \"matches_returned\": 5\n  },\n  \"truncated\": true\n}"
+            }
+          ],
+          "structuredContent": {
+            "query": {
+              "target": "gcc-16.2.0-aarch64",
+              "pattern": "stack_protect",
+              "limit": 5
+            },
+            "functions": [
+              "aarch64_stack_protect_canary_mem",
+              "aarch64_stack_protect_guard",
+              "add_stack_protection_conflicts",
+              "asan_emit_stack_protection",
+              "default_external_stack_protect_fail"
+            ],
+            "counters": {
+              "matches_returned": 5
+            },
+            "truncated": true
+          },
+          "isError": false
+        }
+      }
+    },
+    {
+      "tool": "mcp__defuzz_callgraph__get_callers",
+      "is_error": false,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"query\": {\n    \"target\": \"gcc-16.2.0-aarch64\",\n    \"function\": \"aarch64_stack_protect_guard\",\n    \"depth\": 1,\n    \"limit\": 5\n  },\n  \"direction\": \"callers\",\n  \"nodes\": [\n    \"aarch64_stack_protect_guard\"\n  ],\n  \"edges\": [],\n  \"counters\": {\n    \"nodes\": 1,\n    \"edges\": 0,\n    \"expanded\": 1\n  },\n  \"truncated\": false\n}"
+          }
+        ],
+        "details": {
+          "server": "defuzz_callgraph",
+          "tool": "get_callers"
+        },
+        "structuredContent": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"query\": {\n    \"target\": \"gcc-16.2.0-aarch64\",\n    \"function\": \"aarch64_stack_protect_guard\",\n    \"depth\": 1,\n    \"limit\": 5\n  },\n  \"direction\": \"callers\",\n  \"nodes\": [\n    \"aarch64_stack_protect_guard\"\n  ],\n  \"edges\": [],\n  \"counters\": {\n    \"nodes\": 1,\n    \"edges\": 0,\n    \"expanded\": 1\n  },\n  \"truncated\": false\n}"
+            }
+          ],
+          "structuredContent": {
+            "query": {
+              "target": "gcc-16.2.0-aarch64",
+              "function": "aarch64_stack_protect_guard",
+              "depth": 1,
+              "limit": 5
+            },
+            "direction": "callers",
+            "nodes": [
+              "aarch64_stack_protect_guard"
+            ],
+            "edges": [],
+            "counters": {
+              "nodes": 1,
+              "edges": 0,
+              "expanded": 1
+            },
+            "truncated": false
+          },
+          "isError": false
+        }
+      }
+    }
+  ],
+  "model_calls": 7,
+  "reported_tokens": 37174,
+  "usage_missing": false,
+  "integrity_errors": [],
+  "final": null,
+  "binding": {
+    "database": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/callgraph.sqlite",
+    "database_sha256": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+    "compiler": "gcc",
+    "version": "16.2.0",
+    "bindings": [
+      {
+        "target": "gcc-16.2.0-aarch64",
+        "compiler": "gcc",
+        "version": "16.2.0",
+        "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+        "isas": [
+          "aarch64"
+        ],
+        "csv_sha256": "c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4",
+        "verified_source_files": 1145,
+        "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+      }
+    ],
+    "targets": [
+      "gcc-16.2.0-aarch64"
+    ]
+  },
+  "mcp_integration_passed": false,
+  "model_context_evidence": [
+    {
+      "request": 1,
+      "function_outputs_in_context": 0,
+      "output_sha256": []
+    },
+    {
+      "request": 2,
+      "function_outputs_in_context": 1,
+      "output_sha256": [
+        "357ef7d110c90de736117d309f2d5b80ca46f829e2eee7d892be5312fa1b0a0e"
+      ]
+    },
+    {
+      "request": 3,
+      "function_outputs_in_context": 2,
+      "output_sha256": [
+        "357ef7d110c90de736117d309f2d5b80ca46f829e2eee7d892be5312fa1b0a0e",
+        "3b09de31a3258593b3119c0111736844989fab30716079cd47e64fd32ec6993a"
+      ]
+    },
+    {
+      "request": 4,
+      "function_outputs_in_context": 3,
+      "output_sha256": [
+        "357ef7d110c90de736117d309f2d5b80ca46f829e2eee7d892be5312fa1b0a0e",
+        "3b09de31a3258593b3119c0111736844989fab30716079cd47e64fd32ec6993a",
+        "e5d1fcf654d33d87eeb72984c5840fe195ea9f84f9032668f6a382bf05331d0d"
+      ]
+    },
+    {
+      "request": 5,
+      "function_outputs_in_context": 5,
+      "output_sha256": [
+        "357ef7d110c90de736117d309f2d5b80ca46f829e2eee7d892be5312fa1b0a0e",
+        "3b09de31a3258593b3119c0111736844989fab30716079cd47e64fd32ec6993a",
+        "e5d1fcf654d33d87eeb72984c5840fe195ea9f84f9032668f6a382bf05331d0d",
+        "ac033aa71d1c260d63403626784d6860c934a5b4eeb414c22b742bc203d72b15",
+        "adbb44c32767ed83507f09909a788e4286f18403c7d0dc8713f4f50d056f2460"
+      ]
+    },
+    {
+      "request": 6,
+      "function_outputs_in_context": 6,
+      "output_sha256": [
+        "357ef7d110c90de736117d309f2d5b80ca46f829e2eee7d892be5312fa1b0a0e",
+        "3b09de31a3258593b3119c0111736844989fab30716079cd47e64fd32ec6993a",
+        "e5d1fcf654d33d87eeb72984c5840fe195ea9f84f9032668f6a382bf05331d0d",
+        "ac033aa71d1c260d63403626784d6860c934a5b4eeb414c22b742bc203d72b15",
+        "adbb44c32767ed83507f09909a788e4286f18403c7d0dc8713f4f50d056f2460",
+        "3bcf9d10eabf9e1de877de662f5ac4dece764a8ae870d0360e7a6b014b82a70b"
+      ]
+    },
+    {
+      "request": 7,
+      "function_outputs_in_context": 9,
+      "output_sha256": [
+        "357ef7d110c90de736117d309f2d5b80ca46f829e2eee7d892be5312fa1b0a0e",
+        "3b09de31a3258593b3119c0111736844989fab30716079cd47e64fd32ec6993a",
+        "e5d1fcf654d33d87eeb72984c5840fe195ea9f84f9032668f6a382bf05331d0d",
+        "ac033aa71d1c260d63403626784d6860c934a5b4eeb414c22b742bc203d72b15",
+        "adbb44c32767ed83507f09909a788e4286f18403c7d0dc8713f4f50d056f2460",
+        "3bcf9d10eabf9e1de877de662f5ac4dece764a8ae870d0360e7a6b014b82a70b",
+        "adfb4ab9c37833fb854f2b5e3a4f084bdf9449feebb36dccbe3c31417e9da91f",
+        "2f2eb24fa48145bbe33c890d87ecc7802e1da00db2c4ca3f721a8907b5396cb0",
+        "90e09dd3167fd3b9f0af685433e1255502618db99d6565d8fffc57f1a1e5dd71"
+      ]
+    }
+  ]
+}

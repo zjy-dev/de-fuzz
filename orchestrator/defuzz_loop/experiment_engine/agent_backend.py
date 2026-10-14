@@ -67,6 +67,27 @@ class AgentResult(BaseModel):
     raw_stderr: str = ""
     events_path: Path | None = None
     final_path: Path | None = None
+    backend_identity: str | None = None
+    provider: str | None = None
+    model_provider: str | None = None
+    protocol_version: int | None = None
+    agent_id: str | None = None
+    request_id: str | None = None
+    run_id: str | None = None
+    stage_id: str | None = None
+    attempt_id: str | None = None
+    session_id: str | None = None
+    error_category: str | None = None
+    runtime_ok: bool | None = None
+    schema_ok: bool | None = None
+    artifact_ok: bool | None = None
+    evidence_ok: bool | None = None
+    stdout_truncated: bool = False
+    stderr_truncated: bool = False
+    events_truncated: bool = False
+    callgraph_queries: int = 0
+    callgraph_data_queries: int = 0
+    latency_ms: float | None = None
 
     @property
     def output(self) -> Any:
@@ -508,6 +529,7 @@ class ExecAgentBackend:
                     await self._terminate_process_group(process)
                     raise
                 stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
+                events = await self._collect_events(stdout, request, environment)
         except RuntimeError as exc:
             return AgentResult(
                 success=False,
@@ -518,7 +540,6 @@ class ExecAgentBackend:
 
         raw_stdout = stdout.decode("utf-8", errors="replace")
         raw_stderr = stderr.decode("utf-8", errors="replace")
-        events = self._parse_events(raw_stdout)
         usage = self._capture_usage(
             events, request, latency_ms=(time.monotonic() - started) * 1000.0
         )
@@ -638,6 +659,12 @@ class ExecAgentBackend:
             except json.JSONDecodeError:
                 events.append(line)
         return events
+
+    async def _collect_events(
+        self, stdout: bytes, request: AgentRequest, environment: Mapping[str, str]
+    ) -> list[Any]:
+        """Collect evidence while the isolated subprocess runtime still exists."""
+        return self._parse_events(stdout.decode("utf-8", errors="replace"))
 
     @staticmethod
     def _read_final(

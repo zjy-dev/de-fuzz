@@ -1,0 +1,6 @@
+{"server":"defuzz_callgraph","type":"stderr","timestamp":"2026-10-12T13:37:38.660Z","text":"Processing request of type ListToolsRequest\n"}
+{"server":"defuzz_callgraph","type":"stderr","timestamp":"2026-10-12T13:37:38.660Z","text":"Processing request of type ListResourcesRequest\n"}
+{"server":"defuzz_callgraph","type":"stderr","timestamp":"2026-10-12T13:37:38.660Z","text":"Processing request of type ListResourceTemplatesRequest\n"}
+{"server":"defuzz_callgraph","type":"stderr","timestamp":"2026-10-12T13:37:40.720Z","text":"Processing request of type CallToolRequest\n"}
+{"server":"defuzz_callgraph","type":"stderr","timestamp":"2026-10-12T13:37:43.527Z","text":"Processing request of type CallToolRequest\n"}
+{"server":"defuzz_callgraph","type":"stderr","timestamp":"2026-10-12T13:37:45.673Z","text":"Processing request of type CallToolRequest\n"}

@@ -1,0 +1,3144 @@
+{
+  "kind": "evaluator-only retrospective diagnosis",
+  "date": "2026-10-13",
+  "not_a_formal_run": true,
+  "historical_findings_are_not_blind_worker_inputs": true,
+  "findings_inventory": [
+    {
+      "id": "DREV-2026-001",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-001/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-15.2.0",
+      "mechanism": "stack-protector",
+      "isa": "[mips, mips64, loongarch64, xtensa, csky]",
+      "poc_verified": "true",
+      "status": "reported-upstream",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-002",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-002/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17.0.0-20260426",
+      "mechanism": "fortify-source",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-003",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-003/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-15.2.0",
+      "mechanism": "strict-flex-arrays",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-004",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-004/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-15.2.0",
+      "mechanism": "ibt",
+      "isa": "[x86_64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-005",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-005/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-15.2.0",
+      "mechanism": "codegen",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-006",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-006/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvmorg-22.1.4",
+      "mechanism": "ibt",
+      "isa": "[x86_64, x86]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-007",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-007/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvmorg-22.1.4",
+      "mechanism": "ibt",
+      "isa": "[riscv, riscv32, riscv64, x86_64, x86]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-008",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-008/README.md",
+      "toolchain": "lld",
+      "toolchain_version": "llvmorg-22.1.4",
+      "mechanism": "cet",
+      "isa": "[x86_64, x86, aarch64, riscv, riscv64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-009",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-009/README.md",
+      "toolchain": "compiler-rt",
+      "toolchain_version": "llvmorg-22.1.4",
+      "mechanism": "noexecstack",
+      "isa": "[x86_64, x86, aarch64, armv7, riscv32, riscv64, s390x, ppc64, ppc64le, loongarch64, mips, mips64, hexagon, ve, wasm, avr]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-010",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-010/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvmorg-22.1.4",
+      "mechanism": "codegen",
+      "isa": "[aarch64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-011",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-011/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-16.1.0-RC-20260424",
+      "mechanism": "fortify-source",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-012",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-012/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-15.2.0",
+      "mechanism": "relro",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-013",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-013/README.md",
+      "toolchain": "compiler-rt",
+      "toolchain_version": "llvmorg-22.1.4",
+      "mechanism": "ubsan",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-014",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-014/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-16.1.0-RC-20260424",
+      "mechanism": "ubsan",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-015",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-015/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvmorg-22.1.4",
+      "mechanism": "zero-init-padding",
+      "isa": "[generic]",
+      "poc_verified": "false",
+      "status": "retracted",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-016",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-016/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "zero-call-used-regs",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-017",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-017/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "strict-flex-arrays",
+      "isa": "[generic]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-018",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-018/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "noexecstack",
+      "isa": "[riscv32, riscv64]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-019",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-019/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "stack-clash-protection",
+      "isa": "[riscv64]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-020",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-020/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "zero-call-used-regs",
+      "isa": "[generic]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-021",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-021/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "glibcxx-assertions",
+      "isa": "[generic]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-023",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-023/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "riscv-cfi",
+      "isa": "[riscv64, riscv32]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-024",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-024/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "bti",
+      "isa": "[aarch64]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-025",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-025/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-16.1.0",
+      "mechanism": "fortify-source",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-026",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-026/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23 (main snapshot; reproduced on clang 21)",
+      "mechanism": "zero-call-used-regs",
+      "isa": "[x86_64, aarch64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-027",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-027/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23 (main snapshot; reproduced on clang 21)",
+      "mechanism": "cet-ibt",
+      "isa": "[x86_64, i686]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-028",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-028/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23 (main snapshot; reproduced on clang 21)",
+      "mechanism": "stack-protector",
+      "isa": "[x86_64, i686, aarch64, arm]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-029",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-029/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23 (main snapshot; reproduced on clang 21)",
+      "mechanism": "ret-hardening (return thunks / LVI)",
+      "isa": "[x86_64, i686]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-030",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-030/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17 (20260531 snapshot)",
+      "mechanism": "stack-clash-protection",
+      "isa": "[x86_64, i386]",
+      "poc_verified": "false",
+      "status": "",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-038",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-038/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "stack-clash-protection",
+      "isa": "[loongarch64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-039",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-039/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "stack-clash-protection",
+      "isa": "[riscv64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-040",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-040/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "stack-clash-protection",
+      "isa": "[loongarch64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-042",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-042/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "shstk",
+      "isa": "[riscv64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-043",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-043/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "ibt",
+      "isa": "[riscv64, riscv32]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-044",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-044/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "shstk",
+      "isa": "[riscv64]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-045",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-045/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "ibt",
+      "isa": "[riscv64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-048",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-048/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "asan",
+      "isa": "[aarch64, riscv64, loongarch64, powerpc64le, s390x]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-051",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-051/README.md",
+      "toolchain": "gcc",
+      "toolchain_version": "gcc-17-20260531",
+      "mechanism": "strict-flex-arrays",
+      "isa": "[generic]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": true
+    },
+    {
+      "id": "DREV-2026-052",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-052/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23.0.0git (main snapshot, compilers/llvm-project-main, tree dated 2026-06-04)",
+      "mechanism": "ibt",
+      "isa": "[x86_64, x86, riscv32, riscv64]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-053",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-053/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23.0.0git (main snapshot, compilers/llvm-project-main, tree dated 2026-06-04)",
+      "mechanism": "stack-protector",
+      "isa": "[x86_64, aarch64]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-054",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-054/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23.0.0git (main snapshot, compilers/llvm-project-main, tree dated 2026-06-04)",
+      "mechanism": "jump-table-hardening",
+      "isa": "[aarch64]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-055",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-055/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23.0.0git (main snapshot, compilers/llvm-project-main, tree dated 2026-06-04)",
+      "mechanism": "zero-call-used-regs",
+      "isa": "[x86_64, aarch64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-056",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-056/README.md",
+      "toolchain": "llvm",
+      "toolchain_version": "llvm-23.0.0git (main snapshot, compilers/llvm-project-main, tree dated 2026-06-04)",
+      "mechanism": "zero-call-used-regs",
+      "isa": "[x86_64, x86, aarch64]",
+      "poc_verified": "true",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    },
+    {
+      "id": "DREV-2026-057",
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-057/README.md",
+      "toolchain": "compiler-rt",
+      "toolchain_version": "llvm-23.0.0git (main snapshot, compilers/llvm-project-main, tree dated 2026-06-04)",
+      "mechanism": "noexecstack",
+      "isa": "[x86_64, aarch64, armv7, riscv32, riscv64, ppc64, loongarch64, mips, mips64, hexagon, ve]",
+      "poc_verified": "false",
+      "status": "draft",
+      "gcc_generic_or_aarch64": false
+    }
+  ],
+  "inventory_counts": {
+    "gcc": 27,
+    "llvm": 13,
+    "lld": 1,
+    "compiler-rt": 3
+  },
+  "gcc_generic_or_aarch64_records": 14,
+  "families": [
+    {
+      "family": "A",
+      "attempt_path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-a-initial/f0b68a498e7346238a796c812ab273a9/attempt-001",
+      "prompt_bytes": 1153139,
+      "documents": [
+        {
+          "kind": "reviewer-doctrine",
+          "path": ".claude/agents/defend-reviewer.md",
+          "bytes": 24887
+        },
+        {
+          "kind": "family-instructions",
+          "path": "docs/prompts/full-review.md#subagent-a",
+          "bytes": 2232
+        },
+        {
+          "kind": "invariant-index",
+          "path": "docs/invariants/README.md",
+          "bytes": 6398
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/stack-canary.md",
+          "bytes": 15999
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/stack-clash-protection.md",
+          "bytes": 21472
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/stack-protector/CVE-2023-4039.md",
+          "bytes": 9636
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/stack-protector/GCC-PR-64820.md",
+          "bytes": 5014
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/stack-protector/GCC-PR-81708.md",
+          "bytes": 5821
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/stack-protector/GCC-PR-96191.md",
+          "bytes": 7027
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/stack-clash-protection/GCC-PR-83641.md",
+          "bytes": 3293
+        },
+        {
+          "kind": "generated-invariants",
+          "path": "pipeline/accepted-invariants.json",
+          "bytes": 10860
+        },
+        {
+          "kind": "oracle",
+          "path": "oracle-1",
+          "bytes": 1003895
+        }
+      ],
+      "model": "defuzz/coconut-gpt-5-6-terra-max",
+      "thinking_level": "minimal",
+      "max_model_calls": 32,
+      "token_budget": 4000000,
+      "model_calls": 6,
+      "tokens": {
+        "input_tokens": 2235941,
+        "output_tokens": 3650,
+        "total_tokens": 2239591,
+        "cached_input_tokens": 1842986,
+        "reasoning_tokens": 392
+      },
+      "input_tokens_range": [
+        361864,
+        392940
+      ],
+      "tools": {
+        "ls": 2,
+        "mcp__defuzz_callgraph__list_targets": 1,
+        "find": 3,
+        "mcp__defuzz_callgraph__find_function": 3,
+        "grep": 3,
+        "mcp__defuzz_callgraph__get_callees": 2,
+        "mcp__defuzz_callgraph__get_callers": 2,
+        "read": 8,
+        "mcp__defuzz_callgraph__paths_between": 1
+      },
+      "tool_start_events": [
+        {
+          "tool": "ls",
+          "args": {
+            "path": "..",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__list_targets",
+          "args": {}
+        },
+        {
+          "tool": "ls",
+          "args": {
+            "path": ".",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": ".",
+            "pattern": "**/aarch64.cc",
+            "limit": 10
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "aarch64_allocate_and_probe_stack_space",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "aarch64_layout_frame",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "stack_protect_epilogue",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "pattern": "aarch64_allocate_and_probe_stack_space|aarch64_save_regs_above_locals_p|aarch64_layout_frame",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.md",
+            "pattern": "stack_protect_(set|test)",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64",
+            "pattern": "*stack*protect*",
+            "limit": 100
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64",
+            "pattern": "*stack-clash*",
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callees",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "aarch64_allocate_and_probe_stack_space",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "aarch64_allocate_and_probe_stack_space",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 8645,
+            "limit": 210
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 10135,
+            "limit": 245
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.md",
+            "offset": 8280,
+            "limit": 125
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/stack-protector-9.c",
+            "offset": 1,
+            "limit": 200
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callees",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "stack_protect_epilogue",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "stack_protect_epilogue",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 10590,
+            "limit": 160
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 6855,
+            "limit": 55
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 19635,
+            "limit": 45
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/stack-protector-8.c",
+            "offset": 1,
+            "limit": 160
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64",
+            "pattern": "stack clash|stack-clash|fstack-clash",
+            "glob": "*.c",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__paths_between",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "src": "aarch64_expand_prologue",
+            "dst": "emit_stack_probe",
+            "max_depth": 3,
+            "max_paths": 10
+          }
+        }
+      ],
+      "tool_errors": [
+        {
+          "tool": "ls",
+          "message": "path outside approved workspace: /private/var/folders/vn/9xz2pkd173387l32_s4vfs4h0000gn/T"
+        }
+      ],
+      "runtime_ok": true,
+      "candidates": 0,
+      "coverage_gaps": [
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "stack-protector",
+          "reason": "Source and permitted CallGraph evidence establishes intended paths but cannot prove final emitted code for every optimization, LTO, shrink-wrap, exception, or register-allocation combination.",
+          "summary": "No dynamic compiler, assembler, disassembler, runtime, unwinder, or PoC validation was performed."
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "stack-clash-protection",
+          "reason": "The source orders subtraction and probe correctly in full-page and residual paths, but runtime SIGSEGV behavior and exact probe spacing require execution.",
+          "summary": "Stack-clash probe behavior was inspected statically but not measured in generated AArch64 assembly or against an actual guard-page fault."
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "stack-protector",
+          "reason": "Machine-description expansion and target-hook dispatch are not always represented as direct CallGraph edges. The query for aarch64_allocate_and_probe_stack_space callees at depth 2 and limit 100 was truncated; the stack_protect_epilogue callee query at the same bound was also truncated. Successful missing direct-hook edges were treated as coverage limitations, not evidence of absent paths.",
+          "summary": "CallGraph coverage is limited to observed direct compiled-translation-unit edges."
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "stack-protector",
+          "reason": "Permitted reference material was delivered inline rather than as workspace files. The provided anchors were evaluated: CVE-2023-4039 frame layout, GCC PR 96191 register residue, Qualys Stack Clash, and SROP. No additional local historical corpus was available to inspect.",
+          "summary": "Historical-library completeness could not be independently re-walked from the source workspace."
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "stack-protector",
+          "reason": "Targets examined statically were: sysreg guard set/test under register pressure, SVE/SME frame layout with a protected VLA, and -fhardened plus LTO/inlining. No concrete invariant violation was established.",
+          "summary": "Three non-library-bias targets remain unverified dynamically."
+        }
+      ],
+      "next_steps": [
+        "Compile and inspect AArch64 assembly for fixed buffers, VLA/alloca, SVE/SME saves, sysreg guards, -fomit-frame-pointer, shrink-wrap, sibling calls, and -fstack-clash-protection; confirm canary ordering, temporary scrubbing, and probe-to-SP spacing.",
+        "Execute a guard-corruption test for fixed and dynamic stack objects and verify __stack_chk_fail is reached before a modified LR/FP can be used.",
+        "Run large-VLA/alloca guard-page tests on primary and pthread stacks and verify probing faults during allocation rather than allowing an unprobed multi-page jump.",
+        "Run unwind tests through stack-clash probe loops and AArch64 SVE frames with asynchronous unwind tables enabled.",
+        "Build mixed -flto, -fhardened, explicit SSP override, PIE/PIC, and protected/unprotected translation-unit cases to validate option propagation and final instrumentation."
+      ],
+      "start": "2026-10-13T12:37:50.171Z",
+      "end": "2026-10-13T12:39:25.927Z"
+    },
+    {
+      "family": "B",
+      "attempt_path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-b-initial/6ed6d59c900f47c6b454c5bcee594556/attempt-001",
+      "prompt_bytes": 1181377,
+      "documents": [
+        {
+          "kind": "reviewer-doctrine",
+          "path": ".claude/agents/defend-reviewer.md",
+          "bytes": 24887
+        },
+        {
+          "kind": "family-instructions",
+          "path": "docs/prompts/full-review.md#subagent-b",
+          "bytes": 2389
+        },
+        {
+          "kind": "mechanism-guidance",
+          "path": "builtin/mechanism-scope-overlay",
+          "bytes": 208
+        },
+        {
+          "kind": "invariant-index",
+          "path": "docs/invariants/README.md",
+          "bytes": 6398
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/auto-var-init.md",
+          "bytes": 10333
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/bounds-safety.md",
+          "bytes": 13095
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/fortify-source.md",
+          "bytes": 17683
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/gcc-llvm-defense-invariant-source-survey.md",
+          "bytes": 41117
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/fortify-source/GCC-PR-104380.md",
+          "bytes": 3328
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/fortify-source/GCC-PR-120929.md",
+          "bytes": 3575
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/fortify-source/GCC-PR-38454.md",
+          "bytes": 4126
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/fortify-source/GCC-PR-61886.md",
+          "bytes": 3601
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/fortify-source/GCC-PR-87525.md",
+          "bytes": 4027
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/fortify-source/GCC-PR-87672.md",
+          "bytes": 3608
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/fortify-source/GCC-PR-93262.md",
+          "bytes": 4513
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-104540.md",
+          "bytes": 2708
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-109267.md",
+          "bytes": 2984
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-116305.md",
+          "bytes": 2377
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-117920.md",
+          "bytes": 2203
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-84039.md",
+          "bytes": 2933
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-87414.md",
+          "bytes": 2047
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-88917.md",
+          "bytes": 2453
+        },
+        {
+          "kind": "generated-invariants",
+          "path": "pipeline/accepted-invariants.json",
+          "bytes": 1605
+        },
+        {
+          "kind": "oracle",
+          "path": "oracle-1",
+          "bytes": 1003895
+        }
+      ],
+      "model": "defuzz/coconut-gpt-5-6-terra-max",
+      "thinking_level": "minimal",
+      "max_model_calls": 32,
+      "token_budget": 4000000,
+      "model_calls": 5,
+      "tokens": {
+        "input_tokens": 1887905,
+        "output_tokens": 3314,
+        "total_tokens": 1891219,
+        "cached_input_tokens": 1500969,
+        "reasoning_tokens": 238
+      },
+      "input_tokens_range": [
+        372529,
+        386924
+      ],
+      "tools": {
+        "mcp__defuzz_callgraph__list_targets": 1,
+        "ls": 2,
+        "find": 4,
+        "grep": 4,
+        "mcp__defuzz_callgraph__find_function": 5,
+        "mcp__defuzz_callgraph__get_callers": 4,
+        "mcp__defuzz_callgraph__get_callees": 1,
+        "read": 3
+      },
+      "tool_start_events": [
+        {
+          "tool": "mcp__defuzz_callgraph__list_targets",
+          "args": {}
+        },
+        {
+          "tool": "ls",
+          "args": {
+            "path": "..",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "..",
+            "pattern": "gcc/testsuite/**/*flex*",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "..",
+            "pattern": "gcc/testsuite/**/*trivial-auto-var-init*",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "../gcc",
+            "pattern": "counted_by|sized_by",
+            "glob": "*.cc",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "../gcc",
+            "pattern": "strict_flex|strict-flex",
+            "glob": "*.cc",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "gen_command_line_string",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "maybe_trim_memstar_call",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "handle_builtin_strcat",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "ls",
+          "args": {
+            "path": ".",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "gen_command_line_string",
+            "depth": 2,
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callees",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "maybe_trim_memstar_call",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "strlen_pass::handle_builtin_strcat",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "gimplify_init_constructor",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "finish_options",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/tree-ssa-dse.cc",
+            "offset": 670,
+            "limit": 125
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/tree-ssa-strlen.cc",
+            "offset": 3360,
+            "limit": 170
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/opts.cc",
+            "offset": 3968,
+            "limit": 35
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/cp",
+            "pattern": "strict-flex|strict_flex|DECL_NOT_FLEXARRAY",
+            "glob": "*.cc",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc",
+            "pattern": "counted_by|sized_by",
+            "glob": "*.cc",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "gcc/testsuite",
+            "pattern": "**/*strict-flex*",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "gcc/testsuite",
+            "pattern": "**/*trivial-auto-var-init*",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "gimplify_init_constructor",
+            "depth": 2,
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "maybe_trim_memstar_call",
+            "depth": 1,
+            "limit": 50
+          }
+        }
+      ],
+      "tool_errors": [
+        {
+          "tool": "ls",
+          "message": "path outside approved workspace: /private/var/folders/vn/9xz2pkd173387l32_s4vfs4h0000gn/T"
+        },
+        {
+          "tool": "find",
+          "message": "recursive query overlaps a denied path; use a narrower directory"
+        },
+        {
+          "tool": "find",
+          "message": "recursive query overlaps a denied path; use a narrower directory"
+        },
+        {
+          "tool": "grep",
+          "message": "path outside approved workspace: /private/var/folders/vn/9xz2pkd173387l32_s4vfs4h0000gn/T/gcc"
+        },
+        {
+          "tool": "grep",
+          "message": "path outside approved workspace: /private/var/folders/vn/9xz2pkd173387l32_s4vfs4h0000gn/T/gcc"
+        }
+      ],
+      "runtime_ok": true,
+      "candidates": 0,
+      "coverage_gaps": [
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "fortify-source",
+          "reason": "No compile, assembly inspection, glibc runtime, or checker result was supplied for _FORTIFY_SOURCE=3 at -O0, -Os, and -Oz. A source-only conclusion cannot establish whether unknown BDOS values retain _chk calls or fold to unchecked calls.",
+          "summary": "FORTIFY=3 dynamic-object-size configuration matrix not dynamically verified"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "fortify-source",
+          "reason": "The direct caller query showed dse_optimize_stmt -> maybe_trim_memstar_call at gcc/tree-ssa-dse.cc:1550 without truncation. The depth-2 callee traversal returned 100 edges and was truncated. The inspected function explicitly decrements a constant fourth _chk argument before moving the destination, so no admission-quality violation was identified.",
+          "summary": "DSE checked-call head trimming was source-confirmed but its broad call graph was truncated"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "fortify-source",
+          "reason": "CallGraph confirms strlen_pass::check_and_optimize_call -> strlen_pass::handle_builtin_strcat at gcc/tree-ssa-strlen.cc:5529, with an untruncated bounded caller query. No compile-time dump, executable test, or supplied checker evidence establishes all transformed _chk object-size arguments under dynamic sizes.",
+          "summary": "String-pass checked-call transformations need regression-level validation"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "strict-flex-arrays",
+          "reason": "Tests exist at gcc/testsuite/g++.dg/strict-flex-array-1.C and gcc/testsuite/c-c++-common/Wstrict-flex-arrays.c, but the inspected gcc/cp source search found no direct strict-flex/DECL_NOT_FLEXARRAY match. This is insufficient to claim either safety or a bypass.",
+          "summary": "C++ strict-flex-array implementation coverage remains incomplete"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "zero-init-padding",
+          "reason": "The supplied auto-var-init invariant survey explicitly notes that zero initialization need not cover structure padding and identifies bitfield, tail-padding, and ABI-specific behavior as open questions. No GCC-specific padding-control invariant, generated checker, or runtime evidence was supplied.",
+          "summary": "Padding-initialization semantics are not fully represented by the supplied GCC invariant corpus"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "source-annotations",
+          "reason": "The inspected source exposes counted_by parsing and type-checking in gcc/c, but no equivalent C++ front-end, LTO/LTRANS, or runtime object-size propagation evidence was supplied. GCC Bounds Safety is not in scope because the supplied invariant corpus states GCC does not implement -fbounds-safety.",
+          "summary": "counted_by/sized_by propagation beyond the GCC C front end was not verified"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "fortify-source",
+          "reason": "The supplied inline historical records covered GCC PR 38454, 61886, 87525, 87672, 93262, 104380, and 120929, plus codegen anchors. No local historical-library directory was made available as an auditable workspace input; no private findings corpus or DREV record was accessed.",
+          "summary": "Historical-library completeness is constrained to the supplied inline records"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "codegen",
+          "reason": "Qualys Stack Clash and SROP are stack-protection/signal-frame patterns rather than the assigned memory-bounds mechanisms. They were not promoted as family-B findings, and no runtime or backend evidence was supplied to assess them on this tree.",
+          "summary": "Pending baseline patterns were considered but do not yield a family-B candidate"
+        }
+      ],
+      "next_steps": [
+        "Compile focused AArch64 _FORTIFY_SOURCE=3 tests at -O0, -Os, and -Oz against the intended glibc headers; inspect whether unknown BDOS paths preserve an appropriate _chk call or conservatively diagnose/fail.",
+        "Add or run regression tests covering DSE head trimming of constant and nonconstant __memcpy_chk, __memmove_chk, and __memset_chk fourth arguments; assert the emitted bound equals original-bound minus head-trim when the destination advances.",
+        "Test strlen transformations from __strcat_chk and __strcpy_chk to replacement _chk calls with nonzero destination offsets; assert replacement object-size arguments represent remaining capacity.",
+        "Trace strict-flex-array classification through gcc/cp for anonymous members, union-embedded flexible arrays, templates, and C++23 forms; compare object-size results under -fstrict-flex-arrays=3.",
+        "Trace counted_by/sized_by information through WPA/LTRANS and verify conservative behavior when propagation is unavailable.",
+        "Establish GCC-specific zero-init-padding expectations for bitfield, interior, and tail padding before treating padding nonzeroing as a candidate."
+      ],
+      "start": "2026-10-13T12:39:27.849Z",
+      "end": "2026-10-13T12:40:29.801Z"
+    },
+    {
+      "family": "C",
+      "attempt_path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-c-initial/43532c20d5374f56994c3780b4c514ee/attempt-001",
+      "prompt_bytes": 1257378,
+      "documents": [
+        {
+          "kind": "reviewer-doctrine",
+          "path": ".claude/agents/defend-reviewer.md",
+          "bytes": 24887
+        },
+        {
+          "kind": "family-instructions",
+          "path": "docs/prompts/full-review.md#subagent-c",
+          "bytes": 2362
+        },
+        {
+          "kind": "mechanism-guidance",
+          "path": "builtin/mechanism-scope-overlay",
+          "bytes": 489
+        },
+        {
+          "kind": "invariant-index",
+          "path": "docs/invariants/README.md",
+          "bytes": 6398
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/bti.md",
+          "bytes": 20656
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/endbr-ibt.md",
+          "bytes": 18905
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/gcc-llvm-defense-invariant-source-survey.md",
+          "bytes": 41117
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/pointer-authentication.md",
+          "bytes": 21362
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/riscv-cfi.md",
+          "bytes": 11418
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/shadow-stack.md",
+          "bytes": 27767
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/cet/GCC-PR-84145.md",
+          "bytes": 3739
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/ibt/GCC-PR-96350.md",
+          "bytes": 5087
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/shstk/GCC-PR-83109.md",
+          "bytes": 3675
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/shstk/GCC-PR-84239.md",
+          "bytes": 3669
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/return-address-signing/GCC-PR-113780.md",
+          "bytes": 3552
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/return-address-signing/GCC-PR-94514.md",
+          "bytes": 4078
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/return-address-signing/GCC-PR-94515.md",
+          "bytes": 3517
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/return-address-signing/GCC-PR-94791.md",
+          "bytes": 3446
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/return-address-signing/GCC-PR-94891.md",
+          "bytes": 3845
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/cmse/GCC-PR-102035.md",
+          "bytes": 3462
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-104540.md",
+          "bytes": 2708
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-109267.md",
+          "bytes": 2984
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-116305.md",
+          "bytes": 2377
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-117920.md",
+          "bytes": 2203
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-84039.md",
+          "bytes": 2933
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-87414.md",
+          "bytes": 2047
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-88917.md",
+          "bytes": 2453
+        },
+        {
+          "kind": "generated-invariants",
+          "path": "pipeline/accepted-invariants.json",
+          "bytes": 2676
+        },
+        {
+          "kind": "oracle",
+          "path": "oracle-1",
+          "bytes": 1003895
+        }
+      ],
+      "model": "defuzz/coconut-gpt-5-6-terra-max",
+      "thinking_level": "minimal",
+      "max_model_calls": 32,
+      "token_budget": 4000000,
+      "model_calls": 6,
+      "tokens": {
+        "input_tokens": 2445500,
+        "output_tokens": 3401,
+        "total_tokens": 2448901,
+        "cached_input_tokens": 2024208,
+        "reasoning_tokens": 431
+      },
+      "input_tokens_range": [
+        398221,
+        421277
+      ],
+      "tools": {
+        "ls": 1,
+        "mcp__defuzz_callgraph__list_targets": 1,
+        "read": 12,
+        "find": 2,
+        "mcp__defuzz_callgraph__find_function": 3,
+        "grep": 1,
+        "mcp__defuzz_callgraph__get_callees": 1,
+        "mcp__defuzz_callgraph__get_callers": 2,
+        "mcp__defuzz_callgraph__paths_between": 1
+      },
+      "tool_start_events": [
+        {
+          "tool": "ls",
+          "args": {
+            "path": "."
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__list_targets",
+          "args": {}
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 9345,
+            "limit": 45
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 31530,
+            "limit": 55
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 31765,
+            "limit": 35
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64-elf-metadata.cc",
+            "offset": 35,
+            "limit": 95
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64-linux.h",
+            "offset": 40,
+            "limit": 30
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "gcc/testsuite",
+            "pattern": "**/*bti*"
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": "gcc/testsuite",
+            "pattern": "**/*pac*"
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "aarch64_file_end_indicate_exec_stack",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "aarch64_pacret_enabled",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "aarch_bti_enabled",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/build-attributes/build-attribute-bti.c",
+            "limit": 160
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/build-attributes/build-attribute-pac.c",
+            "limit": 160
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/bti-4.c",
+            "limit": 160
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "pattern": "aarch64_return_address_signing_enabled|aarch_bti_enabled \\(",
+            "context": 2,
+            "limit": 30
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callees",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "aarch64_file_end_indicate_exec_stack",
+            "depth": 2,
+            "limit": 30
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "aarch64_file_end_indicate_exec_stack",
+            "depth": 2,
+            "limit": 30
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "aarch64_pacret_enabled",
+            "depth": 2,
+            "limit": 30
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__paths_between",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "src": "aarch64_file_end_indicate_exec_stack",
+            "dst": "aarch64_pacret_enabled",
+            "max_depth": 3,
+            "max_paths": 10
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 10560,
+            "limit": 55
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 26370,
+            "limit": 60
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/bti-1.c",
+            "limit": 140
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/bti-2.c",
+            "limit": 140
+          }
+        }
+      ],
+      "tool_errors": [],
+      "runtime_ok": true,
+      "candidates": 0,
+      "coverage_gaps": [
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "bti",
+          "reason": "GCC source demonstrates both AEABI and GNU-property emission paths, but binutils/lld property merging, -r behavior, PLT BTI insertion, and ld.so PROT_BTI enforcement were not available in the workspace or supplied MCP data.",
+          "summary": "BTI final-link and runtime enforcement"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "return-address-signing",
+          "reason": "The historical PR94514/PR94515 pattern was retained as a falsification target, but the scoped evidence did not include libgcc unwind implementation, glibc signal/setjmp code, or runtime checker evidence.",
+          "summary": "PAC mixed-frame unwinding and nonlocal-control-transfer coverage"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "bti",
+          "reason": "No inspected test demonstrates retention of BTI/PAC code generation and metadata across LTO mixed branch-protection inputs.",
+          "summary": "LTO mixed-mode branch-protection coverage"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "bti",
+          "reason": "The available build-attribute tests explicitly require assemblers with AEABI build attributes and assert that .note.gnu.property is absent. They do not exercise the HAVE_AS_AEABI_BUILD_ATTRIBUTES=false GNU-property fallback used by the mapped invariant.",
+          "summary": "AArch64 test gap for GNU-property fallback"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "pac",
+          "reason": "The available PAC metadata test covers AEABI Tag_Feature_PAC and explicitly excludes .note.gnu.property, leaving the GNU-property fallback unverified by a regression test.",
+          "summary": "AArch64 PAC metadata test gap for GNU-property fallback"
+        },
+        {
+          "isa": [
+            "x86_64",
+            "arm",
+            "riscv64"
+          ],
+          "mechanism": "cet, ibt, shstk, cmse, riscv-cfi, ret-hardening",
+          "reason": "The sole available CallGraph target is gcc-16.2.0-aarch64. No alternate version or ISA was substituted.",
+          "summary": "Unavailable non-AArch64 family coverage"
+        }
+      ],
+      "next_steps": [
+        "Add compiler regression tests that force the non-AEABI assembler path and verify GNU_PROPERTY_AARCH64_FEATURE_1_AND contains BTI for -mbranch-protection=bti and PAC for -mbranch-protection=pac-ret.",
+        "Run an AArch64 LTO mixed-mode test with bti, pac-ret, standard, and none translation units; inspect both retained instructions and final property bits.",
+        "Test dynamic-linking paths with a BTI-enabled executable/DSO, a non-BTI input object, and linker force-bti policy, using binutils/lld and an enforcing AArch64 runtime.",
+        "Test mixed pac-ret/non-pac-ret C++ exceptions, setjmp/longjmp, and signal unwinding against the matching libgcc and libc runtime sources.",
+        "For return-address signing, add a code-generation regression covering indirect sibling calls, leaf/non-leaf functions, b-key selection, and PAC authentication before tail transfer."
+      ],
+      "start": "2026-10-13T12:40:31.599Z",
+      "end": "2026-10-13T12:41:43.186Z"
+    },
+    {
+      "family": "D",
+      "attempt_path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-d-initial/9459e89f788a4317ad4eedacccf3ff49/attempt-001",
+      "prompt_bytes": 1051075,
+      "documents": [
+        {
+          "kind": "reviewer-doctrine",
+          "path": ".claude/agents/defend-reviewer.md",
+          "bytes": 24887
+        },
+        {
+          "kind": "family-instructions",
+          "path": "docs/prompts/full-review.md#subagent-d",
+          "bytes": 2196
+        },
+        {
+          "kind": "invariant-index",
+          "path": "docs/invariants/README.md",
+          "bytes": 6398
+        },
+        {
+          "kind": "generated-invariants",
+          "path": "pipeline/accepted-invariants.json",
+          "bytes": 1499
+        },
+        {
+          "kind": "oracle",
+          "path": "oracle-1",
+          "bytes": 1003895
+        }
+      ],
+      "model": "defuzz/coconut-gpt-5-6-terra-max",
+      "thinking_level": "minimal",
+      "max_model_calls": 32,
+      "token_budget": 4000000,
+      "model_calls": 5,
+      "tokens": {
+        "input_tokens": 1691526,
+        "output_tokens": 2770,
+        "total_tokens": 1694296,
+        "cached_input_tokens": 1344060,
+        "reasoning_tokens": 196
+      },
+      "input_tokens_range": [
+        333046,
+        347454
+      ],
+      "tools": {
+        "ls": 2,
+        "mcp__defuzz_callgraph__list_targets": 1,
+        "find": 2,
+        "mcp__defuzz_callgraph__find_function": 2,
+        "read": 4,
+        "grep": 4,
+        "mcp__defuzz_callgraph__get_callers": 2,
+        "mcp__defuzz_callgraph__get_callees": 1,
+        "mcp__defuzz_callgraph__paths_between": 1
+      },
+      "tool_start_events": [
+        {
+          "tool": "ls",
+          "args": {
+            "path": "..",
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__list_targets",
+          "args": {}
+        },
+        {
+          "tool": "ls",
+          "args": {
+            "path": ".",
+            "limit": 100
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": ".",
+            "pattern": "**/gcc/opts.cc",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "find",
+          "args": {
+            "path": ".",
+            "pattern": "**/ld",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "finish_options",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "process_command",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/opts.cc",
+            "offset": 1165,
+            "limit": 45
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/gcc.cc",
+            "offset": 5045,
+            "limit": 45
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64-linux.h",
+            "offset": 25,
+            "limit": 40
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc",
+            "pattern": "GNU-stack|note.GNU-stack|indicate_exec_stack",
+            "glob": "**/*",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "finish_options",
+            "depth": 2,
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callees",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "process_command",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/config/aarch64/aarch64.cc",
+            "offset": 31530,
+            "limit": 55
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/testsuite",
+            "pattern": "fhardened",
+            "glob": "**/*",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/testsuite",
+            "pattern": "GNU-stack|execstack",
+            "glob": "**/*",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc",
+            "pattern": "LD_PIE_SPEC|HAVE_LD_RELRO_SUPPORT|HAVE_LD_NOW_SUPPORT",
+            "glob": "**/*",
+            "limit": 40
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__paths_between",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "src": "toplev::main",
+            "dst": "finish_options",
+            "max_depth": 4,
+            "max_paths": 10
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "process_command",
+            "depth": 1,
+            "limit": 20
+          }
+        }
+      ],
+      "tool_errors": [
+        {
+          "tool": "ls",
+          "message": "path outside approved workspace: /private/var/folders/vn/9xz2pkd173387l32_s4vfs4h0000gn/T"
+        }
+      ],
+      "runtime_ok": true,
+      "candidates": 0,
+      "coverage_gaps": [
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "relro",
+          "reason": "The workspace contains the GCC tree but no binutils/ld, gold, lld/ELF, or dynamic-loader source tree. Partial/full RELRO boundaries, writable GOT/PLT behavior, and loader enforcement could not be inspected.",
+          "summary": "Linker and loader hardening implementation unavailable"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "noexecstack",
+          "reason": "GCC's AArch64 file-end hook calls file_end_indicate_exec_stack, but no linker implementation was available to assess object-with-note plus object-without-note linking or final PT_GNU_STACK policy. Existing tests located were predominantly x86 or Fortran-oriented rather than an AArch64 mixed-object ELF-header test.",
+          "summary": "PT_GNU_STACK mixed-object policy unverified"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "nodlopen",
+          "reason": "No GCC driver path, linker source, or loader source establishing DF_1_NOOPEN generation and runtime enforcement was found in the available tree.",
+          "summary": "DF_1_NOOPEN emission and enforcement unverified"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "as-needed",
+          "reason": "No linker source was available to trace dependency-elision rules or verify a hardening-initialization dependency remains retained.",
+          "summary": "--as-needed retention of hardening dependencies unverified"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "pie",
+          "reason": "Static source and CallGraph evidence show the intended option and driver gates, including direct toplev::main -> decode_options -> finish_options coverage and driver-side save_switch/add_infile calls. No supplied checker evidence or executable inspection establishes final ELF ET_DYN, relocation, RELRO, or NX properties.",
+          "summary": "End-to-end hardened PIE output not dynamically checked"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "pie",
+          "reason": "The supplied reference material included doctrine and one generated PIE invariant, but no locally accessible docs/bugs or per-mechanism invariant surveys for this family were present in the workspace. Their absence was treated as a coverage limitation, not a defect.",
+          "summary": "Historical-library traversal unavailable"
+        }
+      ],
+      "next_steps": [
+        "Run the supplied generated checker INVGEN-E5664CD1DEE20CE2 against an AArch64 GCC 16.2.0 build using -fhardened, then inspect that the produced executable is ET_DYN and has the expected position-independent relocation model.",
+        "Acquire matching AArch64 GNU ld or lld and dynamic-loader source coverage before assessing RELRO section boundaries, PT_GNU_STACK mixed-object behavior, DF_1_NOOPEN, --as-needed, or loader enforcement.",
+        "Add an AArch64 regression that compiles and links a trivial program with -fhardened and asserts both compiler option state (-fPIE/-fPIC) and final linker options (-pie, -z now, -z relro) unless an explicit conflicting option is present.",
+        "Add an AArch64 mixed-object noexecstack test that combines an object carrying .note.GNU-stack with an object lacking it and asserts the final PT_GNU_STACK permissions under the selected linker policy.",
+        "Add linker-level tests for partial versus full RELRO writable sections and for --as-needed preservation of any hardening initialization dependency."
+      ],
+      "start": "2026-10-13T12:41:44.977Z",
+      "end": "2026-10-13T12:42:51.816Z"
+    },
+    {
+      "family": "E",
+      "attempt_path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-e-initial/6652ec5181384a72b30c79d018bd9565/attempt-001",
+      "prompt_bytes": 1140622,
+      "documents": [
+        {
+          "kind": "reviewer-doctrine",
+          "path": ".claude/agents/defend-reviewer.md",
+          "bytes": 24887
+        },
+        {
+          "kind": "family-instructions",
+          "path": "docs/prompts/full-review.md#subagent-e",
+          "bytes": 2159
+        },
+        {
+          "kind": "mechanism-guidance",
+          "path": "builtin/mechanism-scope-overlay",
+          "bytes": 228
+        },
+        {
+          "kind": "invariant-index",
+          "path": "docs/invariants/README.md",
+          "bytes": 6398
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/auto-var-init.md",
+          "bytes": 10333
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/hardened.md",
+          "bytes": 13277
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/sanitizers.md",
+          "bytes": 28565
+        },
+        {
+          "kind": "invariant",
+          "path": "docs/invariants/zero-call-used-regs.md",
+          "bytes": 11429
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-104540.md",
+          "bytes": 2708
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-109267.md",
+          "bytes": 2984
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-116305.md",
+          "bytes": 2377
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-117920.md",
+          "bytes": 2203
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-84039.md",
+          "bytes": 2933
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-87414.md",
+          "bytes": 2047
+        },
+        {
+          "kind": "historical-bug",
+          "path": "docs/bugs/gcc/codegen/GCC-PR-88917.md",
+          "bytes": 2453
+        },
+        {
+          "kind": "generated-invariants",
+          "path": "pipeline/accepted-invariants.json",
+          "bytes": 3024
+        },
+        {
+          "kind": "oracle",
+          "path": "oracle-1",
+          "bytes": 1003895
+        }
+      ],
+      "model": "defuzz/coconut-gpt-5-6-terra-max",
+      "thinking_level": "minimal",
+      "max_model_calls": 32,
+      "token_budget": 4000000,
+      "model_calls": 5,
+      "tokens": {
+        "input_tokens": 1848080,
+        "output_tokens": 3064,
+        "total_tokens": 1851144,
+        "cached_input_tokens": 1465683,
+        "reasoning_tokens": 294
+      },
+      "input_tokens_range": [
+        360870,
+        382385
+      ],
+      "tools": {
+        "ls": 1,
+        "mcp__defuzz_callgraph__list_targets": 1,
+        "read": 9,
+        "grep": 4,
+        "mcp__defuzz_callgraph__find_function": 3,
+        "mcp__defuzz_callgraph__get_callers": 3,
+        "mcp__defuzz_callgraph__get_callees": 2
+      },
+      "tool_start_events": [
+        {
+          "tool": "ls",
+          "args": {
+            "path": "."
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__list_targets",
+          "args": {}
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/opts.cc",
+            "offset": 1158,
+            "limit": 75
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/gimplify.cc",
+            "offset": 2025,
+            "limit": 120
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/cfgexpand.cc",
+            "offset": 1230,
+            "limit": 90
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/cfgexpand.cc",
+            "offset": 1490,
+            "limit": 105
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc",
+            "glob": "*.cc",
+            "pattern": "zero_call_used_regs",
+            "limit": 30
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/testsuite",
+            "glob": "**/*",
+            "pattern": "ftrivial-auto-var-init|fhardened|zero-call-used-regs",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "gimple_add_init_for_auto_var",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "partition_stack_vars",
+            "limit": 20
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/function.cc",
+            "offset": 5930,
+            "limit": 90
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/function.cc",
+            "offset": 6750,
+            "limit": 85
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64/auto-init-4.c",
+            "limit": 100
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/testsuite/c-c++-common/fhardened-12.c",
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "gimple_add_init_for_auto_var",
+            "depth": 2,
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "partition_stack_vars",
+            "depth": 2,
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callees",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "partition_stack_vars",
+            "depth": 2,
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__find_function",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "pattern": "zero_call_used_regs",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callees",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "(unnamed namespace)::pass_zero_call_used_regs::execute",
+            "depth": 2,
+            "limit": 100
+          }
+        },
+        {
+          "tool": "mcp__defuzz_callgraph__get_callers",
+          "args": {
+            "target": "gcc-16.2.0-aarch64",
+            "function": "(unnamed namespace)::pass_zero_call_used_regs::execute",
+            "depth": 2,
+            "limit": 50
+          }
+        },
+        {
+          "tool": "read",
+          "args": {
+            "path": "gcc/function.cc",
+            "offset": 6810,
+            "limit": 55
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/testsuite/gcc.target/aarch64",
+            "glob": "**/*",
+            "pattern": "zero-call-used-regs",
+            "limit": 50
+          }
+        },
+        {
+          "tool": "grep",
+          "args": {
+            "path": "gcc/testsuite",
+            "glob": "**/*",
+            "pattern": "sanitize=address|sanitize=thread|sanitize=leak|sanitize=undefined",
+            "limit": 30
+          }
+        }
+      ],
+      "tool_errors": [],
+      "runtime_ok": true,
+      "candidates": 0,
+      "coverage_gaps": [
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "asan",
+          "reason": "partition_stack_vars correctly breaks before merging unequal-size supported-alignment objects, and expand_stack_vars records constant-size redzones. The bounded callee query was truncated at 50 edges, and no compile/runtime checker result was supplied to establish emitted layout behavior for VLA, large-alignment, use-after-scope, or LTO cases.",
+          "summary": "ASan stack layout coverage is source-level only"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "auto-var-init",
+          "reason": "Source establishes the eligibility gate: auto variables, non-hard-register VAR_DECLs, enabled non-uninitialized mode, no uninitialized/indeterminate attributes, nonopaque, nonempty type. No supplied checker evidence covers VLA, attribute exclusions, oversized objects, C++ temporary storage, or cross-module inlining.",
+          "summary": "Auto-var-init exclusions and LTO behavior remain unverified"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "asan/ubsan/tsan/lsan",
+          "reason": "The available anchors covered ASan stack layout and general option conflict checks only. libsanitizer runtime initialization, interceptor compatibility, UBSan handler linkage under LTO, TSan race reporting, and LSan leak reporting were not traced.",
+          "summary": "Sanitizer runtime coverage was not audited end to end"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "glibcxx-assertions",
+          "reason": "No supplied mapped anchor covered _GLIBCXX_ASSERTIONS versus _GLIBCXX_DEBUG behavior, and libstdc++ headers/tests were not reviewed in this run.",
+          "summary": "glibcxx assertions boundary not inspected"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "zero-call-used-regs",
+          "reason": "The generic pass selects dead call-used registers and inserts the target-returned zeroing sequence before each discovered return. No AArch64-specific target hook implementation or AArch64-specific regression test was found in the inspected search results; tail-call, sibling-call, PAC epilogue, SVE/SME register, and exception-exit behavior remain unverified.",
+          "summary": "AArch64 zero-call-used-regs backend coverage is incomplete"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "all",
+          "reason": "The permitted inline historical records were GCC codegen entries rather than directories for the assigned mechanisms. No local docs/bugs corpus was present in the GCC source workspace. The supplied pending Stack Clash and SROP patterns are not candidates here: no concrete sanitizer-umbrella invariant violation or trigger was established.",
+          "summary": "Historical-library and baseline calibration scope limitation"
+        },
+        {
+          "isa": [
+            "aarch64"
+          ],
+          "mechanism": "all",
+          "reason": "gcc-16.2.0-aarch64 was available and used. The gimple_add_init_for_auto_var caller query completed without truncation. partition_stack_vars callers completed without truncation; its depth-2 callee query was truncated at 50 edges. No other GCC version or ISA target was available, and none was substituted.",
+          "summary": "CallGraph coverage limitation"
+        }
+      ],
+      "next_steps": [
+        "Compile AArch64 ASan cases covering differently sized locals, VLA/alloca, high-alignment locals, use-after-scope, tail calls, and -flto; inspect emitted stack descriptions and confirm runtime reports.",
+        "Run auto-var-init regression cases under -fhardened and explicit overriding modes, including VLA, C++ TARGET_EXPR temporaries, attributes, and LTO inlining; verify IFN_DEFERRED_INIT survives to initialization code where a read precedes a write.",
+        "Trace GCC libsanitizer driver/runtime selection and AArch64 runtime initialization for ASan, UBSan, TSan, and LSan; exercise the stated report/abort contracts.",
+        "Locate and inspect the AArch64 zero_call_used_regs target hook, then add assembly assertions for normal return, sibling/tail call, noreturn, exception, PAC, and vector-register exits.",
+        "Audit libstdc++ _GLIBCXX_ASSERTIONS wrappers and tests to enumerate operations intentionally left unchecked relative to _GLIBCXX_DEBUG."
+      ],
+      "start": "2026-10-13T12:42:53.814Z",
+      "end": "2026-10-13T12:43:50.761Z"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "INVGEN-02C9E946EE52CA5D",
+      "mechanism": "inline-asm-hard-register-validation",
+      "canonical_mechanism": "inline-asm-hard-register-validation",
+      "families": [],
+      "statement": "GCC diagnoses conflicting hard-register bindings between inline-assembly output operands, matching input operands, and early-clobber outputs."
+    },
+    {
+      "id": "INVGEN-06F4783EB7B5A5AE",
+      "mechanism": "bounds-warning",
+      "canonical_mechanism": "bounds-warning",
+      "families": [],
+      "statement": "GCC dead-store elimination preserves tail bytes when trimming them could defeat proper out-of-bounds warnings."
+    },
+    {
+      "id": "INVGEN-08AFDF62248BDB87",
+      "mechanism": "stack-protector",
+      "canonical_mechanism": "stack-protector",
+      "families": [
+        "A"
+      ],
+      "statement": "GCC AArch64 defines a stack-protector guard mode that uses a per-thread canary stored in a special system register."
+    },
+    {
+      "id": "INVGEN-186DA0B7D8A43DA7",
+      "mechanism": "stack-protector",
+      "canonical_mechanism": "stack-protector",
+      "families": [
+        "A"
+      ],
+      "statement": "GCC emits a stack-protection epilogue check for functions configured with a stack-protect guard and a runtime-enabled stack-protection target."
+    },
+    {
+      "id": "INVGEN-26090E63F9A9C936",
+      "mechanism": "hwasan",
+      "canonical_mechanism": "hwasan",
+      "families": [],
+      "statement": "When hardware-assisted stack sanitization is active, stack-variable allocation records tag coverage for each allocated object and advances the frame tag after allocation units."
+    },
+    {
+      "id": "INVGEN-275FBD1D2CE6C352",
+      "mechanism": "asm-constraint-copy",
+      "canonical_mechanism": "asm-constraint-copy",
+      "families": [],
+      "statement": "GCC preserves distinct hard-register requirements for repeated pseudo-register inputs in inline assembly by introducing a copy for each subsequent constrained use."
+    },
+    {
+      "id": "INVGEN-29367CCA11487093",
+      "mechanism": "gcs",
+      "canonical_mechanism": "gcs",
+      "families": [],
+      "statement": "GCC records the AArch64 GCS security feature in GNU ELF property metadata when GCS is enabled before metadata emission."
+    },
+    {
+      "id": "INVGEN-2BEB3971E70676E4",
+      "mechanism": "asan",
+      "canonical_mechanism": "asan",
+      "families": [
+        "E"
+      ],
+      "statement": "Address Sanitizer stack layout keeps differently sized supported-alignment partition representatives separate so shorter variables receive adequate protection."
+    },
+    {
+      "id": "INVGEN-3CB04233158D3F9C",
+      "mechanism": "stack-clash-protection",
+      "canonical_mechanism": "stack-clash-protection",
+      "families": [
+        "A"
+      ],
+      "statement": "At the frame-pointer epilogue path, when `aarch64_add_offset` emits a stack-pointer restoration whose callee-save restoration uses writeback, the CFA/unwind state must be restored on that same writeback instruction, so unwind metadata remains synchronized with the resulting stack-relative frame position. This is the intended guarantee stated by the adjacent `aarch64_expand_epilogue` comment, not independently demonstrated behavior."
+    },
+    {
+      "id": "INVGEN-40A2FEF4A5397359",
+      "mechanism": "stack-slot-separation",
+      "canonical_mechanism": "stack-slot-separation",
+      "families": [],
+      "statement": "GCC assigns at least one byte to each zero-sized stack variable so that simultaneously live stack variables retain distinct addresses."
+    },
+    {
+      "id": "INVGEN-4310437E6E51F3C5",
+      "mechanism": "object-size-check",
+      "canonical_mechanism": "object-size-check",
+      "families": [],
+      "statement": "GCC dead-store elimination preserves the object-size argument of four-argument checked memory calls when head-trimming a memcpy, memmove, or memset operation."
+    },
+    {
+      "id": "INVGEN-494F50357AB4A7DC",
+      "mechanism": "stack-protector",
+      "canonical_mechanism": "stack-protector",
+      "families": [
+        "A"
+      ],
+      "statement": "GCC emits a stack-protector epilogue check before a sibling call, or before a non-returning call that can throw, when stack protection is active at runtime."
+    },
+    {
+      "id": "INVGEN-55E96BC64897DB5B",
+      "mechanism": "bti",
+      "canonical_mechanism": "bti",
+      "families": [
+        "C"
+      ],
+      "statement": "GCC records the AArch64 BTI security feature in GNU ELF property metadata when BTI is enabled before metadata emission."
+    },
+    {
+      "id": "INVGEN-586F4B7E3E244E12",
+      "mechanism": "debug-expression-validation",
+      "canonical_mechanism": "debug-expression-validation",
+      "families": [],
+      "statement": "GCC rejects debug-expression subregister expansion when the bit position is at or beyond the operand mode width, preventing the subregister generator from being invoked with a non-existent address."
+    },
+    {
+      "id": "INVGEN-59CC8AFFEC2AC5AE",
+      "mechanism": "format-overflow-warning",
+      "canonical_mechanism": "format-overflow-warning",
+      "families": [],
+      "statement": "GCC runs its early sprintf format-checking warning pass only when optimization is disabled and either format-overflow or format-truncation warnings are enabled."
+    },
+    {
+      "id": "INVGEN-6A698129CBF7E86D",
+      "mechanism": "bounds-check",
+      "canonical_mechanism": "bounds-check",
+      "families": [],
+      "statement": "The AArch64 SIMD lane-check builtin is folded to a void result only when its total size, element size, and lane arguments are integer constants, both sizes are nonzero, and the unsigned lane value is less than total-size divided by element-size."
+    },
+    {
+      "id": "INVGEN-6CA75CB7E4689B80",
+      "mechanism": "stringop-truncation-warning",
+      "canonical_mechanism": "stringop-truncation-warning",
+      "families": [],
+      "statement": "GCC warns when a bounded string-copy call is determined to truncate output before a terminating NUL character or may do so."
+    },
+    {
+      "id": "INVGEN-7D3768CD2A1F74B5",
+      "mechanism": "memtag-stack",
+      "canonical_mechanism": "memtag-stack",
+      "families": [],
+      "statement": "GCC passes memtag-stack linker options when memtag-stack sanitization is requested, selecting synchronous mode unless an explicit memtag mode is supplied."
+    },
+    {
+      "id": "INVGEN-7E21738BF7031B26",
+      "mechanism": "strub",
+      "canonical_mechanism": "strub",
+      "families": [],
+      "statement": "At `gsi_insert_finally_seq_after_call`'s newly created EH-cleanup block, the landing-pad label and call-to-landing-pad association (`lp->post_landing_pad`, `EH_LANDING_PAD_NR (label)`, and `add_stmt_to_eh_lp (stmt, lp->index)`) must designate a block that, before its EH edge is usable, contains the non-empty requested cleanup sequence followed by the generated `resx`; metadata must not remain bound to an empty or cleanup-less block. Source evidence: `create_empty_bb (bb)` precedes those metadata assignments, while `gsi_insert_seq_before (&gsi, seq, GSI_SAME_STMT)` and insertion of `gimple_build_resx (new_r->index)` populate the block before `make_eh_edge (stmt)` wires it into the CFG."
+    },
+    {
+      "id": "INVGEN-7FB0D3A3EE9FADE5",
+      "mechanism": "nocf-check",
+      "canonical_mechanism": "nocf-check",
+      "families": [],
+      "statement": "GCC exempts an indirect call from control-flow verification when the call has the nocf_check attribute."
+    },
+    {
+      "id": "INVGEN-81590831B593F806",
+      "mechanism": "kasan",
+      "canonical_mechanism": "kasan",
+      "families": [],
+      "statement": "GCC requires -fasan-shadow-offset to be used with -fsanitize=kernel-address."
+    },
+    {
+      "id": "INVGEN-846C550FF213FC53",
+      "mechanism": "sanitizer-coverage",
+      "canonical_mechanism": "sanitizer-coverage",
+      "families": [],
+      "statement": "GCC prevents sibling-call optimization of __sanitizer_cov_trace_pc calls so the hook can inspect its return address to identify its caller."
+    },
+    {
+      "id": "INVGEN-89F2BD7D25917E3E",
+      "mechanism": "memtag",
+      "canonical_mechanism": "memtag",
+      "families": [],
+      "statement": "GCC rejects AArch64 Memory Tagging builtin calls when the function lacks the required ISA extension."
+    },
+    {
+      "id": "INVGEN-8A57A19ED05E2AC7",
+      "mechanism": "pointer-poisoning",
+      "canonical_mechanism": "pointer-poisoning",
+      "families": [],
+      "statement": "GCC's analyzer models a successful moving realloc as invalidating pointers to the old heap buffer."
+    },
+    {
+      "id": "INVGEN-8EF522DDF7CCD4A7",
+      "mechanism": "argument-size-limit",
+      "canonical_mechanism": "argument-size-limit",
+      "families": [],
+      "statement": "GCC rejects by-value arguments that would require an excessively large stack argument area, preventing later argument-size arithmetic overflow."
+    },
+    {
+      "id": "INVGEN-93FBC8F3F8842198",
+      "mechanism": "live-patching",
+      "canonical_mechanism": "live-patching",
+      "families": [],
+      "statement": "GCC prevents live-patching modes from being used with selected interprocedural and whole-program optimizations that can change program structure relevant to patching."
+    },
+    {
+      "id": "INVGEN-95776B046FEFF604",
+      "mechanism": "stack-protector",
+      "canonical_mechanism": "stack-protector",
+      "families": [
+        "A"
+      ],
+      "statement": "GCC emits a stack-protector guard comparison that transfers control to the stack-protector failure handler when the guard values differ."
+    },
+    {
+      "id": "INVGEN-96069C966DD27F4D",
+      "mechanism": "stack-protector",
+      "canonical_mechanism": "stack-protector",
+      "families": [
+        "A"
+      ],
+      "statement": "GCC initializes the stack-protection guard through the stack-protection prologue only when a guard is configured and the target runtime reports stack protection as enabled."
+    },
+    {
+      "id": "INVGEN-9657317A4FC386A0",
+      "mechanism": "stack-protector",
+      "canonical_mechanism": "stack-protector",
+      "families": [
+        "A"
+      ],
+      "statement": "GCC selects strong stack protection by default under -fhardened when the stack-protector option was not explicitly set."
+    },
+    {
+      "id": "INVGEN-9E52D6B7EDAEB812",
+      "mechanism": "alternate-signal-stack",
+      "canonical_mechanism": "alternate-signal-stack",
+      "families": [],
+      "statement": "On Android, SIGSEGV handling is configured to execute on a dedicated alternate signal stack so a stack-overflow signal handler can run without consuming the faulting stack."
+    },
+    {
+      "id": "INVGEN-A6929540BE378105",
+      "mechanism": "backend-multi",
+      "canonical_mechanism": "backend-multi",
+      "families": [],
+      "statement": "At this confluence site, combining ACTIVE_LIVE with ACTIVE_DEAD must yield ACTIVE_LIVE in either operand order: ACTIVE_DEAD denotes conditionally initialized ZA state that must be accepted as compatible with fully initialized, live ZA state rather than being treated as an unknown or incompatible state."
+    },
+    {
+      "id": "INVGEN-A75A0495AC054C1D",
+      "mechanism": "overlap-check",
+      "canonical_mechanism": "overlap-check",
+      "families": [],
+      "statement": "Aggregate copy propagation must not replace a temporary-mediated memory copy with a direct memory-to-memory store when the source and destination may overlap at different locations."
+    },
+    {
+      "id": "INVGEN-AD22824BC048C630",
+      "mechanism": "unreachable-sanitizer",
+      "canonical_mechanism": "unreachable-sanitizer",
+      "families": [],
+      "statement": "The final forward-propagation pass must not rewrite predecessor conditional branches to bypass a block beginning with __builtin_unreachable when unreachable sanitization is enabled."
+    },
+    {
+      "id": "INVGEN-B3AA41472B6BB64B",
+      "mechanism": "fortify-source",
+      "canonical_mechanism": "fortify-source",
+      "families": [
+        "B"
+      ],
+      "statement": "GCC preserves -D_FORTIFY_SOURCE and -U_FORTIFY_SOURCE options in its generated producer command-line string, while excluding other macro-definition options."
+    },
+    {
+      "id": "INVGEN-C7B396082E8E5E01",
+      "mechanism": "sibling-call-overlap-check",
+      "canonical_mechanism": "sibling-call-overlap-check",
+      "families": [],
+      "statement": "GCC rejects sibling-call expansion when an argument value may overlap an already clobbered outgoing argument area."
+    },
+    {
+      "id": "INVGEN-C862E337607FE69D",
+      "mechanism": "address-sanitizer",
+      "canonical_mechanism": "address-sanitizer",
+      "families": [],
+      "statement": "GCC prevents an eligible tail call from bypassing a pending AddressSanitizer epilogue sequence."
+    },
+    {
+      "id": "INVGEN-CBCED39B1302435D",
+      "mechanism": "sibcall-overlap-check",
+      "canonical_mechanism": "sibcall-overlap-check",
+      "families": [],
+      "statement": "GCC sibling-call handling is intended to avoid overwriting incoming function arguments before their reads are complete."
+    },
+    {
+      "id": "INVGEN-D2E09B5E468F4BF3",
+      "mechanism": "auto-var-init",
+      "canonical_mechanism": "auto-var-init",
+      "families": [
+        "E"
+      ],
+      "statement": "GCC enables zero initialization of trivial automatic variables under -fhardened unless the user explicitly set a different auto-variable-initialization mode."
+    },
+    {
+      "id": "INVGEN-D3753ECF716EC5F0",
+      "mechanism": "bounds-checking",
+      "canonical_mechanism": "bounds-checking",
+      "families": [],
+      "statement": "GCC's strlen pass performs bounds-or-overlap analysis for strcpy-like calls when source string information is available."
+    },
+    {
+      "id": "INVGEN-E5664CD1DEE20CE2",
+      "mechanism": "pie",
+      "canonical_mechanism": "pie",
+      "families": [
+        "D"
+      ],
+      "statement": "GCC defaults to PIE and PIC under -fhardened when neither PIE nor PIC was explicitly selected."
+    },
+    {
+      "id": "INVGEN-E6D7A52AC192DDF3",
+      "mechanism": "pac",
+      "canonical_mechanism": "pac",
+      "families": [
+        "C"
+      ],
+      "statement": "GCC records the AArch64 PAC security feature in GNU ELF property metadata when PAC is enabled before metadata emission."
+    },
+    {
+      "id": "INVGEN-E7B08FE075DCBCAE",
+      "mechanism": "stringop-truncation-warning",
+      "canonical_mechanism": "stringop-truncation-warning",
+      "families": [],
+      "statement": "GCC diagnoses a string copy that omits the terminating NUL when the copy bound is the source string length."
+    },
+    {
+      "id": "INVGEN-FC7D9F46C5BD01C2",
+      "mechanism": "sibcall-argument-overlap-check",
+      "canonical_mechanism": "sibcall-argument-overlap-check",
+      "families": [],
+      "statement": "GCC marks sibling-call expansion as failed when an argument setup sequence dereferences an argument slot already clobbered by tail-call argument setup."
+    }
+  ],
+  "routed_invariants": 13,
+  "unrouted_invariants": 30,
+  "mapping_handoff": {
+    "enabled": true,
+    "sha256": "decc789883c21913270ffe01681e5f806fcdb4222786f3f75067104a5e86c802",
+    "source_tree_sha256": "c73f2141dbc79a808c8e2e77fdf435956feb15f780265a9b44b33240f6834233",
+    "visible_mappings_by_family": {
+      "A": 7,
+      "B": 1,
+      "C": 2,
+      "D": 1,
+      "E": 2
+    }
+  },
+  "catalog_field_serialized_bytes": {
+    "lineages": 470300,
+    "lineage": 470214,
+    "files": 27838,
+    "statement": 7106,
+    "parent_tree_sha256": 2838,
+    "result_tree_sha256": 2838,
+    "mechanism": 1375,
+    "generated_invariant_ids": 1161,
+    "checker_id": 1075,
+    "generated_invariant_id": 1075,
+    "id": 1075,
+    "invariant_id": 1075,
+    "applicable_isas": 1038,
+    "generated_mechanism": 752,
+    "bundle_role": 473,
+    "category": 344,
+    "mode": 344,
+    "cost": 301,
+    "oracle": 223,
+    "reused": 215,
+    "reused_checker_id": 172,
+    "target": 159,
+    "requires": 86
+  },
+  "aggregate": {
+    "model_calls": 27,
+    "tokens": {
+      "input_tokens": 10108952,
+      "output_tokens": 16199,
+      "total_tokens": 10125151,
+      "cached_input_tokens": 8177906,
+      "reasoning_tokens": 1551
+    },
+    "tools": {
+      "ls": 8,
+      "mcp__defuzz_callgraph__list_targets": 5,
+      "find": 11,
+      "mcp__defuzz_callgraph__find_function": 16,
+      "grep": 16,
+      "mcp__defuzz_callgraph__get_callees": 7,
+      "mcp__defuzz_callgraph__get_callers": 13,
+      "read": 36,
+      "mcp__defuzz_callgraph__paths_between": 3
+    },
+    "tool_errors": 7,
+    "coverage_gaps": 32
+  },
+  "audit_metrics": {
+    "candidate_admitted": 0,
+    "candidate_invalid": 0,
+    "candidate_invalid_evidence": 0,
+    "candidate_rejected": 0,
+    "candidate_rejected_by_verification": 0,
+    "candidate_unverified": 0,
+    "candidate_verified": 0,
+    "candidates": 0,
+    "checker_update_errors": 0,
+    "checker_updates_adopted": 0,
+    "continuation_ready": true,
+    "execution_completed": true,
+    "invalid_workers": 0,
+    "online_oracle_calls": 0,
+    "online_oracle_errors": 0,
+    "result_valid": true,
+    "time_to_first_verified_ms": null,
+    "valid_workers": 5,
+    "workers": 5
+  },
+  "source_identity": {
+    "gcc_version": "16.2.0",
+    "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b"
+  },
+  "evidence_hashes": [
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/toolchains-matched/gcc-source/gcc/cfgexpand.cc",
+      "sha256": "9c4f6cb8e13c60a91712b615dc14031e3dc1088f0110146aca492423d0749365"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/toolchains-matched/gcc-source/gcc/tree-object-size.cc",
+      "sha256": "4728f269d6d04bc8d534efe56aaa1267bbea3628c6f362aed7efc1663fed50fe"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/agents/definitions/audit-family.md",
+      "sha256": "fd3c90f918b23357998789d2314d17aa63f19da32def191b2597a2e85c64c10f"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/agent_audit.py",
+      "sha256": "b7f2ee236e4191dadf215b0468ca35d16c9be3f8f6758918b6ae2b93b80c74b0"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/audit_schema.py",
+      "sha256": "ed80d8e3e9eeb1daab703f894caf8a1a82d8069759823600fef73169242b6498"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/experiment_engine/log_instrumentation_stage.py",
+      "sha256": "e27d48c1a39603001b415314cf33459bc9b5e1a30b7b003439155a3d9d012de4"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/experiment_engine/mapping_handoff.py",
+      "sha256": "e65df8399e2197f2e192a4e3de74bc19ead7be4f6315c6ff2e0c73191ee46dbf"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/experiment_engine/pi_config.py",
+      "sha256": "fa6f6d646eb2464689da893e2e195b11558a6903065b28474715f0228d08d5c5"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/experiment_engine/segmented.py",
+      "sha256": "dc55b6a013c58e3e3dc03a7933335dd9e8b58110ee5cd1056d9e612d8dd821e8"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/de-fuzz/main/orchestrator/defuzz_loop/prompt_bundle.py",
+      "sha256": "7ff234024e3b30d580bbec28a352d14adc7e9964904ea6d6a1b7659d0d316ca9"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-001/README.md",
+      "sha256": "93a4165d1934872b5a3846ea25cb8ada3fcd9ebc5b993b7703a61a25ba8a4dce"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-002/README.md",
+      "sha256": "1f8774ad50041163aa6d99744b281526de07e875d2575f26052c0388a47f2a5e"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-003/README.md",
+      "sha256": "7981d5255c4ac19498ca4cd69f8786d3d89d5969d17abee5c55dfaee4fe00658"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-004/README.md",
+      "sha256": "57c544f92a23da8fc65aba239939da0e82b2015d26355830c1633e6783d522b2"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-005/README.md",
+      "sha256": "42c052dcab4485143168998604ca568f6591d9d6286af4a4a2cdfb9419a7db8f"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-006/README.md",
+      "sha256": "f9f626c9e1360ca9173ec931bc6c817a6d166482637cb209d7798d54fabf06fa"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-007/README.md",
+      "sha256": "59f0fc6acd199588b1b6fa33908cb75e105c4cc56301e2b347ba555322189310"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-008/README.md",
+      "sha256": "d6b874e2822db2d0c5d96d28d36d5d047df7db07f5e66cec8ffbd12a7fb31a23"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-009/README.md",
+      "sha256": "e7d3d5a333a1571578e4059a318ab82dd2123b2660ab60bd760882b62204d1d1"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-010/README.md",
+      "sha256": "2b930b1f32929b85156be2a25ff04443db9488b983fb16b84a5d3e458037914c"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-011/README.md",
+      "sha256": "a0331a249b8caffae12cf70468aaa52c0f0e020c97a1d2ae985843d045d978da"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-012/README.md",
+      "sha256": "79238008001494269079763a0e4171564844c0a7a1eb95f6f91eb2c0ff019e87"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-013/README.md",
+      "sha256": "599660dcf38005b957cdc8ab4f70086d83b20d84736e81a5657869281b64e4e5"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-014/README.md",
+      "sha256": "dfa2b36492a1c324e8406130ab5a2bb92320753aab341ed61d72540605fa75c4"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-015/README.md",
+      "sha256": "fb45bf96b55f01122ebd525419ed2d288ad09da9965305454dd2869a38ec9deb"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-016/README.md",
+      "sha256": "695362629baebb3b29f5accc118a6b17aae611192c4e1a56ef3b8d8291309f9d"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-017/README.md",
+      "sha256": "6c18481994eddca25fd07fda9082d86df52366cfa59dbda51bb23d1d29884094"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-018/README.md",
+      "sha256": "70d0c70ca0d53ab5d6f2d837f31240581edfd3183ff1d167ddaef6a329c0cf83"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-019/README.md",
+      "sha256": "c3c50c727dfa778b14f6f502157c3170c5b4892c3f4847e614d7823d7aa89ca5"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-020/README.md",
+      "sha256": "08678716ae34216a3bdc0647869da91366037578147d05948e23b1eacf24ecd1"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-021/README.md",
+      "sha256": "46ea6669dd49a5a5c3b4fae45001748a505a9d00d05d74a76c74211693b29467"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-023/README.md",
+      "sha256": "bd864b4389a72b780461e25d2c0f76e0b241244dde586c5ae2ff700bf464bcd0"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-024/README.md",
+      "sha256": "6c13cd2d55f8e0a19e4cef02a9c5622e479a5f3b9e6d86953883f02df9184250"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-025/README.md",
+      "sha256": "aefea9d2b256165cf655b92ccf2bfdd1dcb41199fb856f1c586021b628f77b28"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-026/README.md",
+      "sha256": "7b12828ca03bf30f8847ed67f1d2c12b8382fe0bae58f6e142b9a9e4ab2cf150"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-027/README.md",
+      "sha256": "eff234e2b3fe12ec6a07ad332192da9c03d4d318ec0cdcb8eb81bdcedc5cb4ca"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-028/README.md",
+      "sha256": "45124b3393ff758aa570596d28059f299be69380301514266429de8cb1688ee3"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-029/README.md",
+      "sha256": "c0180c85bc9778edaa2b852ef00c67e9e480191353dbbcbedda1ea96533ea386"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-030/README.md",
+      "sha256": "f7e0cc52a70767c7205f6182929ca304792a9a7ba2bce2b975d6090b31d52108"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-038/README.md",
+      "sha256": "bd176f87011ab243427b1160afe2344eb2983fdaeeb241d50d7e0e14162de5db"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-039/README.md",
+      "sha256": "9f79299ab90671c64df77947878bae98fe0c4113952efc91822ec301963e3034"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-040/README.md",
+      "sha256": "f9175420f8af5a54278fd9fddeec481e2df7a032e80e4743f7c67275bfffcf17"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-042/README.md",
+      "sha256": "74e10f023a48454dee9ba4102b637c24f15a4eccf3e89fbf1ef25ec727b4b55b"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-043/README.md",
+      "sha256": "bfa3ac9529210ba7d915219dc396ae8bbbbdd7913d0be68b9494ebf0b9673805"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-044/README.md",
+      "sha256": "6f675fac84551f0000088025c5b0e21dd109d5765791bb2902b1a3f96d8bb220"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-045/README.md",
+      "sha256": "690e204989f12a2913917dda42a6fddd7f3d2514898735f8982ff9c9017ccbee"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-048/README.md",
+      "sha256": "0ace8511b7f115041ce545291941c2b37b37916898915bde4ba091cfcfb12b9a"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-051/README.md",
+      "sha256": "0225f160a5cf5c016076d8a6df4d7db39fddb98c348e24a18a6bd96ee3339adc"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-052/README.md",
+      "sha256": "a5c2e1eb4352162be0aa9778743a006ae8c1ea4b6e6ab0c6d1dd1db2505317c1"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-053/README.md",
+      "sha256": "b91c69ae38d64ba52eec85e920b63f4bc6a136779a85c49537da68ace7f33ec8"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-054/README.md",
+      "sha256": "098cdb438d770330fc2386ee4f3a92ee5d7590f29436d3ffc8cde422c81c6d34"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-055/README.md",
+      "sha256": "bb132c2c5a72efbb6c0d9ad9f6e5e4d57ad8ca08de6ac32b68c36326dac7202a"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-056/README.md",
+      "sha256": "d1cbb2bad9a79d39c147898c8b004996a58586320750170778632d2cbd0bed9a"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defend-reviewer/main/findings/DREV-2026-057/README.md",
+      "sha256": "643a4d27690b0729be5b219d84b6f600af318e5e393d47f3d4de63390f5c3e0f"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-a-initial/f0b68a498e7346238a796c812ab273a9/attempt-001/events.jsonl",
+      "sha256": "90df7ac8f6adf5c67ed4d52dcf688cada97adad7ec956abc3c1eb50459f0ec1b"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-a-initial/f0b68a498e7346238a796c812ab273a9/attempt-001/resolved-agent.json",
+      "sha256": "612f95855fecc7a01850aab535f2536bcd2b55d04094b767543477d1b800829c"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-a-initial/f0b68a498e7346238a796c812ab273a9/attempt-001/usage.jsonl",
+      "sha256": "04bb2c5e89bac665e182a64c0a05d633c979d2d1544599dd2435e91a2c261cc3"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-b-initial/6ed6d59c900f47c6b454c5bcee594556/attempt-001/events.jsonl",
+      "sha256": "7545ed20af15943792a63d243a3c29e38871e9d755178dd848b3070980b2f6f3"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-b-initial/6ed6d59c900f47c6b454c5bcee594556/attempt-001/resolved-agent.json",
+      "sha256": "8c78b96930768a061826ab05baa8997a0e614f855127aef0c2c6dc1beb869576"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-b-initial/6ed6d59c900f47c6b454c5bcee594556/attempt-001/usage.jsonl",
+      "sha256": "7943aea0b45c7cfcd363461c879421acd70ebe8f12be607ddd7b928bc426a1aa"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-c-initial/43532c20d5374f56994c3780b4c514ee/attempt-001/events.jsonl",
+      "sha256": "484f1168b4d3333e57fe584f07c3a8568120ca440f29c300088a1ff87c907845"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-c-initial/43532c20d5374f56994c3780b4c514ee/attempt-001/resolved-agent.json",
+      "sha256": "d6d58568ff9d283913f064d73cb01ed2b337b20ff97c3e5a4f5b1167e30241c5"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-c-initial/43532c20d5374f56994c3780b4c514ee/attempt-001/usage.jsonl",
+      "sha256": "8357636bd47d60ce42276f7cd0b52b32564d7272e425caf375a6eca3e2e26e74"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-d-initial/9459e89f788a4317ad4eedacccf3ff49/attempt-001/events.jsonl",
+      "sha256": "b99084aa06031e5117e76e8e2a5385f8387ac1fafea225a537483aa4ce34debd"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-d-initial/9459e89f788a4317ad4eedacccf3ff49/attempt-001/resolved-agent.json",
+      "sha256": "96887763b4c88eff8967836ed1cd611e4cfa2b901c945ce96be2d7c6355be172"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-d-initial/9459e89f788a4317ad4eedacccf3ff49/attempt-001/usage.jsonl",
+      "sha256": "c91e173e38e5b21d7b1842c6ac563d0d5f1b63093083a05161f4c6fb5b5135f3"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-e-initial/6652ec5181384a72b30c79d018bd9565/attempt-001/events.jsonl",
+      "sha256": "430b1b1fe700065fb3055b4d838cb3d47aa8f8c917b6db95f16d7bbd772557bb"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-e-initial/6652ec5181384a72b30c79d018bd9565/attempt-001/resolved-agent.json",
+      "sha256": "fca2febeb9e3eb3576df6004342aaa6af76ca2a4d21892d0e1d141ff839254c1"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/.evaluator-runtime/artifacts/worker-e-initial/6652ec5181384a72b30c79d018bd9565/attempt-001/usage.jsonl",
+      "sha256": "bf73c7176ade729cab7ba0be01e94ca9be4b1818347aa4695e75e35ba5eb27c4"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/agent-audit-result.json",
+      "sha256": "48804aaab015270ee2000ab518fe35fde4aff3ee9cd3e302b359d16b1e057393"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/agent-audit-summary.json",
+      "sha256": "94e411ea28bab1a6d68669cc1c96f210ba963fa10e2ae984ddf28545cfb9f6f4"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-a-initial/audit-report.json",
+      "sha256": "8b83e0fc11b1fb5d66a896a8eb3103082b8fd2f2b4d964b3fc0b0b13fc2cb6f3"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-a-initial/prompt.txt",
+      "sha256": "50d5f205955c505777344eec469a237b178a3b11152c7d34110ed87b99282225"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-b-initial/audit-report.json",
+      "sha256": "e7fc30c6faa73391c854aaeabbf2c0f5fad5e3f4d43440780dd33c869b1b1161"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-b-initial/prompt.txt",
+      "sha256": "73e68860789dbf190137784e37a277763c322eeb47697c94833ee45b1ccae09f"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-c-initial/audit-report.json",
+      "sha256": "f56cb6f9c02395b5ba44e67f5e6dc99674c01218895abc11ae9fd325364f0104"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-c-initial/prompt.txt",
+      "sha256": "505b30813bc6defe5aec892c0d2e27d16d2ba1fc04ae83952eef527014ca40b5"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-d-initial/audit-report.json",
+      "sha256": "dd27952e710c07c515d0c16bd41e5fc3af317c428f81ce9c9b418aa63d79fa6d"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-d-initial/prompt.txt",
+      "sha256": "337063aafae6a3a28d1b5bee9d30c949f491ce638a6c3d89becfed6696477494"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-e-initial/audit-report.json",
+      "sha256": "b662f8360d0dcdc59a502a083233646a9f4e7b9572e729e0f3f13f0ddc886a90"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-agent-audit/rep-001/artifacts/worker-e-initial/prompt.txt",
+      "sha256": "8371115acd9e1bd83673a1567fc70f8d368241db8a834c39170ecbe899e73283"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-catalog.json",
+      "sha256": "7e67f2feab85afa170e222a21f77afb5f61c3354532cd816b9a9bd89b87facfe"
+    },
+    {
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-runs/gcc16-aarch64-20261013/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/scoped-accepted-invariants.jsonl",
+      "sha256": "278214eebead510f684d00c0cc13872985dd60018b6e01751003bc0ad33177f6"
+    }
+  ]
+}

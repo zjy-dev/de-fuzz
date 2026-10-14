@@ -1,0 +1,20 @@
+[01:11:17] === query /home/zhangjingyao.666/defuzz-codeql/dbs/llvm-db -> /home/zhangjingyao.666/defuzz-codeql/out/llvm-callgraph.csv ===
+Resolving data extensions.
+Finished resolving data extensions.
+Loading data extensions.
+Finished loading data extensions.
+Compiling query plan for /data00/home/zhangjingyao.666/defuzz-codeql/queries/callgraph.ql.
+[1/1] Found in cache: /data00/home/zhangjingyao.666/defuzz-codeql/queries/callgraph.ql.
+Starting evaluation of defuzz/callgraph/callgraph.ql.
+[1/1 eval 1m19s] Evaluation done; writing results to /home/zhangjingyao.666/defuzz-codeql/out/llvm-callgraph.csv.bqrs.
+Shutting down query evaluator.
+[01:12:44] decoding bqrs -> csv
+[01:12:49] DONE
+-rw-r--r-- 1 zhangjingyao.666 zhangjingyao.666 422M Sep 29 01:12 /home/zhangjingyao.666/defuzz-codeql/out/llvm-callgraph.csv
+2025916 /home/zhangjingyao.666/defuzz-codeql/out/llvm-callgraph.csv
+--- head ---
+"caller_name","callee_name","edge_kind","file","line"
+"operator<","llvm::operator<","direct","llvm/lib/TargetParser/RISCVISAInfo.cpp",854
+"operator<","llvm::operator<","direct","llvm/lib/TargetParser/RISCVISAInfo.cpp",858
+"operator==","std::operator==","direct","llvm/lib/DebugInfo/GSYM/MergedFunctionsInfo.cpp",94
+"operator==","std::operator==","direct","llvm/lib/HTTP/HTTPClient.cpp",37

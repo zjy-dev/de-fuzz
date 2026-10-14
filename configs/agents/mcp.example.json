@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "defuzz_callgraph": {
+      "command": "${PROJECT_ROOT}/scripts/run_callgraph_mcp.sh",
+      "args": [],
+      "cwd": "${PROJECT_ROOT}",
+      "database_path": "${PROJECT_ROOT}/callgraph_mcp/data/callgraph.sqlite",
+      "provenance_path": "${PROJECT_ROOT}/callgraph_mcp/data/provenance.json"
+    }
+  }
+}

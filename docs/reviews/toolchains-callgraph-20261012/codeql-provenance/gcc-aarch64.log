@@ -1,0 +1,65 @@
+[03:38:08] === GCC 16.2.0  target=aarch64-linux-gnu ===
+[03:38:08] configure
+checking where to find the target nm... pre-installed
+checking where to find the target objcopy... pre-installed
+checking where to find the target objdump... pre-installed
+checking where to find the target otool... pre-installed
+checking where to find the target ranlib... pre-installed
+checking where to find the target readelf... pre-installed
+checking where to find the target strip... pre-installed
+checking where to find the target windres... pre-installed
+checking where to find the target windmc... pre-installed
+checking for clang for target... no
+checking for gcc for target... no
+checking for target -plugin option... no
+checking whether to enable maintainer-specific portions of Makefiles... no
+configure: creating ./config.status
+config.status: creating Makefile
+[03:38:12] codeql database create  (make -j3 all-gcc; libbacktrace prebuilt)
+libtool: link: ranlib --plugin /usr/lib/gcc/x86_64-linux-gnu/12/liblto_plugin.so .libs/libbacktrace.a
+libtool: link: ( cd ".libs" && rm -f "libbacktrace.la" && ln -s "../libbacktrace.la" "libbacktrace.la" )
+make[2]: Leaving directory '/data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64/libbacktrace'
+make[1]: Leaving directory '/data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64/libbacktrace'
+make: Leaving directory '/data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64'
+[2026-09-29 05:08:58] [build-stdout]     cat /home/zhangjingyao.666/defuzz-codeql/src/gcc-releases-gcc-16.2.0/gcc/glimits.h > tmp-xlimits.h; \
+[2026-09-29 05:08:58] [build-stdout]   fi; \
+[2026-09-29 05:08:58] [build-stdout]   /bin/bash /home/zhangjingyao.666/defuzz-codeql/src/gcc-releases-gcc-16.2.0/gcc/../mkinstalldirs ${include_dir}; \
+[2026-09-29 05:08:58] [build-stdout]   chmod a+rx ${include_dir} || true; \
+[2026-09-29 05:08:58] [build-stdout]   /bin/bash /home/zhangjingyao.666/defuzz-codeql/src/gcc-releases-gcc-16.2.0/gcc/../move-if-change \
+[2026-09-29 05:08:58] [build-stdout]     tmp-xlimits.h  tmp-limits.h; \
+[2026-09-29 05:08:58] [build-stdout]   rm -f ${include_dir}/limits.h; \
+[2026-09-29 05:08:58] [build-stdout]   cp -p tmp-limits.h ${include_dir}/limits.h; \
+[2026-09-29 05:08:58] [build-stdout]   chmod a+r ${include_dir}/limits.h; \
+[2026-09-29 05:08:58] [build-stdout]   cp /home/zhangjingyao.666/defuzz-codeql/src/gcc-releases-gcc-16.2.0/gcc/gsyslimits.h ${include_dir}/syslimits.h; \
+[2026-09-29 05:08:58] [build-stdout] done
+[2026-09-29 05:08:58] [build-stdout] if [ xstmp-fixinc != x ]; then \
+[2026-09-29 05:08:58] [build-stdout]   rm -f include-fixed/README; \
+[2026-09-29 05:08:58] [build-stdout]   cp /home/zhangjingyao.666/defuzz-codeql/src/gcc-releases-gcc-16.2.0/gcc/../fixincludes/README-fixinc include-fixed/README; \
+[2026-09-29 05:08:58] [build-stdout]   chmod a+r include-fixed/README; \
+[2026-09-29 05:08:58] [build-stdout] fi;
+[2026-09-29 05:08:58] [build-stdout] echo timestamp > stmp-int-hdrs
+[2026-09-29 05:08:58] [build-stdout] LC_ALL=C GCC_COLORS= /data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64/./gcc/xgcc -B/data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64/./gcc/  -xc -nostdinc /dev/null -S -o /dev/null -fself-test=/home/zhangjingyao.666/defuzz-codeql/src/gcc-releases-gcc-16.2.0/gcc/testsuite/selftests
+[2026-09-29 05:08:58] [build-stderr] cc1: note: self-tests are not enabled in this build
+[2026-09-29 05:08:58] [build-stdout] echo timestamp > s-selftest-c
+[2026-09-29 05:09:14] [build-stdout] LC_ALL=C GCC_COLORS= /data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64/./gcc/xgcc -B/data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64/./gcc/  -xc++ -nostdinc /dev/null -S -o /dev/null -fself-test=/home/zhangjingyao.666/defuzz-codeql/src/gcc-releases-gcc-16.2.0/gcc/testsuite/selftests
+[2026-09-29 05:09:14] [build-stderr] cc1plus: note: self-tests are not enabled in this build
+[2026-09-29 05:09:14] [build-stdout] echo timestamp > s-selftest-c++
+[2026-09-29 05:09:14] [build-stdout] rm gfdl.pod gcc.pod gcov-dump.pod gcov-tool.pod fsf-funding.pod gpl.pod cpp.pod gcov.pod lto-dump.pod
+[2026-09-29 05:09:14] [build-stdout] make[1]: Leaving directory '/data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64/gcc'
+[2026-09-29 05:09:14] [build-stdout] make: Leaving directory '/data00/home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64'
+Finalizing database at /home/zhangjingyao.666/defuzz-codeql/dbs/gcc-aarch64-db.
+Running pre-finalize script /home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh in /home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64.
+Running command in /home/zhangjingyao.666/defuzz-codeql/src/gcc-build-aarch64: [/home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh]
+Pre-finalize script /home/zhangjingyao.666/defuzz-codeql/tools/codeql/cpp/tools/pre-finalize.sh completed in 78 ms.
+Running TRAP import for CodeQL database at /home/zhangjingyao.666/defuzz-codeql/dbs/gcc-aarch64-db...
+Grouping TRAP files by link target
+Grouping unlinked TRAP files together
+Scanning TRAP files
+Importing TRAP files
+Merging relations
+Finished writing database (relations: 421.49 MiB; string pool: 88.03 MiB).
+TRAP import complete (12m26s).
+Finished zipping source archive (23.32 MiB).
+Successfully created database at /home/zhangjingyao.666/defuzz-codeql/dbs/gcc-aarch64-db.
+[05:21:48] GCC-aarch64 database DONE
+896M	/home/zhangjingyao.666/defuzz-codeql/dbs/gcc-aarch64-db

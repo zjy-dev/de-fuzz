@@ -1,0 +1,38 @@
+# Native paths inside the frozen Debian 12 GCC17 four-ISA runtime.
+# GCC revision: f20bc4c2fe00928013c533e241b89ae3a6724ca1.
+# No Docker/Podman socket or nested container invocation is needed.
+# Default online canary profile; freeze mechanism-specific flags for formal runs.
+toolchains:
+  x86_64:
+    gcc_path: /opt/gcc17/bin/gcc
+    prefix: /usr/bin/
+    native: true
+    cflags: [-O2, -fstack-protector-strong, -fno-link-libatomic, -static-libgcc]
+  aarch64:
+    gcc_path: /opt/gcc17/bin/aarch64-linux-gnu-gcc
+    prefix: /usr/aarch64-linux-gnu/bin/
+    driver_args: [-B/usr/aarch64-linux-gnu/lib/, -isystem, /usr/aarch64-linux-gnu/include, -L/usr/aarch64-linux-gnu/lib, "-Wl,-rpath-link,/usr/aarch64-linux-gnu/lib"]
+    native: false
+    qemu_path: /usr/bin/qemu-aarch64
+    qemu_args: [-cpu, max]
+    qemu_sysroot: /usr/aarch64-linux-gnu
+    cflags: [-O2, -fstack-protector-strong, -fno-link-libatomic, -static-libgcc]
+  riscv64:
+    gcc_path: /opt/gcc17/bin/riscv64-linux-gnu-gcc
+    prefix: /opt/binutils/riscv64-linux-gnu/bin/
+    driver_args: [-B/usr/riscv64-linux-gnu/lib/, -isystem, /usr/riscv64-linux-gnu/include, -L/usr/riscv64-linux-gnu/lib, "-Wl,-rpath-link,/usr/riscv64-linux-gnu/lib"]
+    native: false
+    qemu_path: /usr/bin/qemu-riscv64
+    qemu_args: [-cpu, rv64]
+    qemu_sysroot: /usr/riscv64-linux-gnu
+    cflags: [-O2, -fstack-protector-strong, -fno-link-libatomic, -static-libgcc]
+  loongarch64:
+    gcc_path: /opt/gcc17/bin/loongarch64-linux-gnu-gcc
+    prefix: /opt/binutils/loongarch64-linux-gnu/bin/
+    sysroot: /toolchain/usr/loongarch64-linux-gnu
+    driver_args: [-B/toolchain/usr/loongarch64-linux-gnu/lib/, -L/toolchain/usr/loongarch64-linux-gnu/lib, "-Wl,--sysroot=/toolchain/usr/loongarch64-linux-gnu", "-Wl,-rpath-link,/toolchain/usr/loongarch64-linux-gnu/lib"]
+    native: false
+    qemu_path: /opt/qemu-10.2/bin/qemu-loongarch64
+    qemu_args: [-cpu, la464]
+    qemu_sysroot: /qemu/loongarch64
+    cflags: [-O2, -fstack-protector-strong, -fno-link-libatomic, -static-libgcc]

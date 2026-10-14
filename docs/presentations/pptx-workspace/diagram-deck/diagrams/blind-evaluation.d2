@@ -1,0 +1,10 @@
+...@theme.d2
+grid-columns: 2
+grid-gap: 95
+accepted: "1  独立验收\n确认缺陷有效" {class: main; width: 350; height: 140}
+service: "2  编译服务\n一次激活一项" {class: focus; width: 350; height: 140}
+score: "4  独立核实\n找回 / 漏检" {class: main; width: 350; height: 140}
+agent: "3  DeFuzz 盲测\n固定预算，不看答案" {class: yellow; width: 350; height: 140}
+accepted -> service: {class: edge}
+service -> agent: {class: edge}
+agent -> score: {class: edge}

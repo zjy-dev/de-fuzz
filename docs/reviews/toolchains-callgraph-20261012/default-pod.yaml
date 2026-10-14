@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: defuzz-work
+  annotations:
+    volume.podman.io/driver: local
+    volume.podman.io/type: tmpfs
+    volume.podman.io/device: tmpfs
+    volume.podman.io/mount-options: size=2g,mode=1777
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests: {storage: 2Gi}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: defuzz
+spec:
+  restartPolicy: Never
+  containers:
+    - name: core-sandbox
+      image: "2360fb60ec0142fb6ad695ed2fe28e79be0b002f59720a850b123585880b3aee"
+      imagePullPolicy: Never
+      command: ["/usr/local/bin/defuzz-core"]
+      args:
+        - "--grpc-addr=127.0.0.1:50051"
+        - "--mcp-addr=127.0.0.1:50052"
+        - "--toolchains=/workspace/configs/toolchains.yaml"
+        - "--mechanism=canary"
+        - "--source-root=/inputs/source"
+      env:
+        - {name: TMPDIR, value: /tmp/defuzz-work}
+      resources:
+        limits: {cpu: "3", memory: 3Gi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: work, mountPath: /tmp/defuzz-work}
+        - {name: runs, mountPath: /workspace/runs, readOnly: true}
+        - {name: toolchains, mountPath: /workspace/configs/toolchains.yaml, readOnly: true}
+        - {name: inputs, mountPath: /inputs, readOnly: true}
+    - name: orchestrator
+      image: "bddef890b9ab25e14131cae271432094b7b5fa3528ac3f234883fc343d3e297f"
+      imagePullPolicy: Never
+      command: ["sleep", "infinity"]
+      env:
+        - {name: TMPDIR, value: /tmp/defuzz-work}
+        - {name: DEFUZZ_WORK_ROOT, value: /tmp/defuzz-work}
+        - {name: DEFUZZ_CALLGRAPH_DB, value: /workspace/callgraph_mcp/data/callgraph.sqlite}
+      resources:
+        limits: {cpu: "3", memory: 3Gi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities: {drop: [ALL]}
+      volumeMounts:
+        - {name: work, mountPath: /tmp/defuzz-work}
+        - {name: runs, mountPath: /workspace/runs}
+        - {name: runs, mountPath: /workspace/orchestrator/runs}
+        - {name: callgraph, mountPath: /workspace/callgraph_mcp/data, readOnly: true}
+        - {name: toolchains, mountPath: /workspace/configs/toolchains.yaml, readOnly: true}
+        - {name: inputs, mountPath: /inputs, readOnly: true}
+  volumes:
+    - name: work
+      persistentVolumeClaim: {claimName: defuzz-work}
+    - name: runs
+      hostPath: {path: "/Users/bytedance/projects/research/de-fuzz/main/runs", type: Directory}
+    - name: callgraph
+      hostPath: {path: "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data", type: Directory}
+    - name: inputs
+      hostPath: {path: "/Users/bytedance/projects/research/de-fuzz/main/.work/podman/inputs", type: Directory}
+    - name: toolchains
+      hostPath: {path: "/Users/bytedance/projects/research/de-fuzz/main/configs/toolchains.matched.container.yaml", type: File}

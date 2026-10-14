@@ -1,0 +1,27 @@
+# CallGraph-aligned release profile; GCC17 legacy paths remain in toolchains.container.yaml.
+# Graph coverage: GCC16 x86_64/AArch64, LLVM23 X86/AArch64.
+toolchains:
+  x86_64:
+    gcc_path: /opt/gcc16/bin/gcc
+    clang_path: /opt/llvm23/bin/clang
+    prefix: /usr/bin/
+    native: true
+    cflags: [-O2, -fstack-protector-strong, -static-libgcc]
+  aarch64:
+    gcc_path: /opt/gcc16/bin/aarch64-linux-gnu-gcc
+    clang_path: /usr/local/bin/defuzz-clang-aarch64
+    prefix: /usr/aarch64-linux-gnu/bin/
+    driver_args: [-B/usr/aarch64-linux-gnu/lib/, -isystem, /usr/aarch64-linux-gnu/include, -L/usr/aarch64-linux-gnu/lib, "-Wl,-rpath-link,/usr/aarch64-linux-gnu/lib"]
+    native: false
+    qemu_path: /usr/bin/qemu-aarch64
+    qemu_args: [-cpu, max]
+    qemu_sysroot: /usr/aarch64-linux-gnu
+    cflags: [-O2, -fstack-protector-strong, -static-libgcc]
+16.2.0
+clang version 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22d4138ed647fb)
+Target: x86_64-unknown-linux-gnu
+Thread model: posix
+InstalledDir: /opt/llvm23/bin
+23.1.2
+16.2.0
+aarch64-unknown-linux-gnu

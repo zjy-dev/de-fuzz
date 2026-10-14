@@ -1,0 +1,13 @@
+{
+  "runtime_ok": true,
+  "evidence_ok": true,
+  "artifact_ok": true,
+  "schema_ok": null,
+  "final_text": "{\"target\":\"gcc-16.2.0-aarch64\",\"symbol\":\"aarch64_stack_protect_canary_mem\",\"caller_count\":0}",
+  "model_calls": 4,
+  "total_tokens": 13036,
+  "usage_complete": true,
+  "callgraph_queries": 3,
+  "callgraph_data_queries": 2,
+  "latency_ms": 11139.102332999999
+}

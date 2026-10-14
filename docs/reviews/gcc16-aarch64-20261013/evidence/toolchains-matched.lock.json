@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "gcc": {
+    "version": "16.2.0",
+    "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+    "source_url": "https://gcc.gnu.org/pub/gcc/releases/gcc-16.2.0/gcc-16.2.0.tar.xz",
+    "source_sha256": "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e",
+    "source_sha512": "c51c30ca7422d0cbecf504b2e0f33c3aca31e0f90a76b65217f465163fa6fa17b3f5de39e145c47e5bab90ac0ce7fff3b03c8d553ae36e01faaea5a50f8648d1",
+    "graph_targets": ["gcc-16.2.0-x86_64", "gcc-16.2.0-aarch64"]
+  },
+  "llvm": {
+    "version": "23.1.2",
+    "source_revision": "85ac560262434c9ccfc0c183ec22d4138ed647fb",
+    "source_url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.2/llvm-project-23.1.2.src.tar.xz",
+    "source_sha256": "c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a",
+    "binary_url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.2/LLVM-23.1.2-Linux-X64.tar.zst",
+    "binary_sha256": "6382de1c1a210ce5a5cc49d18bc8444d137742e7cbf9b19f4ae602bb1ab52534",
+    "lld_dependency": {
+      "package": "libicu70_70.1-2_amd64.deb",
+      "sha256": "58a154f6307289813da2276f900498ef536ae7c0522d2cf31a3c3c5cf62dfd9a"
+    },
+    "graph_targets": ["llvm-23.1.2"],
+    "graph_isas": ["x86_64", "aarch64"]
+  },
+  "legacy_gcc": {
+    "version": "17.0.0",
+    "source_revision": "f20bc4c2fe00928013c533e241b89ae3a6724ca1",
+    "graph_status": "no-matching-bundled-graph",
+    "purpose": "Preserved frozen compiler for historical experiments; never alias a GCC16 graph to this revision."
+  }
+}

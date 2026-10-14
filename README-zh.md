@@ -4,6 +4,11 @@
 
 它测的是**编译器**而非程序：让 agent 生成 C seed，由插桩 GCC 按 (checker→ISA) 矩阵编译，再用零假阳性的 oracle 跑 invariant checker，判定防御机制是否**静默失效**。
 
+研究范围是在项目控制的测试环境中验证防御不变量、定位编译器缺陷并支持修复。
+产物包括最小复现、checker 证据、修复建议与回归测试，用于贡献给开源编译器社区。
+研究上下文和可直接使用的任务前言见 [研究范围说明](docs/research-scope.md)，
+开发代理入口见 [AGENTS.md](AGENTS.md)。
+
 ## 架构
 
 DeFuzz 分两段：
@@ -11,7 +16,8 @@ DeFuzz 分两段：
 - **Go core**（`core/`，module `github.com/zjy-dev/de-fuzz`）—— 一个确定性进程，在同一套 `internal/` 包上暴露两个面：
   - **gRPC**（`:50051`）：确定性节点 —— `BuildService` / `CoverageService` / `OracleService` / `CheckerMetadataService`。
   - **MCP**（`:50052`）：agent 只读 tool —— `search_source`、`query_invariants`、`coverage_diff`、`creduce_run`、`compile_exec`。
-- **Python orchestrator**（`orchestrator/`，包 `defuzz_loop`）—— 一个 LangGraph 流水线，驱动主循环和三个 agent（Generator / Feedback / Minimizer）。
+- **Python orchestrator**（`orchestrator/`，包 `defuzz_loop`）—— 显式 Python 编排，驱动主循环和 Generator / Feedback / LLM Oracle / Minimizer。
+- **Pi SDK worker**（`agent-runtime/`）—— 每次 attempt 创建独立会话，加载 `agents/definitions/` 中的定义，执行模型和授权工具调用并保存完整证据。
 
 设计原则：**ReAct 的归 agent，确定性的归编排**。build/coverage/oracle 写死在一条固定边序的流水线里；agent 只在固定位置被调用，彼此从不直连，只通过版本化的共享状态（blackboard）联动。这样换来可复现的轨迹、可按边 ablation、可审计的 bug 结论。
 
@@ -29,7 +35,7 @@ START → generator → routing → build → coverage → oracle → ⟨route�
 - `build` / `coverage` / `oracle` —— 确定性 gRPC 节点。缺 toolchain 的 ISA 产 error cell 而非崩溃。任一 checker `Fail` ⇒ violated。
 - `route` —— violated → （可选）Minimizer agent → END；not_violated → （可选）Feedback agent 写 guidance → `bump` → 下一轮。
 
-调度是确定性的：run init 把整个 checker 目录枚举成队列，游标逐个扫，每个 invariant 花固定预算（N 轮 OR T 秒）。agent 不挑攻击哪个 invariant。
+调度是确定性的：run init 把整个 checker 目录枚举成队列，游标逐个扫，每个 invariant 花固定预算（N 轮 OR T 秒）。agent 不挑测试哪个 invariant。
 
 ## 跑起来
 
@@ -39,16 +45,21 @@ START → generator → routing → build → coverage → oracle → ⟨route�
 make build-core                       # → bin/defuzz-core (gRPC + MCP)
 bin/defuzz-core --mechanism canary    # 启动确定性 core
 
+cd agent-runtime
+npm ci && npm run build              # Node >=22.19.0，锁定 Pi 1.1.0
+cd ..
+
 cd orchestrator
-uv run defuzz-loop run --mechanism canary --experiment demo
+uv run defuzz-loop run --mechanism canary --experiment demo \
+  --pi-config ../configs/agents/pi-runtime.example.json
 ```
 
-每个 run 落到 `orchestrator/runs/<experiment>_<mechanism>_<UTC>/`，自带独立的 `checkpoints.sqlite` + `manifest.json`。三个只读子命令可审计：
+运行配置显式引用模型和 MCP 文件；凭证由配置列出的环境变量提供。
+每个 run 保存 `manifest.json`、逐轮 blackboard、编译证据及 Pi attempt 目录。
+离线检查单次调用，不会重新请求模型或执行工具：
 
 ```sh
-uv run defuzz-loop inspect   --run-dir <dir>            # 列 checkpoint 链
-uv run defuzz-loop replay    --run-dir <dir> --checkpoint <id>
-uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # 回溯到确定性证据
+uv run defuzz-inspect-attempt <attempt-directory>
 ```
 
 被测的插桩 GCC 在项目外构建，见 [docs/tech-docs/guides/building-instrumented-gcc.md](docs/tech-docs/guides/building-instrumented-gcc.md)。ISA→toolchain 路径配在 [`configs/toolchains.yaml`](configs/toolchains.yaml)。
@@ -57,6 +68,8 @@ uv run defuzz-loop trace-bug --run-dir <dir> --bug <seed_id>   # 回溯到确定
 ## 文档
 
 - 架构权威文档：[docs/tech-docs/architecture/agentic-loop-redesign.md](docs/tech-docs/architecture/agentic-loop-redesign.md)
+- Pi 迁移及验收：[docs/tech-docs/architecture/pi-sdk-migration.md](docs/tech-docs/architecture/pi-sdk-migration.md)
+- 正式四阶段实验：[docs/paper/experiment_runbook.md](docs/paper/experiment_runbook.md)
 - 系统总览（组件 + 数据流）：[docs/tech-docs/architecture/overview.md](docs/tech-docs/architecture/overview.md)
 - 技术栈：[docs/tech-docs/reference/tech-stack.md](docs/tech-docs/reference/tech-stack.md)
 - 总入口：[docs/tech-docs/README.md](docs/tech-docs/README.md)

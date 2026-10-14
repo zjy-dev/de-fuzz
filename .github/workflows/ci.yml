@@ -60,6 +60,20 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.15.0"
+          cache: npm
+          cache-dependency-path: agent-runtime/package-lock.json
+
+      - name: Install agent isolation and search tools
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap ripgrep fd-find
+
+      - name: Build and verify Pi worker
+        working-directory: agent-runtime
+        run: npm ci --no-audit --no-fund && npm test
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v10.0.1
         with:

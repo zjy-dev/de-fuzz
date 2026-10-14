@@ -9,8 +9,8 @@ order ``generator → routing → build → coverage → oracle → (llm_oracle?
 but the actual DAG never branched at runtime (only the terminal router
 did), so the framework paid an outsized dependency cost for a single
 conditional. Rev 3 collapses the whole thing into ~200 lines of explicit
-Python (this file) and moves the LLM backends to OpenCode markdown
-subagents (see :mod:`defuzz_loop.opencode`).
+Python (this file). The LLM agents use the shared Pi backend
+(see :mod:`defuzz_loop.agents.runner`).
 
 The **R8 zero-false-positives gate** is what this loop must preserve:
 
@@ -124,6 +124,7 @@ class IterationLoop:
         client: CoreClient,
         catalog: CheckerCatalog,
         feedback_stride: int = 1,
+        on_round_complete: Callable[[Blackboard], None] | None = None,
     ) -> None:
         self._generator = generator
         self._feedback = feedback
@@ -132,6 +133,7 @@ class IterationLoop:
         self._catalog = catalog
         self._client = client
         self._feedback_stride = max(1, int(feedback_stride))
+        self._on_round_complete = on_round_complete
 
         # Node factories — capture references once so each round reuses them.
         self._routing_node = make_routing_node(catalog)
@@ -195,6 +197,8 @@ class IterationLoop:
             if aggregate is Aggregate.VIOLATED:
                 if self._minimizer is not None:
                     await _run_phase("minimizer", self._minimizer_step, bb)
+                if self._on_round_complete is not None:
+                    self._on_round_complete(bb)
                 return bb
 
             # 8) Not-violated branch — optional feedback for next round.
@@ -202,6 +206,9 @@ class IterationLoop:
                 bb.round % self._feedback_stride == 0
             ):
                 await _run_phase("feedback", self._feedback_step, bb)
+
+            if self._on_round_complete is not None:
+                self._on_round_complete(bb)
 
             # 9) Bump: single-invariant campaigns never advance the cursor.
             bb.round += 1

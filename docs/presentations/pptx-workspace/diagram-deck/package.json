@@ -1,0 +1,16 @@
+{
+  "name": "defuzz-group-sharing-diagrams",
+  "version": "1.0.0",
+  "private": true,
+  "description": "D2 diagrams and PowerPoint source for DeFuzz group sharing",
+  "scripts": {
+    "outline": "node build.js --outline-only",
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1",
+    "skia-canvas": "^3.0.8",
+    "fontkit": "^2.0.4",
+    "linebreak": "^1.1.0"
+  }
+}

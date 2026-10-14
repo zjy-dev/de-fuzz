@@ -6,7 +6,7 @@ import fnmatch
 import hashlib
 import os
 import shutil
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path, PurePosixPath
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -207,6 +207,34 @@ class WorkspaceBuilder:
         ancestry: tuple[Path, ...],
         target_within_source: Path | None,
     ) -> None:
+        for source, relative in self._walk_tree(
+            physical_dir, logical_dir, excluded, ancestry=ancestry,
+            target_within_source=target_within_source,
+        ):
+            output = destination / relative.as_posix()
+            if source.is_dir():
+                output.mkdir(parents=True, exist_ok=True)
+            else:
+                output.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, output, follow_symlinks=True)
+                shutil.copymode(source, output, follow_symlinks=True)
+
+    def snapshot_files(self) -> dict[str, str]:
+        """Hash the same logical files materialize copies, including safe aliases."""
+        result: dict[str, str] = {}
+        for source, relative in self._walk_tree(
+            self.source_root, PurePosixPath("."), [], ancestry=(),
+            target_within_source=None,
+        ):
+            if source.is_file():
+                with source.open("rb") as stream:
+                    result[relative.as_posix()] = hashlib.file_digest(stream, "sha256").hexdigest()
+        return result
+
+    def _walk_tree(
+        self, physical_dir: Path, logical_dir: PurePosixPath, excluded: list[str], *,
+        ancestry: tuple[Path, ...], target_within_source: Path | None,
+    ) -> Iterator[tuple[Path, PurePosixPath]]:
         resolved_dir = physical_dir.resolve(strict=True)
         if resolved_dir in ancestry:
             raise WorkspaceSecurityError(f"symlink cycle detected at {logical_dir.as_posix()}")
@@ -236,21 +264,17 @@ class WorkspaceBuilder:
                 if self._denied(target_relative):
                     excluded.append(display)
                     continue
-            output = destination / display
             if source.is_dir():
-                output.mkdir(parents=True, exist_ok=True)
-                self._copy_tree(
+                yield source, relative
+                yield from self._walk_tree(
                     source,
                     relative,
-                    destination,
                     excluded,
                     ancestry=(*ancestry, resolved_dir),
                     target_within_source=target_within_source,
                 )
             elif source.is_file():
-                output.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, output, follow_symlinks=True)
-                shutil.copymode(source, output, follow_symlinks=True)
+                yield source, relative
 
 
 __all__ = [

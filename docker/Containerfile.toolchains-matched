@@ -1,0 +1,22 @@
+ARG BASE_IMAGE=localhost/defuzz-core:toolchain-bootstrap-20261012
+FROM ${BASE_IMAGE}
+ADD gcc-x86_64.tar /
+ADD gcc-aarch64.tar /
+ADD llvm.tar /opt/llvm23/
+ADD sources-gcc.tar.xz /opt/defuzz-sources/
+ADD sources-llvm.tar.xz /opt/defuzz-sources/
+COPY clang-aarch64.sh /usr/local/bin/defuzz-clang-aarch64
+COPY versions.json /usr/local/share/defuzz/toolchains-matched.json
+RUN chmod 755 /usr/local/bin/defuzz-clang-aarch64 \
+    && mv /opt/defuzz-sources/llvm-project-23.1.2.src /opt/defuzz-sources/llvm-project-23.1.2
+ENV PATH=/opt/gcc16/bin:/opt/llvm23/bin:/usr/local/bin:/usr/bin:/bin \
+    LD_LIBRARY_PATH=/opt/llvm23/lib
+RUN /opt/gcc16/bin/gcc -dumpfullversion \
+    && /opt/gcc16/bin/aarch64-linux-gnu-gcc -dumpfullversion \
+    && /opt/llvm23/bin/clang --version \
+    && /opt/llvm23/bin/ld.lld --version
+RUN find /opt/gcc16 /opt/llvm23 /opt/defuzz-sources -name '._*' -type f -delete
+LABEL org.defuzz.gcc.version="16.2.0" \
+      org.defuzz.gcc.revision="78d4ac73dd391005b895a6148cd9831e28e1208b" \
+      org.defuzz.llvm.version="23.1.2" \
+      org.defuzz.llvm.revision="85ac560262434c9ccfc0c183ec22d4138ed647fb"

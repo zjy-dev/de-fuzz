@@ -1,0 +1,7 @@
+...@theme.d2
+direction: right
+rule: "1  明确要求\n安全不变量" {class: main; shape: document; width: 245; height: 180}
+checker: "2  判断违例\nISA 专属 checker" {class: focus; shape: hexagon; width: 310; height: 210}
+search: "3  寻找触发\nAgent 迭代种子" {class: yellow; width: 250; height: 180}
+rule -> checker: {class: edge}
+checker -> search: {class: edge}

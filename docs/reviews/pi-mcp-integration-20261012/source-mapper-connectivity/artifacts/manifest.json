@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "path": "effective-session.json",
+      "sha256": "e5437c6486b9914a9fbc4a6bfd4e823f881040adbe752d1f515343925d22f3a7",
+      "bytes": 8629
+    },
+    {
+      "path": "events.jsonl",
+      "sha256": "1a422d0c5effce6f8f6b98e8f4353524d46fcb4ef4b111aad373319513365aff",
+      "bytes": 195983
+    },
+    {
+      "path": "final.raw.txt",
+      "sha256": "d058956473fe51eecce6673d381b6856ff1b681be516b20c06d4aab1d2dfdee6",
+      "bytes": 92
+    },
+    {
+      "path": "mcp-processes.jsonl",
+      "sha256": "8a99f0d46e99a8f6efb56d0bd30e833e6ab31473f0da405db59796a6fba370b3",
+      "bytes": 110
+    },
+    {
+      "path": "mcp.log",
+      "sha256": "6e6af5301f0cdb97f4b8be35d388f12d22ca048f29bd4c4d4081ef7f6268853f",
+      "bytes": 853
+    },
+    {
+      "path": "outcome.json",
+      "sha256": "000b791a08b3bd2c4848d26f91eec735c7802c5a2ed5bd98e143cbe052b10465",
+      "bytes": 378
+    },
+    {
+      "path": "output-schema.json",
+      "sha256": "be8ef21d45ef970549bdae4a350c10154b6349cce0adf96c7299fc4d6d1a8f28",
+      "bytes": 255
+    },
+    {
+      "path": "provider-events.jsonl",
+      "sha256": "f5c3f31893d77de9e6804ff84ac15555a93df25949617dce513d3cd4fdeabad6",
+      "bytes": 191181
+    },
+    {
+      "path": "request.json",
+      "sha256": "8f5a698ce07578b3d2b718c7a570eed111906ff69fc07fbb796fb47e5066990a",
+      "bytes": 17310
+    },
+    {
+      "path": "resolved-agent.json",
+      "sha256": "b8cbebb397ba745071d74cabec81ea64c8702d8d5200b80db5b6b5a92cd3f45f",
+      "bytes": 7454
+    },
+    {
+      "path": "resolved-config.json",
+      "sha256": "8527b8569ab532c67a8cca070b910b1ffbec349ab1adebb1bb46226dba0d98aa",
+      "bytes": 7740
+    },
+    {
+      "path": "session.jsonl",
+      "sha256": "41aa9b20a905ea6c9716023c3928d33b2271f73af426e3abe83df2b3f8e78c91",
+      "bytes": 19416
+    },
+    {
+      "path": "system-prompt.txt",
+      "sha256": "a83805637528cb2528720fa36b5fac736079ec83d83482d4938a08f4bb13ff27",
+      "bytes": 5693
+    },
+    {
+      "path": "tool-binaries.jsonl",
+      "sha256": "00c63e61b04433260283111c9f7908f30afe8f675fc3d81b6dc722da748f90e9",
+      "bytes": 519
+    },
+    {
+      "path": "tools.json",
+      "sha256": "a08554f23759aa7b0d4a22f4c0bd49998f74f8f81eaf271a8bb3aeacddbcdef9",
+      "bytes": 10048
+    },
+    {
+      "path": "usage.jsonl",
+      "sha256": "879ca90924df4ebc86e5e815888caa95df1d46b40bc543e550735e727d504464",
+      "bytes": 4174
+    }
+  ]
+}

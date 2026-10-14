@@ -1,0 +1,254 @@
+{
+  "kind": "engineering-toolchain-smoke",
+  "bindings": {
+    "gcc": {
+      "database": "/workspace/callgraph_mcp/data/callgraph.sqlite",
+      "database_sha256": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+      "compiler": "gcc",
+      "version": "16.2.0",
+      "bindings": [
+        {
+          "target": "gcc-16.2.0-aarch64",
+          "compiler": "gcc",
+          "version": "16.2.0",
+          "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+          "isas": [
+            "aarch64"
+          ],
+          "csv_sha256": "c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4",
+          "verified_source_files": 1145,
+          "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+        },
+        {
+          "target": "gcc-16.2.0-x86_64",
+          "compiler": "gcc",
+          "version": "16.2.0",
+          "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+          "isas": [
+            "x86_64"
+          ],
+          "csv_sha256": "6476d573e23a73d4f56895b01e398a1db3c37ae92768d7f59a817625cc0cb410",
+          "verified_source_files": 1130,
+          "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+        }
+      ],
+      "targets": [
+        "gcc-16.2.0-aarch64",
+        "gcc-16.2.0-x86_64"
+      ],
+      "driver_versions": {
+        "aarch64": "16.2.0",
+        "x86_64": "16.2.0"
+      },
+      "mcp": {
+        "tools": 6,
+        "targets": [
+          {
+            "target": "gcc-16.2.0-aarch64",
+            "source_csv": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/gcc-16.2.0-aarch64.csv",
+            "edge_count": 582555,
+            "ingested_at": "2026-10-12T12:11:50.200856+00:00",
+            "provenance": {
+              "compiler": "gcc",
+              "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
+              "csv_sha256": "c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4",
+              "extractor": "CodeQL",
+              "isas": [
+                "aarch64"
+              ],
+              "query_sha256": "fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247",
+              "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent",
+              "source_archive_sha256": "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e",
+              "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+              "version": "16.2.0"
+            },
+            "identity_status": "release-log-and-source-anchors"
+          },
+          {
+            "target": "gcc-16.2.0-x86_64",
+            "source_csv": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/gcc-16.2.0-x86_64.csv",
+            "edge_count": 579916,
+            "ingested_at": "2026-10-12T12:11:42.488709+00:00",
+            "provenance": {
+              "compiler": "gcc",
+              "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
+              "csv_sha256": "6476d573e23a73d4f56895b01e398a1db3c37ae92768d7f59a817625cc0cb410",
+              "extractor": "CodeQL",
+              "isas": [
+                "x86_64"
+              ],
+              "query_sha256": "fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247",
+              "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent",
+              "source_archive_sha256": "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e",
+              "source_revision": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+              "version": "16.2.0"
+            },
+            "identity_status": "release-log-and-source-anchors"
+          }
+        ],
+        "outside_target_rejected": true,
+        "symbols": [
+          "aarch64_stack_protect_canary_mem",
+          "aarch64_stack_protect_guard",
+          "add_stack_protection_conflicts",
+          "asan_emit_stack_protection",
+          "default_external_stack_protect_fail"
+        ]
+      }
+    },
+    "llvm": {
+      "database": "/workspace/callgraph_mcp/data/callgraph.sqlite",
+      "database_sha256": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+      "compiler": "llvm",
+      "version": "23.1.2",
+      "bindings": [
+        {
+          "target": "llvm-23.1.2",
+          "compiler": "llvm",
+          "version": "23.1.2",
+          "source_revision": "85ac560262434c9ccfc0c183ec22d4138ed647fb",
+          "isas": [
+            "aarch64",
+            "x86_64"
+          ],
+          "csv_sha256": "a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b",
+          "verified_source_files": 4234,
+          "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+        }
+      ],
+      "targets": [
+        "llvm-23.1.2"
+      ],
+      "driver_versions": {
+        "aarch64": "23.1.2",
+        "x86_64": "23.1.2"
+      },
+      "mcp": {
+        "tools": 6,
+        "targets": [
+          {
+            "target": "llvm-23.1.2",
+            "source_csv": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/llvm-23.1.2.csv",
+            "edge_count": 2025915,
+            "ingested_at": "2026-10-12T12:12:20.524522+00:00",
+            "provenance": {
+              "compiler": "llvm",
+              "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
+              "csv_sha256": "a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b",
+              "extractor": "CodeQL",
+              "isas": [
+                "x86_64",
+                "aarch64"
+              ],
+              "query_sha256": "fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247",
+              "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent",
+              "source_archive_sha256": "c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a",
+              "source_revision": "85ac560262434c9ccfc0c183ec22d4138ed647fb",
+              "version": "23.1.2"
+            },
+            "identity_status": "release-log-and-source-anchors"
+          }
+        ],
+        "outside_target_rejected": true,
+        "symbols": [
+          "(unnamed namespace)::MachineVerifier::verifyStackProtector",
+          "InsertStackProtectors",
+          "findStackProtectorIntrinsic",
+          "initializeStackProtectorPassOnce",
+          "llvm::BranchProbabilityInfo::getBranchProbStackProtector"
+        ]
+      }
+    }
+  },
+  "matrix": [
+    {
+      "compiler": "gcc",
+      "isa": "x86_64",
+      "command": [
+        "/opt/gcc16/bin/gcc",
+        "-B/usr/bin/",
+        "-O2",
+        "-fstack-protector-strong",
+        "-static-libgcc",
+        "/tmp/defuzz-toolchain-smoke-8vd4wc46/seed.c",
+        "-o",
+        "/tmp/defuzz-toolchain-smoke-8vd4wc46/x86_64"
+      ],
+      "driver_sha256": "b4ffd9e121c60240cf7cccad0faa5172017547a76a2da17ddc86fcb595abf476",
+      "input_sha256": "a9b5782dde7ebb80e069cb2e837f69b455f55ad987bcf6a4d84ded61abf00531",
+      "binary_sha256": "9bf9fec23165fc69b432adde0f92cc00eb405782cc1bd2bb81871b5421a590ad",
+      "machine": "X86-64",
+      "exit_code": 0
+    },
+    {
+      "compiler": "gcc",
+      "isa": "aarch64",
+      "command": [
+        "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+        "-B/usr/aarch64-linux-gnu/lib/",
+        "-isystem",
+        "/usr/aarch64-linux-gnu/include",
+        "-L/usr/aarch64-linux-gnu/lib",
+        "-Wl,-rpath-link,/usr/aarch64-linux-gnu/lib",
+        "-B/usr/aarch64-linux-gnu/bin/",
+        "-O2",
+        "-fstack-protector-strong",
+        "-static-libgcc",
+        "/tmp/defuzz-toolchain-smoke-8vd4wc46/seed.c",
+        "-o",
+        "/tmp/defuzz-toolchain-smoke-8vd4wc46/aarch64"
+      ],
+      "driver_sha256": "aa849781fc842020800de4d9e994003f6ec992cc51ce7e84a0a5cb2b91a24f9b",
+      "input_sha256": "a9b5782dde7ebb80e069cb2e837f69b455f55ad987bcf6a4d84ded61abf00531",
+      "binary_sha256": "fef35e0d681f1ba206c49bafec590a39dcd720519b8b04dff92266627a41ee7e",
+      "machine": "AArch64",
+      "exit_code": 0
+    },
+    {
+      "compiler": "llvm",
+      "isa": "x86_64",
+      "command": [
+        "/opt/llvm23/bin/clang",
+        "-B/usr/bin/",
+        "-O2",
+        "-fstack-protector-strong",
+        "-static-libgcc",
+        "/tmp/defuzz-toolchain-smoke-1ggyb0sk/seed.c",
+        "-o",
+        "/tmp/defuzz-toolchain-smoke-1ggyb0sk/x86_64"
+      ],
+      "driver_sha256": "a0fba39747ecfa51a0b176191041c978a430ba30b3091ea369cc4547ae7fe09b",
+      "input_sha256": "a9b5782dde7ebb80e069cb2e837f69b455f55ad987bcf6a4d84ded61abf00531",
+      "binary_sha256": "6ccfc52649719b20ec936d6651c5ccc2359e41ada45d3d7eccf964f3e45c6ba7",
+      "machine": "X86-64",
+      "exit_code": 0
+    },
+    {
+      "compiler": "llvm",
+      "isa": "aarch64",
+      "command": [
+        "/usr/local/bin/defuzz-clang-aarch64",
+        "-B/usr/aarch64-linux-gnu/lib/",
+        "-isystem",
+        "/usr/aarch64-linux-gnu/include",
+        "-L/usr/aarch64-linux-gnu/lib",
+        "-Wl,-rpath-link,/usr/aarch64-linux-gnu/lib",
+        "-B/usr/aarch64-linux-gnu/bin/",
+        "-O2",
+        "-fstack-protector-strong",
+        "-static-libgcc",
+        "/tmp/defuzz-toolchain-smoke-1ggyb0sk/seed.c",
+        "-o",
+        "/tmp/defuzz-toolchain-smoke-1ggyb0sk/aarch64"
+      ],
+      "driver_sha256": "d367ba9b693c6b3c29f55c9b68e1bb2bb90f97a2d2407282e71ec75539f045c2",
+      "input_sha256": "a9b5782dde7ebb80e069cb2e837f69b455f55ad987bcf6a4d84ded61abf00531",
+      "binary_sha256": "cccabb071dec7ad91de4ef0d4b0406a0f2a5d6ba3c2689870e085058faa21959",
+      "machine": "AArch64",
+      "exit_code": 0
+    }
+  ],
+  "llvm_config": "23.1.2",
+  "lld": "LLD 23.1.2 (https://github.com/llvm/llvm-project 85ac560262434c9ccfc0c183ec22d4138ed647fb) (compatible with GNU linkers)",
+  "passed": true
+}

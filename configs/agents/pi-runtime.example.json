@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "model_provider": "defuzz",
+  "model_id": "coconut-gpt-5-6-terra-max",
+  "models_path": "models.example.json",
+  "mcp_path": "mcp.example.json",
+  "definitions_root": "../../agents/definitions",
+  "worker_path": "../../agent-runtime/dist/worker.js",
+  "thinking_level": "minimal",
+  "temperature_policy": "omit",
+  "temperature_note": "The selected reasoning model uses provider-controlled sampling; preserve the requested definition temperature in provenance, omit it from requests.",
+  "max_model_calls": 32,
+  "max_output_tokens": 8192,
+  "token_budget": 200000,
+  "strict_usage": true,
+  "attempt_timeout_seconds": 600,
+  "request_timeout_ms": 120000,
+  "mcp_startup_timeout_ms": 30000,
+  "mcp_call_timeout_ms": 30000,
+  "cleanup_timeout_ms": 5000,
+  "credential_env": ["DEFUZZ_COCONUT_API_KEY"]
+}

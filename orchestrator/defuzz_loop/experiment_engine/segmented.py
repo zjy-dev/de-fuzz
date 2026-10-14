@@ -533,6 +533,16 @@ async def complete_with_backend[T: BaseModel](
     budget_check = getattr(token_sink, "check_budget", None)
     if callable(budget_check):
         budget_check()
+    if getattr(backend, "provider", None) == "pi":
+        from ..agents.runner import SubagentRunner
+
+        runner = SubagentRunner(
+            backend, cwd=cwd, output_dir=output_dir,
+            timeout_secs=timeout_seconds or 600, token_sink=token_sink,
+            metadata=metadata, deny_read_paths=list(resolved_denials),
+            require_host_read_isolation=require_host_read_isolation,
+        )
+        return await runner.run("invariant-reviewer", prompt, output_model)
     complete = getattr(backend, "complete", None)
     if complete is None:
         run_method = getattr(backend, "run", None)

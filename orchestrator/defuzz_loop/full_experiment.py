@@ -1,12 +1,13 @@
 """Reproducible invariant -> source mapping -> directed fuzz experiment runner.
 
-Offline mode is a deterministic CI smoke. Live mode invokes OpenCode for the first two
+Offline mode is a deterministic CI smoke. Live mode invokes Pi for the first two
 stages; the Go core MCP fuzz bridge remains explicit TODO and is recorded as a failure.
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
 import json
 import os
@@ -15,6 +16,7 @@ import random
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -107,43 +109,51 @@ def _version(command: list[str], repo: Path) -> str | None:
         return None
 
 
-def _invoke_opencode(
-    repo: Path, agent: str, prompt: str, model: str | None, attempts: Path
+def _invoke_agent(
+    backend: Any, repo: Path, agent: str, prompt: str, attempts: Path,
+    schema: type[BaseModel], *, run_id: str,
 ) -> dict[str, Any]:
-    from defuzz_loop.opencode.client import extract_json_block
+    from .agents.runner import SubagentRunner
 
-    command = ["opencode", "run", "--format", "json", "--agent", agent, "--dir", str(repo)]
-    if model:
-        command += ["--model", model]
-    command.append(prompt)
-    last = ""
-    for index in range(3):
-        try:
-            process = subprocess.run(command, cwd=repo, text=True, capture_output=True, timeout=600)
-            last = redact(process.stdout + "\n" + process.stderr)
-            text(attempts / f"attempt-{index + 1}.log", last)
-            if process.returncode:
-                raise RuntimeError(f"OpenCode exited {process.returncode}: {last[-1000:]}")
-            return json.loads(extract_json_block(last))
-        except Exception as exc:
-            text(
-                attempts / f"repair-{index + 1}.txt",
-                f"Validation/invocation error: {exc}\nRetry with exactly one fenced JSON block.\n",
-            )
-            if index == 2:
-                raise
-    raise AssertionError("unreachable")
+    runner = SubagentRunner(
+        backend, cwd=repo, output_dir=attempts, timeout_secs=600,
+        metadata={"run_id": run_id, "experiment": "full-experiment"},
+    )
+    validator: Callable[[Any], Any] | None = None
+    if agent == "source-mapper":
+        from .experiment_engine.source_mapping_stage import validate_anchors
+
+        def validate_mapping(value: Any) -> Any:
+            return validate_anchors(value, repo)
+
+        validator = validate_mapping
+    result = asyncio.run(runner.run(
+        agent, prompt, schema, metadata={
+            "use_callgraph": agent == "source-mapper", "compiler": "gcc", "isa": "x86_64",
+        },
+        validator=validator,
+    ))
+    return result.model_dump()
 
 
 def execute(args: argparse.Namespace, repo: Path) -> tuple[int, Path]:
+    from .agents.contracts.schemas import Invariant, SourceMappingResult
+    from .experiment_engine.pi_backend import PiAgentBackend
+
+    backend = None
+    if args.mode == "live":
+        if not getattr(args, "pi_config", None):
+            raise ValueError("live mode requires --pi-config (Pi runtime JSON)")
+        backend = PiAgentBackend(args.pi_config, model=args.model)
+        backend.validate_credentials()
     run_id = args.run_id or datetime.now(UTC).strftime("full-%Y%m%dT%H%M%SZ")
     root = (args.output_root / run_id).resolve()
     root.mkdir(parents=True, exist_ok=True)
     (root / "logs").mkdir(exist_ok=True)
     for _, directory in STAGES:
         (root / directory).mkdir(exist_ok=True)
-    argv = vars(args).copy()
-    argv["output_root"] = str(argv["output_root"])
+    argv = {key: str(value) if isinstance(value, Path) else value
+            for key, value in vars(args).items()}
     argv["force_stage"] = sorted(argv["force_stage"])
     config_hash = hashlib.sha256(json.dumps(argv, sort_keys=True).encode()).hexdigest()
     manifest_path = root / "manifest.json"
@@ -162,8 +172,11 @@ def execute(args: argparse.Namespace, repo: Path) -> tuple[int, Path]:
             "host": platform.node(),
             "platform": platform.platform(),
             "python": sys.version,
-            "opencode": _version(["opencode", "--version"], repo),
-            "model": args.model,
+            "backend_identity": "pi-sdk" if backend else "offline-fixture",
+            "node": _version(["node", "--version"], repo),
+            "pi_config_sha256": backend.config_sha256 if backend else None,
+            "pi_input_hashes": backend.config["input_hashes"] if backend else {},
+            "model": backend.model if backend else args.model,
             "mode": args.mode,
             "cli_args": argv,
             "config_hash": config_hash,
@@ -178,7 +191,7 @@ def execute(args: argparse.Namespace, repo: Path) -> tuple[int, Path]:
             if previous.get("status") == "success" and stage not in args.force_stage:
                 continue
             started = time.monotonic()
-            info = {
+            info: dict[str, Any] = {
                 "status": "running",
                 "started_at": utc(),
                 "finished_at": None,
@@ -197,11 +210,12 @@ def execute(args: argparse.Namespace, repo: Path) -> tuple[int, Path]:
                     raw = (
                         {"invariants": STACK + (EXTRA if args.all_invariants else [])}
                         if args.mode == "offline"
-                        else _invoke_opencode(
-                            repo, "source-mapper", prompt, args.model, out / "repair-attempts"
+                        else _invoke_agent(
+                            backend, repo, "invariant-reviewer", prompt,
+                            out / "repair-attempts", InvariantSet, run_id=run_id,
                         )
                     )
-                    validated = InvariantSet.model_validate(raw)
+                    validated: BaseModel = InvariantSet.model_validate(raw)
                     dump(out / "response.json", raw)
                     dump(out / "validated.json", validated.model_dump())
                 elif stage == "source-mapping":
@@ -227,12 +241,15 @@ def execute(args: argparse.Namespace, repo: Path) -> tuple[int, Path]:
                     else:
                         raw = {
                             "mappings": [
-                                _invoke_opencode(
-                                    repo,
+                                _invoke_agent(
+                                    backend,
+                                    Path(args.src_root),
                                     "source-mapper",
-                                    json.dumps({**i, "src_root": args.src_root}),
-                                    args.model,
+                                    Invariant(
+                                        **{**i, "src_root": args.src_root}
+                                    ).as_prompt_payload(),
                                     out / "repair-attempts" / i["phi_id"],
+                                    SourceMappingResult, run_id=run_id,
                                 )
                                 for i in invs
                             ]
@@ -246,7 +263,7 @@ def execute(args: argparse.Namespace, repo: Path) -> tuple[int, Path]:
                             "server": "defuzz-callgraph",
                             "mode": args.mode,
                             "note": (
-                                "OpenCode owns agent-internal query selection; "
+                                "Pi tool events record agent-internal query selection; "
                                 "offline has no remote calls."
                             ),
                         },
@@ -255,7 +272,7 @@ def execute(args: argparse.Namespace, repo: Path) -> tuple[int, Path]:
                         root / "logs" / "callgraph-tools.log",
                         "offline: no MCP queries\n"
                         if args.mode == "offline"
-                        else "see OpenCode attempt logs\n",
+                        else "see Pi attempt events.jsonl and mcp.log\n",
                     )
                 else:
                     if args.mode == "live":
@@ -328,6 +345,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--rounds", type=int, default=2)
     p.add_argument("--seed", type=int, default=20260928)
     p.add_argument("--model")
+    p.add_argument("--pi-config", type=Path, help="Required for live mode: Pi runtime JSON")
     p.add_argument("--src-root", default="/opt/gcc-src")
     return p
 

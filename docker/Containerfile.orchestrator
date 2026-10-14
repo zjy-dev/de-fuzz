@@ -1,0 +1,51 @@
+ARG CORE_IMAGE=localhost/defuzz-core:dev
+ARG GO_IMAGE=docker.io/library/golang:1.26.3-bookworm
+ARG PYTHON_IMAGE=docker.io/library/python:3.12.14-slim-bookworm
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.14
+ARG NODE_IMAGE=docker.io/library/node:24.15.0-bookworm-slim
+FROM ${GO_IMAGE} AS go
+FROM ${PYTHON_IMAGE} AS python
+FROM ${UV_IMAGE} AS uv
+FROM ${NODE_IMAGE} AS pi-runtime
+WORKDIR /build/agent-runtime
+COPY agent-runtime/package.json agent-runtime/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY agent-runtime/tsconfig.json ./
+COPY agent-runtime/src/ ./src/
+RUN npm run build && npm prune --omit=dev --no-audit --no-fund
+FROM ${CORE_IMAGE}
+ARG GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
+# Formal HTTP experiments build and run candidate dispatchers locally, so
+# this container deliberately retains the same frozen compiler/QEMU runtime.
+# A fresh prefix avoids merging standard-library files from the runtime's older Go.
+COPY --from=go /usr/local/go/ /opt/go/
+COPY --from=python /usr/local/ /usr/local/
+COPY --from=uv /uv /uvx /usr/local/bin/
+COPY --from=pi-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=pi-runtime /build/agent-runtime/ /workspace/agent-runtime/
+ENV PATH=/workspace/orchestrator/.venv/bin:/opt/go/bin:/usr/local/bin:/usr/bin:/bin \
+    GOROOT=/opt/go \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_LINK_MODE=copy \
+    GOPROXY=${GOPROXY} \
+    GOTOOLCHAIN=local \
+    DEFUZZ_WORK_ROOT=/tmp/defuzz-work \
+    DEFUZZ_CALLGRAPH_DB=/workspace/callgraph_mcp/data/callgraph.sqlite
+ENV PATH=/opt/gcc16/bin:/opt/llvm23/bin:${PATH} \
+    LD_LIBRARY_PATH=/opt/llvm23/lib
+COPY core/ /workspace/core/
+COPY orchestrator/ /workspace/orchestrator/
+COPY callgraph_mcp/ /workspace/callgraph_mcp/
+COPY agents/ /workspace/agents/
+COPY configs/agents/ /workspace/configs/agents/
+COPY configs/experiments/ /workspace/configs/experiments/
+COPY scripts/run_callgraph_mcp.sh /workspace/scripts/run_callgraph_mcp.sh
+COPY docker/smoke.py docker/pi-smoke.py docker/replay.py docker/toolchain-smoke.py /workspace/docker/
+RUN /sbin/ldconfig
+RUN uv sync --project /workspace/orchestrator --frozen --no-dev --python /usr/local/bin/python3.12
+RUN uv sync --project /workspace/callgraph_mcp --frozen --no-dev --python /usr/local/bin/python3.12
+RUN cd /workspace/core && go mod download \
+    && mkdir -p /workspace/runs /workspace/callgraph_mcp/data /tmp/defuzz-work
+WORKDIR /workspace
+ENTRYPOINT []
+CMD ["sleep", "infinity"]

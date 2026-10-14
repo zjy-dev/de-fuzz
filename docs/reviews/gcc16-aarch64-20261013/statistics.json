@@ -1,0 +1,644 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-10-13T05:34:04.933257+00:00",
+  "run_id": "gcc16-aarch64-full-20261013",
+  "entry_point": "run-all",
+  "evidence_kind": "engineering-continuous-experiment",
+  "scope": {
+    "compiler": "gcc",
+    "version": "16.2.0",
+    "isa": "aarch64",
+    "variant": "full",
+    "repetitions": 1
+  },
+  "execution_status": "stopped",
+  "last_started_stage": "checker-authoring",
+  "complete_experiment": false,
+  "compiler_verdict": null,
+  "verified_compiler_defects": null,
+  "launcher": {
+    "pid": 68020,
+    "running": false,
+    "observation_command": "ps -p 68020 -o pid,ppid,etime,stat,comm",
+    "probe_exit_code": 1
+  },
+  "source_provenance": {
+    "root": "/Users/bytedance/projects/research/de-fuzz/main/.work/toolchains-matched/gcc-source",
+    "BASE-VER": "16.2.0",
+    "LAST_UPDATED": "Obtained from git: releases/gcc-16.2.0 revision 78d4ac73dd391005b895a6148cd9831e28e1208b",
+    "release_revision_from_lock": "78d4ac73dd391005b895a6148cd9831e28e1208b",
+    "release_archive_sha256_from_lock": "e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e",
+    "corpus_manifest_sha256": "20f12c32447787970982e43c4b696deaa5007a7ae1ff8f5b35d322f7d9244fa9",
+    "corpus_aggregate_sha256": "ec75069a093f28cccc9f5643900e376625d380bc77667eb6732dc8e456f60dae",
+    "corpus_file_count": 28,
+    "corpus_family_counts": {
+      "control_flow_integrity": 7,
+      "elf_address_space": 10,
+      "memory_bounds": 8,
+      "sanitizers_hardening": 7,
+      "stack_protection": 9
+    },
+    "corpus_source_identity_as_recorded": {
+      "BASE-VER": "16.2.0",
+      "DATESTAMP": "20260807",
+      "LAST_UPDATED": "Obtained from git: releases/gcc-16.2.0 revision 78d4ac73dd391005b895a6148cd9831e28e1208b",
+      "git_clean": false,
+      "git_head": "25c506655d00d7bb9352512c51577983fd69170f"
+    },
+    "source_git_identity_limitation": "The release source is nested under the DeFuzz worktree and has no compiler Git root. corpus source_identity.git_head=25c506655d00d7bb9352512c51577983fd69170f belongs to the enclosing DeFuzz checkout, not the GCC source revision. Use release BASE-VER/LAST_UPDATED/lock evidence; do not relabel that git_head as GCC.",
+    "reference": {
+      "dirty": false,
+      "exists": true,
+      "head": "b83e2ee05ec8595a0da271dd1a01a90a8ec67fe5",
+      "kind": "git",
+      "path": "/Users/bytedance/projects/research/defuzz-experiment-inputs/reference-b83e2ee",
+      "repository": "/Users/bytedance/projects/research/defuzz-experiment-inputs/reference-b83e2ee",
+      "state_sha256": "4d52153cfbd38553935c519c4ebcddbeceb2e3f5a1826222f82d670bfcf74583"
+    },
+    "callgraph_database_sha256": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+    "confirmed_graph_isas": [
+      "x86_64",
+      "aarch64"
+    ],
+    "cross_isa_toolchain_available_in_config": [
+      "x86_64",
+      "aarch64"
+    ],
+    "cross_isa_checker_dependencies_verified": null
+  },
+  "stages": {
+    "invariant-generation": {
+      "status": "completed",
+      "run_directory": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation",
+      "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+      "plan_hash": "ecb488602f31845ac672e7a53e6a26084a4a72a2e2bacbf2993a3ada604d5d84",
+      "started_at": "2026-10-13T03:00:55.501+00:00",
+      "finished_at": "2026-10-13T03:47:34.630+00:00",
+      "manifest_interval_seconds": 2799.129,
+      "manifest_interval_minutes": 46.65215,
+      "metrics": {
+        "accepted_invariants": 50,
+        "continuation_ready": true,
+        "input_chars": 1876588,
+        "max_concurrency": 1,
+        "overlap": 0,
+        "rag_candidates": 3,
+        "result_valid": true,
+        "segment_count": 173,
+        "segmented_candidates": 47,
+        "selected_segment_count": 173,
+        "selection_complete": true
+      },
+      "usage_ledger_records": 539,
+      "reported_usage_records": 539,
+      "reported_tokens": 1576298,
+      "usage_missing_count": 0,
+      "token_comparable": true,
+      "budget": {
+        "time_budget_minutes": 480.0,
+        "token_budget": 20000000
+      },
+      "source_root": null,
+      "input_snapshot": {
+        "roots": {
+          "corpus_root": {
+            "exists": true,
+            "files": 29,
+            "kind": "tree-metadata",
+            "manifest_sha256": "19e012bde76819fb957d8ed61d1270b9244aacd9ec8b3616b0e61eab253aa244",
+            "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-security-corpus",
+            "total_bytes": 2010016
+          },
+          "rag_corpus_root": {
+            "exists": true,
+            "files": 131033,
+            "kind": "tree-metadata",
+            "manifest_sha256": "fcf5b760dd447e8a0d3dac73f6cbdf142e0a874425301ea2d902bb5049d44bfc",
+            "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/toolchains-matched/gcc-source/gcc",
+            "total_bytes": 617895815
+          },
+          "reference_root": {
+            "dirty": false,
+            "exists": true,
+            "head": "b83e2ee05ec8595a0da271dd1a01a90a8ec67fe5",
+            "kind": "git",
+            "path": "/Users/bytedance/projects/research/defuzz-experiment-inputs/reference-b83e2ee",
+            "repository": "/Users/bytedance/projects/research/defuzz-experiment-inputs/reference-b83e2ee",
+            "state_sha256": "4d52153cfbd38553935c519c4ebcddbeceb2e3f5a1826222f82d670bfcf74583"
+          }
+        }
+      },
+      "model": "defuzz/coconut-gpt-5-6-terra-max",
+      "pi_config_identity_sha256": "6d46b231375ebdeb0ac4a60c3d5087d8c6f18ec7a2dd23ce1fed8ce923e48927",
+      "artifact_integrity_errors": [],
+      "confirmed_model_requests": 539,
+      "usage_breakdown": [
+        {
+          "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+          "part": "part-i",
+          "stage": "analogy",
+          "model": "defuzz/coconut-gpt-5-6-terra-max",
+          "call_count": 232,
+          "success_count": 232,
+          "failure_count": 0,
+          "usage_missing_count": 0,
+          "input_tokens": 416434,
+          "output_tokens": 29112,
+          "total_tokens": 445546,
+          "cached_input_tokens": 0,
+          "cache_creation_input_tokens": null,
+          "reasoning_tokens": 5741,
+          "total_latency_ms": 766669.683118,
+          "average_latency_ms": 3304.610703094828,
+          "estimated_cost": null
+        },
+        {
+          "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+          "part": "part-i",
+          "stage": "distill_query",
+          "model": "defuzz/coconut-gpt-5-6-terra-max",
+          "call_count": 29,
+          "success_count": 29,
+          "failure_count": 0,
+          "usage_missing_count": 0,
+          "input_tokens": 45743,
+          "output_tokens": 2097,
+          "total_tokens": 47840,
+          "cached_input_tokens": 0,
+          "cache_creation_input_tokens": null,
+          "reasoning_tokens": 160,
+          "total_latency_ms": 81816.05508399999,
+          "average_latency_ms": 2821.2432787586204,
+          "estimated_cost": null
+        },
+        {
+          "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+          "part": "part-i",
+          "stage": "entailment",
+          "model": "defuzz/coconut-gpt-5-6-terra-max",
+          "call_count": 98,
+          "success_count": 98,
+          "failure_count": 0,
+          "usage_missing_count": 0,
+          "input_tokens": 206463,
+          "output_tokens": 11387,
+          "total_tokens": 217850,
+          "cached_input_tokens": 0,
+          "cache_creation_input_tokens": null,
+          "reasoning_tokens": 2116,
+          "total_latency_ms": 565100.014712,
+          "average_latency_ms": 5766.3266807346945,
+          "estimated_cost": null
+        },
+        {
+          "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+          "part": "part-i",
+          "stage": "segmented-cot",
+          "model": "defuzz/coconut-gpt-5-6-terra-max",
+          "call_count": 173,
+          "success_count": 173,
+          "failure_count": 0,
+          "usage_missing_count": 0,
+          "input_tokens": 793676,
+          "output_tokens": 49909,
+          "total_tokens": 843585,
+          "cached_input_tokens": 0,
+          "cache_creation_input_tokens": null,
+          "reasoning_tokens": 29620,
+          "total_latency_ms": 1025013.146301,
+          "average_latency_ms": 5924.931481508671,
+          "estimated_cost": null
+        },
+        {
+          "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+          "part": "part-i",
+          "stage": "specialize",
+          "model": "defuzz/coconut-gpt-5-6-terra-max",
+          "call_count": 7,
+          "success_count": 7,
+          "failure_count": 0,
+          "usage_missing_count": 0,
+          "input_tokens": 17398,
+          "output_tokens": 4079,
+          "total_tokens": 21477,
+          "cached_input_tokens": 0,
+          "cache_creation_input_tokens": null,
+          "reasoning_tokens": 1462,
+          "total_latency_ms": 60350.035207,
+          "average_latency_ms": 8621.433601,
+          "estimated_cost": null
+        }
+      ],
+      "accepted_mechanism_counts": {
+        "address-sanitizer": 1,
+        "alternate-signal-stack": 1,
+        "argument-size-limit": 1,
+        "asan": 1,
+        "asm-constraint-copy": 1,
+        "auto-var-init": 1,
+        "backend-multi": 1,
+        "bounds-check": 1,
+        "bounds-checking": 1,
+        "bounds-warning": 1,
+        "bti": 1,
+        "debug-expression-validation": 1,
+        "format-overflow-warning": 1,
+        "fortify-source": 2,
+        "gcs": 1,
+        "hwasan": 1,
+        "ibt": 2,
+        "inline-asm-hard-register-validation": 1,
+        "kasan": 1,
+        "live-patching": 1,
+        "memtag": 1,
+        "memtag-stack": 1,
+        "nocf-check": 1,
+        "object-size-check": 1,
+        "overlap-check": 1,
+        "pac": 1,
+        "pie": 1,
+        "pointer-poisoning": 1,
+        "riscv-cfi": 1,
+        "sanitizer-coverage": 1,
+        "shadow-stack": 1,
+        "sibcall-argument-overlap-check": 1,
+        "sibcall-overlap-check": 1,
+        "sibling-call-overlap-check": 1,
+        "signal-handler": 1,
+        "stack-check": 1,
+        "stack-clash-protection": 1,
+        "stack-protector": 6,
+        "stack-slot-separation": 1,
+        "stringop-truncation-warning": 2,
+        "strub": 1,
+        "unreachable-sanitizer": 1
+      },
+      "accepted_target_counts": {
+        "": 34,
+        "AArch64-GNU-Linux": 1,
+        "Linux-Android": 1,
+        "Solaris": 1,
+        "aarch64": 8,
+        "riscv": 1,
+        "x86": 4
+      }
+    },
+    "checker-authoring": {
+      "status": "failed",
+      "run_directory": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring",
+      "run_id": "gcc16-aarch64-full-20261013-checker-authoring",
+      "plan_hash": "2c0cb3fd432f57f87b2b9d3b06115a43990f9619798a0d074c4b228652271a1b",
+      "started_at": "2026-10-13T03:48:00.894+00:00",
+      "finished_at": "2026-10-13T03:48:15.258+00:00",
+      "manifest_interval_seconds": 14.364,
+      "manifest_interval_minutes": 0.2394,
+      "metrics": {
+        "agent_attempts": 43,
+        "budget_exhausted": 0,
+        "bundle_ready": false,
+        "coverage_complete": false,
+        "excluded_invariants": 7,
+        "failed": 43,
+        "final_pass_rate": 0.0,
+        "final_passed": 0,
+        "first_pass_rate": 0.0,
+        "first_passed": 0,
+        "input_invariants": 50,
+        "invariants": 43,
+        "reused": 0,
+        "selected_invariants": 43,
+        "total_invariants": 50,
+        "unprocessed": 0
+      },
+      "usage_ledger_records": 43,
+      "reported_usage_records": 0,
+      "reported_tokens": null,
+      "usage_missing_count": 43,
+      "token_comparable": false,
+      "budget": {
+        "time_budget_minutes": 480.0,
+        "token_budget": 20000000
+      },
+      "source_root": "/Users/bytedance/projects/research/de-fuzz/main",
+      "input_snapshot": {
+        "from_run": {
+          "artifacts": [
+            {
+              "exists": true,
+              "kind": "file",
+              "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation/rep-001/artifacts/accepted-invariants.jsonl",
+              "sha256": "bfeb1979077f4f52e12c6c6efbb4c455bd72de6a0f221d1042e2bcea7477861c",
+              "size_bytes": 1067815
+            }
+          ],
+          "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation"
+        },
+        "roots": {
+          "reference_root": {
+            "dirty": false,
+            "exists": true,
+            "head": "b83e2ee05ec8595a0da271dd1a01a90a8ec67fe5",
+            "kind": "git",
+            "path": "/Users/bytedance/projects/research/defuzz-experiment-inputs/reference-b83e2ee",
+            "repository": "/Users/bytedance/projects/research/defuzz-experiment-inputs/reference-b83e2ee",
+            "state_sha256": "4d52153cfbd38553935c519c4ebcddbeceb2e3f5a1826222f82d670bfcf74583"
+          },
+          "source_root": {
+            "dirty": true,
+            "exists": true,
+            "head": "25c506655d00d7bb9352512c51577983fd69170f",
+            "kind": "git",
+            "path": "/Users/bytedance/projects/research/de-fuzz/main",
+            "repository": "/Users/bytedance/projects/research/de-fuzz/main",
+            "state_sha256": "6e978bc01889b5ad893654d815888eb9f3849a885162a1fcba9c4cd55d511592"
+          }
+        }
+      },
+      "model": "defuzz/coconut-gpt-5-6-terra-max",
+      "pi_config_identity_sha256": "6d46b231375ebdeb0ac4a60c3d5087d8c6f18ec7a2dd23ce1fed8ce923e48927",
+      "artifact_integrity_errors": [],
+      "worker_request_files": 0,
+      "provider_events_files": 0,
+      "failure_categories": {
+        "worker-startup-path-isolation": 43
+      },
+      "scope": {
+        "counts": {
+          "excluded": 7,
+          "selected": 43,
+          "total": 50
+        },
+        "excluded_invariant_ids": [
+          "INVGEN-04D6F1D6C8265714",
+          "INVGEN-11337A3F697AA7B3",
+          "INVGEN-26B2A66BCAEA70D0",
+          "INVGEN-76B24C46F1E43D27",
+          "INVGEN-8AE00948B8888875",
+          "INVGEN-B28D4F3C4FB4CF38",
+          "INVGEN-FB9072C6839419EF"
+        ],
+        "excluded_invariants": [
+          {
+            "invariant_id": "INVGEN-04D6F1D6C8265714",
+            "normalized_mechanism": "stack-check",
+            "reasons": [
+              "isa_out_of_scope"
+            ],
+            "target": "x86",
+            "target_isas": [
+              "x86"
+            ]
+          },
+          {
+            "invariant_id": "INVGEN-11337A3F697AA7B3",
+            "normalized_mechanism": "ibt",
+            "reasons": [
+              "isa_out_of_scope"
+            ],
+            "target": "x86",
+            "target_isas": [
+              "x86"
+            ]
+          },
+          {
+            "invariant_id": "INVGEN-26B2A66BCAEA70D0",
+            "normalized_mechanism": "riscv-cfi",
+            "reasons": [
+              "isa_out_of_scope"
+            ],
+            "target": "riscv",
+            "target_isas": [
+              "riscv"
+            ]
+          },
+          {
+            "invariant_id": "INVGEN-76B24C46F1E43D27",
+            "normalized_mechanism": "shadow-stack",
+            "reasons": [
+              "isa_out_of_scope"
+            ],
+            "target": "x86",
+            "target_isas": [
+              "x86"
+            ]
+          },
+          {
+            "invariant_id": "INVGEN-8AE00948B8888875",
+            "normalized_mechanism": "ibt",
+            "reasons": [
+              "isa_out_of_scope"
+            ],
+            "target": "x86",
+            "target_isas": [
+              "x86"
+            ]
+          },
+          {
+            "invariant_id": "INVGEN-B28D4F3C4FB4CF38",
+            "normalized_mechanism": "signal-handler",
+            "reasons": [
+              "isa_out_of_scope"
+            ],
+            "target": "Solaris",
+            "target_isas": []
+          },
+          {
+            "invariant_id": "INVGEN-FB9072C6839419EF",
+            "normalized_mechanism": "fortify-source",
+            "reasons": [
+              "isa_out_of_scope"
+            ],
+            "target": "Linux-Android",
+            "target_isas": []
+          }
+        ],
+        "kind": "defuzz-checker-input-scope",
+        "requested": {
+          "isas": [
+            "aarch64"
+          ],
+          "mechanisms": []
+        },
+        "schema_version": 1,
+        "scope_requested": true,
+        "selected_invariant_ids": [
+          "INVGEN-02C9E946EE52CA5D",
+          "INVGEN-06F4783EB7B5A5AE",
+          "INVGEN-08AFDF62248BDB87",
+          "INVGEN-186DA0B7D8A43DA7",
+          "INVGEN-26090E63F9A9C936",
+          "INVGEN-275FBD1D2CE6C352",
+          "INVGEN-29367CCA11487093",
+          "INVGEN-2BEB3971E70676E4",
+          "INVGEN-3CB04233158D3F9C",
+          "INVGEN-40A2FEF4A5397359",
+          "INVGEN-4310437E6E51F3C5",
+          "INVGEN-494F50357AB4A7DC",
+          "INVGEN-55E96BC64897DB5B",
+          "INVGEN-586F4B7E3E244E12",
+          "INVGEN-59CC8AFFEC2AC5AE",
+          "INVGEN-6A698129CBF7E86D",
+          "INVGEN-6CA75CB7E4689B80",
+          "INVGEN-7D3768CD2A1F74B5",
+          "INVGEN-7E21738BF7031B26",
+          "INVGEN-7FB0D3A3EE9FADE5",
+          "INVGEN-81590831B593F806",
+          "INVGEN-846C550FF213FC53",
+          "INVGEN-89F2BD7D25917E3E",
+          "INVGEN-8A57A19ED05E2AC7",
+          "INVGEN-8EF522DDF7CCD4A7",
+          "INVGEN-93FBC8F3F8842198",
+          "INVGEN-95776B046FEFF604",
+          "INVGEN-96069C966DD27F4D",
+          "INVGEN-9657317A4FC386A0",
+          "INVGEN-9E52D6B7EDAEB812",
+          "INVGEN-A6929540BE378105",
+          "INVGEN-A75A0495AC054C1D",
+          "INVGEN-AD22824BC048C630",
+          "INVGEN-B3AA41472B6BB64B",
+          "INVGEN-C7B396082E8E5E01",
+          "INVGEN-C862E337607FE69D",
+          "INVGEN-CBCED39B1302435D",
+          "INVGEN-D2E09B5E468F4BF3",
+          "INVGEN-D3753ECF716EC5F0",
+          "INVGEN-E5664CD1DEE20CE2",
+          "INVGEN-E6D7A52AC192DDF3",
+          "INVGEN-E7B08FE075DCBCAE",
+          "INVGEN-FC7D9F46C5BD01C2"
+        ],
+        "source_artifact": {
+          "kind": "accepted-invariants",
+          "path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-invariant-generation/rep-001/artifacts/accepted-invariants.jsonl",
+          "sha256": "bfeb1979077f4f52e12c6c6efbb4c455bd72de6a0f221d1042e2bcea7477861c",
+          "size_bytes": 1067815
+        },
+        "total_invariant_ids": [
+          "INVGEN-02C9E946EE52CA5D",
+          "INVGEN-04D6F1D6C8265714",
+          "INVGEN-06F4783EB7B5A5AE",
+          "INVGEN-08AFDF62248BDB87",
+          "INVGEN-11337A3F697AA7B3",
+          "INVGEN-186DA0B7D8A43DA7",
+          "INVGEN-26090E63F9A9C936",
+          "INVGEN-26B2A66BCAEA70D0",
+          "INVGEN-275FBD1D2CE6C352",
+          "INVGEN-29367CCA11487093",
+          "INVGEN-2BEB3971E70676E4",
+          "INVGEN-3CB04233158D3F9C",
+          "INVGEN-40A2FEF4A5397359",
+          "INVGEN-4310437E6E51F3C5",
+          "INVGEN-494F50357AB4A7DC",
+          "INVGEN-55E96BC64897DB5B",
+          "INVGEN-586F4B7E3E244E12",
+          "INVGEN-59CC8AFFEC2AC5AE",
+          "INVGEN-6A698129CBF7E86D",
+          "INVGEN-6CA75CB7E4689B80",
+          "INVGEN-76B24C46F1E43D27",
+          "INVGEN-7D3768CD2A1F74B5",
+          "INVGEN-7E21738BF7031B26",
+          "INVGEN-7FB0D3A3EE9FADE5",
+          "INVGEN-81590831B593F806",
+          "INVGEN-846C550FF213FC53",
+          "INVGEN-89F2BD7D25917E3E",
+          "INVGEN-8A57A19ED05E2AC7",
+          "INVGEN-8AE00948B8888875",
+          "INVGEN-8EF522DDF7CCD4A7",
+          "INVGEN-93FBC8F3F8842198",
+          "INVGEN-95776B046FEFF604",
+          "INVGEN-96069C966DD27F4D",
+          "INVGEN-9657317A4FC386A0",
+          "INVGEN-9E52D6B7EDAEB812",
+          "INVGEN-A6929540BE378105",
+          "INVGEN-A75A0495AC054C1D",
+          "INVGEN-AD22824BC048C630",
+          "INVGEN-B28D4F3C4FB4CF38",
+          "INVGEN-B3AA41472B6BB64B",
+          "INVGEN-C7B396082E8E5E01",
+          "INVGEN-C862E337607FE69D",
+          "INVGEN-CBCED39B1302435D",
+          "INVGEN-D2E09B5E468F4BF3",
+          "INVGEN-D3753ECF716EC5F0",
+          "INVGEN-E5664CD1DEE20CE2",
+          "INVGEN-E6D7A52AC192DDF3",
+          "INVGEN-E7B08FE075DCBCAE",
+          "INVGEN-FB9072C6839419EF",
+          "INVGEN-FC7D9F46C5BD01C2"
+        ]
+      },
+      "confirmed_model_requests": 0,
+      "model_request_interpretation": "43 local attempts rejected by validate_agent_path_isolation before PiAgentBackend.run; no worker request.json or provider-events.jsonl exists. Preserve usage_missing as recorded; do not count these attempts as provider requests or impute token usage."
+    },
+    "source-mapping": {
+      "status": "not-started",
+      "reason": "run-all stopped at checker-authoring (exit 1)",
+      "run_directory": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-source-mapping",
+      "directory_exists_at_observation": false,
+      "confirmed_model_requests": 0,
+      "usage_ledger_records": 0,
+      "reported_usage_records": 0,
+      "reported_tokens": null,
+      "usage_missing_count": 0,
+      "manifest_interval_seconds": null,
+      "manifest_interval_minutes": null,
+      "token_comparable": null
+    },
+    "log-instrumentation": {
+      "status": "not-started",
+      "reason": "run-all stopped at checker-authoring (exit 1)",
+      "run_directory": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-log-instrumentation",
+      "directory_exists_at_observation": false,
+      "confirmed_model_requests": 0,
+      "usage_ledger_records": 0,
+      "reported_usage_records": 0,
+      "reported_tokens": null,
+      "usage_missing_count": 0,
+      "manifest_interval_seconds": null,
+      "manifest_interval_minutes": null,
+      "token_comparable": null
+    },
+    "agent-audit": {
+      "status": "not-started",
+      "reason": "run-all stopped at checker-authoring (exit 1)",
+      "run_directory": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-agent-audit",
+      "directory_exists_at_observation": false,
+      "confirmed_model_requests": 0,
+      "usage_ledger_records": 0,
+      "reported_usage_records": 0,
+      "reported_tokens": null,
+      "usage_missing_count": 0,
+      "manifest_interval_seconds": null,
+      "manifest_interval_minutes": null,
+      "token_comparable": null
+    }
+  },
+  "totals": {
+    "confirmed_model_requests": 539,
+    "local_attempts_rejected_before_worker_start": 43,
+    "reported_tokens": 1576298,
+    "reported_usage_records": 539,
+    "usage_missing_ledger_records": 43,
+    "manifest_interval_seconds_sum": 2813.493,
+    "token_comparable_complete_experiment": false,
+    "cost": "unknown"
+  },
+  "instrumentation_implementation_status": {
+    "diff_and_catalog_generation": "implemented",
+    "gcc_rebuild_in_stage": "not-implemented",
+    "audit_toolchain_replacement": "not-wired",
+    "actual_gcc_rebuild_this_run": "not-run",
+    "runtime_anchor_hit_evidence_this_run": "none",
+    "scope_of_prior_compile_smoke": "standalone probe block only; not a rebuilt GCC"
+  },
+  "corrections_to_previous_progress_claims": [
+    "show-plan ready does not establish runtime path-isolation success; Part II rejected its output directory under the denied checker source root.",
+    "log-instrumentation currently generates diff/catalog only; there is no GCC rebuild or instrumented-toolchain audit handoff.",
+    "The previous background launch ended at Part II; no ongoing experiment is available to monitor at this observation."
+  ],
+  "follow_up_conditions": [
+    "Use a separate, recorded continuation with a worker output directory outside denied source roots, preserving the failed attempt evidence and original budgets.",
+    "Verify the separate continuation preflight with actual path-isolation requirements; do not weaken deny_read_paths or overwrite the failed repetition.",
+    "Complete mapped runtime probes, GCC rebuild, compiler hashes and audit toolchain handoff before claiming the requested instrumentation experiment is complete.",
+    "Review current scope exclusions Linux-Android/Solaris separately; exclusion by the ISA matcher does not independently prove compiler-defense non-applicability."
+  ],
+  "actions_this_observation": "Read-only inspection and report generation; no model calls, experiment restart, runtime/configuration edits, or changes to original run evidence."
+}

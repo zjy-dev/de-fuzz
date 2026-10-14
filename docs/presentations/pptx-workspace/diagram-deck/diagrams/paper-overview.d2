@@ -1,0 +1,14 @@
+...@theme.d2
+grid-columns: 3
+grid-gap: 65
+source: "离线读资料\n源码 · 规范 · 历史漏洞" {class: neutral; width: 310; height: 100}
+oracle: "程序判对错\n给结论 + 违规证据" {class: main; width: 310; height: 100}
+extract: "逐段读 + 顺着旧漏洞找\n写成规则并核对出处" {class: main; width: 310; height: 100}
+build: "固定流程\n编译 · 看覆盖率" {class: focus; width: 310; height: 100}
+suite: "按架构写检查器\n每条规则配一组" {class: yellow; width: 310; height: 100}
+seed: "盯住一条规则\n让 Agent 写测试程序" {class: main; width: 310; height: 100}
+source -> extract: {class: edge}
+extract -> suite: {class: edge}
+suite -> seed: {class: edge}
+seed -> build: {class: edge}
+build -> oracle: {class: edge}

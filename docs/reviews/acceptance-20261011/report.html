@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>代码评审报告 — de-fuzz</title>
+  <style>
+    :root {
+      --color-p0: #dc2626;
+      --color-p0-bg: #fef2f2;
+      --color-p0-border: #fca5a5;
+      --color-p1: #d97706;
+      --color-p1-bg: #fffbeb;
+      --color-p1-border: #fcd34d;
+      --color-p2: #2563eb;
+      --color-p2-bg: #eff6ff;
+      --color-p2-border: #93c5fd;
+      --color-bg: #f8fafc;
+      --color-card: #ffffff;
+      --color-border: #e2e8f0;
+      --color-text: #1e293b;
+      --color-text-secondary: #64748b;
+      --color-code-bg: #f1f5f9;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.6;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* --- Header --- */
+    .report-header {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 20px;
+    }
+
+    .report-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+
+    .meta-item .label { font-weight: 600; color: var(--color-text); }
+
+    /* --- P0 Alert Banner --- */
+    .p0-alert {
+      background: var(--color-p0-bg);
+      border: 1px solid var(--color-p0-border);
+      border-left: 4px solid var(--color-p0);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .p0-alert-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--color-p0);
+      margin-bottom: 8px;
+    }
+
+    .p0-alert-list {
+      list-style: none;
+      font-size: 14px;
+    }
+
+    .p0-alert-list li {
+      padding: 2px 0;
+      color: var(--color-text);
+    }
+
+    /* --- Summary Bar --- */
+    .summary-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .summary-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+    }
+
+    .summary-chip .count {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .summary-chip.p0 { border-color: var(--color-p0); color: var(--color-p0); }
+    .summary-chip.p1 { border-color: var(--color-p1); color: var(--color-p1); }
+    .summary-chip.p2 { border-color: var(--color-p2); color: var(--color-p2); }
+    .summary-chip.total { border-color: var(--color-text); color: var(--color-text); }
+
+    /* --- Defect Cards --- */
+    .defect-list { display: flex; flex-direction: column; gap: 16px; }
+
+    .defect-card {
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .defect-card.severity-P0 { border-left: 4px solid var(--color-p0); }
+    .defect-card.severity-P1 { border-left: 4px solid var(--color-p1); }
+    .defect-card.severity-P2 { border-left: 4px solid var(--color-p2); }
+
+    .defect-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--color-border);
+      flex-wrap: wrap;
+    }
+
+    .severity-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .severity-badge.P0 { background: var(--color-p0); }
+    .severity-badge.P1 { background: var(--color-p1); }
+    .severity-badge.P2 { background: var(--color-p2); }
+
+    .category-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--color-code-bg);
+      color: var(--color-text-secondary);
+    }
+
+    .defect-title {
+      font-size: 15px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .confidence-tag {
+      font-size: 12px;
+      color: var(--color-text-secondary);
+      white-space: nowrap;
+    }
+
+    .defect-body { padding: 20px; }
+
+    .defect-location {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      margin-bottom: 12px;
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    }
+
+    .defect-section { margin-bottom: 16px; }
+    .defect-section:last-child { margin-bottom: 0; }
+
+    .defect-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .defect-section p {
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .code-block {
+      background: var(--color-code-bg);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* --- Empty State --- */
+    .empty-state {
+      text-align: center;
+      padding: 64px 32px;
+      background: var(--color-card);
+      border: 1px solid var(--color-border);
+      border-radius: 12px;
+    }
+
+    .empty-state h2 {
+      font-size: 18px;
+      color: #16a34a;
+      margin-bottom: 8px;
+    }
+
+    .empty-state p {
+      font-size: 14px;
+      color: var(--color-text-secondary);
+    }
+
+    /* --- Footer --- */
+    .report-footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      .report-header { padding: 20px; }
+      .defect-header { padding: 12px 16px; }
+      .defect-body { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- ====== Header ====== -->
+    <div class="report-header">
+      <h1>代码评审报告</h1>
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="label">仓库：</span>
+          <span>de-fuzz</span>
+        </div>
+        <div class="meta-item">
+          <span class="label">检测模式：</span>
+          <span>通用检测</span>
+        </div>
+        <div class="meta-item">
+          <span class="label">检测范围：</span>
+          <span>HEAD → 工作区：四实验入口与本地 MCP，含新增 source_mapping_stage.py</span>
+        </div>
+        <div class="meta-item">
+          <span class="label">生成时间：</span>
+          <span>2026-10-11 20:31</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== P0 Alert (hidden when no P0) ====== -->
+    <div class="p0-alert">
+      <div class="p0-alert-title">高优先级告警 — 发现 P0 级别缺陷，建议立即处理</div>
+      <ul class="p0-alert-list">
+        
+      </ul>
+    </div>
+
+    <!-- ====== Summary ====== -->
+    <div class="summary-bar">
+      <div class="summary-chip p0"><span class="count">0</span> P0</div>
+      <div class="summary-chip p1"><span class="count">5</span> P1</div>
+      <div class="summary-chip p2"><span class="count">0</span> P2</div>
+      <div class="summary-chip total"><span class="count">5</span> 合计</div>
+    </div>
+
+    <!-- ====== Defect List ====== -->
+    <div class="defect-list">
+      
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">source-mapping 成功返回后仍因缺失 token 记录被判失败</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiment_engine/source_mapping_stage.py:141-147</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>新增阶段忽略传入的 AgentBackend，直接创建 OpenCodeClient；该客户端只返回文本，没有将 provider usage 写入当前 TokenUsageSink。统一执行器 experiments_cli.py:2402-2427 对空 usage 汇总必然将成功结果改成 failed。隔离调用真实 source-mapping CLI、仅替换进程边界，提供合法映射和 usage 事件后，summary 为 mapped=3、failed=0，而 CLI 退出 1，错误为 token comparison invalid: no model usage was recorded。因此 run-all 在此停止。CLI 宣称的 HTTP 后端与实际 OpenCode 执行也不一致。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>为 OpenCode 增加与执行器一致的后端契约：在每次调用和重试中记录真实 usage、执行预算检查、校验实际可执行文件及模型配置；为 source-mapping 提供明确的 OpenCode 配置入口，并补充不调用真实模型的 CLI 集成测试。不要通过伪造 token 或关闭计量来让阶段通过。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">业务语义问题</span>
+        <span class="defect-title">run-all 未将 source mapping 产物传给主审计</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiments_cli.py:1226-1239</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>run-all 的第三步写出 source-mappings.jsonl，第四步只接受 checker_run_dir，没有 mapping run、产物路径或哈希。agent_audit.py 也没有该产物的读取逻辑。即使第三步计量问题修复，映射结果仍不会影响主审计；这条命令实现了执行顺序，但没有完成用户验收关注的不变量到源码映射对审计的接入。该问题是功能接入缺口，不是说现有三阶段 formal pipeline 发生了回归。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>定义审计的映射输入和每 repetition 的产物校验，将映射传入目标定位或 worker 上下文，并记录哈希及使用证据；同时明确四实验顺序入口与 formal pipeline 的关系。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">run-all 将 checker 工程根目录与编译器源码根目录合并</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiments_cli.py:1209-1223</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>同一 args.source_root 被分别传给 checker-authoring 和 source-mapping。按新文档传 compiler-source-tree 时，Part II 会在 GCC/LLVM 树中寻找 core/internal/oracle，并以 core 为 cwd 运行 go test/go vet（checker_authoring.py:110-130）；这些路径属于 DeFuzz 工程。反过来传 DeFuzz 树时，source-mapper 遍历的又不是编译器源码。隔离解析 run-all 子命令确认两步收到同一根目录。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>为 checker 工程与 compiler source 定义两个独立路径参数，映射默认使用已显式给定的编译器 target-tree，并在调用首个模型前验证全部阶段的路径要求。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">source-mapping 接收 scope 参数但映射前未筛选不变量</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiment_engine/source_mapping_stage.py:135-139</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>CLI 提供 --mechanism/--isa 并说明在 source-mapper 启动前筛选，run-all 也转发 scope；阶段实现却遍历 accepted-invariants 的所有记录，未读取 mechanisms/isas。隔离 CLI 设置 canary+aarch64，仍调用了 fortify+x86_64 和 canary+loongarch64 记录，导致映射实验范围与 checker/audit 不一致并浪费预算。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>在构造 Invariant 前复用与 checker-authoring 一致的机制/ISA 归一化筛选规则，保存选中/排除数量并处理空选择；测试跨机制、跨架构的输入。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">LoongArch 不变量被静默改写为 x86_64</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiment_engine/source_mapping_stage.py:76-81</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>_SUPPORTED_ISAS 不包含 loongarch64；_resolve_isa 对所有不在集合内的值返回 x86_64。项目已有四 ISA 实验范围，因此 LoongArch 输入会被送到错误目标。隔离复现显示 target=loongarch64 的记录在 OpenCode prompt 中成为 isa=x86_64。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>扩展 OpenCode 输入 schema 和允许集合以支持 loongarch64；对未知或无法映射的 ISA 显式报错/标记不支持，禁止替换成其他架构。</p>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- ====== Empty State (shown when no defects) ====== -->
+    <!-- __EMPTY_STATE_START__
+    <div class="empty-state">
+      <h2>未发现缺陷</h2>
+      <p>本次评审未发现 P0-P2 级别的缺陷。共检查 7 个文件，约 1147 行变更。</p>
+    </div>
+    __EMPTY_STATE_END__ -->
+
+    <div class="report-footer">
+      bits-code-guard &middot; 由 AI 辅助生成 &middot; 2026-10-11 20:31
+    </div>
+
+  </div>
+</body>
+</html>
+
+<!--
+╔══════════════════════════════════════════════════════════════╗
+║                        占位符说明                           ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  --- 报告元信息 ---                                          ║
+║  de-fuzz           仓库名称                            ║
+║  通用检测         检测模式                            ║
+║  HEAD → 工作区：四实验入口与本地 MCP，含新增 source_mapping_stage.py          检测范围描述                         ║
+║  2026-10-11 20:31        报告生成时间 (YYYY-MM-DD HH:mm)     ║
+║                                                              ║
+║  --- 统计数据 ---                                            ║
+║  0            P0 缺陷数量                         ║
+║  5            P1 缺陷数量                         ║
+║  0            P2 缺陷数量                         ║
+║  5         缺陷总数                            ║
+║                                                              ║
+║  --- P0 告警 ---                                             ║
+║  none    有 P0 时为 "block"，无 P0 时为      ║
+║                          "none"                              ║
+║        P0 缺陷摘要列表，每项格式：         ║
+║    <li>[P0][类型] file:line | {title}</li>                   ║
+║                                                              ║
+║  --- 缺陷卡片 ---                                            ║
+║  
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">source-mapping 成功返回后仍因缺失 token 记录被判失败</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiment_engine/source_mapping_stage.py:141-147</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>新增阶段忽略传入的 AgentBackend，直接创建 OpenCodeClient；该客户端只返回文本，没有将 provider usage 写入当前 TokenUsageSink。统一执行器 experiments_cli.py:2402-2427 对空 usage 汇总必然将成功结果改成 failed。隔离调用真实 source-mapping CLI、仅替换进程边界，提供合法映射和 usage 事件后，summary 为 mapped=3、failed=0，而 CLI 退出 1，错误为 token comparison invalid: no model usage was recorded。因此 run-all 在此停止。CLI 宣称的 HTTP 后端与实际 OpenCode 执行也不一致。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>为 OpenCode 增加与执行器一致的后端契约：在每次调用和重试中记录真实 usage、执行预算检查、校验实际可执行文件及模型配置；为 source-mapping 提供明确的 OpenCode 配置入口，并补充不调用真实模型的 CLI 集成测试。不要通过伪造 token 或关闭计量来让阶段通过。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">业务语义问题</span>
+        <span class="defect-title">run-all 未将 source mapping 产物传给主审计</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiments_cli.py:1226-1239</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>run-all 的第三步写出 source-mappings.jsonl，第四步只接受 checker_run_dir，没有 mapping run、产物路径或哈希。agent_audit.py 也没有该产物的读取逻辑。即使第三步计量问题修复，映射结果仍不会影响主审计；这条命令实现了执行顺序，但没有完成用户验收关注的不变量到源码映射对审计的接入。该问题是功能接入缺口，不是说现有三阶段 formal pipeline 发生了回归。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>定义审计的映射输入和每 repetition 的产物校验，将映射传入目标定位或 worker 上下文，并记录哈希及使用证据；同时明确四实验顺序入口与 formal pipeline 的关系。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">run-all 将 checker 工程根目录与编译器源码根目录合并</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiments_cli.py:1209-1223</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>同一 args.source_root 被分别传给 checker-authoring 和 source-mapping。按新文档传 compiler-source-tree 时，Part II 会在 GCC/LLVM 树中寻找 core/internal/oracle，并以 core 为 cwd 运行 go test/go vet（checker_authoring.py:110-130）；这些路径属于 DeFuzz 工程。反过来传 DeFuzz 树时，source-mapper 遍历的又不是编译器源码。隔离解析 run-all 子命令确认两步收到同一根目录。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>为 checker 工程与 compiler source 定义两个独立路径参数，映射默认使用已显式给定的编译器 target-tree，并在调用首个模型前验证全部阶段的路径要求。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">source-mapping 接收 scope 参数但映射前未筛选不变量</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiment_engine/source_mapping_stage.py:135-139</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>CLI 提供 --mechanism/--isa 并说明在 source-mapper 启动前筛选，run-all 也转发 scope；阶段实现却遍历 accepted-invariants 的所有记录，未读取 mechanisms/isas。隔离 CLI 设置 canary+aarch64，仍调用了 fortify+x86_64 和 canary+loongarch64 记录，导致映射实验范围与 checker/audit 不一致并浪费预算。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>在构造 Invariant 前复用与 checker-authoring 一致的机制/ISA 归一化筛选规则，保存选中/排除数量并处理空选择；测试跨机制、跨架构的输入。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="defect-card severity-P1">
+      <div class="defect-header">
+        <span class="severity-badge P1">P1</span>
+        <span class="category-badge">逻辑错误</span>
+        <span class="defect-title">LoongArch 不变量被静默改写为 x86_64</span>
+        <span class="confidence-tag">置信度 10/10</span>
+      </div>
+      <div class="defect-body">
+        <div class="defect-location">orchestrator/defuzz_loop/experiment_engine/source_mapping_stage.py:76-81</div>
+        <div class="defect-section">
+          <div class="defect-section-title">问题描述</div>
+          <p>_SUPPORTED_ISAS 不包含 loongarch64；_resolve_isa 对所有不在集合内的值返回 x86_64。项目已有四 ISA 实验范围，因此 LoongArch 输入会被送到错误目标。隔离复现显示 target=loongarch64 的记录在 OpenCode prompt 中成为 isa=x86_64。</p>
+        </div>
+        <div class="defect-section">
+          <div class="defect-section-title">修复建议</div>
+          <p>扩展 OpenCode 输入 schema 和允许集合以支持 loongarch64；对未知或无法映射的 ISA 显式报错/标记不支持，禁止替换成其他架构。</p>
+        </div>
+      </div>
+    </div>        所有缺陷卡片的 HTML，单张卡片格式：  ║
+║                                                              ║
+║    <div class="defect-card severity-{severity}">             ║
+║      <div class="defect-header">                             ║
+║        <span class="severity-badge {severity}">              ║
+║          {severity}</span>                                   ║
+║        <span class="category-badge">                         ║
+║          {category_zh}</span>                                ║
+║        <span class="defect-title">                           ║
+║          {title}</span>                                       ║
+║        <span class="confidence-tag">                         ║
+║          置信度 {confidence}/10</span>                       ║
+║      </div>                                                  ║
+║      <div class="defect-body">                               ║
+║        <div class="defect-location">                         ║
+║          {file}:{start_line}-{end_line}</div>                ║
+║        <div class="defect-section">                          ║
+║          <div class="defect-section-title">                  ║
+║            问题描述</div>                                    ║
+║          <p>{rationale}</p>                                  ║
+║        </div>                                                ║
+║        <div class="defect-section">                          ║
+║          <div class="defect-section-title">                  ║
+║            问题代码</div>                                    ║
+║          <div class="code-block">                            ║
+║            {代码片段}</div>                                  ║
+║        </div>                                                ║
+║        <div class="defect-section">                          ║
+║          <div class="defect-section-title">                  ║
+║            修复建议</div>                                    ║
+║          <p>{suggestion}</p>                                 ║
+║        </div>                                                ║
+║      </div>                                                  ║
+║    </div>                                                    ║
+║                                                              ║
+║  --- 空状态 ---                                              ║
+║  无缺陷时：取消注释 __EMPTY_STATE_START__ 到                 ║
+║  __EMPTY_STATE_END__ 之间的内容，并删除 defect-list 区块      ║
+║  7          检查的文件数                         ║
+║  1147          变更行数                            ║
+║                                                              ║
+║  --- category 中英文映射 ---                                  ║
+║  LOGIC       → 逻辑错误                                     ║
+║  BUSINESS_SEMANTICS → 业务语义问题                           ║
+║  SECURITY    → 安全漏洞                                      ║
+║  CONCURRENCY → 并发问题                                      ║
+║  ROBUSTNESS  → 健壮性问题                                    ║
+║  PERFORMANCE → 性能问题                                      ║
+║  QUALITY     → 代码质量问题                                  ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+-->

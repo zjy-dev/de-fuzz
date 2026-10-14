@@ -1,0 +1,341 @@
+{
+  "purpose": "evaluator-only diagnosis, not blind discovery or formal experiment",
+  "execution_scope": "compile and disassemble only; no probe program executed",
+  "image_id": "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+  "driver": "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+  "records": [
+    {
+      "label": "version",
+      "argv": [
+        "podman",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--platform",
+        "linux/amd64",
+        "-v",
+        "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+        "-w",
+        "/work",
+        "--entrypoint",
+        "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+        "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+        "-dumpfullversion"
+      ],
+      "exit_code": 0,
+      "started_unix": 1791902858.465759,
+      "elapsed_seconds": 0.29326510429382324
+    },
+    {
+      "label": "asan",
+      "argv": [
+        "podman",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--platform",
+        "linux/amd64",
+        "-v",
+        "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+        "-w",
+        "/work",
+        "--entrypoint",
+        "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+        "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+        "-O1",
+        "-DASAN_PROBE",
+        "-fsanitize=address",
+        "-S",
+        "probe.c",
+        "-o",
+        "asan.s"
+      ],
+      "exit_code": 0,
+      "started_unix": 1791902858.759064,
+      "elapsed_seconds": 0.8311309814453125
+    },
+    {
+      "label": "flex-c",
+      "argv": [
+        "podman",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--platform",
+        "linux/amd64",
+        "-v",
+        "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+        "-w",
+        "/work",
+        "--entrypoint",
+        "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+        "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+        "-O2",
+        "-DFLEX_PROBE",
+        "-fstrict-flex-arrays=3",
+        "-x",
+        "c",
+        "-S",
+        "probe.c",
+        "-o",
+        "flex-c.s"
+      ],
+      "exit_code": 0,
+      "started_unix": 1791902859.590227,
+      "elapsed_seconds": 0.684380292892456
+    },
+    {
+      "label": "flex-cxx",
+      "argv": [
+        "podman",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--platform",
+        "linux/amd64",
+        "-v",
+        "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+        "-w",
+        "/work",
+        "--entrypoint",
+        "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+        "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+        "-O2",
+        "-DFLEX_PROBE",
+        "-fstrict-flex-arrays=3",
+        "-x",
+        "c++",
+        "-S",
+        "probe.c",
+        "-o",
+        "flex-cxx.s"
+      ],
+      "exit_code": 0,
+      "started_unix": 1791902860.274666,
+      "elapsed_seconds": 0.6977899074554443
+    },
+    {
+      "label": "count",
+      "argv": [
+        "podman",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--platform",
+        "linux/amd64",
+        "-v",
+        "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+        "-w",
+        "/work",
+        "--entrypoint",
+        "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+        "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+        "-O2",
+        "-DCOUNT_PROBE",
+        "-fdump-tree-optimized=count.optimized",
+        "-S",
+        "probe.c",
+        "-o",
+        "count.s"
+      ],
+      "exit_code": 0,
+      "started_unix": 1791902860.972484,
+      "elapsed_seconds": 0.7525138854980469
+    },
+    {
+      "label": "bti",
+      "argv": [
+        "podman",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--platform",
+        "linux/amd64",
+        "-v",
+        "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+        "-w",
+        "/work",
+        "--entrypoint",
+        "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+        "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+        "-O2",
+        "-DBTI_PROBE",
+        "-mbranch-protection=bti",
+        "-B/usr/aarch64-linux-gnu/bin/",
+        "-c",
+        "probe.c",
+        "-o",
+        "bti.o"
+      ],
+      "exit_code": 0,
+      "started_unix": 1791902861.7251,
+      "elapsed_seconds": 0.5764098167419434
+    },
+    {
+      "label": "bti-disassembly",
+      "argv": [
+        "podman",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--platform",
+        "linux/amd64",
+        "-v",
+        "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+        "-w",
+        "/work",
+        "--entrypoint",
+        "/usr/aarch64-linux-gnu/bin/objdump",
+        "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+        "-dr",
+        "bti.o"
+      ],
+      "exit_code": 0,
+      "started_unix": 1791902862.301534,
+      "elapsed_seconds": 0.22036504745483398
+    }
+  ],
+  "evidence": {
+    "asan.s": {
+      "sha256": "feda0ad81b997774100d6441cd7abdc75383fad5e46af2bdce0456fdb1d5a16e",
+      "bytes": 3037
+    },
+    "asan.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "asan.stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "bti-disassembly.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "bti-disassembly.stdout.txt": {
+      "sha256": "776b41c1b11792ac88457b98f3d21b6d0a6f1c15a6df1822fe0254ad8e0b715f",
+      "bytes": 253
+    },
+    "bti.o": {
+      "sha256": "2a17562a8638336778ed1a1839b939bdaf19ff646c9a75807a6c7ba020c60c62",
+      "bytes": 1416
+    },
+    "bti.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "bti.stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "compile_probes.py": {
+      "sha256": "b019e7df0dfa0da1aa9abe9f9538c975039cab065eda7d81a0bfedb7dac53a59",
+      "bytes": 2590
+    },
+    "count.optimized": {
+      "sha256": "0acd67f3c3c46bb1ff232e34043c956ab73aab8508e239032f611ba85a1c2fb7",
+      "bytes": 786
+    },
+    "count.s": {
+      "sha256": "9de0d61f52d7429d8e181dd92858f8034efe127df505bd52bbc955cc6a31573e",
+      "bytes": 636
+    },
+    "count.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "count.stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "flex-c.s": {
+      "sha256": "08b12f1de1d51fefb97223a363a36f31f50ccf5aae3c6928c17459286d10d84c",
+      "bytes": 505
+    },
+    "flex-c.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "flex-c.stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "flex-cxx.s": {
+      "sha256": "ae131e9da6d9a9aef4c657caf6bf3a4e83e42c53fa25fb0cfcef21e02cea24d5",
+      "bytes": 594
+    },
+    "flex-cxx.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "flex-cxx.stdout.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "probe.c": {
+      "sha256": "ee59b0a6cd294673d6c282b584d70adfe214845ca5af77028dc9b21317f1d0cd",
+      "bytes": 1173
+    },
+    "version.stderr.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "version.stdout.txt": {
+      "sha256": "e9f8839c742db21d285464b01dfb2e572f802c366729873cdc4a296c8c3a01ea",
+      "bytes": 7
+    }
+  },
+  "probe_source": "/* Evaluator-only diagnostic inputs. Never use as blind discovery inputs. */\n#if defined(ASAN_PROBE)\n__attribute__((noinline)) void aligned_local(int i) {\n  volatile char buf[64] __attribute__((aligned(64)));\n  buf[i] = 0x41;\n  __asm__ volatile(\"\" :: \"r\"(buf) : \"memory\");\n}\n__attribute__((noinline)) void normal_local(int i) {\n  volatile char buf[64];\n  buf[i] = 0x41;\n  __asm__ volatile(\"\" :: \"r\"(buf) : \"memory\");\n}\n#elif defined(FLEX_PROBE)\nstruct One { int n; char buf[1]; };\nunsigned long object_size(struct One *p) {\n  return __builtin_object_size(p->buf, 1);\n}\nvoid checked_copy(struct One *p, const char *s) {\n  __builtin___strcpy_chk(p->buf, s, __builtin_object_size(p->buf, 1));\n}\n#elif defined(COUNT_PROBE)\nstruct Signed { long n; char buf[] __attribute__((counted_by(n))); };\nstruct Unsigned { unsigned long n; char buf[] __attribute__((counted_by(n))); };\nunsigned long signed_object_size(struct Signed *p) {\n  return __builtin_dynamic_object_size(p->buf, 1);\n}\nunsigned long unsigned_object_size(struct Unsigned *p) {\n  return __builtin_dynamic_object_size(p->buf, 1);\n}\n#elif defined(BTI_PROBE)\nunsigned constant_value(void) {\n  return 0xD503241F;\n}\n#endif\n",
+  "control_run": {
+    "argv": [
+      "podman",
+      "run",
+      "--rm",
+      "--network",
+      "none",
+      "--platform",
+      "linux/amd64",
+      "-v",
+      "/private/tmp/defuzz-audit-diagnosis-20261013:/work",
+      "-w",
+      "/work",
+      "--entrypoint",
+      "/opt/gcc16/bin/aarch64-linux-gnu-gcc",
+      "693d9c9094719f16a87575f1415a18c9efd0563f172358232575e850fae6b2f7",
+      "-O2",
+      "-fno-ipa-icf",
+      "-DCOUNT_PROBE",
+      "-fdump-tree-optimized=count-no-icf.optimized",
+      "-S",
+      "probe.c",
+      "-o",
+      "count-no-icf.s"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.8571667671203613,
+    "stdout": "",
+    "stderr": "",
+    "prior_mount_attempt": {
+      "host_path": "/tmp/defuzz-audit-diagnosis-20261013",
+      "exit_code": 125,
+      "error": "statfs: no such file or directory; resolved /private/tmp used for retry"
+    }
+  },
+  "outputs": {
+    "asan.s": "\t.arch armv8-a\n\t.file\t\"probe.c\"\n\t.text\n\t.align\t2\n\t.global\taligned_local\n\t.type\taligned_local, %function\naligned_local:\n.LASANPC0:\n.LFB0:\n\t.cfi_startproc\n\tstp\tx29, x30, [sp, -128]!\n\t.cfi_def_cfa_offset 128\n\t.cfi_offset 29, -128\n\t.cfi_offset 30, -120\n\tmov\tx29, sp\n\tadd\tx1, sp, 79\n\tand\tx1, x1, -64\n\tadd\tx2, x1, w0, sxtw\n\tlsr\tx4, x2, 3\n\tmov\tx3, 68719476736\n\tldrsb\tw3, [x4, x3]\n\tand\tw4, w2, 7\n\tcmp\tw3, 0\n\tccmp\tw4, w3, 1, ne\n\tbge\t.L4\n\tmov\tw2, 65\n\tstrb\tw2, [x1, w0, sxtw]\n\tldp\tx29, x30, [sp], 128\n\t.cfi_remember_state\n\t.cfi_restore 30\n\t.cfi_restore 29\n\t.cfi_def_cfa_offset 0\n\tret\n.L4:\n\t.cfi_restore_state\n\tmov\tx0, x2\n\tbl\t__asan_report_store1\n\t.cfi_endproc\n.LFE0:\n\t.size\taligned_local, .-aligned_local\n\t.section\t.rodata.str1.8,\"aMS\",@progbits,1\n\t.align\t3\n.LC0:\n\t.string\t\"1 32 64 5 buf:9\"\n\t.text\n\t.align\t2\n\t.global\tnormal_local\n\t.type\tnormal_local, %function\nnormal_local:\n.LASANPC1:\n.LFB1:\n\t.cfi_startproc\n\tstp\tx29, x30, [sp, -176]!\n\t.cfi_def_cfa_offset 176\n\t.cfi_offset 29, -176\n\t.cfi_offset 30, -168\n\tmov\tx29, sp\n\tstp\tx19, x20, [sp, 16]\n\tstr\tx21, [sp, 32]\n\t.cfi_offset 19, -160\n\t.cfi_offset 20, -152\n\t.cfi_offset 21, -144\n\tmov\tw20, w0\n\tadd\tx19, sp, 48\n\tmov\tx21, x19\n\tadrp\tx0, __asan_option_detect_stack_use_after_return\n\tldr\tw0, [x0, #:lo12:__asan_option_detect_stack_use_after_return]\n\tcbnz\tw0, .L11\n.L5:\n\tmov\tx1, x19\n\tmov\tx0, 35507\n\tmovk\tx0, 0x41b5, lsl 16\n\tstr\tx0, [x1], 128\n\tadrp\tx0, .LC0\n\tadd\tx0, x0, :lo12:.LC0\n\tadrp\tx2, .LASANPC1\n\tadd\tx2, x2, :lo12:.LASANPC1\n\tstp\tx0, x2, [x19, 8]\n\tlsr\tx0, x19, 3\n\tmov\tx3, 68719476736\n\tadd\tx2, x0, x3\n\tmov\tw4, -235802127\n\tstr\tw4, [x0, x3]\n\tmov\tw4, -202116109\n\tstr\tw4, [x2, 12]\n\tadd\tx2, x19, 32\n\tadd\tx2, x2, w20, sxtw\n\tlsr\tx4, x2, 3\n\tldrsb\tw3, [x4, x3]\n\tand\tw4, w2, 7\n\tcmp\tw3, 0\n\tccmp\tw4, w3, 1, ne\n\tbge\t.L12\n\tsub\tx1, x1, #96\n\tmov\tw2, 65\n\tstrb\tw2, [x1, w20, sxtw]\n\tcmp\tx21, x19\n\tbne\t.L13\n\tmov\tx1, 68719476736\n\tadd\tx2, x0, x1\n\tstr\twzr, [x0, x1]\n\tstr\twzr, [x2, 12]\n.L7:\n\tldp\tx19, x20, [sp, 16]\n\tldr\tx21, [sp, 32]\n\tldp\tx29, x30, [sp], 176\n\t.cfi_remember_state\n\t.cfi_restore 30\n\t.cfi_restore 29\n\t.cfi_restore 21\n\t.cfi_restore 19\n\t.cfi_restore 20\n\t.cfi_def_cfa_offset 0\n\tret\n.L11:\n\t.cfi_restore_state\n\tmov\tx0, 128\n\tbl\t__asan_stack_malloc_1\n\tcmp\tx0, 0\n\tcsel\tx19, x19, x0, eq\n\tb\t.L5\n.L12:\n\tmov\tx0, x2\n\tbl\t__asan_report_store1\n.L13:\n\tmov\tx1, 13838\n\tmovk\tx1, 0x45e0, lsl 16\n\tstr\tx1, [x19]\n\tmov\tx1, 68719476736\n\tmovi\tv31.16b, 0xfffffffffffffff5\n\tstr\tq31, [x0, x1]\n\tldr\tx0, [x19, 120]\n\tstrb\twzr, [x0]\n\tb\t.L7\n\t.cfi_endproc\n.LFE1:\n\t.size\tnormal_local, .-normal_local\n\t.align\t2\n\t.type\t_sub_I_00099_0, %function\n_sub_I_00099_0:\n.LFB2:\n\t.cfi_startproc\n\tstp\tx29, x30, [sp, -16]!\n\t.cfi_def_cfa_offset 16\n\t.cfi_offset 29, -16\n\t.cfi_offset 30, -8\n\tmov\tx29, sp\n\tbl\t__asan_init\n\tbl\t__asan_version_mismatch_check_v8\n\tldp\tx29, x30, [sp], 16\n\t.cfi_restore 30\n\t.cfi_restore 29\n\t.cfi_def_cfa_offset 0\n\tret\n\t.cfi_endproc\n.LFE2:\n\t.size\t_sub_I_00099_0, .-_sub_I_00099_0\n\t.section\t.init_array.00099,\"aw\"\n\t.align\t3\n\t.xword\t_sub_I_00099_0\n\t.global\t__asan_stack_malloc_1\n\t.ident\t\"GCC: (GNU) 16.2.0\"\n\t.section\t.note.GNU-stack,\"\",@progbits\n",
+    "flex-c.s": "\t.arch armv8-a\n\t.file\t\"probe.c\"\n\t.text\n\t.align\t2\n\t.p2align 5,,15\n\t.global\tobject_size\n\t.type\tobject_size, %function\nobject_size:\n.LFB0:\n\t.cfi_startproc\n\tmov\tx0, 1\n\tret\n\t.cfi_endproc\n.LFE0:\n\t.size\tobject_size, .-object_size\n\t.align\t2\n\t.p2align 5,,15\n\t.global\tchecked_copy\n\t.type\tchecked_copy, %function\nchecked_copy:\n.LFB1:\n\t.cfi_startproc\n\tadd\tx0, x0, 4\n\tmov\tx2, 1\n\tb\t__strcpy_chk\n\t.cfi_endproc\n.LFE1:\n\t.size\tchecked_copy, .-checked_copy\n\t.ident\t\"GCC: (GNU) 16.2.0\"\n\t.section\t.note.GNU-stack,\"\",@progbits\n",
+    "flex-cxx.s": "\t.arch armv8-a\n\t.file\t\"probe.c\"\n\t.text\n\t.align\t2\n\t.p2align 5,,15\n\t.global\t_Z11object_sizeP3One\n\t.type\t_Z11object_sizeP3One, %function\n_Z11object_sizeP3One:\n.LFB0:\n\t.cfi_startproc\n\tmov\tx0, -1\n\tret\n\t.cfi_endproc\n.LFE0:\n\t.size\t_Z11object_sizeP3One, .-_Z11object_sizeP3One\n\t.align\t2\n\t.p2align 5,,15\n\t.global\t_Z12checked_copyP3OnePKc\n\t.type\t_Z12checked_copyP3OnePKc, %function\n_Z12checked_copyP3OnePKc:\n.LFB1:\n\t.cfi_startproc\n\tadd\tx0, x0, 4\n\tb\tstrcpy\n\t.cfi_endproc\n.LFE1:\n\t.size\t_Z12checked_copyP3OnePKc, .-_Z12checked_copyP3OnePKc\n\t.ident\t\"GCC: (GNU) 16.2.0\"\n\t.section\t.note.GNU-stack,\"\",@progbits\n",
+    "count.s": "\t.arch armv8-a\n\t.file\t\"probe.c\"\n\t.text\n\t.align\t2\n\t.p2align 5,,15\n\t.global\tsigned_object_size\n\t.type\tsigned_object_size, %function\nsigned_object_size:\n.LFB0:\n\t.cfi_startproc\n\tldr\tx0, [x0]\n\tbic\tx0, x0, x0, asr #63\n\tsxtw\tx0, w0\n\tret\n\t.cfi_endproc\n.LFE0:\n\t.size\tsigned_object_size, .-signed_object_size\n\t.align\t2\n\t.p2align 5,,15\n\t.global\tunsigned_object_size\n\t.type\tunsigned_object_size, %function\nunsigned_object_size:\n.LFB3:\n\t.cfi_startproc\n\tldr\tx0, [x0]\n\tbic\tx0, x0, x0, asr #63\n\tsxtw\tx0, w0\n\tret\n\t.cfi_endproc\n.LFE3:\n\t.size\tunsigned_object_size, .-unsigned_object_size\n\t.ident\t\"GCC: (GNU) 16.2.0\"\n\t.section\t.note.GNU-stack,\"\",@progbits\n",
+    "count.optimized": "\n;; Function signed_object_size (signed_object_size, funcdef_no=0, decl_uid=4596, cgraph_uid=1, symbol_order=0)\n\nlong unsigned int signed_object_size (struct Signed * p)\n{\n  sizetype _7;\n  long int _8;\n  long int _9;\n  int _10;\n\n  <bb 2> [local count: 1073741824]:\n  _8 = MEM <long int> [(void *)p_4(D)];\n  _9 = MAX_EXPR <_8, 0>;\n  _10 = (int) _9;\n  _7 = (sizetype) _10;\n  return _7;\n\n}\n\n\n\n;; Function unsigned_object_size (unsigned_object_size, funcdef_no=3, decl_uid=4599, cgraph_uid=2, symbol_order=1)\n\nlong unsigned int unsigned_object_size (struct Unsigned * p)\n{\n  long int _3;\n  sizetype _8;\n  long int _9;\n  int _10;\n\n  <bb 2> [local count: 1073741824]:\n  _3 = MEM <long int> [(void *)p_2(D)];\n  _9 = MAX_EXPR <_3, 0>;\n  _10 = (int) _9;\n  _8 = (sizetype) _10;\n  return _8;\n\n}\n\n\n",
+    "count-no-icf.optimized": "\n;; Function signed_object_size (signed_object_size, funcdef_no=0, decl_uid=4596, cgraph_uid=1, symbol_order=0)\n\nlong unsigned int signed_object_size (struct Signed * p)\n{\n  sizetype _7;\n  long int _8;\n  long int _9;\n  int _10;\n\n  <bb 2> [local count: 1073741824]:\n  _8 = MEM <long int> [(void *)p_4(D)];\n  _9 = MAX_EXPR <_8, 0>;\n  _10 = (int) _9;\n  _7 = (sizetype) _10;\n  return _7;\n\n}\n\n\n\n;; Function unsigned_object_size (unsigned_object_size, funcdef_no=1, decl_uid=4599, cgraph_uid=2, symbol_order=1)\n\nlong unsigned int unsigned_object_size (struct Unsigned * p)\n{\n  sizetype _7;\n\n  <bb 2> [local count: 1073741824]:\n  _7 = MEM <long unsigned int> [(void *)p_4(D)];\n  return _7;\n\n}\n\n\n",
+    "count-no-icf.s": "\t.arch armv8-a\n\t.file\t\"probe.c\"\n\t.text\n\t.align\t2\n\t.p2align 5,,15\n\t.global\tsigned_object_size\n\t.type\tsigned_object_size, %function\nsigned_object_size:\n.LFB0:\n\t.cfi_startproc\n\tldr\tx0, [x0]\n\tbic\tx0, x0, x0, asr #63\n\tsxtw\tx0, w0\n\tret\n\t.cfi_endproc\n.LFE0:\n\t.size\tsigned_object_size, .-signed_object_size\n\t.align\t2\n\t.p2align 5,,15\n\t.global\tunsigned_object_size\n\t.type\tunsigned_object_size, %function\nunsigned_object_size:\n.LFB1:\n\t.cfi_startproc\n\tldr\tx0, [x0]\n\tret\n\t.cfi_endproc\n.LFE1:\n\t.size\tunsigned_object_size, .-unsigned_object_size\n\t.ident\t\"GCC: (GNU) 16.2.0\"\n\t.section\t.note.GNU-stack,\"\",@progbits\n",
+    "bti-disassembly.stdout.txt": "\nbti.o:     file format elf64-littleaarch64\n\n\nDisassembly of section .text:\n\n0000000000000000 <constant_value>:\n   0:\td503245f \tbti\tc\n   4:\t528483e0 \tmov\tw0, #0x241f                \t// #9247\n   8:\t72baa060 \tmovk\tw0, #0xd503, lsl #16\n   c:\td65f03c0 \tret\n"
+  }
+}

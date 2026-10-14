@@ -1,0 +1,1 @@
+{"target":"gcc-16.2.0-aarch64","symbol":"aarch64_stack_protect_canary_mem","caller_count":0}

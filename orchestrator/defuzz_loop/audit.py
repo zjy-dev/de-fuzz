@@ -1,12 +1,8 @@
 """Per-run audit directory: isolation + self-describing manifest (FR-009 / SC-003).
 
 Rev 3: the LangGraph SQLite checkpointer path is gone. The run directory
-and manifest.json are still produced (they capture git sha, toolchains,
-checker catalog, LLM + ablation config — all environment metadata that a
-LangGraph checkpoint alone could not carry). The ``checkpointer`` /
-``async_checkpointer`` factories now raise :class:`NotImplementedError`
-because there is no drop-in replacement in this PR; a future revision
-will add per-round manifests as the Rev 3 replay substrate.
+and manifest.json capture environment metadata. RoundArtifacts persists
+per-round evidence; the retired checkpointer factories still fail loudly.
 """
 
 from __future__ import annotations
@@ -36,7 +32,7 @@ def thread_id(experiment: str, mechanism: str) -> str:
 
 
 def _run_slug(experiment: str, mechanism: str) -> str:
-    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S-%f")
     return f"{experiment}_{mechanism}_{stamp}"
 
 
@@ -45,7 +41,7 @@ def make_run_dir(base: str | Path | None, experiment: str, mechanism: str) -> Pa
 
     root = Path(base) if base else _DEFAULT_RUNS_DIR
     run_dir = root / _run_slug(experiment, mechanism)
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=False)
     return run_dir
 
 
@@ -59,7 +55,12 @@ def _git_sha() -> str:
         )
         return out.stdout.strip()
     except (subprocess.SubprocessError, OSError):
-        return ""
+        return _container_provenance().get("git_commit", "")
+
+
+def _container_provenance() -> dict:
+    path = Path("/usr/local/share/defuzz/build-provenance.json")
+    return json.loads(path.read_text()) if path.exists() else {}
 
 
 def _toolchains_snapshot() -> str:
@@ -79,6 +80,7 @@ def build_manifest(
     blackboard: Blackboard,
     disabled_agents: list[str],
     checker_ids: list[str],
+    runtime_metadata: dict | None = None,
 ) -> dict:
     """Assemble the environment manifest that makes a run dir self-auditable."""
 
@@ -92,7 +94,8 @@ def build_manifest(
         "grpc_addr": grpc_addr,
         "mcp_addr": mcp_addr,
         "git_sha": _git_sha(),
-        "llm": {
+        "container_build": _container_provenance(),
+        "llm": runtime_metadata or {
             "provider": llm_config.provider,
             "model": llm_config.model,
             "base_url": llm_config.base_url,
@@ -137,7 +140,7 @@ def checkpointer(run_dir: str | Path):
 
     raise NotImplementedError(
         "LangGraph SqliteSaver was removed in Rev 3; see "
-        "docs/tech-docs/architecture/opencode-migration-plan.md."
+        "docs/tech-docs/architecture/pi-sdk-migration.md."
     )
 
 
@@ -146,5 +149,5 @@ def async_checkpointer(run_dir: str | Path):
 
     raise NotImplementedError(
         "LangGraph AsyncSqliteSaver was removed in Rev 3; see "
-        "docs/tech-docs/architecture/opencode-migration-plan.md."
+        "docs/tech-docs/architecture/pi-sdk-migration.md."
     )

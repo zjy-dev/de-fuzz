@@ -1,0 +1,33 @@
+{
+  "/opt/gcc17/bin/gcc": {
+    "path": "/opt/gcc17/bin/gcc",
+    "version": [
+      "gcc (GCC) 17.0.0 20260531 (experimental)",
+      "Copyright (C) 2026 Free Software Foundation, Inc."
+    ]
+  },
+  "/opt/gcc17/bin/aarch64-linux-gnu-gcc": {
+    "path": "/opt/gcc17/bin/aarch64-linux-gnu-gcc",
+    "version": [
+      "aarch64-linux-gnu-gcc (GCC) 17.0.0 20260531 (experimental)",
+      "Copyright (C) 2026 Free Software Foundation, Inc."
+    ]
+  },
+  "/opt/gcc17/bin/riscv64-linux-gnu-gcc": {
+    "path": "/opt/gcc17/bin/riscv64-linux-gnu-gcc",
+    "version": [
+      "riscv64-linux-gnu-gcc (GCC) 17.0.0 20260531 (experimental)",
+      "Copyright (C) 2026 Free Software Foundation, Inc."
+    ]
+  },
+  "/opt/gcc17/bin/loongarch64-linux-gnu-gcc": {
+    "path": "/opt/gcc17/bin/loongarch64-linux-gnu-gcc",
+    "version": [
+      "loongarch64-linux-gnu-gcc (GCC) 17.0.0 20260531 (experimental)",
+      "Copyright (C) 2026 Free Software Foundation, Inc."
+    ]
+  },
+  "clang": null,
+  "llvm-config": null
+}
+opt ['/opt/go', '/opt/qemu-10.2', '/opt/gcc17', '/opt/binutils', '/opt/tiger']

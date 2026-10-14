@@ -1,0 +1,420 @@
+{
+  "aggregate_sha256": "ec75069a093f28cccc9f5643900e376625d380bc77667eb6732dc8e456f60dae",
+  "architecture_counts": {
+    "aarch64_arm": 5,
+    "generic_core": 14,
+    "other_backends": 2,
+    "riscv": 2,
+    "x86_i386": 5
+  },
+  "estimated_tokens": 499736,
+  "family_counts": {
+    "control_flow_integrity": 7,
+    "elf_address_space": 10,
+    "memory_bounds": 8,
+    "sanitizers_hardening": 7,
+    "stack_protection": 9
+  },
+  "file_count": 28,
+  "files": [
+    {
+      "bytes": 178767,
+      "chars": 178767,
+      "path": "gcc/calls.cc",
+      "reasons": [
+        "stack_protection"
+      ],
+      "sha256": "84f0b383579268fc4e9655201a33ef0e3b976abd7ab12a927f0a8b8782e275a8"
+    },
+    {
+      "bytes": 122355,
+      "chars": 122355,
+      "path": "gcc/common.opt",
+      "reasons": [
+        "stack_protection",
+        "memory_bounds",
+        "elf_address_space",
+        "sanitizers_hardening"
+      ],
+      "sha256": "1c9f910fb9d9745f9b7325a268b60590267c51aed7ea7627206564ff71045729"
+    },
+    {
+      "bytes": 36887,
+      "chars": 36887,
+      "path": "gcc/common/config/i386/cpuinfo.h",
+      "reasons": [
+        "control_flow_integrity"
+      ],
+      "sha256": "6caf15ad0919954e2f5b1532d730d67c81c0ea776560e48081cb0184ddf8116c"
+    },
+    {
+      "bytes": 226756,
+      "chars": 226756,
+      "path": "gcc/cfgexpand.cc",
+      "reasons": [
+        "stack_protection",
+        "elf_address_space",
+        "sanitizers_hardening"
+      ],
+      "sha256": "9c4f6cb8e13c60a91712b615dc14031e3dc1088f0110146aca492423d0749365"
+    },
+    {
+      "bytes": 127927,
+      "chars": 127927,
+      "path": "gcc/opts.cc",
+      "reasons": [
+        "stack_protection",
+        "memory_bounds",
+        "elf_address_space",
+        "sanitizers_hardening"
+      ],
+      "sha256": "2c6ea925c664cd4dd8b6e8ebe6509a574d102541fa5ffa258900895c08e7e770"
+    },
+    {
+      "bytes": 2665,
+      "chars": 2665,
+      "path": "gcc/config/i386/cet.h",
+      "reasons": [
+        "control_flow_integrity"
+      ],
+      "sha256": "1aca1a9e65eb57a710e1155a03fec29616ad3316bae278252d8d4dfdb02beb35"
+    },
+    {
+      "bytes": 58009,
+      "chars": 58009,
+      "path": "gcc/tree-ssa-dse.cc",
+      "reasons": [
+        "memory_bounds"
+      ],
+      "sha256": "fd0427f0f58dd5f8afcdfd3a60d748352f60b8226a3274c9136c8e4b79f3f529"
+    },
+    {
+      "bytes": 193390,
+      "chars": 193390,
+      "path": "gcc/config/aarch64/aarch64-builtins.cc",
+      "reasons": [
+        "control_flow_integrity"
+      ],
+      "sha256": "791dcda56a8f9dda671f733551fd59c093a26974d2e98d443f323f3f1233ecdd"
+    },
+    {
+      "bytes": 14406,
+      "chars": 14406,
+      "path": "gcc/opts-global.cc",
+      "reasons": [
+        "sanitizers_hardening"
+      ],
+      "sha256": "bb010618455532f3644abfc5809859d265fd9f1c686327653478d3424ea55c50"
+    },
+    {
+      "bytes": 221482,
+      "chars": 221482,
+      "path": "gcc/function.cc",
+      "reasons": [
+        "stack_protection"
+      ],
+      "sha256": "f51479ff5d33310efb295bc76032126a0de57f70eefa8c55f5eacc1d05186a68"
+    },
+    {
+      "bytes": 193812,
+      "chars": 193812,
+      "path": "gcc/tree-ssa-forwprop.cc",
+      "reasons": [
+        "memory_bounds"
+      ],
+      "sha256": "d221e237f109170d469982ed441bb9c7f45c25551e1239d8fe5218ebdf30f75a"
+    },
+    {
+      "bytes": 4912,
+      "chars": 4912,
+      "path": "gcc/config/riscv/riscv-zicfilp.cc",
+      "reasons": [
+        "control_flow_integrity"
+      ],
+      "sha256": "14dd7b8da0b7038212c575b0ae7331c5b17115b930a3dbb89c5c639a2caa74dd"
+    },
+    {
+      "bytes": 112284,
+      "chars": 112284,
+      "path": "gcc/alias.cc",
+      "reasons": [
+        "elf_address_space"
+      ],
+      "sha256": "946b1b7ea0abd23f00873024c4514c9ec360bd6fb31a761f8df655cfbbfa93f2"
+    },
+    {
+      "bytes": 184089,
+      "chars": 184089,
+      "path": "gcc/tree-ssa-strlen.cc",
+      "reasons": [
+        "memory_bounds"
+      ],
+      "sha256": "af1119bbb25d82bb99ed8463b4c9cc4dc8262daa682a38f6d6354b5d4f94e352"
+    },
+    {
+      "bytes": 86669,
+      "chars": 86669,
+      "path": "gcc/common/config/i386/i386-common.cc",
+      "reasons": [
+        "stack_protection",
+        "control_flow_integrity"
+      ],
+      "sha256": "7fc21a7f126dafbd76f6ef56888ec53fb173b04785018a9d37b81fb41cbae59e"
+    },
+    {
+      "bytes": 17858,
+      "chars": 17858,
+      "path": "gcc/config/i386/cygming.h",
+      "reasons": [
+        "elf_address_space"
+      ],
+      "sha256": "88a184c32d14c83ee30875d464df5bfaae2cc523b0e000d79b54b0441031b5a4"
+    },
+    {
+      "bytes": 75743,
+      "chars": 75743,
+      "path": "gcc/analyzer/kf.cc",
+      "reasons": [
+        "memory_bounds",
+        "sanitizers_hardening"
+      ],
+      "sha256": "e1e8cf2deb180dd4cd1fe586dcd867f6a4d85e857f9bd101deafdca77a78a08c"
+    },
+    {
+      "bytes": 90447,
+      "chars": 90447,
+      "path": "gcc/ada/init.c",
+      "reasons": [
+        "stack_protection"
+      ],
+      "sha256": "656278133e19ee7a53cf3f1bda3b1b091cd1d234c4473bec77f1de81ca98970b"
+    },
+    {
+      "bytes": 3334,
+      "chars": 3334,
+      "path": "gcc/config/i386/cetintrin.h",
+      "reasons": [
+        "control_flow_integrity"
+      ],
+      "sha256": "b1d1e1ca5ba8f4e70fbb28961ed013771981b6eba4622ab63c0aabd380ae7abb"
+    },
+    {
+      "bytes": 17462,
+      "chars": 17462,
+      "path": "gcc/config/aarch64/aarch64-c.cc",
+      "reasons": [
+        "elf_address_space"
+      ],
+      "sha256": "c8cf34c96f5be916b87eee59237e74aded056669b9800b6271c002dff7047ae6"
+    },
+    {
+      "bytes": 10729,
+      "chars": 10729,
+      "path": "gcc/config/i386/darwin.h",
+      "reasons": [
+        "elf_address_space",
+        "sanitizers_hardening"
+      ],
+      "sha256": "a28397feccac550b3b14f735e427dc77d9193b2a2256ecd21222ce58c70479b9"
+    },
+    {
+      "bytes": 2629,
+      "chars": 2629,
+      "path": "gcc/config/i386/gnu-user-common.h",
+      "reasons": [
+        "stack_protection"
+      ],
+      "sha256": "5f064832c02395865e22f4f79ca4de568ff42cfb50c102013d0417ce8be8d4b3"
+    },
+    {
+      "bytes": 945,
+      "chars": 945,
+      "path": "gcc/config/linux-protos.h",
+      "reasons": [
+        "memory_bounds"
+      ],
+      "sha256": "e2257bde8d9c680909a25b3b352a4e61a17e2a54ed792b9ee01183f032aadc77"
+    },
+    {
+      "bytes": 4032,
+      "chars": 4032,
+      "path": "gcc/config/aarch64/aarch64-elf-metadata.cc",
+      "reasons": [
+        "control_flow_integrity"
+      ],
+      "sha256": "4d23169a9eee9da2ebbfe53f9efb88ac9087906ce90b650ad8965a3525d28436"
+    },
+    {
+      "bytes": 1801,
+      "chars": 1801,
+      "path": "gcc/config/riscv/gnu.h",
+      "reasons": [
+        "elf_address_space"
+      ],
+      "sha256": "4c2a65d22a247b11f395180658b7fd3c6e0b9d683c03b821e5cc3fc72e586fed"
+    },
+    {
+      "bytes": 2915,
+      "chars": 2915,
+      "path": "gcc/config/aarch64/aarch64-linux.h",
+      "reasons": [
+        "elf_address_space",
+        "sanitizers_hardening"
+      ],
+      "sha256": "f6c02f1ed64854578c4a4bb595030c2f036df95e44941964c64729c2a7ed94eb"
+    },
+    {
+      "bytes": 5002,
+      "chars": 5002,
+      "path": "gcc/config/aarch64/aarch64-opts.h",
+      "reasons": [
+        "stack_protection",
+        "elf_address_space"
+      ],
+      "sha256": "6bac34188a549991f9b2866aa34b1f1e7935f8e6ad5d72cfafd7c710f2b0f1be"
+    },
+    {
+      "bytes": 1636,
+      "chars": 1636,
+      "path": "gcc/config/linux.cc",
+      "reasons": [
+        "memory_bounds"
+      ],
+      "sha256": "a184ec0fa17a7bc9b1e4cc31ed528921a6c666d55afd911964e41f3a0bdd0e17"
+    }
+  ],
+  "limits": {
+    "max_file_chars": 200000,
+    "max_files_per_family": 30,
+    "max_required_file_chars": 250000,
+    "max_total_chars": 2000000,
+    "max_total_files": 150
+  },
+  "rag_curated_paths": {
+    "count": 16,
+    "paths": [
+      "gcc/tree-object-size.cc",
+      "gcc/builtins.cc",
+      "gcc/tree-ssa-strlen.cc",
+      "gcc/gimple-fold.cc",
+      "gcc/cfgexpand.cc",
+      "gcc/function.cc",
+      "gcc/explow.cc",
+      "gcc/ipa-strub.cc",
+      "gcc/config/aarch64/aarch64.cc",
+      "gcc/config/i386/i386.cc",
+      "gcc/config/riscv/riscv.cc",
+      "gcc/config/arm/arm.cc",
+      "gcc/config/aarch64/aarch64.md",
+      "gcc/config/arm/arm.md",
+      "gcc/config/i386/predicates.md",
+      "gcc/config/i386/cet.h"
+    ],
+    "purpose": "full-tree RAG inputs; distinct from segmented corpus selection"
+  },
+  "schema_version": 1,
+  "selection_rules": [
+    {
+      "content_patterns": [
+        "stack[_ -]?(?:protect|clash|guard|canary)|morestack|split[_ -]?stack",
+        "have_stack_protect_(?:set|test)|allocate_stack_worker"
+      ],
+      "family": "stack_protection",
+      "mechanisms": [
+        "stack-protector",
+        "stack-clash-protection"
+      ],
+      "path_prefixes": [
+        "gcc/",
+        "libgcc/"
+      ]
+    },
+    {
+      "content_patterns": [
+        "_fortify_source|builtin_(?:dynamic_)?object_size|(?:mem|str|sn)\\w*_chk",
+        "strict[_ -]?flex[_ -]?arrays|counted_by|sized_by",
+        "trivial[_ -]?auto[_ -]?var[_ -]?init|zero[_ -]?init[_ -]?padding"
+      ],
+      "family": "memory_bounds",
+      "mechanisms": [
+        "fortify-source",
+        "strict-flex-arrays",
+        "zero-init-padding",
+        "source-annotations"
+      ],
+      "path_prefixes": [
+        "gcc/"
+      ]
+    },
+    {
+      "content_patterns": [
+        "\\bcet\\b|endbr|\\bibt\\b|shstk|branch[_ -]?protection|gnu_property",
+        "\\bbti\\b|pac[_ -]?ret|return[_ -]?address[_ -]?(?:sign|auth)|\\bcmse\\b"
+      ],
+      "family": "control_flow_integrity",
+      "mechanisms": [
+        "cet",
+        "ibt",
+        "shstk",
+        "bti",
+        "pac",
+        "return-address-signing",
+        "cmse"
+      ],
+      "path_prefixes": [
+        "gcc/",
+        "libgcc/"
+      ]
+    },
+    {
+      "content_patterns": [
+        "(?:^|[^a-z])(?:pie|fpie|pic|fpic|relro|noexecstack|gnu-stack)(?:$|[^a-z])",
+        "pt_gnu_stack|df_1_noopen|as-needed|nodlopen|position[_ -]?independent"
+      ],
+      "family": "elf_address_space",
+      "mechanisms": [
+        "pie",
+        "pic",
+        "relro",
+        "nx",
+        "noexecstack",
+        "nodlopen",
+        "as-needed"
+      ],
+      "path_prefixes": [
+        "gcc/",
+        "libgcc/"
+      ]
+    },
+    {
+      "content_patterns": [
+        "(?:^|[^a-z])(?:asan|ubsan|tsan|lsan)(?:$|[^a-z])",
+        "(?:^|[^a-z])(?:fhardened|hardened|auto[_ -]?var[_ -]?init|glibcxx_assertions)(?:$|[^a-z])"
+      ],
+      "family": "sanitizers_hardening",
+      "mechanisms": [
+        "asan",
+        "ubsan",
+        "tsan",
+        "lsan",
+        "auto-var-init",
+        "glibcxx-assertions",
+        "fhardened"
+      ],
+      "path_prefixes": [
+        "gcc/",
+        "libsanitizer/",
+        "libstdc++-v3/"
+      ]
+    }
+  ],
+  "source_identity": {
+    "BASE-VER": "16.2.0",
+    "DATESTAMP": "20260807",
+    "LAST_UPDATED": "Obtained from git: releases/gcc-16.2.0 revision 78d4ac73dd391005b895a6148cd9831e28e1208b",
+    "git_clean": false,
+    "git_head": "25c506655d00d7bb9352512c51577983fd69170f"
+  },
+  "total_bytes": 1998943,
+  "total_chars": 1998943
+}

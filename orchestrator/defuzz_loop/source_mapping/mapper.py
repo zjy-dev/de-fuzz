@@ -1,166 +1,87 @@
-"""Drive the ``source-mapper`` OpenCode SubAgent to map an invariant onto
-compiler source code.
-
-This is the glue between:
-
-- input: a single :class:`Invariant` (phi_id, phi_text, mechanism, src_root)
-- output: a validated :class:`SourceMappingResult`
-
-The heavy lifting (grep/read/list on the compiler source tree) is delegated
-to the OpenCode subagent defined in ``.opencode/agent/source-mapper.md``;
-this module is a thin retry+validation harness.
-"""
+"""Source mapping through the shared backend, JSON repair and anchor validation."""
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
-from pydantic import ValidationError
-
-from ..opencode.client import (
-    OpenCodeClient,
-    OpenCodeInvocation,
-    OpenCodeInvocationError,
-    extract_json_block,
-)
-from ..opencode.schemas import Invariant, SourceMappingResult
-
-log = logging.getLogger(__name__)
+from ..agents.contracts.schemas import Invariant, SourceMappingResult
+from ..agents.runner import SubagentRunError, SubagentRunner
+from ..experiment_engine.agent_backend import AgentBackend
 
 
-class SourceMappingError(RuntimeError):
-    """Raised when the source-mapper subagent fails after retries."""
+class SourceMappingError(SubagentRunError):
+    """The source-mapper failed its execution or validation contract."""
 
 
 class SourceMappingRunner:
-    """Retries + JSON validation around a single :class:`OpenCodeClient`.
-
-    Parameters
-    ----------
-    client:
-        The OpenCode subprocess client. Share one across the whole orchestrator
-        run.
-    project_root:
-        Directory containing ``.opencode/agent/source-mapper.md``. This is
-        NOT the compiler source tree — it's the DeFuzz project root that
-        holds the subagent definition. Passed to ``opencode run --dir``.
-    model:
-        Optional model override forwarded to ``opencode run --model``. If
-        ``None`` (default), OpenCode uses its configured default from
-        ``~/.config/opencode/opencode.jsonc``.
-    max_retries:
-        How many additional attempts to make if the subagent returns
-        malformed JSON or fails to invoke. Default: 2 (total 3 attempts).
-    timeout_secs:
-        Per-attempt wall-clock timeout.
-    """
-
-    _AGENT_NAME = "source-mapper"
-
     def __init__(
         self,
-        client: OpenCodeClient,
+        backend: AgentBackend,
         *,
         project_root: Path,
-        model: str | None = None,
+        output_dir: Path,
         max_retries: int = 2,
-        timeout_secs: float = 600.0,
+        timeout_secs: float = 600,
     ) -> None:
-        self._client = client
-        self._project_root = Path(project_root)
-        self._model = model
+        self._backend = backend
+        self._project_root = project_root
+        self._output_dir = output_dir
         self._max_retries = max_retries
         self._timeout_secs = timeout_secs
 
     async def run(self, invariant: Invariant) -> SourceMappingResult:
-        """Execute the source-mapper subagent for a single invariant.
+        from ..experiment_engine.source_mapping_stage import validate_anchors
 
-        Retries on:
-
-        - ``OpenCodeInvocationError`` (subprocess failure, timeout, empty reply)
-        - ``ValueError`` / ``pydantic.ValidationError`` (malformed JSON)
-
-        Does *not* retry on programmer errors (missing subagent markdown,
-        misconfigured client) — those bubble up.
-        """
-
-        last_err: Exception | None = None
-        prompt = invariant.as_prompt_payload()
-        for attempt in range(1, self._max_retries + 2):
-            try:
-                assistant_text = await self._invoke_agent(invariant, prompt)
-                json_str = extract_json_block(assistant_text)
-                result = SourceMappingResult.model_validate_json(json_str)
-                if result.phi_id != invariant.phi_id:
-                    raise ValueError(
-                        f"phi_id mismatch: agent returned {result.phi_id!r}, "
-                        f"expected {invariant.phi_id!r}"
-                    )
-                return result
-            except (OpenCodeInvocationError, ValidationError, ValueError) as e:
-                last_err = e
-                prompt = (
-                    "The previous reply failed validation. Repair it using the error below, "
-                    "then return exactly one fenced JSON block.\n"
-                    f"Error: {type(e).__name__}: {e}\n"
-                    f"Original task:\n{invariant.as_prompt_payload()}"
-                )
-                log.warning(
-                    "source-mapper attempt %d/%d failed for %s: %s",
-                    attempt,
-                    self._max_retries + 1,
-                    invariant.phi_id,
-                    e,
-                )
-        assert last_err is not None
-        raise SourceMappingError(
-            f"source-mapper failed after {self._max_retries + 1} attempts "
-            f"for {invariant.phi_id!r}: {last_err}"
-        ) from last_err
-
-    async def _invoke_agent(self, invariant: Invariant, prompt: str | None = None) -> str:
-        invocation = OpenCodeInvocation(
-            agent=self._AGENT_NAME,
-            message=prompt or invariant.as_prompt_payload(),
-            cwd=self._project_root,
-            model=self._model,
+        source_root = Path(invariant.src_root).resolve(strict=True)
+        runner = SubagentRunner(
+            self._backend,
+            cwd=source_root,
+            output_dir=self._output_dir,
             timeout_secs=self._timeout_secs,
+            max_retries=self._max_retries,
         )
-        return await self._client.run_agent(invocation)
+
+        def validate(result: SourceMappingResult) -> SourceMappingResult:
+            if result.phi_id != invariant.phi_id or result.compiler != invariant.compiler:
+                raise ValueError("source-mapper invariant/compiler mismatch")
+            if result.isa not in (None, invariant.isa):
+                raise ValueError("source-mapper returned another ISA")
+            result.isa = invariant.isa
+            return validate_anchors(result, source_root)
+
+        try:
+            return await runner.run(
+                "source-mapper",
+                invariant.as_prompt_payload(),
+                SourceMappingResult,
+                metadata={
+                    "use_callgraph": True, "compiler": invariant.compiler, "isa": invariant.isa,
+                },
+                validator=validate,
+            )
+        except SubagentRunError as exc:
+            raise SourceMappingError(str(exc)) from exc
 
 
 async def map_invariant_to_source(
     invariant: Invariant,
     *,
     project_root: Path,
-    client: OpenCodeClient | None = None,
+    output_dir: Path,
+    config_path: Path | None = None,
+    backend: AgentBackend | None = None,
     model: str | None = None,
-    timeout_secs: float = 600.0,
+    timeout_secs: float = 600,
 ) -> SourceMappingResult:
-    """One-shot convenience wrapper.
+    if backend is None:
+        from ..experiment_engine.pi_backend import PiAgentBackend
 
-    Usage::
-
-        result = await map_invariant_to_source(
-            Invariant(
-                phi_id="SP-001",
-                phi_text="For any function with a VLA...",
-                mechanism="stack_canary",
-                compiler="gcc",
-                isa="x86_64",
-                src_root="/opt/gcc-src",
-            ),
-            project_root=Path("/repo/de-fuzz"),
-        )
-        print(result.level_1_pass.name)
-    """
-
-    client = client or OpenCodeClient()
-    runner = SourceMappingRunner(
-        client,
+        if config_path is None:
+            raise ValueError("source mapping requires an explicit Pi config_path")
+        backend = PiAgentBackend(config_path, model=model)
+    return await SourceMappingRunner(
+        backend,
         project_root=project_root,
-        model=model,
+        output_dir=output_dir,
         timeout_secs=timeout_secs,
-    )
-    return await runner.run(invariant)
+    ).run(invariant)

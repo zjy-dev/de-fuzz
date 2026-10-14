@@ -1,0 +1,389 @@
+[
+  {
+    "invariant_id": "INVGEN-02C9E946EE52CA5D",
+    "attempt_id": "98c7b6dc8f4247048c27b2155bc7a1f9",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-02c9e946ee52ca5d-71c0a44f/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-02c9e946ee52ca5d-71c0a44f/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-06F4783EB7B5A5AE",
+    "attempt_id": "a5bd0659e186493ba2d4483ddfb67288",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-06f4783eb7b5a5ae-9bc86b60/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-06f4783eb7b5a5ae-9bc86b60/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-08AFDF62248BDB87",
+    "attempt_id": "9e83dd30f4484f48978db579926b0efd",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-08afdf62248bdb87-b0ee8618/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-08afdf62248bdb87-b0ee8618/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-186DA0B7D8A43DA7",
+    "attempt_id": "5f0180922e454e77beec49a0b6925020",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-186da0b7d8a43da7-3c9b203d/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-186da0b7d8a43da7-3c9b203d/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-26090E63F9A9C936",
+    "attempt_id": "d3aee83fa17349a9969b1d2ba248d871",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-26090e63f9a9c936-f6dcdd55/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-26090e63f9a9c936-f6dcdd55/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-275FBD1D2CE6C352",
+    "attempt_id": "d3f2a59d5c024d5c95dbadbce93b70b5",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-275fbd1d2ce6c352-96ad4f9d/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-275fbd1d2ce6c352-96ad4f9d/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-29367CCA11487093",
+    "attempt_id": "b7eb3814b55d4ea8a9b9fdaf1ff0675f",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-29367cca11487093-9395f55d/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-29367cca11487093-9395f55d/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-2BEB3971E70676E4",
+    "attempt_id": "f8290198b7604e56b10f786ee684eb33",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-2beb3971e70676e4-74640fb3/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-2beb3971e70676e4-74640fb3/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-3CB04233158D3F9C",
+    "attempt_id": "60223c383b6249aaa0bff37880223dbc",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-3cb04233158d3f9c-1e9652c6/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-3cb04233158d3f9c-1e9652c6/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-40A2FEF4A5397359",
+    "attempt_id": "c2a6a3056b864509a831ad4cabcb8f3e",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-40a2fef4a5397359-d64c3261/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-40a2fef4a5397359-d64c3261/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-4310437E6E51F3C5",
+    "attempt_id": "c93078d363cc41d3b47aaaca2153a742",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-4310437e6e51f3c5-32b1ac53/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-4310437e6e51f3c5-32b1ac53/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-494F50357AB4A7DC",
+    "attempt_id": "973fdcc7e0604e0ab019060e46e3ae17",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-494f50357ab4a7dc-a720917a/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-494f50357ab4a7dc-a720917a/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-55E96BC64897DB5B",
+    "attempt_id": "1797c63c8af24cda86f2aa94f081437a",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-55e96bc64897db5b-d07620bc/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-55e96bc64897db5b-d07620bc/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-586F4B7E3E244E12",
+    "attempt_id": "10ff6829837c4cc29d4d6b6b4ffddeb7",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-586f4b7e3e244e12-cbcac05e/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-586f4b7e3e244e12-cbcac05e/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-59CC8AFFEC2AC5AE",
+    "attempt_id": "7ddf52b212fd4219821ecac7d384b969",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-59cc8affec2ac5ae-861650e2/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-59cc8affec2ac5ae-861650e2/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-6A698129CBF7E86D",
+    "attempt_id": "22a8286f2db940749e90bb3c3b459773",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6a698129cbf7e86d-34b3ca39/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6a698129cbf7e86d-34b3ca39/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-6CA75CB7E4689B80",
+    "attempt_id": "04da6998d7af4e828923f3a72e57e633",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6ca75cb7e4689b80-0b7cd327/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-6ca75cb7e4689b80-0b7cd327/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-7D3768CD2A1F74B5",
+    "attempt_id": "6667fbc228c644b59306dd913d5e48f3",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7d3768cd2a1f74b5-6dc00b20/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7d3768cd2a1f74b5-6dc00b20/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-7E21738BF7031B26",
+    "attempt_id": "73d743dedc444e2aba9e57e96f7e0d3a",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7e21738bf7031b26-5f42ea73/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7e21738bf7031b26-5f42ea73/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-7FB0D3A3EE9FADE5",
+    "attempt_id": "6f4f62f178f740a4847932e801b4b8df",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7fb0d3a3ee9fade5-46aaff06/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-7fb0d3a3ee9fade5-46aaff06/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-81590831B593F806",
+    "attempt_id": "cbc83164ed4c4c1f8ad2aa72a94c9bad",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-81590831b593f806-24364346/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-81590831b593f806-24364346/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-846C550FF213FC53",
+    "attempt_id": "3c22fb76a89b416a9ae2f60f09897e61",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-846c550ff213fc53-1aa766a1/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-846c550ff213fc53-1aa766a1/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-89F2BD7D25917E3E",
+    "attempt_id": "8c4cfbb6dad147d88c01411dbe77ab26",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-89f2bd7d25917e3e-58e65d25/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-89f2bd7d25917e3e-58e65d25/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-8A57A19ED05E2AC7",
+    "attempt_id": "173f76afcdd34edbb8648c6d3a75a205",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8a57a19ed05e2ac7-b3495b29/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8a57a19ed05e2ac7-b3495b29/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-8EF522DDF7CCD4A7",
+    "attempt_id": "3d973ebe6ed64c668ab07d92e6a9ce37",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8ef522ddf7ccd4a7-feaf656d/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-8ef522ddf7ccd4a7-feaf656d/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-93FBC8F3F8842198",
+    "attempt_id": "b5d1878822d641e8ac4c80d662a98827",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-93fbc8f3f8842198-d992c54d/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-93fbc8f3f8842198-d992c54d/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-95776B046FEFF604",
+    "attempt_id": "cbda472e258542a79757fa5bdc21a0f2",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-95776b046feff604-f0289274/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-95776b046feff604-f0289274/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-96069C966DD27F4D",
+    "attempt_id": "ec99b8cc939740aba3c5b18b704bf71a",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-96069c966dd27f4d-8829e4d1/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-96069c966dd27f4d-8829e4d1/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-9657317A4FC386A0",
+    "attempt_id": "7c003f893f964041918b10f8388eb2ec",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9657317a4fc386a0-6f63f4dd/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9657317a4fc386a0-6f63f4dd/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-9E52D6B7EDAEB812",
+    "attempt_id": "589bbe64471b4000b758962590ba52eb",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9e52d6b7edaeb812-0fff7879/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-9e52d6b7edaeb812-0fff7879/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-A6929540BE378105",
+    "attempt_id": "7b0d1034f6454c3b9aa29c4ad8b90df2",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a6929540be378105-bc30ac8c/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a6929540be378105-bc30ac8c/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-A75A0495AC054C1D",
+    "attempt_id": "8160d0d5a8464f1cb48480e3fe5071c6",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a75a0495ac054c1d-d30f36ad/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-a75a0495ac054c1d-d30f36ad/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-AD22824BC048C630",
+    "attempt_id": "22e3fa7aafdc4eaab3fc08cb2b1e7a08",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-ad22824bc048c630-5ba0783b/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-ad22824bc048c630-5ba0783b/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-B3AA41472B6BB64B",
+    "attempt_id": "8e6602a4888843fdbe689d0b0d7ad544",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-b3aa41472b6bb64b-c73a660b/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-b3aa41472b6bb64b-c73a660b/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-C7B396082E8E5E01",
+    "attempt_id": "f818a13f30b44e08b1b8c920178dfdb9",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c7b396082e8e5e01-bb6c03e3/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c7b396082e8e5e01-bb6c03e3/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-C862E337607FE69D",
+    "attempt_id": "1f071ca572d34e3e97fc309a227b768f",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c862e337607fe69d-7015b2e8/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-c862e337607fe69d-7015b2e8/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-CBCED39B1302435D",
+    "attempt_id": "987b1837c0194e95bb6df46766946041",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-cbced39b1302435d-294770c7/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-cbced39b1302435d-294770c7/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-D2E09B5E468F4BF3",
+    "attempt_id": "b32cff8797c34a3091571b0f5c2ce025",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d2e09b5e468f4bf3-8cee3221/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d2e09b5e468f4bf3-8cee3221/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-D3753ECF716EC5F0",
+    "attempt_id": "a57006bcf9e24d85b6deb7d15737810a",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d3753ecf716ec5f0-19ca8201/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-d3753ecf716ec5f0-19ca8201/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-E5664CD1DEE20CE2",
+    "attempt_id": "c84886c874b84fedb8eb90c72750f384",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e5664cd1dee20ce2-abb1fd05/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e5664cd1dee20ce2-abb1fd05/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-E6D7A52AC192DDF3",
+    "attempt_id": "8ebb82aed8954285bbad2d125b1297a6",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e6d7a52ac192ddf3-aec16fcd/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e6d7a52ac192ddf3-aec16fcd/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-E7B08FE075DCBCAE",
+    "attempt_id": "e906336571bf4d4c81d161fa7c701275",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e7b08fe075dcbcae-694ca767/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-e7b08fe075dcbcae-694ca767/agents/attempt-001"
+  },
+  {
+    "invariant_id": "INVGEN-FC7D9F46C5BD01C2",
+    "attempt_id": "57418422e7e94b5f958c12c77655800b",
+    "attempt": 1,
+    "category": "worker-startup-path-isolation",
+    "provider_request_id": null,
+    "error": "WorkspaceSecurityError: deny_read_path /Users/bytedance/projects/research/de-fuzz/main collides with agent output_dir /Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-fc7d9f46c5bd01c2-79d26b60/agents/attempt-001",
+    "evidence_path": "/Users/bytedance/projects/research/de-fuzz/main/.work/gcc16-aarch64-run/gcc16-aarch64-full-20261013-checker-authoring/rep-001/artifacts/checker-authoring/invgen-fc7d9f46c5bd01c2-79d26b60/agents/attempt-001"
+  }
+]

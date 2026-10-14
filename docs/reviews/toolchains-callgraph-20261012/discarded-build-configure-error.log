@@ -1,0 +1,52 @@
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking target system type... x86_64-pc-linux-gnu
+checking for a BSD-compatible install... /usr/bin/install -c
+checking whether ln works... yes
+checking whether ln -s works... yes
+checking for a sed that does not truncate output... /usr/bin/sed
+checking for gawk... no
+checking for mawk... mawk
+checking for libatomic support... yes
+checking for libitm support... yes
+checking for libsanitizer support... yes
+checking for libvtv support... yes
+checking for libphobos support... yes
+checking for libgcobol support... yes
+checking for x86_64-linux-gnu-gcc... /usr/bin/clang --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether /usr/bin/clang --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld accepts -g... yes
+checking for /usr/bin/clang --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld option to accept ISO C89... none needed
+checking for /usr/bin/clang --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld option to accept ISO C99... none needed
+checking whether we are using the GNU C++ compiler... yes
+checking whether /usr/bin/clang++ --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld accepts -g... yes
+checking whether g++ accepts -static-libstdc++ -static-libgcc... no
+checking for x86_64-linux-gnu-gnatbind... no
+checking for gnatbind... no
+checking for x86_64-linux-gnu-gnatmake... no
+checking for gnatmake... no
+checking whether compiler driver understands Ada and is recent enough... no
+checking for x86_64-linux-gnu-ga68... no
+checking for ga68... no
+checking for x86_64-linux-gnu-gdc... no
+checking for gdc... no
+checking whether the D compiler works... no
+checking for cargo... no
+checking how to compare bootstrapped objects... cmp --ignore-initial=16 $$f1 $$f2
+checking whether /usr/bin/clang++ --target=x86_64-linux-gnu --gcc-toolchain=/usr -fuse-ld=lld supports C++14 features by default... yes
+checking for objdir... .libs
+checking for the correct version of gmp.h... no
+configure: error: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
+Try the --with-gmp, --with-mpfr and/or --with-mpc options to specify
+their locations.  Source code for these libraries can be found at
+their respective hosting sites as well as at
+https://gcc.gnu.org/pub/gcc/infrastructure/.  See also
+http://gcc.gnu.org/install/prerequisites.html for additional info.  If
+you obtained GMP, MPFR and/or MPC from a vendor distribution package,
+make sure that you have installed both the libraries and the header
+files.  They may be located in separate packages.

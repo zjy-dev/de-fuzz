@@ -18,9 +18,9 @@ from __future__ import annotations
 import logging
 
 from ..clients.mcp_client import MCPClient
-from ..opencode.output_schemas import MinimizerOutput
-from ..opencode.runner import SubagentRunError, SubagentRunner
 from ..state import Blackboard, MinimizedPoC
+from .contracts.output_schemas import MinimizerOutput
+from .runner import SubagentRunError, SubagentRunner
 
 log = logging.getLogger(__name__)
 

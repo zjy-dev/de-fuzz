@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="900" viewBox="0 0 1280 900">
+  <title>研究挑战、研究内容与研究目标的对应关系</title>
+  <desc>失效难以判定对应不变量形式化与静默失效判定，搜索空间巨大对应定向种子生成。不变量形式化形成目标a的安全不变量集合，判定方法与种子生成共同支撑目标b的跨架构fuzzer原型，目标a支撑目标b，原型用于目标c的真实缺陷发现与实证验证。</desc>
+  <defs>
+    <marker id="red-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L10 4 L0 8 Z" fill="#CC3311"/></marker>
+    <marker id="amber-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L10 4 L0 8 Z" fill="#B77714"/></marker>
+    <marker id="blue-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L10 4 L0 8 Z" fill="#1976D2"/></marker>
+    <marker id="green-arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L10 4 L0 8 Z" fill="#228833"/></marker>
+    <style>
+      text { font-family: "Arial", "Heiti SC", "STHeiti", sans-serif; text-anchor: middle; }
+      .column { font-size: 34px; font-weight: 700; fill: #263238; }
+      .title { font-size: 30px; font-weight: 700; }
+      .body { font-size: 27px; }
+      .small { font-size: 26px; }
+      .edge { fill: none; stroke-width: 3; }
+    </style>
+  </defs>
+  <rect width="1280" height="900" fill="#FFFFFF"/>
+
+  <g class="column">
+    <text x="184" y="55">研究挑战</text>
+    <text x="608" y="55">研究内容</text>
+    <text x="1080" y="55">研究目标</text>
+  </g>
+  <g stroke="#D8DFDF" stroke-width="2">
+    <path d="M24 78 H344"/><path d="M424 78 H792"/><path d="M904 78 H1256"/>
+  </g>
+
+  <!-- Challenge 2 groups the two reasons that direct the first two contents. -->
+  <rect x="24" y="104" width="320" height="392" rx="12" fill="#F8F6F4" stroke="#BCAEA6" stroke-width="2.5"/>
+  <text x="184" y="150" class="title" fill="#4F433D">失效难以判定</text>
+  <rect x="44" y="176" width="280" height="88" rx="7" fill="#FFFFFF" stroke="#CC3311" stroke-width="2"/>
+  <g class="small" fill="#7F2615">
+    <text x="184" y="211">安全契约缺少</text>
+    <text x="184" y="245">统一的形式化描述</text>
+  </g>
+  <rect x="44" y="376" width="280" height="88" rx="7" fill="#FFFFFF" stroke="#D99422" stroke-width="2"/>
+  <g class="small" fill="#7D4E00">
+    <text x="184" y="411">功能输出正常</text>
+    <text x="184" y="445">仍可能发生防御失效</text>
+  </g>
+  <path d="M184 282 V356" stroke="#D6CBC5" stroke-width="2" stroke-dasharray="4 6"/>
+
+  <rect x="24" y="544" width="320" height="152" rx="12" fill="#E3F2FD" stroke="#1976D2" stroke-width="2.5"/>
+  <text x="184" y="585" class="title" fill="#0D47A1">搜索空间巨大</text>
+  <g class="body" fill="#0D47A1">
+    <text x="184" y="629">防御机制 × 多种 ISA</text>
+    <text x="184" y="665">相关路径难以充分覆盖</text>
+  </g>
+
+  <!-- Three research contents retain the numbering and scope of section 3.2. -->
+  <rect x="424" y="144" width="368" height="152" rx="12" fill="#F4DFD8" stroke="#CC3311" stroke-width="2.5"/>
+  <g fill="#7F2615">
+    <text x="608" y="188" class="title">(1) 安全不变量</text>
+    <text x="608" y="228" class="title">调研与形式化</text>
+    <text x="608" y="270" class="body">提炼安全契约及其证据</text>
+  </g>
+  <rect x="424" y="344" width="368" height="152" rx="12" fill="#FFF8E1" stroke="#F5A623" stroke-width="2.5"/>
+  <g fill="#7D4E00">
+    <text x="608" y="388" class="title">(2) 静默失效</text>
+    <text x="608" y="428" class="title">判定方法</text>
+    <text x="608" y="470" class="body">静态与动态可观测判据</text>
+  </g>
+  <rect x="424" y="544" width="368" height="152" rx="12" fill="#E3F2FD" stroke="#1976D2" stroke-width="2.5"/>
+  <g fill="#0D47A1">
+    <text x="608" y="585" class="title">(3) 定向种子生成</text>
+    <text x="608" y="629" class="body">大语言模型 + 覆盖率</text>
+    <text x="608" y="665" class="body">指导变异与反馈修正</text>
+  </g>
+
+  <!-- Goals a and b have independent identities, with an explicit support edge. -->
+  <rect x="904" y="144" width="352" height="152" rx="12" fill="#E3F1E7" stroke="#228833" stroke-width="2.5"/>
+  <g fill="#195C24">
+    <text x="1080" y="188" class="title">(a) 安全不变量集合</text>
+    <text x="1080" y="232" class="body">统一描述结构</text>
+    <text x="1080" y="270" class="body">可机器判定的证据</text>
+  </g>
+  <rect x="904" y="344" width="352" height="352" rx="12" fill="#E3F1E7" stroke="#228833" stroke-width="2.5"/>
+  <g fill="#195C24">
+    <text x="1080" y="388" class="title">(b) 跨架构 fuzzer 原型</text>
+    <text x="1080" y="430" class="body">GCC / LLVM · 多 ISA</text>
+    <rect x="928" y="458" width="304" height="72" rx="7" fill="#FFFFFF" stroke="#80B78A" stroke-width="2"/>
+    <text x="1080" y="503" class="body">安全契约判定</text>
+    <rect x="928" y="584" width="304" height="72" rx="7" fill="#FFFFFF" stroke="#80B78A" stroke-width="2"/>
+    <text x="1080" y="629" class="body">防御相关路径探索</text>
+  </g>
+
+  <!-- Edges lie in open gutters; no connector crosses a label or another edge. -->
+  <path d="M325 220 H422" class="edge" stroke="#CC3311" marker-end="url(#red-arrow)"/>
+  <path d="M325 420 H422" class="edge" stroke="#B77714" marker-end="url(#amber-arrow)"/>
+  <path d="M345 620 H422" class="edge" stroke="#1976D2" marker-end="url(#blue-arrow)"/>
+  <path d="M794 220 H902" class="edge" stroke="#CC3311" marker-end="url(#red-arrow)"/>
+  <path d="M794 420 H852 V494 H926" class="edge" stroke="#B77714" marker-end="url(#amber-arrow)"/>
+  <path d="M794 620 H926" class="edge" stroke="#1976D2" marker-end="url(#blue-arrow)"/>
+  <path d="M1080 298 V342" class="edge" stroke="#228833" marker-end="url(#green-arrow)"/>
+  <text x="1126" y="329" class="small" fill="#195C24">支撑</text>
+
+  <!-- Goal c integrates the empirical work described in sections 3.1 and 5.4. -->
+  <path d="M1080 698 V762" class="edge" stroke="#228833" marker-end="url(#green-arrow)"/>
+  <text x="1126" y="739" class="small" fill="#195C24">验证</text>
+  <rect x="24" y="764" width="1232" height="112" rx="12" fill="#E3F1E7" stroke="#228833" stroke-width="2.5"/>
+  <g fill="#195C24">
+    <text x="640" y="806" class="title">(c) 真实缺陷发现与实证验证</text>
+    <text x="640" y="851" class="body">上游确认　·　跨编译器验证　·　受控植入假阴性评测</text>
+  </g>
+</svg>

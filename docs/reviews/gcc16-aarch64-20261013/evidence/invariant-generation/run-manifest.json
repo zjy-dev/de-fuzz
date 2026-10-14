@@ -1,0 +1,21 @@
+{
+  "backend_available": true,
+  "created_at": "2026-10-13T03:00:55.497+00:00",
+  "experiment": "invariant-generation",
+  "failed_repetitions": [],
+  "plan_hash": "ecb488602f31845ac672e7a53e6a26084a4a72a2e2bacbf2993a3ada604d5d84",
+  "repetitions": {
+    "1": {
+      "path": "rep-001",
+      "status": "completed"
+    }
+  },
+  "run_id": "gcc16-aarch64-full-20261013-invariant-generation",
+  "schema_version": 1,
+  "status": "completed",
+  "successful_repetitions": [
+    1
+  ],
+  "updated_at": "2026-10-13T03:47:34.631+00:00",
+  "variant": "full"
+}

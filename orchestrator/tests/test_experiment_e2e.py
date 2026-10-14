@@ -19,7 +19,7 @@ from defuzz_loop.experiment_engine.checker_authoring import CheckerAuthoringRunn
 from defuzz_loop.online_oracle import checker_bundle_dispatcher_argv
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CHECKER_ID = "INV-IBT-B01"
+CHECKER_ID = "INV-IBT-E2E-B01"
 TRIGGER_SOURCE = """
 unsigned long long gadget(void) {
     return 0x1fa1e0ff3abULL;
@@ -43,7 +43,7 @@ bool valid_ibt_immediate(unsigned long long value) {
 """.lstrip()
 
 
-class _NoOpAuthoringBackend:
+class _ExistingCheckerAuthoringBackend:
     provider = "fake"
     model = "no-model"
 
@@ -52,6 +52,29 @@ class _NoOpAuthoringBackend:
 
     async def run(self, request: Any) -> AgentResult:
         self.requests.append(request)
+        # Existing checker-owned files are immutable. Add a separate wrapper
+        # and extend only the shared metadata/registration integration points.
+        oracle = request.cwd / "core/internal/oracle"
+        (oracle / "checker_e2e_ibt.go").write_text(
+            "package oracle\n\n"
+            "type E2EIBTChecker struct{}\n"
+            f'func (*E2EIBTChecker) ID() string {{ return "{CHECKER_ID}" }}\n'
+            "func (*E2EIBTChecker) Category() InvariantCategory { return CategoryStatic }\n"
+            "func (c *E2EIBTChecker) Check(ctx *CheckContext) InvariantResult {\n"
+            " r := (&UnintendedEndbrChecker{}).Check(ctx)\n r.ID = c.ID()\n return r\n}\n"
+        )
+        metadata = oracle / "metadata.go"
+        text = metadata.read_text()
+        marker = "var checkerMetadata = map[string]CheckerMetadata{"
+        text = text.replace(marker, marker + "\n" + (
+            f'"{CHECKER_ID}": {{ID: "{CHECKER_ID}", ApplicableISAs: x86ISAs, '
+            "Mode: ModeSingle, Cost: CostCheap, Category: CategoryStatic},"
+        ), 1)
+        metadata.write_text(text)
+        registration = oracle / "ibt_oracle.go"
+        registration.write_text(registration.read_text().replace(
+            "Checkers: []InvariantChecker{", "Checkers: []InvariantChecker{\n &E2EIBTChecker{},", 1,
+        ))
         return AgentResult(
             success=True,
             final={"summary": "use the existing INV-IBT-B01 checker"},
@@ -238,7 +261,7 @@ async def test_real_checker_bundle_crosses_python_go_and_clang_without_a_model(
         encoding="utf-8",
     )
     authoring_output = tmp_path / "part-ii"
-    authoring_backend = _NoOpAuthoringBackend()
+    authoring_backend = _ExistingCheckerAuthoringBackend()
     authoring_result = await CheckerAuthoringRunner(backend=authoring_backend).run(
         ExperimentPlan(
             run_id="ibt-cross-language-e2e-authoring",
@@ -261,8 +284,8 @@ async def test_real_checker_bundle_crosses_python_go_and_clang_without_a_model(
     authoring_row = json.loads((authoring_output / "results.jsonl").read_text(encoding="utf-8"))
     assert authoring_row["invariant_id"] == CHECKER_ID
     assert authoring_row["final_status"] == "passed"
-    assert authoring_row["files"] == []
-    assert len(authoring_row["attempts"][0]["validation"]) == 3
+    assert authoring_row["files"]
+    assert len(authoring_row["attempts"][0]["validation"]) == 4
     assert all(item["status"] == "passed" for item in authoring_row["attempts"][0]["validation"])
     token_rows = [
         json.loads(line)

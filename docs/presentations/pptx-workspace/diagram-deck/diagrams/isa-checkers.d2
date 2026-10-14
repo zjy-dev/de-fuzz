@@ -1,0 +1,13 @@
+...@theme.d2
+direction: down
+requirement: "同一条安全要求" {class: focus; shape: document; width: 380; height: 88}
+x86: "x86-64 checker\nx86 指令与寄存器" {class: main; width: 330; height: 118}
+arm: "AArch64 checker\nARM 指令与栈布局" {class: main; width: 330; height: 118}
+other: "其他适用 ISA\n分别实现检查逻辑" {class: neutral; width: 290; height: 118}
+evidence: "判定结果与证据" {class: yellow; width: 440; height: 88}
+requirement -> x86: {class: edge}
+requirement -> arm: {class: edge}
+requirement -> other: {class: edge}
+x86 -> evidence: {class: edge}
+arm -> evidence: {class: edge}
+other -> evidence: {class: edge}

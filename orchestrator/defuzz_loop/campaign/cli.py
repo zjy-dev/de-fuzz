@@ -5,10 +5,8 @@ Wires the parallel launcher to production dependencies: builds an
 objects. LangGraph is gone; the intra-campaign flow is the explicit
 Python loop in :mod:`defuzz_loop.loop`.
 
-MCP integration for the LLM-facing subagents is still TODO — the
-:class:`SubagentRunner` currently receives all its data through the
-Python-assembled prompt (see the TODO markers in
-``.opencode/opencode.jsonc`` and each ``.opencode/agents/*.md``).
+Online agents receive core MCP data through the Python-assembled prompt.
+The shared Pi backend preserves one isolated session per attempt.
 """
 
 from __future__ import annotations
@@ -42,8 +40,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=[],
         choices=["feedback", "minimizer", "llm_oracle"],
     )
-    p.add_argument("--opencode-cwd", type=Path, default=Path.cwd())
-    p.add_argument("--model", default=None, help="Optional OpenCode model override.")
+    p.add_argument("--agent-cwd", type=Path, default=Path.cwd())
+    p.add_argument("--pi-config", type=Path, required=True, help="Pi runtime JSON")
+    p.add_argument("--model", default=None, help="Must match the pinned Pi model.")
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARN", "ERROR"])
     return p.parse_args(argv)
 
@@ -60,11 +59,11 @@ def main(argv: list[str] | None = None) -> int:
     from ..agents.generator import GeneratorAgent
     from ..agents.llm_oracle import LLMOracleAgent
     from ..agents.minimizer import MinimizerAgent
+    from ..agents.runner import SubagentRunner
+    from ..audit import make_run_dir
     from ..clients.grpc_client import CoreClient
     from ..clients.mcp_client import MCPClient
     from ..loop import IterationLoop
-    from ..opencode.client import OpenCodeClient
-    from ..opencode.runner import SubagentRunner
     from ..routing import CheckerCatalog
     from ..state import Blackboard
     from .parallel import run_parallel_campaigns
@@ -76,11 +75,13 @@ def main(argv: list[str] | None = None) -> int:
         with CoreClient(args.grpc) as client:
             catalog = CheckerCatalog(client)
             mcp = MCPClient(args.mcp)
-            oc_client = OpenCodeClient()
-            runner = SubagentRunner(
-                oc_client,
-                cwd=args.opencode_cwd,
+            run_dir = make_run_dir(args.run_dir, args.experiment, args.mechanism)
+            runner = SubagentRunner.from_config(
+                args.pi_config,
+                cwd=args.agent_cwd,
+                output_dir=run_dir / "agents",
                 model=args.model,
+                metadata={"run_id": run_dir.name, "experiment": args.experiment},
             )
 
             phi_ids = args.phi_ids

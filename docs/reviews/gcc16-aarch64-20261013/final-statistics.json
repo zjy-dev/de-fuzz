@@ -1,0 +1,65 @@
+{
+  "run_id": "gcc16-aarch64-full-20261013",
+  "compiler": "GCC 16.2.0",
+  "release_commit": "78d4ac73dd391005b895b16148cd9831e28e1208b",
+  "isa": "aarch64",
+  "variant": "full",
+  "repetitions": 1,
+  "backend": "pi (local coconut gateway)",
+  "stages": {
+    "invariant-generation": {
+      "status": "completed",
+      "model_calls": 539,
+      "tokens": 1576298,
+      "usage_missing": 0,
+      "token_comparable": true,
+      "accepted_invariants": 50,
+      "segments": 173
+    },
+    "checker-authoring": {
+      "status": "completed",
+      "model_calls": 685,
+      "tokens": 18065918,
+      "usage_missing": 0,
+      "token_comparable": true,
+      "checkers_passed": 43,
+      "bundle_ready": true
+    },
+    "source-mapping": {
+      "status": "completed",
+      "model_calls": 324,
+      "tokens": 5228078,
+      "usage_missing": 0,
+      "token_comparable": true,
+      "mapped": 43
+    },
+    "log-instrumentation": {
+      "status": "completed",
+      "model_calls": 0,
+      "tokens": 0,
+      "usage_missing": 0,
+      "token_comparable": true,
+      "anchors": 551,
+      "active_probes": 86,
+      "annotations": 465,
+      "files_touched": 58
+    },
+    "agent-audit": {
+      "status": "completed",
+      "model_calls": 27,
+      "tokens": 10125151,
+      "usage_missing": 0,
+      "token_comparable": true,
+      "workers_valid": 5,
+      "workers_total": 5,
+      "candidates": 0,
+      "candidate_verified": 0,
+      "result_valid": true
+    }
+  },
+  "totals": {
+    "model_calls": 1575,
+    "tokens": 34995445,
+    "usage_missing": 0
+  }
+}

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" data-d2-version="0.7.1" preserveAspectRatio="xMinYMin meet" viewBox="0 0 931 296"><svg class="d2-140843029 d2-svg" width="931" height="296" viewBox="-1 -1 931 296"><rect x="-1.000000" y="-1.000000" width="931.000000" height="296.000000" rx="0.000000" fill="#FFFFFF" stroke-width="0" /><style type="text/css"><![CDATA[
+.d2-140843029 .text-bold {
+	font-family: "Microsoft YaHei";
+}
+]]></style><style type="text/css"><![CDATA[.shape {
+  shape-rendering: geometricPrecision;
+  stroke-linejoin: round;
+}
+.connection {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.blend {
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+}
+
+		.d2-140843029 .fill-N1{fill:#0A0F25;}
+		.d2-140843029 .fill-N2{fill:#676C7E;}
+		.d2-140843029 .fill-N3{fill:#9499AB;}
+		.d2-140843029 .fill-N4{fill:#CFD2DD;}
+		.d2-140843029 .fill-N5{fill:#DEE1EB;}
+		.d2-140843029 .fill-N6{fill:#EEF1F8;}
+		.d2-140843029 .fill-N7{fill:#FFFFFF;}
+		.d2-140843029 .fill-B1{fill:#0D32B2;}
+		.d2-140843029 .fill-B2{fill:#0D32B2;}
+		.d2-140843029 .fill-B3{fill:#E3E9FD;}
+		.d2-140843029 .fill-B4{fill:#E3E9FD;}
+		.d2-140843029 .fill-B5{fill:#EDF0FD;}
+		.d2-140843029 .fill-B6{fill:#F7F8FE;}
+		.d2-140843029 .fill-AA2{fill:#4A6FF3;}
+		.d2-140843029 .fill-AA4{fill:#EDF0FD;}
+		.d2-140843029 .fill-AA5{fill:#F7F8FE;}
+		.d2-140843029 .fill-AB4{fill:#EDF0FD;}
+		.d2-140843029 .fill-AB5{fill:#F7F8FE;}
+		.d2-140843029 .stroke-N1{stroke:#0A0F25;}
+		.d2-140843029 .stroke-N2{stroke:#676C7E;}
+		.d2-140843029 .stroke-N3{stroke:#9499AB;}
+		.d2-140843029 .stroke-N4{stroke:#CFD2DD;}
+		.d2-140843029 .stroke-N5{stroke:#DEE1EB;}
+		.d2-140843029 .stroke-N6{stroke:#EEF1F8;}
+		.d2-140843029 .stroke-N7{stroke:#FFFFFF;}
+		.d2-140843029 .stroke-B1{stroke:#0D32B2;}
+		.d2-140843029 .stroke-B2{stroke:#0D32B2;}
+		.d2-140843029 .stroke-B3{stroke:#E3E9FD;}
+		.d2-140843029 .stroke-B4{stroke:#E3E9FD;}
+		.d2-140843029 .stroke-B5{stroke:#EDF0FD;}
+		.d2-140843029 .stroke-B6{stroke:#F7F8FE;}
+		.d2-140843029 .stroke-AA2{stroke:#4A6FF3;}
+		.d2-140843029 .stroke-AA4{stroke:#EDF0FD;}
+		.d2-140843029 .stroke-AA5{stroke:#F7F8FE;}
+		.d2-140843029 .stroke-AB4{stroke:#EDF0FD;}
+		.d2-140843029 .stroke-AB5{stroke:#F7F8FE;}
+		.d2-140843029 .background-color-N1{background-color:#0A0F25;}
+		.d2-140843029 .background-color-N2{background-color:#676C7E;}
+		.d2-140843029 .background-color-N3{background-color:#9499AB;}
+		.d2-140843029 .background-color-N4{background-color:#CFD2DD;}
+		.d2-140843029 .background-color-N5{background-color:#DEE1EB;}
+		.d2-140843029 .background-color-N6{background-color:#EEF1F8;}
+		.d2-140843029 .background-color-N7{background-color:#FFFFFF;}
+		.d2-140843029 .background-color-B1{background-color:#0D32B2;}
+		.d2-140843029 .background-color-B2{background-color:#0D32B2;}
+		.d2-140843029 .background-color-B3{background-color:#E3E9FD;}
+		.d2-140843029 .background-color-B4{background-color:#E3E9FD;}
+		.d2-140843029 .background-color-B5{background-color:#EDF0FD;}
+		.d2-140843029 .background-color-B6{background-color:#F7F8FE;}
+		.d2-140843029 .background-color-AA2{background-color:#4A6FF3;}
+		.d2-140843029 .background-color-AA4{background-color:#EDF0FD;}
+		.d2-140843029 .background-color-AA5{background-color:#F7F8FE;}
+		.d2-140843029 .background-color-AB4{background-color:#EDF0FD;}
+		.d2-140843029 .background-color-AB5{background-color:#F7F8FE;}
+		.d2-140843029 .color-N1{color:#0A0F25;}
+		.d2-140843029 .color-N2{color:#676C7E;}
+		.d2-140843029 .color-N3{color:#9499AB;}
+		.d2-140843029 .color-N4{color:#CFD2DD;}
+		.d2-140843029 .color-N5{color:#DEE1EB;}
+		.d2-140843029 .color-N6{color:#EEF1F8;}
+		.d2-140843029 .color-N7{color:#FFFFFF;}
+		.d2-140843029 .color-B1{color:#0D32B2;}
+		.d2-140843029 .color-B2{color:#0D32B2;}
+		.d2-140843029 .color-B3{color:#E3E9FD;}
+		.d2-140843029 .color-B4{color:#E3E9FD;}
+		.d2-140843029 .color-B5{color:#EDF0FD;}
+		.d2-140843029 .color-B6{color:#F7F8FE;}
+		.d2-140843029 .color-AA2{color:#4A6FF3;}
+		.d2-140843029 .color-AA4{color:#EDF0FD;}
+		.d2-140843029 .color-AA5{color:#F7F8FE;}
+		.d2-140843029 .color-AB4{color:#EDF0FD;}
+		.d2-140843029 .color-AB5{color:#F7F8FE;}.appendix text.text{fill:#0A0F25}.md{--color-fg-default:#0A0F25;--color-fg-muted:#676C7E;--color-fg-subtle:#9499AB;--color-canvas-default:#FFFFFF;--color-canvas-subtle:#EEF1F8;--color-border-default:#0D32B2;--color-border-muted:#0D32B2;--color-neutral-muted:#EEF1F8;--color-accent-fg:#0D32B2;--color-accent-emphasis:#0D32B2;--color-attention-subtle:#676C7E;--color-danger-fg:red;}.sketch-overlay-B1{fill:url(#streaks-darker-d2-140843029);mix-blend-mode:lighten}.sketch-overlay-B2{fill:url(#streaks-darker-d2-140843029);mix-blend-mode:lighten}.sketch-overlay-B3{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-B4{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-B5{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-B6{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-AA2{fill:url(#streaks-dark-d2-140843029);mix-blend-mode:overlay}.sketch-overlay-AA4{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-AA5{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-AB4{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-AB5{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-N1{fill:url(#streaks-darker-d2-140843029);mix-blend-mode:lighten}.sketch-overlay-N2{fill:url(#streaks-dark-d2-140843029);mix-blend-mode:overlay}.sketch-overlay-N3{fill:url(#streaks-normal-d2-140843029);mix-blend-mode:color-burn}.sketch-overlay-N4{fill:url(#streaks-normal-d2-140843029);mix-blend-mode:color-burn}.sketch-overlay-N5{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-N6{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.sketch-overlay-N7{fill:url(#streaks-bright-d2-140843029);mix-blend-mode:darken}.light-code{display: block}.dark-code{display: none}]]></style><g class="c2VlZA== neutral"><g class="shape" ><path d="M 12 201 L 12 72 L 202 72 L 202 201 C 170 173 139 173 107 201 C 75 229 44 229 12 201 Z" stroke="#9E9E9E" fill="#F5F5F5" style="stroke-width:2;" /></g><text x="107.000000" y="122.982166" fill="#333333" class="text-bold" style="text-anchor:middle;font-size:28px"><tspan x="107.000000" dy="0.000000">同一个测试</tspan><tspan x="107.000000" dy="32.500000">栈上 int[4]</tspan></text></g><g class="YmFzZWxpbmU= main"><g class="shape" ><rect x="324.000000" y="12.000000" width="235.000000" height="125.000000" rx="12.000000" stroke="#1B5E20" fill="#E8F5E9" style="stroke-width:2;" /></g><text x="441.500000" y="69.500000" fill="#1B5E20" class="text-bold" style="text-anchor:middle;font-size:30px"><tspan x="441.500000" dy="0.000000">原始编译器</tspan><tspan x="441.500000" dy="35.000000">strong 栈保护</tspan></text></g><g class="bXV0YW50 danger"><g class="shape" ><rect x="282.000000" y="157.000000" width="320.000000" height="125.000000" rx="10.000000" stroke="#C62828" fill="#FFEBEE" style="stroke-width:2;" /></g><text x="442.000000" y="215.000000" fill="#C62828" class="text-bold" style="text-anchor:middle;font-size:28px"><tspan x="442.000000" dy="0.000000">植入一处遗漏</tspan><tspan x="442.000000" dy="32.500000">跳过 int 数组分类</tspan></text></g><g class="cHJvdGVjdGVk main"><g class="shape" ><path d="M 726 14 L 672 74 L 726 134 L 833 134 L 887 74 L 833 14 Z" stroke="#1B5E20" fill="#E8F5E9" style="stroke-width:2;" /></g><text x="779.500000" y="84.000000" fill="#1B5E20" class="text-bold" style="text-anchor:middle;font-size:30px">保护成立</text></g><g class="d2Vhaw== danger"><g class="shape" ><rect x="672.000000" y="159.000000" width="245.000000" height="120.000000" rx="10.000000" stroke="#C62828" fill="#FFEBEE" style="stroke-width:2;" /></g><text x="794.500000" y="214.500000" fill="#C62828" class="text-bold" style="text-anchor:middle;font-size:28px"><tspan x="794.500000" dy="0.000000">预期保护减弱</tspan><tspan x="794.500000" dy="32.500000">需要独立验收</tspan></text></g><g class="KHNlZWQgLSZndDsgYmFzZWxpbmUpWzBd edge"><marker id="mk-d2-140843029-3387356504" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#1B5E20" class="connection" stroke-width="3" /> </marker><path d="M 204.500000 122.000000 L 232.000000 122.000000 S 242.000000 122.000000 242.000000 112.000000 L 242.000000 84.500000 S 242.000000 74.500000 252.000000 74.500000 L 319.500000 74.500000" stroke="#1B5E20" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-140843029-3387356504)" mask="url(#d2-140843029)" /></g><g class="KHNlZWQgLSZndDsgbXV0YW50KVswXQ== edge"><marker id="mk-d2-140843029-3804055682" markerWidth="13.000000" markerHeight="16.000000" refX="8.500000" refY="8.000000" viewBox="0.000000 0.000000 13.000000 16.000000" orient="auto" markerUnits="userSpaceOnUse"> <polygon points="0.000000,0.000000 13.000000,8.000000 0.000000,16.000000" fill="#C62828" class="connection" stroke-width="3" /> </marker><path d="M 204.500000 172.000000 L 276.500000 172.000000" stroke="#C62828" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-140843029-3804055682)" mask="url(#d2-140843029)" /></g><g class="KGJhc2VsaW5lIC0mZ3Q7IHByb3RlY3RlZClbMF0= edge"><path d="M 561.499976 74.511062 L 666.500054 74.975664" stroke="#1B5E20" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-140843029-3387356504)" mask="url(#d2-140843029)" /></g><g class="KG11dGFudCAtJmd0OyB3ZWFrKVswXQ== edge"><path d="M 604.500000 219.500000 L 666.500000 219.500000" stroke="#C62828" fill="none" class="connection" style="stroke-width:3;" marker-end="url(#mk-d2-140843029-3804055682)" mask="url(#d2-140843029)" /></g><mask id="d2-140843029" maskUnits="userSpaceOnUse" x="-1" y="-1" width="931" height="296">
+<rect x="-1" y="-1" width="931" height="296" fill="white"></rect>
+
+</mask></svg></svg>

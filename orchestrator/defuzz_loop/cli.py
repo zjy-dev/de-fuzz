@@ -15,14 +15,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
+from pathlib import Path
+from typing import cast
 
+from .agents.runner import SubagentRunner
 from .audit import build_manifest, make_run_dir, write_manifest
 from .clients.grpc_client import CoreClient
 from .clients.mcp_client import MCPClient
+from .experiment_engine.pi_backend import PiAgentBackend
 from .llm import LLMConfig
 from .loop import IterationLoop
-from .opencode.client import OpenCodeClient
-from .opencode.runner import SubagentRunner
+from .round_artifacts import RoundArtifacts
 from .routing import CheckerCatalog
 from .specgen import cli as specgen_cli
 from .state import Blackboard
@@ -87,8 +91,10 @@ async def _run(args: argparse.Namespace) -> None:
     with CoreClient(args.grpc) as client:
         catalog = CheckerCatalog(client)
         mcp = MCPClient(args.mcp)
-        oc_client = OpenCodeClient()
-        runner = SubagentRunner(oc_client, cwd=args.opencode_cwd)
+        runner = SubagentRunner.from_config(
+            args.pi_config, cwd=args.agent_cwd, output_dir=run_dir / "agents",
+            metadata={"run_id": run_dir.name, "experiment": args.experiment},
+        )
 
         generator = GeneratorAgent(args.mechanism, mcp, runner)
         feedback = (
@@ -122,9 +128,17 @@ async def _run(args: argparse.Namespace) -> None:
                 blackboard=initial,
                 disabled_agents=sorted(disabled),
                 checker_ids=catalog.all_ids,
+                runtime_metadata={
+                    "backend": "pi-sdk",
+                    "provider": cast(PiAgentBackend, runner.backend).config["model_provider"],
+                    "model": cast(PiAgentBackend, runner.backend).config["model_id"],
+                    "config_sha256": cast(PiAgentBackend, runner.backend).config_sha256,
+                    "input_hashes": cast(PiAgentBackend, runner.backend).config["input_hashes"],
+                },
             ),
         )
 
+        artifacts = RoundArtifacts(run_dir, os.environ.get("DEFUZZ_WORK_ROOT"))
         loop = IterationLoop(
             generator=generator,
             feedback=feedback,
@@ -132,15 +146,21 @@ async def _run(args: argparse.Namespace) -> None:
             minimizer=minimizer,
             client=client,
             catalog=catalog,
+            on_round_complete=artifacts.complete,
         )
-        final = await loop.run(
-            initial,
-            budget_rounds=args.budget_rounds,
-            budget_secs=args.budget_secs,
-        )
+        try:
+            final = await loop.run(
+                initial,
+                budget_rounds=args.budget_rounds,
+                budget_secs=args.budget_secs,
+            )
+        except BaseException as exc:
+            artifacts.finish(initial, error=f"{type(exc).__name__}: {exc}")
+            raise
+        artifacts.finish(final)
 
     bb = final
-    print(f"rounds run: {bb.round + 1}")
+    print(f"rounds run: {artifacts.completed_rounds}")
     print(f"corpus size: {len(bb.corpus)}")
     print(f"verdicts: {[v.aggregate for v in bb.verdict_history]}")
     if bb.guidance is not None:
@@ -162,7 +182,7 @@ async def _run(args: argparse.Namespace) -> None:
 def _rev3_notice(command: str) -> None:
     print(
         f"'{command}' relied on LangGraph checkpoint chains removed in Rev 3.\n"
-        "See docs/tech-docs/architecture/opencode-migration-plan.md for the "
+        "See docs/tech-docs/architecture/pi-sdk-migration.md for the "
         "replacement plan (per-round manifest + audit directory)."
     )
 
@@ -193,10 +213,10 @@ def main() -> None:
         metavar="EDGE=on|off",
     )
     run.add_argument(
-        "--opencode-cwd",
-        default=".",
-        help="Working directory containing .opencode/agents/*.md",
+        "--agent-cwd", type=Path, default=Path("."),
+        help="Read-only workspace for online agents",
     )
+    run.add_argument("--pi-config", type=Path, required=True, help="Pi runtime JSON")
 
     for stub_name in ("inspect", "replay", "trace-bug"):
         stub = sub.add_parser(stub_name, help=f"{stub_name} (Rev 3: retired)")

@@ -1,0 +1,244 @@
+{
+  "agent": "audit-family-a",
+  "compiler": "llvm",
+  "isa": "aarch64",
+  "success": true,
+  "error_category": null,
+  "error": null,
+  "elapsed_seconds": 31.22,
+  "attempt_directory": "/tmp/defuzz-pi-mcp-live-check/audit-family-a",
+  "session_id": "01a13055-f2f4-7589-8dae-376b9353bf5e",
+  "callgraph_queries": 3,
+  "callgraph_data_queries": 2,
+  "graph_tools_exposed": [
+    "mcp__defuzz_callgraph__find_function",
+    "mcp__defuzz_callgraph__get_callees",
+    "mcp__defuzz_callgraph__get_callers",
+    "mcp__defuzz_callgraph__list_targets",
+    "mcp__defuzz_callgraph__paths_between",
+    "mcp__defuzz_callgraph__slice_from"
+  ],
+  "graph_calls": [
+    {
+      "tool": "mcp__defuzz_callgraph__list_targets",
+      "is_error": false,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"query\": {},\n  \"targets\": [\n    {\n      \"target\": \"llvm-23.1.2\",\n      \"source_csv\": \"/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/llvm-23.1.2.csv\",\n      \"edge_count\": 2025915,\n      \"ingested_at\": \"2026-10-12T12:12:20.524522+00:00\",\n      \"provenance\": {\n        \"compiler\": \"llvm\",\n        \"coverage\": \"observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted\",\n        \"csv_sha256\": \"a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b\",\n        \"extractor\": \"CodeQL\",\n        \"isas\": [\n          \"x86_64\",\n          \"aarch64\"\n        ],\n        \"query_sha256\": \"fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247\",\n        \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\",\n        \"source_archive_sha256\": \"c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a\",\n        \"source_revision\": \"85ac560262434c9ccfc0c183ec22d4138ed647fb\",\n        \"version\": \"23.1.2\"\n      },\n      \"identity_status\": \"release-log-and-source-anchors\"\n    }\n  ],\n  \"counters\": {\n    \"targets\": 1,\n    \"edges\": 2025915\n  },\n  \"truncated\": false\n}"
+          }
+        ],
+        "details": {
+          "server": "defuzz_callgraph",
+          "tool": "list_targets"
+        },
+        "structuredContent": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"query\": {},\n  \"targets\": [\n    {\n      \"target\": \"llvm-23.1.2\",\n      \"source_csv\": \"/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/llvm-23.1.2.csv\",\n      \"edge_count\": 2025915,\n      \"ingested_at\": \"2026-10-12T12:12:20.524522+00:00\",\n      \"provenance\": {\n        \"compiler\": \"llvm\",\n        \"coverage\": \"observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted\",\n        \"csv_sha256\": \"a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b\",\n        \"extractor\": \"CodeQL\",\n        \"isas\": [\n          \"x86_64\",\n          \"aarch64\"\n        ],\n        \"query_sha256\": \"fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247\",\n        \"revision_evidence\": \"official-release-tag; original extraction logs name this release; extractor commit absent\",\n        \"source_archive_sha256\": \"c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a\",\n        \"source_revision\": \"85ac560262434c9ccfc0c183ec22d4138ed647fb\",\n        \"version\": \"23.1.2\"\n      },\n      \"identity_status\": \"release-log-and-source-anchors\"\n    }\n  ],\n  \"counters\": {\n    \"targets\": 1,\n    \"edges\": 2025915\n  },\n  \"truncated\": false\n}"
+            }
+          ],
+          "structuredContent": {
+            "query": {},
+            "targets": [
+              {
+                "target": "llvm-23.1.2",
+                "source_csv": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/csv/llvm-23.1.2.csv",
+                "edge_count": 2025915,
+                "ingested_at": "2026-10-12T12:12:20.524522+00:00",
+                "provenance": {
+                  "compiler": "llvm",
+                  "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
+                  "csv_sha256": "a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b",
+                  "extractor": "CodeQL",
+                  "isas": [
+                    "x86_64",
+                    "aarch64"
+                  ],
+                  "query_sha256": "fa3e0428e539d188dff1ace813333f346ca7c000338aebbaa5a9a12b19135247",
+                  "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent",
+                  "source_archive_sha256": "c98bbef08a2b4c2613cd50e9aa9ae7b69b1fe6c16b2c40373bc0ab6116fdf78a",
+                  "source_revision": "85ac560262434c9ccfc0c183ec22d4138ed647fb",
+                  "version": "23.1.2"
+                },
+                "identity_status": "release-log-and-source-anchors"
+              }
+            ],
+            "counters": {
+              "targets": 1,
+              "edges": 2025915
+            },
+            "truncated": false
+          },
+          "isError": false
+        }
+      }
+    },
+    {
+      "tool": "mcp__defuzz_callgraph__find_function",
+      "is_error": false,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"query\": {\n    \"target\": \"llvm-23.1.2\",\n    \"pattern\": \"StackProtector\",\n    \"limit\": 5\n  },\n  \"functions\": [\n    \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n    \"InsertStackProtectors\",\n    \"findStackProtectorIntrinsic\",\n    \"initializeStackProtectorPassOnce\",\n    \"llvm::BranchProbabilityInfo::getBranchProbStackProtector\"\n  ],\n  \"counters\": {\n    \"matches_returned\": 5\n  },\n  \"truncated\": true\n}"
+          }
+        ],
+        "details": {
+          "server": "defuzz_callgraph",
+          "tool": "find_function"
+        },
+        "structuredContent": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"query\": {\n    \"target\": \"llvm-23.1.2\",\n    \"pattern\": \"StackProtector\",\n    \"limit\": 5\n  },\n  \"functions\": [\n    \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n    \"InsertStackProtectors\",\n    \"findStackProtectorIntrinsic\",\n    \"initializeStackProtectorPassOnce\",\n    \"llvm::BranchProbabilityInfo::getBranchProbStackProtector\"\n  ],\n  \"counters\": {\n    \"matches_returned\": 5\n  },\n  \"truncated\": true\n}"
+            }
+          ],
+          "structuredContent": {
+            "query": {
+              "target": "llvm-23.1.2",
+              "pattern": "StackProtector",
+              "limit": 5
+            },
+            "functions": [
+              "(unnamed namespace)::MachineVerifier::verifyStackProtector",
+              "InsertStackProtectors",
+              "findStackProtectorIntrinsic",
+              "initializeStackProtectorPassOnce",
+              "llvm::BranchProbabilityInfo::getBranchProbStackProtector"
+            ],
+            "counters": {
+              "matches_returned": 5
+            },
+            "truncated": true
+          },
+          "isError": false
+        }
+      }
+    },
+    {
+      "tool": "mcp__defuzz_callgraph__get_callers",
+      "is_error": false,
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\n  \"query\": {\n    \"target\": \"llvm-23.1.2\",\n    \"function\": \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n    \"depth\": 1,\n    \"limit\": 5\n  },\n  \"direction\": \"callers\",\n  \"nodes\": [\n    \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n    \"(unnamed namespace)::MachineVerifier::visitMachineFunctionBefore\"\n  ],\n  \"edges\": [\n    {\n      \"caller\": \"(unnamed namespace)::MachineVerifier::visitMachineFunctionBefore\",\n      \"callee\": \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n      \"edge_kind\": \"direct\",\n      \"file\": \"llvm/lib/CodeGen/MachineVerifier.cpp\",\n      \"line\": 730,\n      \"depth\": 1\n    }\n  ],\n  \"counters\": {\n    \"nodes\": 2,\n    \"edges\": 1,\n    \"expanded\": 1\n  },\n  \"truncated\": false\n}"
+          }
+        ],
+        "details": {
+          "server": "defuzz_callgraph",
+          "tool": "get_callers"
+        },
+        "structuredContent": {
+          "content": [
+            {
+              "type": "text",
+              "text": "{\n  \"query\": {\n    \"target\": \"llvm-23.1.2\",\n    \"function\": \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n    \"depth\": 1,\n    \"limit\": 5\n  },\n  \"direction\": \"callers\",\n  \"nodes\": [\n    \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n    \"(unnamed namespace)::MachineVerifier::visitMachineFunctionBefore\"\n  ],\n  \"edges\": [\n    {\n      \"caller\": \"(unnamed namespace)::MachineVerifier::visitMachineFunctionBefore\",\n      \"callee\": \"(unnamed namespace)::MachineVerifier::verifyStackProtector\",\n      \"edge_kind\": \"direct\",\n      \"file\": \"llvm/lib/CodeGen/MachineVerifier.cpp\",\n      \"line\": 730,\n      \"depth\": 1\n    }\n  ],\n  \"counters\": {\n    \"nodes\": 2,\n    \"edges\": 1,\n    \"expanded\": 1\n  },\n  \"truncated\": false\n}"
+            }
+          ],
+          "structuredContent": {
+            "query": {
+              "target": "llvm-23.1.2",
+              "function": "(unnamed namespace)::MachineVerifier::verifyStackProtector",
+              "depth": 1,
+              "limit": 5
+            },
+            "direction": "callers",
+            "nodes": [
+              "(unnamed namespace)::MachineVerifier::verifyStackProtector",
+              "(unnamed namespace)::MachineVerifier::visitMachineFunctionBefore"
+            ],
+            "edges": [
+              {
+                "caller": "(unnamed namespace)::MachineVerifier::visitMachineFunctionBefore",
+                "callee": "(unnamed namespace)::MachineVerifier::verifyStackProtector",
+                "edge_kind": "direct",
+                "file": "llvm/lib/CodeGen/MachineVerifier.cpp",
+                "line": 730,
+                "depth": 1
+              }
+            ],
+            "counters": {
+              "nodes": 2,
+              "edges": 1,
+              "expanded": 1
+            },
+            "truncated": false
+          },
+          "isError": false
+        }
+      }
+    }
+  ],
+  "model_calls": 4,
+  "reported_tokens": 8665,
+  "usage_missing": false,
+  "integrity_errors": [],
+  "final": {
+    "target": "llvm-23.1.2",
+    "symbol": "(unnamed namespace)::MachineVerifier::verifyStackProtector",
+    "caller_count": 1,
+    "compiler": "llvm",
+    "version": "23.1.2",
+    "isa": "aarch64"
+  },
+  "binding": {
+    "database": "/Users/bytedance/projects/research/de-fuzz/main/callgraph_mcp/data/callgraph.sqlite",
+    "database_sha256": "18cb0e494f916388f7af98e75a0fa3931eed0b6c95016d83cfec5f4d86aae475",
+    "compiler": "llvm",
+    "version": "23.1.2",
+    "bindings": [
+      {
+        "target": "llvm-23.1.2",
+        "compiler": "llvm",
+        "version": "23.1.2",
+        "source_revision": "85ac560262434c9ccfc0c183ec22d4138ed647fb",
+        "isas": [
+          "aarch64"
+        ],
+        "csv_sha256": "a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b",
+        "verified_source_files": 4234,
+        "revision_evidence": "official-release-tag; original extraction logs name this release; extractor commit absent"
+      }
+    ],
+    "targets": [
+      "llvm-23.1.2"
+    ]
+  },
+  "mcp_integration_passed": true,
+  "model_context_evidence": [
+    {
+      "request": 1,
+      "function_outputs_in_context": 0,
+      "output_sha256": []
+    },
+    {
+      "request": 2,
+      "function_outputs_in_context": 1,
+      "output_sha256": [
+        "a5ddd97696250dc4dac13714138ef55cd4c398703f22f2534bcf81608d3c0a6b"
+      ]
+    },
+    {
+      "request": 3,
+      "function_outputs_in_context": 2,
+      "output_sha256": [
+        "a5ddd97696250dc4dac13714138ef55cd4c398703f22f2534bcf81608d3c0a6b",
+        "3072cb273fc10f88ffaaacd2d71958a98f7880ece8dab1319afec93144d1f465"
+      ]
+    },
+    {
+      "request": 4,
+      "function_outputs_in_context": 3,
+      "output_sha256": [
+        "a5ddd97696250dc4dac13714138ef55cd4c398703f22f2534bcf81608d3c0a6b",
+        "3072cb273fc10f88ffaaacd2d71958a98f7880ece8dab1319afec93144d1f465",
+        "8ed18840c48579fbc5f3336bf93af9cef4a950ba253aec96248b4d5899acc385"
+      ]
+    }
+  ]
+}
