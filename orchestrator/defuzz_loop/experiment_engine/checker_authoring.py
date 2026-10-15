@@ -46,6 +46,7 @@ from .checker_reuse import reusable_checker_ids
 from .models import ArtifactRef, ExperimentPlan, StageResult
 from .workspace import (
     WorkspaceBuilder,
+    _is_within,
     validate_agent_path_isolation,
     validate_disjoint_input_roots,
 )
@@ -148,7 +149,9 @@ class CommandResult:
 
 
 def _resolve_agent_deny_paths(
-    parameters: Mapping[str, Any], source_root: Path,
+    parameters: Mapping[str, Any],
+    source_root: Path,
+    output_dir: Path | None = None,
 ) -> tuple[list[Path], bool]:
     raw_paths = parameters.get("deny_read_paths")
     if raw_paths is None:
@@ -160,7 +163,22 @@ def _resolve_agent_deny_paths(
     raw_reference = parameters.get("reference_root")
     if raw_reference is None and parameters.get("findings_deny_path") is not None:
         raw_reference = Path(parameters["findings_deny_path"]).parent
-    mandatory = [source_root]
+
+    resolved_source = Path(source_root).expanduser().resolve(strict=False)
+    resolved_output = Path(output_dir).expanduser().resolve(strict=False) if output_dir else None
+
+    if resolved_output and _is_within(resolved_output, resolved_source):
+        allowlist = parameters.get("workspace_allowlist") or ["core"]
+        mandatory = [
+            (resolved_source / item).resolve()
+            for item in allowlist
+            if (resolved_source / item).exists()
+        ]
+        if not mandatory and (resolved_source / "core").exists():
+            mandatory = [(resolved_source / "core").resolve()]
+    else:
+        mandatory = [resolved_source]
+
     if raw_reference is not None:
         mandatory.append(Path(raw_reference))
         validate_disjoint_input_roots(
@@ -1871,7 +1889,7 @@ class CheckerAuthoringRunner:
         commands = _command_specs(parameters)
         keep_workspace = bool(parameters.get("keep_workspaces", False))
         deny_read_paths, require_host_read_isolation = _resolve_agent_deny_paths(
-            parameters, source_root
+            parameters, source_root, destination
         )
         if require_host_read_isolation and not bool(
             getattr(self.backend, "supports_host_read_isolation", False)
