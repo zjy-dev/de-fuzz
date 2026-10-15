@@ -54,45 +54,75 @@ Invariant scheduling is deterministic: the whole checker catalog is enumerated i
 at run init, and a cursor sweeps it, spending a fixed budget (N rounds OR T seconds) per
 invariant. The agent never chooses *which* invariant to test.
 
-## Running it
+## Running Experiments
 
-For a rootless Pod with the frozen GCC17 four-ISA runtime, shared tmpfs and
-persistent evidence, see the [Podman runbook](docs/tech-docs/guides/podman.md).
+DeFuzz provides a single unified CLI surface for all experiments. No complex shell scripts are required; any experiment can be run with standard command-line invocations.
 
-Build the Go core, then drive it from the orchestrator:
+### 1. End-to-End Pipeline (`run-all`)
+
+To run the complete 5-stage pipeline from invariant generation to instrumented compiler fuzzing in one command:
 
 ```sh
-make build-core                       # → bin/defuzz-core (gRPC + MCP)
-bin/defuzz-core --mechanism canary    # start the deterministic core
-
 cd orchestrator
-uv run defuzz-loop run --mechanism canary --experiment demo \
-  --pi-config ../configs/agents/pi-runtime.example.json
+uv run defuzz-experiment run-all \
+  --corpus-root ../data/corpus \
+  --source-root ../.work/toolchains-matched/gcc-source \
+  --toolchains-config ../.work/gcc16-aarch64-run/toolchains.host.yaml \
+  --pi-config ../configs/agents/pi-runtime.example.json \
+  --output-root ./runs \
+  --compiler gcc --isa aarch64
 ```
 
-Each run lands in `orchestrator/runs/<experiment>_<mechanism>_<UTC>/` with
-`manifest.json`, `events.jsonl`, `summary.json`, and per-round source, state and
-accessible binaries under `rounds/`. In the Pod, completed rounds are archived
-before their shared temporary build directories are removed. The old LangGraph
-`inspect` / `replay` / `trace-bug` commands are retired; the container runbook
-describes replaying the deterministic oracle on archived binaries.
+### 2. Running Individual Sub-Stages
 
-The paper experiments have a separate, stable command surface. The launcher is
-wired to the four-stage v2 pipeline
-`Invariant Generation -> Checker Writing -> Source Mapping -> Agent Audit`, creates an isolated
-artifact tree and token summary for every repetition, and writes a final run
-manifest. `--show-plan` remains side-effect free and validates the selected
-backend and its inputs:
+Each stage can also be executed independently, consuming artifacts from the previous stage:
+
+- **Stage 1: Invariant Generation**
+  ```sh
+  uv run defuzz-experiment invariant-generation \
+    --corpus-root ../data/corpus --output-root ./runs/p1
+  ```
+- **Stage 2: Checker Authoring**
+  ```sh
+  uv run defuzz-experiment checker-authoring \
+    --from-run ./runs/p1 --output-root ./runs/p2
+  ```
+- **Stage 3: Source Mapping (CallGraph)**
+  ```sh
+  uv run defuzz-experiment source-mapping \
+    --from-run ./runs/p1 --source-root ../.work/toolchains-matched/gcc-source \
+    --output-root ./runs/p3
+  ```
+- **Stage 4: Log Instrumentation & Auto-Rebuild**
+  ```sh
+  uv run defuzz-experiment log-instrumentation \
+    --from-run ./runs/p3 --source-root ../.work/toolchains-matched/gcc-source \
+    --accepted-invariants ./runs/p1/rep-001/artifacts/accepted-invariants.jsonl \
+    --output-root ./runs/p4
+  ```
+  *(Generates probe patches and automatically builds the instrumented compiler driver)*
+- **Stage 5: Agentic Fuzz Campaign (`agent-audit`)**
+  ```sh
+  uv run defuzz-experiment agent-audit \
+    --from-run ./runs/p2 --mapping-from-run ./runs/p3 \
+    --toolchains-config ./runs/p4/rep-001/artifacts/toolchains.instrumented.yaml \
+    --accepted-invariants ./runs/p1/rep-001/artifacts/accepted-invariants.jsonl \
+    --output-root ./runs/p5
+  ```
+  *(Sweeps every accepted invariant with dynamic C test seed generation, probe hit analysis, checker evolution, and lateral thinking upon violation)*
+
+### 3. Direct Fuzz Loop
+
+To run the online agentic loop directly on a single defense mechanism (e.g. stack canary):
 
 ```sh
+# Terminal 1: start deterministic core daemon
+make build-core
+bin/defuzz-core --mechanism canary
+
+# Terminal 2: drive the agentic loop
 cd orchestrator
-uv run defuzz-experiment --help
-uv run defuzz-experiment invariant-generation --help
-uv run defuzz-experiment checker-authoring --from-run <part-i-run> --show-plan
-uv run defuzz-experiment source-mapping --help
-uv run defuzz-experiment agent-audit --target-tree <compiler-tree> --show-plan
-uv run defuzz-experiment run-all --help
-uv run defuzz-experiment ablation --help
+uv run defuzz-loop run --mechanism canary --pi-config ../configs/agents/pi-runtime.example.json
 ```
 
 The four campaign variants are `full`, `without-rag`, `without-oracle`, and

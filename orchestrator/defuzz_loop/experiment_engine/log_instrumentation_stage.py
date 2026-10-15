@@ -289,20 +289,46 @@ async def run(
             "diff_sha256": hashlib.sha256(diff_text.encode()).hexdigest(),
             "mechanisms": mechanisms, "isas": isas, "failures": failures,
         }
+        # Auto-rebuild and wire instrumented compiler for Stage 5
+        inst_artifacts = []
+        rebuild_res: dict[str, Any] = {}
+        try:
+            from .compiler_rebuild import rebuild_instrumented_compiler
+            rebuild_res = rebuild_instrumented_compiler(
+                source_root=root,
+                diff_path=diff_path,
+                output_dir=output_dir,
+                base_toolchains_config=params.get("toolchains_config"),
+                compiler=mappings[0].compiler if mappings else params.get("compiler", "gcc"),
+                isa=isas[0] if isas else "aarch64",
+            )
+            summary_record["instrumented_compiler"] = rebuild_res
+            inst_toolchains_file = Path(rebuild_res["toolchains_config"])
+            if inst_toolchains_file.is_file():
+                inst_artifacts.append(inst_toolchains_file)
+        except Exception as exc:
+            failures.append(f"instrumented compiler build notice: {exc}")
+
         summary_path = output_dir / "instrumentation-summary.json"
         summary_path.write_text(json.dumps(summary_record, indent=2, sort_keys=True) + "\n")
+        all_artifacts = (
+            [diff_path, plan_path, catalog_path, summary_path, probe_header_path]
+            + inst_artifacts
+        )
+        inst_cfg = rebuild_res.get("toolchains_config")
         return StageResult(
             stage="log-instrumentation", status=status, errors=failures,
             artifacts=[
                 ArtifactRef.from_path(p, base_dir=output_dir)
-                for p in (diff_path, plan_path, catalog_path, summary_path, probe_header_path)
+                for p in all_artifacts
             ],
             metrics={"anchors": len(plan_rows), "active_probes": active_count,
                      "annotations": len(plan_rows) - active_count,
                      "touched_files": len(touched_files), "failed": len(failures)},
             metadata={"repetition": repetition, "instrumentation_diff": diff_path.name,
                       "log_id_catalog": catalog_path.name,
-                      "instrumentation_summary": summary_path.name},
+                      "instrumentation_summary": summary_path.name,
+                      "toolchains_config": inst_cfg},
         )
     except Exception as exc:
         return StageResult(stage="log-instrumentation", status="failed",

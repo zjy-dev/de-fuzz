@@ -1058,6 +1058,15 @@ async def run(
         families = (AuditFamily(key="BARE", name="general", mechanisms=tuple(mechanisms)),)
     else:
         invariants_param = parameters.get("invariants") or parameters.get("tasks")
+        if not invariants_param and parameters.get("accepted_invariants"):
+            acc_raw = str(parameters["accepted_invariants"])
+            acc_path = Path(acc_raw).expanduser().resolve(strict=False)
+            if acc_path.is_file():
+                try:
+                    lines = acc_path.read_text(encoding="utf-8").splitlines()
+                    invariants_param = [json.loads(line) for line in lines if line.strip()]
+                except Exception:
+                    invariants_param = None
         if invariants_param and isinstance(invariants_param, list):
             families = tuple(
                 AuditFamily(
@@ -1554,13 +1563,32 @@ async def run(
                         continue
                     if oracle_results:
                         feedback = render_oracle_feedback(oracle_results)
-                        guidance = (
-                            checker_routing_prompt
-                            + "\n\n# Deterministic online checker feedback\n\n"
-                            + feedback
-                            + "\n\nRevise the report using this feedback. Preserve the "
-                            "worker_bundle_sha256 echo."
+                        has_violation = any(
+                            getattr(r, "verdict", None) in ("FAIL", "VIOLATED")
+                            or (isinstance(r, dict) and r.get("verdict") in ("FAIL", "VIOLATED"))
+                            for r in oracle_results
                         )
+                        if has_violation:
+                            guidance = (
+                                checker_routing_prompt
+                                + "\n\n# Lateral Thinking Guidance (Violation Discovered!)\n\n"
+                                + "A defense invariant violation was verified! "
+                                + "Do NOT stop or exit early.\n"
+                                + "Explore DIVERGENT postures and alternative boundary conditions "
+                                + "(e.g. alternate types, alignments, struct nestings, bounds, "
+                                + "VLAs, indirect calls) to violate this defense in more ways "
+                                + "and surface more distinct compiler bugs within your budget.\n\n"
+                                + feedback
+                                + "\n\nPreserve the worker_bundle_sha256 echo."
+                            )
+                        else:
+                            guidance = (
+                                checker_routing_prompt
+                                + "\n\n# Deterministic online checker feedback\n\n"
+                                + feedback
+                                + "\n\nRevise the report using this feedback. Preserve the "
+                                "worker_bundle_sha256 echo."
+                            )
                     else:
                         guidance = (
                             checker_routing_prompt

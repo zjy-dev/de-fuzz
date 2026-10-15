@@ -1419,8 +1419,17 @@ def _run_all_main(argv: Sequence[str]) -> int:
         audit_argv += ["--checker-source-root", str(args.checker_source_root)]
     if args.target_tree is not None or args.source_root is not None:
         audit_argv += ["--target-tree", str(args.target_tree or args.source_root)]
-    if args.toolchains_config is not None:
+    inst_toolchains = _from_run_artifact(
+        output_root / instrument_id, 1, "toolchains.instrumented.yaml"
+    )
+    if inst_toolchains.is_file():
+        audit_argv += ["--toolchains-config", str(inst_toolchains)]
+    elif args.toolchains_config is not None:
         audit_argv += ["--toolchains-config", str(args.toolchains_config)]
+    audit_argv += [
+        "--accepted-invariants",
+        str(_from_run_artifact(inv_run_dir, 1, "accepted-invariants.jsonl")),
+    ]
     if args.toolchain_version is not None:
         audit_argv += ["--toolchain-version", str(args.toolchain_version)]
     if args.demo_parity:

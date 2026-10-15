@@ -38,7 +38,7 @@ for arg in "$@"; do
   [[ "$arg" == -o ]] && has_output=true
 done
 if [[ "$has_output" == false ]]; then
-  exec podman run --rm "${podman_platform[@]}" --entrypoint "$compiler" "$image" "$@"
+  exec podman run --rm ${podman_platform[@]+"${podman_platform[@]}"} --entrypoint "$compiler" "$image" "$@"
 fi
 
 repo_root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -74,7 +74,7 @@ done
   exit 64
 }
 
-podman_argv=(run --rm -v "$stage_dir:/work" -w /work "${podman_platform[@]}")
+podman_argv=(run --rm -v "$stage_dir:/work" -w /work ${podman_platform[@]+"${podman_platform[@]}"})
 for ((i = 0; i < ${#mounts[@]}; i++)); do
   mount_value=${mounts[$i]}
   if [[ "$mount_value" == *:* ]]; then
