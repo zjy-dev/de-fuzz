@@ -50,8 +50,6 @@ experiments/
 orchestrator/runs/
 *.sqlite
 !callgraph_mcp/data/callgraph.sqlite
-callgraph_mcp/data/provenance.json
-callgraph_mcp/src/defuzz_callgraph/provenance.py
 
 # Build artifacts and scratch workspaces
 /bin/

@@ -20,14 +20,29 @@ PathDepth = Annotated[int, Field(ge=1, le=8)]
 MaxPaths = Annotated[int, Field(ge=1, le=50)]
 
 
-def create_server(db_path: str | Path) -> FastMCP:
+def create_server(
+    db_path: str | Path, *, allowed_targets: Sequence[str] = (),
+) -> FastMCP:
     path = Path(db_path).expanduser().resolve()
     mcp = FastMCP("defuzz-callgraph")
 
     def query(fn: Any, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        if fn is not graph.list_targets and allowed_targets and (
+            not args or args[0] not in allowed_targets
+        ):
+            raise ValueError("CallGraph target is outside the source-bound allowlist")
         con = graph.connect(path, read_only=True)
         try:
-            return fn(con, *args, **kwargs)
+            result = fn(con, *args, **kwargs)
+            if fn is graph.list_targets and allowed_targets:
+                result["targets"] = [
+                    row for row in result["targets"] if row["target"] in allowed_targets
+                ]
+                result["counters"] = {
+                    "targets": len(result["targets"]),
+                    "edges": sum(row["edge_count"] for row in result["targets"]),
+                }
+            return result
         finally:
             con.close()
 
@@ -79,8 +94,9 @@ def create_server(db_path: str | Path) -> FastMCP:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the DeFuzz callgraph MCP over stdio")
     parser.add_argument("--db", type=Path, required=True)
+    parser.add_argument("--allow-target", action="append", default=[])
     args = parser.parse_args(argv)
-    create_server(args.db).run(transport="stdio")
+    create_server(args.db, allowed_targets=args.allow_target).run(transport="stdio")
     return 0
 
 

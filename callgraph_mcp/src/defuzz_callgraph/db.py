@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import sqlite3
 from collections import deque
 from datetime import datetime, timezone
@@ -17,6 +18,9 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE TABLE IF NOT EXISTS metadata (
  target TEXT PRIMARY KEY, source_csv TEXT NOT NULL, edge_count INTEGER NOT NULL,
  ingested_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS provenance (
+ target TEXT PRIMARY KEY, payload TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_edges_target_caller ON edges(target, caller);
 CREATE INDEX IF NOT EXISTS idx_edges_target_callee ON edges(target, callee);
@@ -46,7 +50,13 @@ def _value(row: dict[str, str], *names: str) -> str:
     raise ValueError(f"CSV missing required column; expected one of {names}")
 
 
-def ingest_target(con: sqlite3.Connection, target: str, csv_path: str | Path) -> int:
+def ingest_target(
+    con: sqlite3.Connection,
+    target: str,
+    csv_path: str | Path,
+    *,
+    provenance: dict[str, Any] | None = None,
+) -> int:
     path = Path(csv_path).expanduser().resolve()
     if not target.strip():
         raise ValueError("target must not be empty")
@@ -56,6 +66,7 @@ def ingest_target(con: sqlite3.Connection, target: str, csv_path: str | Path) ->
     try:
         con.execute("BEGIN IMMEDIATE")
         con.execute("DELETE FROM edges WHERE target = ?", (target,))
+        con.execute("DELETE FROM provenance WHERE target = ?", (target,))
         with path.open(newline="", encoding="utf-8-sig") as handle:
             reader = csv.DictReader(handle)
             if reader.fieldnames is None:
@@ -89,6 +100,15 @@ def ingest_target(con: sqlite3.Connection, target: str, csv_path: str | Path) ->
             "INSERT OR REPLACE INTO metadata VALUES (?, ?, ?, ?)",
             (target, str(path), count, datetime.now(timezone.utc).isoformat()),
         )
+        if provenance is not None:
+            from .provenance import file_sha256
+
+            if provenance.get("csv_sha256") != file_sha256(path):
+                raise ValueError("CSV hash differs from provenance manifest")
+            con.execute(
+                "INSERT INTO provenance VALUES (?, ?)",
+                (target, json.dumps(provenance, sort_keys=True)),
+            )
         con.commit()
     except Exception:
         con.rollback()
@@ -105,9 +125,24 @@ def list_targets(con: sqlite3.Connection) -> dict[str, Any]:
     rows = con.execute(
         "SELECT target, source_csv, edge_count, ingested_at FROM metadata ORDER BY target"
     ).fetchall()
+    targets = [dict(r) for r in rows]
+    has_provenance = con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='provenance'"
+    ).fetchone()
+    for item in targets:
+        record = (
+            con.execute(
+                "SELECT payload FROM provenance WHERE target=?", (item["target"],)
+            ).fetchone()
+            if has_provenance
+            else None
+        )
+        metadata = json.loads(record["payload"]) if record else {}
+        item["provenance"] = {k: v for k, v in metadata.items() if k != "source_files_sha256"}
+        item["identity_status"] = "release-log-and-source-anchors" if metadata else "unverified"
     return {
         "query": {},
-        "targets": [dict(r) for r in rows],
+        "targets": targets,
         "counters": {"targets": len(rows), "edges": sum(r["edge_count"] for r in rows)},
         "truncated": False,
     }
