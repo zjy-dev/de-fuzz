@@ -2428,9 +2428,9 @@ def _mapping_input(plan: ExperimentPlan, repetition: int) -> Path | None:
     if previous:
         return _from_run_artifact(
             previous, repetition, "source-mappings.jsonl"
-        ).resolve(strict=True)
+        ).resolve(strict=False)
     if explicit:
-        return Path(str(explicit)).expanduser().resolve(strict=True)
+        return Path(str(explicit)).expanduser().resolve(strict=False)
     return None
 
 
