@@ -2,6 +2,13 @@
 set -euo pipefail
 
 if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
+  if [[ -f "$(dirname "${BASH_SOURCE[0]}")/../.work/gcc16-aarch64-run/.env" ]]; then
+    # shellcheck disable=SC1091
+    source "$(dirname "${BASH_SOURCE[0]}")/../.work/gcc16-aarch64-run/.env"
+  fi
+fi
+
+if [[ -z "${DEEPSEEK_API_KEY:-}" ]]; then
   echo "Error: DEEPSEEK_API_KEY environment variable is not set" >&2
   exit 1
 fi
