@@ -33,6 +33,8 @@ echo "Parity reference: /Users/bytedance/projects/research/defend-reviewer/main"
   --target-tree "$PROJECT_ROOT/.work/toolchains-matched/gcc-source" \
   --toolchains-config "$PROJECT_ROOT/.work/gcc16-aarch64-run/toolchains.host.yaml" \
   --pi-config "$PROJECT_ROOT/.work/gcc16-aarch64-run/pi-runtime.deepseek.json" \
+  --corpus-root "$PROJECT_ROOT/.work/gcc16-security-corpus" \
+  --backend pi \
   --isa aarch64 \
   --demo-parity \
   --time-budget-minutes 60 2>&1 | tee "$OUTPUT_ROOT/experiment.log"
