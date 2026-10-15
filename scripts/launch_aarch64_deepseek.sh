@@ -34,6 +34,7 @@ echo "Parity reference: /Users/bytedance/projects/research/defend-reviewer/main"
   --toolchains-config "$PROJECT_ROOT/.work/gcc16-aarch64-run/toolchains.host.yaml" \
   --pi-config "$PROJECT_ROOT/.work/gcc16-aarch64-run/pi-runtime.deepseek.json" \
   --corpus-root "$PROJECT_ROOT/.work/gcc16-security-corpus" \
+  --checker-source-root "$PROJECT_ROOT" \
   --backend pi \
   --isa aarch64 \
   --demo-parity \

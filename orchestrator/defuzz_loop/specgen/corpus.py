@@ -430,6 +430,10 @@ def _build_gcc_corpus(
     version: str = GCC_VERSION,
 ) -> list[Chunk]:
     """Chunk the whitelisted GCC files (+ Bugzilla) into the retrieval corpus."""
+    if (gcc_root / "gcc").is_dir() and not (gcc_root / "tree-object-size.cc").is_file():
+        gcc_root = gcc_root / "gcc"
+    elif (gcc_root / "sources" / "gcc").is_dir() and not (gcc_root / "tree-object-size.cc").is_file():
+        gcc_root = gcc_root / "sources" / "gcc"
     chunks: list[Chunk] = []
 
     for rel, mech, isa in _MIDDLE_END + _BACKEND_CC:
