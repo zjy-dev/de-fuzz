@@ -60,7 +60,9 @@ DEFAULT_DISPATCHER_PATH = "bin/defuzz-candidate-dispatcher"
 DEFAULT_CHECKER_ROOT = "core/internal/oracle"
 DEFAULT_SHARED_INTEGRATION_PATHS = (
     "core/internal/oracle/metadata.go",
+    "core/internal/oracle/metadata_test.go",
     "core/internal/oracle/registry.go",
+    "core/internal/oracle/registry_test.go",
     "core/internal/oracle/canary_oracle.go",
     "core/internal/oracle/ibt_oracle.go",
     "core/internal/oracle/fortify_oracle.go",
@@ -674,7 +676,8 @@ Required implementation and tests:
 5. Existing checker implementation and test files belong to earlier accepted invariants and
    are immutable. You may extend shared metadata and mechanism registration files only.
 
-Implement and test the checker now. Do not edit the source checkout outside this workspace.
+Implement the checker and its unit test files now. Note: You do not have a command execution tool; validation commands (gofmt, go test, go vet, catalog build) are executed automatically by the trusted orchestrator after you submit your response.
+CRITICAL: You are only responsible for creating the checker file, its unit test file under core/internal/oracle, and registering it in metadata.go / the mechanism. Do NOT search for, read, or test any service, dispatcher, or candidate files outside core/internal/oracle. As soon as your checker and test files are written/edited under core/internal/oracle, you MUST STOP calling tools and immediately provide a brief final summary of your changes to complete your turn. Do not edit the source checkout outside this workspace.
 """
 
 
@@ -1524,7 +1527,10 @@ class CheckerAuthoringRunner:
 
                 validation_ok = False
                 validation: list[dict[str, Any]] = []
-                if agent_result.success:
+                workspace_has_changes = bool(_changes(baseline, _snapshot(workspace)))
+                if agent_result.success or (
+                    agent_result.error_category in {"budget", "length"} and workspace_has_changes
+                ):
                     validation_ok, validation = await self._validate(
                         workspace, commands, timeout_seconds, agent_output / "commands"
                     )
@@ -1628,7 +1634,9 @@ class CheckerAuthoringRunner:
                         "attempt_id": attempt_id,
                         "parent_attempt_id": parent_attempt_id,
                         "evidence_dir": _reference_path(agent_output, output_dir),
-                        "agent_status": "passed" if agent_result.success else "failed",
+                        "agent_status": (
+                            "passed" if (agent_result.success or validation_ok) else "failed"
+                        ),
                         "agent_error": agent_result.error,
                         "validation_status": status,
                         "validation": validation,
@@ -1654,7 +1662,12 @@ class CheckerAuthoringRunner:
                     accepted_snapshot = current
                     break
                 if not agent_result.success and not schema_repairable(agent_result):
-                    if agent_result.error_category == "budget":
+                    if (
+                        agent_result.error_category == "budget"
+                        and token_sink.consumed_total_tokens is not None
+                        and token_sink.token_budget is not None
+                        and token_sink.consumed_total_tokens >= token_sink.token_budget
+                    ):
                         stopped_reason = agent_result.error or "Pi model budget exhausted"
                     break
                 if any(

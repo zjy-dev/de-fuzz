@@ -1274,6 +1274,26 @@ def _run_all_main(argv: Sequence[str]) -> int:
     checker_run_dir = output_root / checker_id
     mapping_run_dir = output_root / mapping_id
 
+    def _is_stage_completed(run_id: str) -> bool:
+        if not args.resume:
+            return False
+        manifest_file = output_root / run_id / "manifest.json"
+        if not manifest_file.is_file():
+            return False
+        try:
+            data = json.loads(manifest_file.read_text(encoding="utf-8"))
+            if data.get("status") not in ("completed", "ready"):
+                return False
+            reps = data.get("repetitions", {})
+            if not reps:
+                return False
+            return all(
+                isinstance(rep, dict) and rep.get("status") in ("completed", "ready")
+                for rep in reps.values()
+            )
+        except Exception:
+            return False
+
     def _resume_flag(run_id: str) -> list[str]:
         # Resume only sub-runs that already exist; freshly reached stages start
         # clean so a partially completed run-all can be continued safely.
@@ -1426,10 +1446,15 @@ def _run_all_main(argv: Sequence[str]) -> int:
         audit_argv += ["--toolchains-config", str(inst_toolchains)]
     elif args.toolchains_config is not None:
         audit_argv += ["--toolchains-config", str(args.toolchains_config)]
-    audit_argv += [
-        "--accepted-invariants",
-        str(_from_run_artifact(inv_run_dir, 1, "accepted-invariants.jsonl")),
-    ]
+    scoped_invariants = _from_run_artifact(
+        checker_run_dir, 1, "scoped-accepted-invariants.jsonl"
+    )
+    if scoped_invariants.is_file():
+        audit_argv += ["--accepted-invariants", str(scoped_invariants)]
+    else:
+        inv_file = _from_run_artifact(inv_run_dir, 1, "accepted-invariants.jsonl")
+        if inv_file.is_file():
+            audit_argv += ["--accepted-invariants", str(inv_file)]
     if args.toolchain_version is not None:
         audit_argv += ["--toolchain-version", str(args.toolchain_version)]
     if args.demo_parity:
@@ -1489,6 +1514,12 @@ def _run_all_main(argv: Sequence[str]) -> int:
             print(f"defuzz-experiment: configuration error: {exc}", file=sys.stderr)
             return EXIT_CONFIGURATION_ERROR
     for index, (name, sub_argv) in enumerate(stages, start=1):
+        run_id = _run_id(name)
+        if args.resume and _is_stage_completed(run_id):
+            manifest_file = output_root / run_id / "manifest.json"
+            print(f"==> run-all [{index}/{len(stages)}]: {name}", file=sys.stderr)
+            print(f"completed: {manifest_file}")
+            continue
         print(f"==> run-all [{index}/{len(stages)}]: {name}", file=sys.stderr)
         code = main(sub_argv)
         if code != 0:

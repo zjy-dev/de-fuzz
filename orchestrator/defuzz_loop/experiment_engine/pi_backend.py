@@ -23,7 +23,7 @@ from .pi_config import agent_id_for, load_pi_config, resolve_agent, validate_cre
 
 PROTOCOL_VERSION = 1
 MAX_FRAME_BYTES = 16 * 1024 * 1024
-MAX_OUTPUT_BYTES = 256 * 1024 * 1024
+MAX_OUTPUT_BYTES = 2048 * 1024 * 1024
 DIAGNOSTIC_TAIL_BYTES = 64 * 1024
 
 
@@ -32,13 +32,52 @@ class ProtocolError(RuntimeError):
 
 
 def extract_json(text: str) -> Any:
-    """Accept one JSON value, optionally wrapped in a single Markdown code fence."""
+    """Accept one JSON value, optionally wrapped in a single Markdown code fence or with commentary."""
     text = text.strip()
+    # 1. Standard markdown code fence at start
     if text.startswith("```"):
         first, _, body = text.partition("\n")
-        if first not in {"```", "```json"} or not body.rstrip().endswith("```"):
-            raise ValueError("invalid JSON fence")
-        text = body.rstrip()[:-3].strip()
+        if first in {"```", "```json"} and body.rstrip().endswith("```"):
+            candidate = body.rstrip()[:-3].strip()
+            try:
+                return json.loads(candidate)
+            except Exception:
+                pass
+    # 2. Direct JSON
+    if (text.startswith("{") and text.endswith("}")) or (text.startswith("[") and text.endswith("]")):
+        try:
+            return json.loads(text)
+        except Exception:
+            pass
+    # 3. Markdown code block embedded in text (e.g. after introductory reasoning)
+    if "```json" in text:
+        start = text.index("```json") + len("```json")
+        end = text.rindex("```")
+        if end > start:
+            inner = text[start:end].strip()
+            try:
+                return json.loads(inner)
+            except Exception:
+                pass
+    if "```" in text:
+        start = text.index("```") + 3
+        _, _, rest = text[start:].partition("\n")
+        if "```" in rest:
+            end = rest.rindex("```")
+            inner = rest[:end].strip()
+            try:
+                return json.loads(inner)
+            except Exception:
+                pass
+    # 4. Outermost JSON object / array
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace != -1 and last_brace > first_brace:
+        candidate = text[first_brace : last_brace + 1].strip()
+        try:
+            return json.loads(candidate)
+        except Exception:
+            pass
     return json.loads(text)
 
 

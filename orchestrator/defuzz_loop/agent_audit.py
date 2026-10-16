@@ -785,6 +785,17 @@ async def _run_worker(
             },
         )
         async with semaphore:
+            if token_sink is not None:
+                try:
+                    token_sink.check_budget()
+                except Exception as exc:
+                    report = AuditReport(
+                        family=bundle.family.key,
+                        variant=bundle.variant.value,
+                        worker_bundle_sha256="",
+                        parse_issues=[f"insufficient remaining token budget: {exc}"],
+                    )
+                    return (bundle, report, str(exc))
             try:
                 if getattr(backend, "provider", None) == "pi":
                     original = request.prompt
@@ -1316,64 +1327,28 @@ async def run(
         # The CLI installs the repetition sink in ambient context and its backend
         # wrapper reuses this same object.  Passing it through avoids a second sink.
         token_sink = current_token_usage_sink()
-        if token_sink is None:
-            worker_results = await asyncio.gather(
-                *(
-                    _run_worker(
-                        active_backend,
-                        bundle,
-                        cwd=lease.root,
-                        output_dir=destination,
-                        schema_path=schema_path,
-                        timeout_seconds=resolved.budget.timeout_seconds,
-                        semaphore=semaphore,
-                        token_sink=None,
-                        deny_read_paths=agent_deny_paths,
-                        require_host_read_isolation=require_host_isolation,
-                        expected_compiler=configured_compiler,
-                        expected_mechanisms=mechanisms,
-                        expected_isas=isas,
-                        callgraph_binding=callgraph_binding,
-                        prompt_suffix=checker_routing_prompt,
-                    )
-                    for bundle in bundles
+        worker_results = await asyncio.gather(
+            *(
+                _run_worker(
+                    active_backend,
+                    bundle,
+                    cwd=lease.root,
+                    output_dir=destination,
+                    schema_path=schema_path,
+                    timeout_seconds=resolved.budget.timeout_seconds,
+                    semaphore=semaphore,
+                    token_sink=token_sink,
+                    deny_read_paths=agent_deny_paths,
+                    require_host_read_isolation=require_host_isolation,
+                    expected_compiler=configured_compiler,
+                    expected_mechanisms=mechanisms,
+                    expected_isas=isas,
+                    callgraph_binding=callgraph_binding,
+                    prompt_suffix=checker_routing_prompt,
                 )
+                for bundle in bundles
             )
-        else:
-            # A shared provider-token budget cannot be reserved atomically across
-            # concurrent processes. Dispatch serially so every next worker sees
-            # usage recorded by the preceding worker.
-            worker_results = []
-            for bundle in bundles:
-                try:
-                    token_sink.check_budget()
-                except Exception as exc:
-                    report = AuditReport(
-                        family=bundle.family.key,
-                        variant=bundle.variant.value,
-                        parse_issues=[f"budget stopped worker: {exc}"],
-                    )
-                    worker_results.append((bundle, report, str(exc)))
-                    continue
-                worker_results.append(
-                    await _run_worker(
-                        active_backend,
-                        bundle,
-                        cwd=lease.root,
-                        output_dir=destination,
-                        schema_path=schema_path,
-                        timeout_seconds=resolved.budget.timeout_seconds,
-                        semaphore=semaphore,
-                        token_sink=token_sink,
-                        deny_read_paths=agent_deny_paths,
-                        require_host_read_isolation=require_host_isolation,
-                        expected_compiler=configured_compiler,
-                        expected_mechanisms=mechanisms,
-                        expected_isas=isas,
-                        callgraph_binding=callgraph_binding,
-                        prompt_suffix=checker_routing_prompt,
-                    )
-                )
+        )
 
         reports: list[AuditReport] = []
         worker_validity: list[dict[str, Any]] = []
@@ -1556,11 +1531,10 @@ async def run(
                         )
                         errors.append(message)
                         break
-                revised: dict[str, AuditReport] = {}
-                for family_key, oracle_results in feedback_by_family.items():
+                async def _dispatch_oracle_worker(family_key: str, oracle_results: Any) -> tuple[str, AuditReport | None, str | None]:
                     selected_bundle = by_family.get(family_key)
                     if selected_bundle is None:
-                        continue
+                        return (family_key, None, None)
                     if oracle_results:
                         feedback = render_oracle_feedback(oracle_results)
                         has_violation = any(
@@ -1618,9 +1592,25 @@ async def run(
                         callgraph_binding=callgraph_binding,
                         invocation_label=f"oracle-{round_index:03d}",
                     )
-                    revised[family_key] = report
+                    return (family_key, report, error)
+
+                oracle_worker_results = await asyncio.gather(
+                    *(
+                        _dispatch_oracle_worker(family_key, oracle_results)
+                        for family_key, oracle_results in feedback_by_family.items()
+                    )
+                )
+                revised: dict[str, AuditReport] = {}
+                current_reports_by_family = {r.family: r for r in reports}
+                for family_key, report, error in oracle_worker_results:
                     if error:
                         errors.append(f"worker {family_key} oracle round {round_index}: {error}")
+                    if report is not None:
+                        prev = current_reports_by_family.get(family_key)
+                        prev_issues = bool(prev.parse_issues) if prev else False
+                        curr_issues = bool(report.parse_issues) or bool(error)
+                        if not curr_issues or prev_issues:
+                            revised[family_key] = report
                 if not revised:
                     break
                 reports = [revised.get(report.family, report) for report in reports]

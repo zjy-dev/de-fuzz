@@ -38,7 +38,8 @@ echo "Parity reference: /Users/bytedance/projects/research/defend-reviewer/main"
   --backend pi \
   --isa aarch64 \
   --demo-parity \
-  --token-budget 4000000 \
-  --time-budget-minutes 120 "$@" 2>&1 | tee "$OUTPUT_ROOT/experiment.log"
+  --max-concurrency 4 \
+  --token-budget 300000000 \
+  --time-budget-minutes 360 "$@" 2>&1 | tee "$OUTPUT_ROOT/experiment.log"
 
 echo "=== [$(date '+%Y-%m-%d %H:%M:%S')] Experiment finished ==="

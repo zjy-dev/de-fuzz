@@ -671,7 +671,7 @@ async def test_pi_mapping_handoff_to_audit_archives_full_evidence(runtime, tmp_p
         )[-1]
         return {
             "schema_version": 1,
-            "family": "A",
+            "family": "MAP-001",
             "variant": "without-oracle",
             "worker_bundle_sha256": identity,
             "candidates": [],
@@ -700,10 +700,10 @@ async def test_pi_mapping_handoff_to_audit_archives_full_evidence(runtime, tmp_p
             backend,
         )
     assert result.success, result.errors
-    execution = json.loads((tmp_path / "audit/worker-a-initial/execution.json").read_text())
+    execution = json.loads((tmp_path / "audit/worker-map-001-initial/execution.json").read_text())
     assert execution["provider"] == "pi" and execution["callgraph_queries"] == 1
-    archive = json.loads((tmp_path / "audit/worker-a-initial/runtime-archive.json").read_text())
-    directory = (tmp_path / "audit/worker-a-initial" / archive["path"]).resolve()
+    archive = json.loads((tmp_path / "audit/worker-map-001-initial/runtime-archive.json").read_text())
+    directory = (tmp_path / "audit/worker-map-001-initial" / archive["path"]).resolve()
     assert (directory / "attempt-001/provider-events.jsonl").is_file()
     assert (directory / "attempt-001/session.jsonl").is_file()
     assert len(sink.records) == 4
