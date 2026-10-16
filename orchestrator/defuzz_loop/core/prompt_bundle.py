@@ -654,8 +654,9 @@ def build_worker_prompt_bundle(
             "cannot emit the required structured JSON. Record scope limits or environment "
             "observations in coverage_gaps or next_steps, never in parse_issues. Use the "
             "discovery date given above verbatim; do not require a clock.",
-            "Return one JSON object conforming to the supplied AuditReport schema. Do not "
-            "write or archive findings.",
+            "Return one JSON object conforming to the supplied AuditReport schema. Assign candidates "
+            "unique identifiers starting with 'CAND-' (e.g. CAND-YYYY-NNN); never use benchmark 'DREV-' prefixes. "
+            "Do not write or archive findings.",
         ]
     if hypotheses.strip():
         instructions.append(f"Per-review hypotheses:\n{hypotheses.strip()}")

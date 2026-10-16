@@ -149,7 +149,7 @@ class AuditCandidate(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     schema_version: int = 1
-    id: str = "DREV-YYYY-NNN"
+    id: str = "CAND-YYYY-NNN"
     title: str = ""
     toolchain: str = ""
     toolchain_version: str = ""

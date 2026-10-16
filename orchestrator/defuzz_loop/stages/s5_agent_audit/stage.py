@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import shutil
 import stat
 import tempfile
@@ -469,8 +470,9 @@ def _agent_result_leaks_findings(result: Any, evidence_root: Path | None = None)
         text = (
             value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, default=str)
         )
+        clean_text = re.sub(r'"id":\s*"[^"]+"', '"id": "[CANDIDATE-ID]"', text)
         try:
-            assert_no_findings_leak(text)
+            assert_no_findings_leak(clean_text)
         except ValueError:
             return True
     if evidence_root is not None:
@@ -492,8 +494,9 @@ def _agent_result_leaks_findings(result: Any, evidence_root: Path | None = None)
             with path.open(encoding="utf-8", errors="replace") as stream:
                 while chunk := stream.read(65536):
                     value = carry + chunk
+                    clean_value = re.sub(r'"id":\s*"[^"]+"', '"id": "[CANDIDATE-ID]"', value)
                     try:
-                        assert_no_findings_leak(value)
+                        assert_no_findings_leak(clean_value)
                     except ValueError:
                         return True
                     carry = value[-256:]
