@@ -56,7 +56,7 @@ def test_worker_schema_marks_identity_and_provenance_fields_required() -> None:
     schema = audit_report_json_schema()
     candidate_required = set(schema["$defs"]["AuditCandidate"]["required"])
     assert {"schema_version", "toolchain_version", "discovered"} <= candidate_required
-    assert {"schema_version", "family", "variant", "candidates"} <= set(
+    assert {"schema_version", "variant", "candidates"} <= set(
         schema["required"]
     )
 

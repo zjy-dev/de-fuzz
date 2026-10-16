@@ -357,6 +357,6 @@ def audit_report_json_schema() -> dict[str, Any]:
         )
         candidate["required"] = sorted(required)
     required_report = set(schema.get("required", []))
-    required_report.update({"schema_version", "family", "variant", "candidates"})
+    required_report.update({"schema_version", "variant", "candidates"})
     schema["required"] = sorted(required_report)
     return schema

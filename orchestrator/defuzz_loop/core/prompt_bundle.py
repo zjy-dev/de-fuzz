@@ -377,7 +377,7 @@ def _external_document(
 def _family_section(template: str, family: AuditFamily) -> str:
     pattern = re.compile(
         rf"(?ms)^### SUBAGENT {re.escape(family.key)}\b.*?"
-        r"(?=^### SUBAGENT [A-E]\b|^## Uniform subagent instructions)"
+        r"(?=^### SUBAGENT \S+\b|^## Uniform subagent instructions)"
     )
     match = pattern.search(template)
     uniform = re.search(
@@ -386,7 +386,7 @@ def _family_section(template: str, family: AuditFamily) -> str:
     suffix = uniform.group(0) if uniform else ""
     if match is not None:
         return _redact_findings_references(match.group(0).strip() + "\n\n" + suffix.strip())
-    prefix = f"### SUBAGENT {family.key} — mechanism {family.name}\nScope: {family.key}"
+    prefix = f"### Scope: {family.key} — mechanism {family.name}\nScope: {family.key}"
     return _redact_findings_references(prefix + "\n\n" + suffix.strip())
 
 
@@ -637,7 +637,7 @@ def build_worker_prompt_bundle(
     else:
         instructions = [
             "You are an independent compiler-defense audit worker.",
-            f"Assigned family: {selected_family.key} ({selected_family.name}).",
+            f"Assigned audit scope: {selected_family.key} ({selected_family.name}).",
             f"Mechanisms: {', '.join(selected_mechanisms)}.",
             "Target source trees inside the current working directory: "
             f"{', '.join(source_labels)}.",

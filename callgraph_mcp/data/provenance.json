@@ -4,7 +4,7 @@
     "gcc-16.2.0-aarch64": {
       "compiler": "gcc",
       "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
-      "csv_sha256": "33572cca2c652132d25ae013708af0272cbf389a4bb49974c066c158a20ff560",
+      "csv_sha256": "c5cd9864cd419b0f3be42c415e46e52e91c299a46a3694eecdb2d27d7bed42f4",
       "extractor": "CodeQL",
       "isas": [
         "aarch64"
@@ -1165,7 +1165,7 @@
     "gcc-16.2.0-x86_64": {
       "compiler": "gcc",
       "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
-      "csv_sha256": "b351eac618001eb91c0e4a683efa367a9b1c93970fc9205d832006fe3e0cd7fb",
+      "csv_sha256": "6476d573e23a73d4f56895b01e398a1db3c37ae92768d7f59a817625cc0cb410",
       "extractor": "CodeQL",
       "isas": [
         "x86_64"
@@ -2311,7 +2311,7 @@
     "llvm-23.1.2": {
       "compiler": "llvm",
       "coverage": "observed compiled translation units; direct calls and virtual overrides only; function-pointer calls omitted",
-      "csv_sha256": "5784716bead48f1678c6e98e1053ff32da84b508d8166d66983aaf92ec36b297",
+      "csv_sha256": "a0be8db0a5ec0e574d625f0aa6290b796b03f4bcc3e4c922088d5c491475528b",
       "extractor": "CodeQL",
       "isas": [
         "x86_64",

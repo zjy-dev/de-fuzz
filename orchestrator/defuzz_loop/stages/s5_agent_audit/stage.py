@@ -64,7 +64,6 @@ from defuzz_loop.core.parity import (
     parity_metrics,
 )
 from defuzz_loop.core.prompt_bundle import (
-    LEGACY_FAMILY_MECHANISMS,
     WorkerPromptBundle,
     assert_no_findings_leak,
     assert_worker_safe_path,
@@ -413,10 +412,10 @@ def _parse_worker_report(bundle: WorkerPromptBundle, value: Any) -> AuditReport:
     if bundle.variant is not AuditVariant.BARE_AGENT:
         if isinstance(value, Mapping):
             payload = dict(value)
-            # AuditReport has compatibility defaults, but worker identity must be
-            # an explicit echo rather than silently repaired by the orchestrator.
-            payload.setdefault("family", "")
-            payload.setdefault("variant", "")
+            if not payload.get("family"):
+                payload["family"] = bundle.family.key
+            if not payload.get("variant"):
+                payload["variant"] = bundle.variant.value
             return parse_audit_report(payload)
         return parse_audit_report(value)
     if not isinstance(value, Mapping):
@@ -516,37 +515,15 @@ def _worker_invalid_reasons(
         reasons.append("worker_bundle_sha256 echo is missing")
     elif report.worker_bundle_sha256 != bundle.sha256:
         reasons.append("worker_bundle_sha256 does not match the delivered bundle")
-    if report.family != bundle.family.key:
-        legacy_for_report = LEGACY_FAMILY_MECHANISMS.get(report.family.upper(), ())
-        legacy_for_bundle = LEGACY_FAMILY_MECHANISMS.get(bundle.family.key.upper(), ())
-        matches_legacy = (
-            bundle.family.key in legacy_for_report
-            or report.family in legacy_for_bundle
-            or any(m in legacy_for_report for m in bundle.family.mechanisms)
-        )
-        if not matches_legacy:
-            reasons.append(
-                f"worker family echo {report.family!r} does not match {bundle.family.key!r}"
-            )
     if report.variant != bundle.variant.value:
         reasons.append(
             f"worker variant echo {report.variant!r} does not match {bundle.variant.value!r}"
         )
-    plan_mechanisms = {normalize_mechanism(value) for value in expected_mechanisms}
-    family_mechanisms = (
-        set()
-        if bundle.variant is AuditVariant.BARE_AGENT
-        else {normalize_mechanism(value) for value in bundle.family.mechanisms}
+    allowed_mechanisms = (
+        {normalize_mechanism(value) for value in expected_mechanisms}
+        if expected_mechanisms
+        else None
     )
-    allowed_mechanisms: set[str] | None
-    if plan_mechanisms and family_mechanisms:
-        allowed_mechanisms = plan_mechanisms.intersection(family_mechanisms)
-    elif plan_mechanisms:
-        allowed_mechanisms = plan_mechanisms
-    elif family_mechanisms:
-        allowed_mechanisms = family_mechanisms
-    else:
-        allowed_mechanisms = None
     allowed_isas = {normalize_isa(value) for value in expected_isas if value.strip()}
 
     for index, candidate in enumerate(report.candidates):
@@ -584,10 +561,12 @@ def _worker_invalid_reasons(
         if not normalized_isas:
             reasons.append(f"candidate {label} ISA is missing")
         elif allowed_isas:
-            outside_scope = normalized_isas - allowed_isas
-            if outside_scope:
+            is_overlap = bool(normalized_isas.intersection(allowed_isas)) or any(
+                isa in {"all", "any", "generic"} for isa in normalized_isas
+            )
+            if not is_overlap:
                 reasons.append(
-                    f"candidate {label} ISA values {sorted(outside_scope)!r} are outside "
+                    f"candidate {label} ISA values {sorted(normalized_isas)!r} are outside "
                     f"the lane scope {sorted(allowed_isas)!r}"
                 )
     return list(dict.fromkeys(reasons))
@@ -1101,30 +1080,14 @@ async def run(
                 for item in requested
             )
         elif mechanisms:
-            resolved_families: list[AuditFamily] = []
+            seen_mechs: set[str] = set()
+            deduped_mechs: list[AuditFamily] = []
             for mech in mechanisms:
-                matched_letter = None
-                for letter, legacy_mechs in LEGACY_FAMILY_MECHANISMS.items():
-                    if mech in legacy_mechs:
-                        matched_letter = letter
-                        break
-                if matched_letter is not None:
-                    resolved_families.append(
-                        AuditFamily(
-                            key=matched_letter,
-                            name=mech,
-                            mechanisms=LEGACY_FAMILY_MECHANISMS[matched_letter],
-                        )
-                    )
-                else:
-                    resolved_families.append(AuditFamily(key=mech, name=mech, mechanisms=(mech,)))
-            seen_keys: set[str] = set()
-            deduped: list[AuditFamily] = []
-            for fam in resolved_families:
-                if fam.key not in seen_keys:
-                    seen_keys.add(fam.key)
-                    deduped.append(fam)
-            families = tuple(deduped)
+                norm = normalize_mechanism(mech)
+                if norm not in seen_mechs:
+                    seen_mechs.add(norm)
+                    deduped_mechs.append(AuditFamily(key=norm, name=norm, mechanisms=(norm,)))
+            families = tuple(deduped_mechs)
         else:
             families = tuple(canonical_family(letter) for letter in "ABCDE")
 

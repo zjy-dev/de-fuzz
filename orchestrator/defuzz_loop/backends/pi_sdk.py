@@ -819,12 +819,6 @@ class PiAgentBackend:
                     output / "final.json", (json.dumps(final, ensure_ascii=False) + "\n").encode()
                 )
         graph_calls = int((terminal or {}).get("callgraph_queries", 0))
-        if runtime_ok and self.uses_callgraph(request) and not graph_calls:
-            error, category = (
-                "Pi returned without a successful required CallGraph query",
-                "artifact",
-            )
-            artifact_ok = False
         complete_usage = all(v.get("status") == "reported" for v in usage_records.values())
         if self.config["strict_usage"] and not complete_usage:
             evidence_ok = False

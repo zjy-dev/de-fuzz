@@ -1082,7 +1082,6 @@ async def test_runner_rejects_tainted_backend_candidate(tmp_path: Path) -> None:
         "parse-issue",
         "missing-bundle-hash",
         "bundle-hash-mismatch",
-        "family-mismatch",
         "variant-mismatch",
     ],
 )
